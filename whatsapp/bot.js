@@ -571,11 +571,14 @@ async function processMessageFromQueue(messageData) {
       fromGroup: from,
       fromGroupName: groupSubject,
       author: participant || remoteJid || null,
+      senderName: senderName,
+      senderPhone: senderPhone,
       rejectedAt: Date.now(),
       aiConfidence: null,
       aiReason: `Category limit reached: ${quickCategory}`,
       category: quickCategory,
       blockReason: "category_limit_reached_pre_check",
+      imageUrl: imageUrl || null, // Save image for later use
     };
 
     recycleBin.unshift(recycleBinItem);
@@ -606,16 +609,19 @@ async function processMessageFromQueue(messageData) {
         `❌ Not an ad (confidence: ${aiResult.confidence}%): ${aiResult.reason}`
       );
 
-      // Add to recycle bin
+      // Add to recycle bin - include image for later use
       const recycleBinItem = {
         id: `rb_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
         text: messageText,
         fromGroup: from,
         fromGroupName: groupSubject,
         author: participant || remoteJid || null,
+        senderName: senderName,
+        senderPhone: senderPhone,
         rejectedAt: Date.now(),
         aiConfidence: aiResult.confidence,
         aiReason: aiResult.reason,
+        imageUrl: imageUrl || null, // Save image for later use
       };
 
       recycleBin.unshift(recycleBinItem);
@@ -636,18 +642,21 @@ async function processMessageFromQueue(messageData) {
         `🚫 Category "${aiResult.category}" has reached its limit. Ad blocked and moved to recycle bin.`
       );
 
-      // Move to recycle bin instead of saving
+      // Move to recycle bin instead of saving - include image for later use
       const recycleBinItem = {
-        id: `${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+        id: `rb_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
         text: messageText,
         fromGroup: from,
         fromGroupName: groupSubject,
         author: participant || remoteJid || null,
+        senderName: senderName,
+        senderPhone: senderPhone,
         rejectedAt: Date.now(),
         aiConfidence: aiResult.confidence,
         aiReason: `Category limit reached: ${aiResult.category}`,
         category: aiResult.category,
         blockReason: "category_limit_reached",
+        imageUrl: imageUrl || null, // Save image for later use
       };
 
       recycleBin.unshift(recycleBinItem);

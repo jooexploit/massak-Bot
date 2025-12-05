@@ -269,6 +269,30 @@ module.exports = {
     const orderType = (meta.order_type || "").toLowerCase();
     const offerType = (meta.offer_type || "").toLowerCase();
 
+    // ⚠️ PRIORITY CHECK 0: Check for car/حراج keywords - HIGHEST PRIORITY
+    // Car ads should ALWAYS go to Hasak even if category is "طلبات"
+    const carKeywords = [
+      "سيارة",
+      "سيارات",
+      "حراج",
+      "جمس",
+      "جيب",
+      "كامري",
+      "كورولا",
+      "النترا",
+      "سوناتا",
+      "بانوراما",
+      "موديل",
+      "معرض سيارات",
+    ];
+    const hasCarKeyword = carKeywords.some((kw) => lowerText.includes(kw));
+    if (hasCarKeyword) {
+      console.log(
+        `✅ Car/حراج keyword found in text → Forcing route to Hasak (حراج الحسا)`
+      );
+      return "hasak";
+    }
+
     // ⚠️ PRIORITY CHECK 1: Check order_type/offer_type for فعالية
     if (
       orderType === "فعالية" ||

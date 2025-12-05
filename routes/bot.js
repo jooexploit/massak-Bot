@@ -378,6 +378,20 @@ async function postAdToWordPress(
       }
     }
 
+    // =====================================================
+    // APPLY WATERMARK BASED ON TARGET WEBSITE
+    // =====================================================
+    if (imageBuffer) {
+      try {
+        const { processImage } = require("../services/watermarkService");
+        console.log(`\n🎨 Applying watermark for ${targetWebsite}...`);
+        imageBuffer = await processImage(imageBuffer, targetWebsite);
+      } catch (watermarkError) {
+        console.error("⚠️ Watermark processing failed:", watermarkError.message);
+        console.log("⚠️ Continuing with original image without watermark");
+      }
+    }
+
     // Upload the image to WordPress if we have one
     if (imageBuffer) {
       try {

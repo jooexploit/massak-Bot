@@ -29,7 +29,8 @@
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^4.2.1",
     "pino": "^8.16.2",
-    "qrcode": "^1.5.3"
+    "qrcode": "^1.5.3",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
