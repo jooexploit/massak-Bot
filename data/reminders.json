@@ -1,0 +1,22 @@
+[
+  {
+    "id": "1762709919678",
+    "createdBy": "966508007053",
+    "targetNumber": "966508007053",
+    "scheduledDateTime": 1762713540000,
+    "message": "اتصل بالعميل",
+    "status": "sent",
+    "createdAt": 1762709919678,
+    "sentAt": 1762713542077
+  },
+  {
+    "id": "1762709977682",
+    "createdBy": "966508007053",
+    "targetNumber": "966508007053",
+    "scheduledDateTime": 1762717200000,
+    "message": "اتصل بالعميل",
+    "status": "sent",
+    "createdAt": 1762709977682,
+    "sentAt": 1762718614159
+  }
+]
