@@ -2108,9 +2108,9 @@ async function sendMessage(numberOrJid, message) {
               body: linkPreview.description || "",
               thumbnailUrl: linkPreview.canonicalUrl,
               sourceUrl: linkPreview.canonicalUrl,
-              mediaType: 1,
+              mediaType: 1, // 1 = Image/link preview
               thumbnail: linkPreview.jpegThumbnail,
-              renderLargerThumbnail: true,
+              renderLargerThumbnail: true, // Display larger thumbnail
               showAdAttribution: false,
             },
           };
@@ -2125,15 +2125,45 @@ async function sendMessage(numberOrJid, message) {
               body: linkPreview.description || "",
               sourceUrl: linkPreview.canonicalUrl,
               mediaType: 1,
+              renderLargerThumbnail: true,
               showAdAttribution: false,
             },
           };
           console.log(`📎 Added link preview without thumbnail`);
         }
 
-        await sock.sendMessage(jid, messageContent);
-        console.log(`✅ Message sent with link preview to ${jid}`);
-        return; // Exit after successful send
+        // Try sending with link preview with retry logic
+        const maxRetries = 2;
+        let lastError = null;
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            await sock.sendMessage(jid, messageContent);
+            console.log(`✅ Message sent with link preview to ${jid}`);
+            return; // Exit after successful send
+          } catch (sendError) {
+            lastError = sendError;
+            const isTimeout = sendError.message?.includes("Timed Out") || 
+                             sendError.output?.statusCode === 408 ||
+                             sendError.message?.includes("timeout");
+            
+            console.warn(`⚠️ Attempt ${attempt}/${maxRetries} failed to send with link preview: ${sendError.message}`);
+            
+            if (isTimeout && attempt < maxRetries) {
+              // Wait before retrying (exponential backoff)
+              const delayMs = attempt * 2000; // 2 seconds, 4 seconds
+              console.log(`⏳ Waiting ${delayMs}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+            } else if (attempt === maxRetries) {
+              // All retries failed, fall back to sending without link preview
+              console.warn(`⚠️ All ${maxRetries} attempts failed, sending without link preview`);
+              console.error(`📍 Last error:`, lastError.message);
+              break; // Exit retry loop and fall through to plain text send
+            }
+          }
+        }
+        
+        // If we reach here, all retries failed - fall through to send without link preview
       } else {
         console.warn(`⚠️ Failed to generate link preview, sending without it`);
       }
@@ -2146,6 +2176,7 @@ async function sendMessage(numberOrJid, message) {
 
   // Send message without link preview (no URLs or preview generation failed)
   await sock.sendMessage(jid, { text: message });
+  console.log(`✅ Message sent (plain text) to ${jid}`);
 }
 
 /**

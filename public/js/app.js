@@ -6730,6 +6730,39 @@ function renderWhatsAppMessageCards(ads, container) {
       transition: transform 0.2s, box-shadow 0.2s;
     `;
 
+    // Image preview section (similar to Manage Ads)
+    let imagePreview = null;
+    if (ad.imageUrl && typeof ad.imageUrl === "object") {
+      imagePreview = document.createElement("div");
+      imagePreview.style.cssText = `
+        margin-bottom: 12px;
+        border-radius: 8px;
+        overflow: hidden;
+      `;
+      imagePreview.innerHTML = `
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 8px 12px; font-weight: bold; display: flex; align-items: center; gap: 8px; font-size: 0.85rem;">
+          <i class="fas fa-image"></i>
+          <span>🖼️ Ad Image</span>
+        </div>
+        <div style="padding: 10px; background: white; border: 2px solid #667eea; border-top: none; border-radius: 0 0 6px 6px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+          <img 
+            id="wa-preview-img-${ad.id}"
+            src="/api/bot/ads/${ad.id}/full-image" 
+            alt="Ad Image" 
+            style="max-width: 100%; max-height: 150px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; object-fit: contain;"
+            onclick="openAdImageFullView('${ad.id}')"
+            onerror="this.src='${ad.imageUrl.jpegThumbnail ? `data:image/jpeg;base64,${ad.imageUrl.jpegThumbnail}` : '/images/no-image-placeholder.png'}'"
+          />
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+            <button class="btn btn-sm btn-primary" onclick="openAdImageFullView('${ad.id}')" style="display: flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 0.75rem;">
+              <i class="fas fa-expand"></i> Full View
+            </button>
+          </div>
+          <small style="color: #666; font-size: 0.7rem;">${ad.imageUrl.mimetype || 'image/jpeg'} ${ad.imageUrl.width && ad.imageUrl.height ? `• ${ad.imageUrl.width}x${ad.imageUrl.height} px` : ''}</small>
+        </div>
+      `;
+    }
+
     // Message preview
     const messagePreview = document.createElement("div");
     messagePreview.style.cssText = `
@@ -6909,6 +6942,7 @@ function renderWhatsAppMessageCards(ads, container) {
       moreButton.onclick = () => handleAcceptWhatsAppMessage(ad.id, ad, card);
       actionButtons.appendChild(viewButton);
       actionButtons.appendChild(moreButton);
+      if (imagePreview) card.appendChild(imagePreview);
       card.appendChild(messagePreview);
       card.appendChild(metadata);
       card.appendChild(collectionsSection);
@@ -6944,6 +6978,7 @@ function renderWhatsAppMessageCards(ads, container) {
     actionButtons.appendChild(acceptButton);
     actionButtons.appendChild(rejectButton);
 
+    if (imagePreview) card.appendChild(imagePreview);
     card.appendChild(messagePreview);
     card.appendChild(metadata);
     card.appendChild(collectionsSection);
