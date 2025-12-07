@@ -24,6 +24,121 @@ let reminders = [];
 // Load admins from file
 const ADMINS_FILE = path.join(__dirname, "../data/admins.json");
 
+// Pending waseet confirmations: { [adminJid]: { entries: [...], createdAt } }
+const pendingWaseetConfirmations = {};
+// Pending admin confirmations: { [adminJid]: { entries: [...], createdAt } }
+const pendingAdminConfirmations = {};
+
+/**
+ * Normalize phone number to standard format
+ * - Removes all spaces
+ * - Removes + prefix
+ * - Converts local formats (0xxxxxxxxx) to international (966xxxxxxxxx for Saudi)
+ * - Removes @s.whatsapp.net suffix
+ * @param {string} phone - Phone number to normalize
+ * @returns {string} Normalized phone number
+ */
+function normalizePhoneNumber(phone) {
+  if (!phone) return "";
+
+  // Remove all spaces and common separators
+  let cleaned = phone.replace(/[\s\-\(\)\.]/g, "");
+
+  // Remove + prefix
+  cleaned = cleaned.replace(/^\+/, "");
+
+  // Remove @s.whatsapp.net suffix
+  cleaned = cleaned.replace(/@s\.whatsapp\.net$/, "");
+
+  // Convert Egyptian local format 01xxxxxxxxx to 201xxxxxxxxx
+  if (cleaned.startsWith("01") && cleaned.length === 11) {
+    cleaned = "20" + cleaned.substring(1);
+  }
+
+  // Convert Saudi local format 05xxxxxxxx to 9665xxxxxxxx
+  if (cleaned.startsWith("05") && cleaned.length === 10) {
+    cleaned = "966" + cleaned.substring(1);
+  }
+
+  // Convert 5xxxxxxxx (Saudi without 0) to 9665xxxxxxxx
+  if (cleaned.startsWith("5") && cleaned.length === 9) {
+    cleaned = "966" + cleaned;
+  }
+
+  return cleaned;
+}
+
+/**
+ * Parse flexible entries from message text
+ * Supports multiple formats:
+ * - "اسم,رقم" (name comma number)
+ * - "رقم,اسم" (number comma name)
+ * - Just numbers on separate lines
+ * - Number with name on same line separated by space
+ * @param {string} text - Message text after command
+ * @param {boolean} requireName - Whether name is required (true for waseet, false for admin)
+ * @returns {Array} Array of { phone, name } objects
+ */
+function parseFlexibleEntries(text, requireName = true) {
+  const entries = [];
+  
+  // Split by newlines and filter empty lines
+  const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 0);
+  
+  for (const line of lines) {
+    // Skip the command itself if it's on the first line
+    if (line === "وسيط" || line === "أدمن" || line === "ادمن") continue;
+    
+    // Try different parsing patterns
+    let phone = null;
+    let name = null;
+    
+    // Pattern 1: "name,number" or "number,name"
+    if (line.includes(",")) {
+      const parts = line.split(",").map(p => p.trim());
+      for (const part of parts) {
+        // Check if this part looks like a phone number
+        const cleanedPart = part.replace(/[\s\-\(\)\+\.]/g, "");
+        if (/^\d{9,15}$/.test(cleanedPart)) {
+          phone = part;
+        } else if (part.length > 0) {
+          name = part;
+        }
+      }
+    }
+    // Pattern 2: "+number name" or "number name" or just "number"
+    else {
+      const parts = line.split(/\s+/);
+      for (const part of parts) {
+        const cleanedPart = part.replace(/[\s\-\(\)\+\.]/g, "");
+        if (/^\d{9,15}$/.test(cleanedPart) || part.startsWith("+")) {
+          phone = part;
+        } else if (part.length > 0 && !phone) {
+          // This might be a name before the number
+          name = name ? name + " " + part : part;
+        } else if (part.length > 0 && phone) {
+          // This is name after the number
+          name = name ? name + " " + part : part;
+        }
+      }
+    }
+    
+    // If we found a phone number, add the entry
+    if (phone) {
+      const normalizedPhone = normalizePhoneNumber(phone);
+      if (normalizedPhone) {
+        entries.push({
+          phone: normalizedPhone,
+          name: name || null,
+          originalPhone: phone
+        });
+      }
+    }
+  }
+  
+  return entries;
+}
+
 /**
  * Load admins from file and update ADMIN_NUMBERS array
  */
@@ -703,32 +818,42 @@ function getAdminHelpMessage() {
 
 *8️⃣ إدارة الوسطاء*
 📝 *الأوامر:*
-• إضافة_وسيط +966xxxxxx اسم - تعيين وسيط
-• حذف_وسيط +966xxxxxx - إزالة وسيط
+• *وسيط* رقم اسم - تعيين وسيط واحد
+• *وسيط* ثم قائمة (اسم,رقم) - تعيين وسطاء متعددين
+• حذف_وسيط رقم - إزالة وسيط
 • قائمة_الوسطاء - عرض جميع الوسطاء
-• تفاصيل_وسيط +966xxxxxx - معلومات وسيط
+• تفاصيل_وسيط رقم - معلومات وسيط
+
+*أمثلة:*
+وسيط 0508007053 أحمد
+
+وسيط
+أحمد,0508007053
+محمد,0501234567
 
 ━━━━━━━━━━━━━━━━━━━━
 
 *9️⃣ إدارة المسؤولين (Admins)*
 📝 *الأوامر:*
-• إضافة_أدمن +966xxxxxx الاسم - إضافة مسؤول جديد
+• *أدمن* رقم - إضافة مسؤول واحد
+• *أدمن* ثم قائمة أرقام - إضافة مسؤولين متعددين
+• حذف_أدمن رقم - حذف مسؤول
 • قائمة_الأدمنز - عرض جميع المسؤولين
-• حذف_أدمن +966xxxxxx - حذف مسؤول
+
+*أمثلة:*
+أدمن 0508007053
+
+أدمن
+0508007053
+0501234567
 
 ━━━━━━━━━━━━━━━━━━━━
 
 *🔟 التحكم في البوت*
 📝 *الأوامر:* (تدعم رقم واحد أو أكثر)
-• توقف +966xxxxxx - إيقاف البوت عن الرد
-• تشغيل +966xxxxxx - تشغيل البوت
-• وسيط +966xxxxxx - تعيين كوسيط
-
-*أمثلة للأرقام المتعددة:*
-توقف
-0508001475
-,0508001476
-,0508001477
+• توقف رقم - إيقاف البوت عن الرد
+• تشغيل رقم - تشغيل البوت
+• وسيط رقم - تعيين كوسيط
 
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -741,7 +866,7 @@ function getAdminHelpMessage() {
 ⏰ *المنطقة الزمنية:* KSA (UTC+3)
 📅 جميع التواريخ والأوقات تستخدم توقيت السعودية
 
-💡 *ملاحظة:* جميع هذه الأوامر متاحة للمسؤولين فقط
+💡 *ملاحظة:* لا حاجة لعلامة + قبل الأرقام
   `.trim();
 }
 
@@ -1266,21 +1391,115 @@ async function handleAdminCommand(sock, message, phoneNumber) {
     // WASEET MANAGEMENT COMMANDS
     // ============================================
 
-    // Add waseet
+    // Handle waseet confirmation (تأكيد or نعم_وسيط)
+    if (command === "تأكيد_وسيط" || (command === "نعم" && pendingWaseetConfirmations[phoneNumber])) {
+      if (!pendingWaseetConfirmations[phoneNumber]) {
+        return "❌ لا توجد قائمة وسطاء معلقة للتأكيد";
+      }
+
+      const pending = pendingWaseetConfirmations[phoneNumber];
+      const entries = pending.entries;
+      let addedCount = 0;
+
+      for (const entry of entries) {
+        waseetDetector.markAsWaseet(entry.phone, entry.name);
+        addedCount++;
+      }
+
+      delete pendingWaseetConfirmations[phoneNumber];
+
+      let response = `✅ *تم إضافة ${addedCount} وسيط بنجاح*\n\n`;
+      entries.forEach((e, i) => {
+        response += `${i + 1}. 👤 ${e.name || "غير محدد"} - 📱 +${e.phone}\n`;
+      });
+      response += `\n💡 سيتم فحص رسائلهم تلقائياً للإعلانات`;
+
+      return response;
+    }
+
+    // Handle waseet cancellation
+    if (command === "إلغاء_وسيط" || (command === "لا" && pendingWaseetConfirmations[phoneNumber])) {
+      if (pendingWaseetConfirmations[phoneNumber]) {
+        delete pendingWaseetConfirmations[phoneNumber];
+        return "✅ تم إلغاء إضافة الوسطاء";
+      }
+    }
+
+    // Add waseet - NEW simplified "وسيط" command with multiple entry support
+    if (command === "وسيط") {
+      // Get remaining text after command
+      const remainingText = text.substring(command.length).trim();
+
+      // Check if it's a single-line format: وسيط +966508007053 أحمد
+      const singleLineMatch = remainingText.match(/^(\+?\d[\d\s\-\(\)]+)(.*)$/);
+      
+      if (singleLineMatch) {
+        // Single entry mode
+        const phoneRaw = singleLineMatch[1].trim();
+        const name = singleLineMatch[2].trim() || null;
+        const normalizedPhone = normalizePhoneNumber(phoneRaw);
+
+        if (!normalizedPhone) {
+          return "❌ الرجاء تحديد رقم هاتف صحيح\nمثال: وسيط 0508007053 أحمد";
+        }
+
+        // Check if already exists
+        if (waseetDetector.isWaseet(normalizedPhone)) {
+          return `⚠️ +${normalizedPhone} مسجل بالفعل كوسيط`;
+        }
+
+        waseetDetector.markAsWaseet(normalizedPhone, name);
+        return `✅ *تم إضافة وسيط جديد*\n\n📱 *الرقم:* +${normalizedPhone}\n👤 *الاسم:* ${name || "غير محدد"}\n\n💡 سيتم فحص رسائله تلقائياً للإعلانات`;
+      }
+
+      // Multi-line format - parse all entries
+      const entries = parseFlexibleEntries(text, true);
+
+      if (entries.length === 0) {
+        return `❌ *لم يتم العثور على أرقام صحيحة*\n\n📝 *الصيغ المدعومة:*\n\n*رقم واحد:*\nوسيط 0508007053 أحمد\n\n*عدة أرقام:*\nوسيط\nأحمد,0508007053\nمحمد,0501234567\n\n*أو:*\nوسيط\n0508007053 أحمد\n0501234567 محمد`;
+      }
+
+      // Filter out already existing waseets
+      const newEntries = entries.filter(e => !waseetDetector.isWaseet(e.phone));
+      const existingCount = entries.length - newEntries.length;
+
+      if (newEntries.length === 0) {
+        return `⚠️ جميع الأرقام (${entries.length}) مسجلة بالفعل كوسطاء`;
+      }
+
+      // Store for confirmation
+      pendingWaseetConfirmations[phoneNumber] = {
+        entries: newEntries,
+        createdAt: Date.now()
+      };
+
+      let response = `📋 *تأكيد إضافة ${newEntries.length} وسيط*\n\n`;
+      newEntries.forEach((e, i) => {
+        response += `${i + 1}. 👤 ${e.name || "غير محدد"} - 📱 +${e.phone}\n`;
+      });
+
+      if (existingCount > 0) {
+        response += `\n⚠️ تم تجاهل ${existingCount} رقم مسجل مسبقاً\n`;
+      }
+
+      response += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+      response += `✅ أرسل *نعم* للتأكيد\n`;
+      response += `❌ أرسل *لا* للإلغاء`;
+
+      return response;
+    }
+
+    // Keep old command for backwards compatibility (will be removed later)
     if (
       command === "إضافة_وسيط" ||
       command === "اضافة_وسيط" ||
       command === "اضافه_وسيط"
     ) {
-      // Extract phone number and name from message
-      // The phone number might contain spaces like: +20 10909 52790
       const parts = text.split(/\s+/);
       let phoneNumber = parts[1];
 
-      // Collect all consecutive parts that look like phone digits until we hit the name
       let nameStartIndex = 2;
       for (let i = 2; i < parts.length; i++) {
-        // If part is only digits or starts with +, it's part of the phone number
         if (/^[\d+]+$/.test(parts[i])) {
           phoneNumber += parts[i];
           nameStartIndex = i + 1;
@@ -1291,33 +1510,31 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
       const name = parts.slice(nameStartIndex).join(" ");
 
-      if (!phoneNumber || !phoneNumber.startsWith("+")) {
-        return "❌ الرجاء تحديد رقم الهاتف بصيغة صحيحة\nمثال: إضافة_وسيط +966508007053 أحمد\n\nيمكن كتابة الرقم بمسافات: +20 10909 52790";
+      if (!phoneNumber) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: وسيط 0508007053 أحمد";
       }
 
-      // Remove all spaces from phone number
-      phoneNumber = phoneNumber.replace(/\s+/g, "");
-
-      waseetDetector.markAsWaseet(phoneNumber, name || null);
-      return `✅ *تم إضافة وسيط جديد*\n\n📱 *الرقم:* ${phoneNumber}\n👤 *الاسم:* ${
-        name || "غير محدد"
-      }\n\n💡 *الآن:*\n• سيتم فحص رسائله تلقائياً\n• الإعلانات فقط تظهر في لوحة التحكم\n• يظهر في قائمة العملاء برتبة "وسيط"\n\n🔍 توفير 90% من استهلاك التوكنات!`;
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
+      waseetDetector.markAsWaseet(normalizedPhone, name || null);
+      return `✅ *تم إضافة وسيط جديد*\n\n📱 *الرقم:* +${normalizedPhone}\n👤 *الاسم:* ${name || "غير محدد"}\n\n💡 استخدم الأمر الجديد: *وسيط*`;
     }
+
 
     // Remove waseet
     if (command === "حذف_وسيط") {
-      const phoneNumber = text.split(/\s+/)[1];
-      if (!phoneNumber) {
-        return "❌ الرجاء تحديد رقم الهاتف\nمثال: حذف_وسيط +966508007053";
+      const phoneRaw = text.split(/\s+/)[1];
+      if (!phoneRaw) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: حذف_وسيط 0508007053";
       }
 
-      const waseetInfo = waseetDetector.getWaseetInfo(phoneNumber);
+      const normalizedPhone = normalizePhoneNumber(phoneRaw);
+      const waseetInfo = waseetDetector.getWaseetInfo(normalizedPhone);
       if (!waseetInfo) {
-        return `❌ ${phoneNumber} ليس مسجلاً كوسيط`;
+        return `❌ +${normalizedPhone} ليس مسجلاً كوسيط`;
       }
 
-      waseetDetector.unmarkAsWaseet(phoneNumber);
-      return `✅ تم إزالة ${waseetInfo.name || phoneNumber} من قائمة الوسطاء`;
+      waseetDetector.unmarkAsWaseet(normalizedPhone);
+      return `✅ تم إزالة ${waseetInfo.name || "+" + normalizedPhone} من قائمة الوسطاء`;
     }
 
     // List waseet
@@ -1325,7 +1542,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       const waseetList = waseetDetector.listAllWaseet();
 
       if (waseetList.length === 0) {
-        return "📭 لا يوجد وسطاء مسجلين\n\nلإضافة وسيط:\nإضافة_وسيط +966xxxxxxxxx الاسم";
+        return "📭 لا يوجد وسطاء مسجلين\n\nلإضافة وسيط:\nوسيط 0508007053 الاسم";
       }
 
       let response = `📋 *قائمة الوسطاء (${waseetList.length})*\n\n`;
@@ -1354,19 +1571,20 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
     // Waseet details
     if (command === "تفاصيل_وسيط") {
-      const phoneNumber = text.split(/\s+/)[1];
-      if (!phoneNumber) {
-        return "❌ الرجاء تحديد رقم الهاتف\nمثال: تفاصيل_وسيط +966508007053";
+      const phoneRaw = text.split(/\s+/)[1];
+      if (!phoneRaw) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: تفاصيل_وسيط 0508007053";
       }
 
-      const waseetInfo = waseetDetector.getWaseetInfo(phoneNumber);
+      const normalizedPhone = normalizePhoneNumber(phoneRaw);
+      const waseetInfo = waseetDetector.getWaseetInfo(normalizedPhone);
       if (!waseetInfo) {
-        return `❌ ${phoneNumber} ليس مسجلاً كوسيط`;
+        return `❌ +${normalizedPhone} ليس مسجلاً كوسيط`;
       }
 
       let response = `📋 *تفاصيل الوسيط*\n\n`;
       response += `👤 *الاسم:* ${waseetInfo.name || "غير محدد"}\n`;
-      response += `📱 *الهاتف:* ${phoneNumber}\n`;
+      response += `📱 *الهاتف:* +${normalizedPhone}\n`;
       response += `📊 *إعلانات مستلمة:* ${waseetInfo.totalAdsReceived || 0}\n`;
       response += `📅 *تاريخ الإضافة:* ${formatKSADate(waseetInfo.addedAt, {
         year: "numeric",
@@ -1393,21 +1611,129 @@ async function handleAdminCommand(sock, message, phoneNumber) {
     // ADMIN MANAGEMENT COMMANDS
     // ============================================
 
-    // Add admin
+    // Handle admin confirmation (تأكيد_أدمن or نعم when pending)
+    if (command === "تأكيد_أدمن" || (command === "نعم" && pendingAdminConfirmations[phoneNumber])) {
+      if (!pendingAdminConfirmations[phoneNumber]) {
+        return "❌ لا توجد قائمة أدمنز معلقة للتأكيد";
+      }
+
+      const pending = pendingAdminConfirmations[phoneNumber];
+      const entries = pending.entries;
+      let addedCount = 0;
+      const addedPhones = [];
+
+      for (const entry of entries) {
+        if (!ADMIN_NUMBERS.includes(entry.phone)) {
+          ADMIN_NUMBERS.push(entry.phone);
+          addedPhones.push(entry.phone);
+          addedCount++;
+        }
+      }
+
+      delete pendingAdminConfirmations[phoneNumber];
+
+      if (addedCount > 0) {
+        await saveAdminsToFile();
+      }
+
+      let response = `✅ *تم إضافة ${addedCount} أدمن بنجاح*\n\n`;
+      addedPhones.forEach((phone, i) => {
+        response += `${i + 1}. 📱 +${phone}\n`;
+      });
+      response += `\n✨ عدد الأدمنز الحالي: ${ADMIN_NUMBERS.length}`;
+
+      return response;
+    }
+
+    // Handle admin cancellation
+    if (command === "إلغاء_أدمن" || (command === "لا" && pendingAdminConfirmations[phoneNumber])) {
+      if (pendingAdminConfirmations[phoneNumber]) {
+        delete pendingAdminConfirmations[phoneNumber];
+        return "✅ تم إلغاء إضافة الأدمنز";
+      }
+    }
+
+    // Add admin - NEW simplified "أدمن" command with multiple number support
+    if (command === "أدمن" || command === "ادمن") {
+      // Get remaining text after command
+      const remainingText = text.substring(command.length).trim();
+
+      // Check if it's a single-line format: أدمن +966508007053
+      const singleLineMatch = remainingText.match(/^(\+?\d[\d\s\-\(\)]+)$/);
+      
+      if (singleLineMatch) {
+        // Single entry mode
+        const phoneRaw = singleLineMatch[1].trim();
+        const normalizedPhone = normalizePhoneNumber(phoneRaw);
+
+        if (!normalizedPhone) {
+          return "❌ الرجاء تحديد رقم هاتف صحيح\nمثال: أدمن 0508007053";
+        }
+
+        // Check if already exists
+        if (ADMIN_NUMBERS.includes(normalizedPhone)) {
+          return `⚠️ +${normalizedPhone} مسجل بالفعل كأدمن`;
+        }
+
+        ADMIN_NUMBERS.push(normalizedPhone);
+        const saved = await saveAdminsToFile();
+
+        if (!saved) {
+          ADMIN_NUMBERS.pop();
+          return "❌ فشل حفظ الأدمن الجديد";
+        }
+
+        return `✅ *تم إضافة أدمن جديد*\n\n📱 *الرقم:* +${normalizedPhone}\n\n🔐 *الصلاحيات:*\n• الوصول لجميع أوامر البوت\n• إدارة العملاء والإعلانات\n\n✨ عدد الأدمنز الحالي: ${ADMIN_NUMBERS.length}`;
+      }
+
+      // Multi-line format - parse all entries (just numbers, no names needed)
+      const entries = parseFlexibleEntries(text, false);
+
+      if (entries.length === 0) {
+        return `❌ *لم يتم العثور على أرقام صحيحة*\n\n📝 *الصيغ المدعومة:*\n\n*رقم واحد:*\nأدمن 0508007053\n\n*عدة أرقام:*\nأدمن\n0508007053\n0501234567`;
+      }
+
+      // Filter out already existing admins
+      const newEntries = entries.filter(e => !ADMIN_NUMBERS.includes(e.phone));
+      const existingCount = entries.length - newEntries.length;
+
+      if (newEntries.length === 0) {
+        return `⚠️ جميع الأرقام (${entries.length}) مسجلة بالفعل كأدمنز`;
+      }
+
+      // Store for confirmation
+      pendingAdminConfirmations[phoneNumber] = {
+        entries: newEntries,
+        createdAt: Date.now()
+      };
+
+      let response = `📋 *تأكيد إضافة ${newEntries.length} أدمن*\n\n`;
+      newEntries.forEach((e, i) => {
+        response += `${i + 1}. 📱 +${e.phone}\n`;
+      });
+
+      if (existingCount > 0) {
+        response += `\n⚠️ تم تجاهل ${existingCount} رقم مسجل مسبقاً\n`;
+      }
+
+      response += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+      response += `✅ أرسل *نعم* للتأكيد\n`;
+      response += `❌ أرسل *لا* للإلغاء`;
+
+      return response;
+    }
+
+    // Keep old command for backwards compatibility
     if (
       command === "إضافة_أدمن" ||
       command === "اضافة_ادمن" ||
       command === "اضافه_ادمن"
     ) {
-      // Extract phone number and name from message
-      // The phone number might contain spaces like: +20 10909 52790
       const parts = text.split(/\s+/);
       let phoneNumber = parts[1];
 
-      // Collect all consecutive parts that look like phone digits until we hit the name
       let nameStartIndex = 2;
       for (let i = 2; i < parts.length; i++) {
-        // If part is only digits or starts with +, it's part of the phone number
         if (/^[\d+]+$/.test(parts[i])) {
           phoneNumber += parts[i];
           nameStartIndex = i + 1;
@@ -1418,76 +1744,50 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
       const name = parts.slice(nameStartIndex).join(" ");
 
-      if (!phoneNumber || !phoneNumber.startsWith("+")) {
-        return "❌ الرجاء تحديد رقم الهاتف بصيغة صحيحة\nمثال: إضافة_أدمن +966508007053 محمد\n\nيمكن كتابة الرقم بمسافات: +20 10909 52790";
+      if (!phoneNumber) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: أدمن 0508007053";
       }
 
-      // Clean phone number (remove spaces, +, and @s.whatsapp.net)
-      const cleanPhone = phoneNumber
-        .replace(/\s+/g, "") // Remove all spaces
-        .replace(/^\+/, "")
-        .replace(/@s\.whatsapp\.net$/, "");
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
 
-      console.log(`➕ Adding admin: ${phoneNumber} -> cleaned: ${cleanPhone}`);
-      console.log(`📋 Current admins before add:`, ADMIN_NUMBERS);
-
-      // Check if already admin
-      if (ADMIN_NUMBERS.includes(cleanPhone)) {
-        return `⚠️ *${phoneNumber} مسجل بالفعل كأدمن*`;
+      if (ADMIN_NUMBERS.includes(normalizedPhone)) {
+        return `⚠️ +${normalizedPhone} مسجل بالفعل كأدمن`;
       }
 
-      // Add to admin list
-      ADMIN_NUMBERS.push(cleanPhone);
-      console.log(`📋 Current admins after add:`, ADMIN_NUMBERS);
-
-      // Save to file using helper function
+      ADMIN_NUMBERS.push(normalizedPhone);
       const saved = await saveAdminsToFile();
 
       if (!saved) {
-        // Rollback if save failed
-        const index = ADMIN_NUMBERS.indexOf(cleanPhone);
-        if (index > -1) {
-          ADMIN_NUMBERS.splice(index, 1);
-        }
-        return "❌ فشل حفظ الأدمن الجديد، الرجاء المحاولة مرة أخرى";
+        ADMIN_NUMBERS.pop();
+        return "❌ فشل حفظ الأدمن الجديد";
       }
 
-      return `✅ *تم إضافة أدمن جديد*\n\n📱 *الرقم:* ${phoneNumber}\n👤 *الاسم:* ${
-        name || "غير محدد"
-      }\n\n🔐 *الصلاحيات:*\n• الوصول لجميع أوامر البوت\n• إدارة العملاء والإعلانات\n• إدارة الأدمنز الآخرين\n\n✨ عدد الأدمنز الحالي: ${
-        ADMIN_NUMBERS.length
-      }`;
+      return `✅ *تم إضافة أدمن جديد*\n\n📱 *الرقم:* +${normalizedPhone}\n👤 *الاسم:* ${name || "غير محدد"}\n\n💡 استخدم الأمر الجديد: *أدمن*\n\n✨ عدد الأدمنز الحالي: ${ADMIN_NUMBERS.length}`;
     }
+
 
     // Remove admin
     if (command === "حذف_أدمن" || command === "حذف_ادمن") {
-      const phoneNumber = text.split(/\s+/)[1];
-      if (!phoneNumber) {
-        return "❌ الرجاء تحديد رقم الهاتف\nمثال: حذف_أدمن +966508007053";
+      const phoneRaw = text.split(/\s+/)[1];
+      if (!phoneRaw) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: حذف_أدمن 0508007053";
       }
 
-      // Clean phone number
-      const cleanPhone = phoneNumber
-        .replace(/^\+/, "")
-        .replace(/@s\.whatsapp\.net$/, "");
+      // Normalize phone number
+      const normalizedPhone = normalizePhoneNumber(phoneRaw);
 
-      console.log(
-        `➖ Removing admin: ${phoneNumber} -> cleaned: ${cleanPhone}`
-      );
+      console.log(`➖ Removing admin: ${phoneRaw} -> normalized: ${normalizedPhone}`);
       console.log(`📋 Current admins before remove:`, ADMIN_NUMBERS);
 
       // Check if admin exists
-      const adminIndex = ADMIN_NUMBERS.indexOf(cleanPhone);
+      const adminIndex = ADMIN_NUMBERS.indexOf(normalizedPhone);
       if (adminIndex === -1) {
-        return `❌ ${phoneNumber} ليس مسجلاً كأدمن`;
+        return `❌ +${normalizedPhone} ليس مسجلاً كأدمن`;
       }
 
-      // Prevent removing yourself (check against the sender's phone number)
-      const currentAdminClean = phoneNumber
-        .replace(/^\+/, "")
-        .replace(/@s\.whatsapp\.net$/, "");
-      if (cleanPhone === currentAdminClean) {
-        return "❌ لا يمكنك حذف نفسك من قائمة الأدمنز";
+      // Prevent removing the last admin
+      if (ADMIN_NUMBERS.length === 1) {
+        return "❌ لا يمكن حذف آخر أدمن في النظام";
       }
 
       // Remove from list
@@ -1499,11 +1799,11 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
       if (!saved) {
         // Rollback if save failed
-        ADMIN_NUMBERS.splice(adminIndex, 0, cleanPhone);
+        ADMIN_NUMBERS.splice(adminIndex, 0, normalizedPhone);
         return "❌ فشل حذف الأدمن، الرجاء المحاولة مرة أخرى";
       }
 
-      return `✅ تم حذف ${phoneNumber} من قائمة الأدمنز\n\n✨ عدد الأدمنز المتبقي: ${ADMIN_NUMBERS.length}`;
+      return `✅ تم حذف +${normalizedPhone} من قائمة الأدمنز\n\n✨ عدد الأدمنز المتبقي: ${ADMIN_NUMBERS.length}`;
     }
 
     // List admins
@@ -1519,9 +1819,8 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       });
 
       response += `\n💡 *الأوامر المتاحة:*\n`;
-      response += `• إضافة_أدمن +966xxx الاسم\n`;
-      response += `• حذف_أدمن +966xxx\n`;
-      response += `• قائمة_الأدمنز\n`;
+      response += `• أدمن رقم - إضافة أدمن\n`;
+      response += `• حذف_أدمن رقم - حذف أدمن\n`;
 
       return response;
     }
@@ -1531,23 +1830,24 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       let response = `🤖 *أوامر الأدمن المتاحة*\n\n`;
 
       response += `👥 *إدارة الأدمنز:*\n`;
-      response += `• إضافة_أدمن +966xxx الاسم\n`;
-      response += `• حذف_أدمن +966xxx\n`;
+      response += `• أدمن رقم - إضافة أدمن\n`;
+      response += `• حذف_أدمن رقم\n`;
       response += `• قائمة_الأدمنز\n\n`;
 
       response += `👤 *إدارة العملاء:*\n`;
       response += `• طلب (تسجيل طلب عميل)\n`;
-      response += `• تفاصيل_عميل +966xxx\n`;
-      response += `• حذف_عميل +966xxx\n\n`;
+      response += `• تفاصيل_عميل رقم\n`;
+      response += `• حذف_عميل رقم\n\n`;
 
       response += `🤝 *إدارة الوسطاء:*\n`;
-      response += `• إضافة_وسيط +966xxx الاسم\n`;
-      response += `• حذف_وسيط +966xxx\n`;
+      response += `• وسيط رقم اسم - إضافة وسيط\n`;
+      response += `• حذف_وسيط رقم\n`;
       response += `• قائمة_الوسطاء\n`;
-      response += `• تفاصيل_وسيط +966xxx\n\n`;
+      response += `• تفاصيل_وسيط رقم\n\n`;
 
       response += `📊 *معلومات النظام:*\n`;
       response += `• احصائيات (عرض إحصائيات النظام)\n\n`;
+
 
       response += `⏰ *التذكيرات:*\n`;
       response += `• تذكير +966xxx تاريخ وقت الرسالة\n`;
