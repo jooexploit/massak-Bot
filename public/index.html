@@ -959,6 +959,31 @@
                             </div>
                         </div>
 
+                        <!-- Interest Groups Section -->
+                        <div class="card"
+                            style="margin-bottom: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+                            <div class="card-header" style="cursor: pointer;" onclick="toggleInterestGroupsSection()">
+                                <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                                    <i class="fas fa-users-cog" style="color: #667eea;"></i>
+                                    مجموعات المهتمين
+                                    <span id="interest-groups-count"
+                                        style="background: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                                    <i class="fas fa-chevron-down" id="interest-groups-toggle-icon"
+                                        style="margin-right: auto; transition: transform 0.3s;"></i>
+                                </h3>
+                            </div>
+                            <div id="interest-groups-container" style="display: none; padding: 15px;">
+                                <div id="interest-groups-list"
+                                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
+                                    <div class="loading"
+                                        style="text-align: center; padding: 20px; grid-column: 1 / -1;">
+                                        <i class="fas fa-spinner fa-spin" style="font-size: 24px; color: #667eea;"></i>
+                                        <p style="margin-top: 8px; color: #666;">جاري التحميل...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Clients List -->
                         <div id="private-clients-list">
                             <div class="loading" style="text-align: center; padding: 40px;">

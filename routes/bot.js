@@ -3153,6 +3153,81 @@ router.post(
   }
 );
 
+// ============================================
+// INTEREST GROUPS ENDPOINTS
+// ============================================
+const interestGroupService = require("../services/interestGroupService");
+
+// Get all interest groups
+router.get(
+  "/interest-groups",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const groups = interestGroupService.getAllGroups();
+      res.json({
+        success: true,
+        groups,
+        count: groups.length,
+      });
+    } catch (error) {
+      console.error("Error getting interest groups:", error);
+      res.status(500).json({ error: "Failed to get interest groups" });
+    }
+  }
+);
+
+// Get specific interest group
+router.get(
+  "/interest-groups/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { id } = req.params;
+      const group = interestGroupService.getGroup(id);
+
+      if (!group) {
+        return res.status(404).json({ error: "Interest group not found" });
+      }
+
+      res.json({
+        success: true,
+        group,
+      });
+    } catch (error) {
+      console.error("Error getting interest group:", error);
+      res.status(500).json({ error: "Failed to get interest group" });
+    }
+  }
+);
+
+// Delete interest group
+router.delete(
+  "/interest-groups/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await interestGroupService.deleteGroup(id);
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Interest group not found" });
+      }
+
+      res.json({
+        success: true,
+        message: "Interest group deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting interest group:", error);
+      res.status(500).json({ error: "Failed to delete interest group" });
+    }
+  }
+);
+
 // Export both the router and the reusable WordPress posting function
 module.exports = router;
 module.exports.postAdToWordPress = postAdToWordPress;

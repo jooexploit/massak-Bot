@@ -110,7 +110,7 @@ function expandSearchTerms(searchTerm, type = "property") {
  */
 async function extractSearchIntent(userQuery) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `أنت خبير في تحليل استفسارات البحث عن العقارات باللغة العربية.
 قم بتحليل الاستفسار التالي واستخرج المعلومات:
@@ -164,7 +164,7 @@ async function extractSearchIntent(userQuery) {
  */
 async function calculateSemanticSimilarity(text1, text2) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `قم بحساب درجة التشابه الدلالي بين النصين التاليين (من 0 إلى 100):
 

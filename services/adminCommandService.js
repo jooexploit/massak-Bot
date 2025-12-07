@@ -7,6 +7,7 @@
 const fs = require("fs").promises;
 const path = require("path");
 const waseetDetector = require("./waseetDetector");
+const interestGroupService = require("./interestGroupService");
 
 // KSA Timezone configuration
 const KSA_TIMEZONE = "Asia/Riyadh";
@@ -28,6 +29,8 @@ const ADMINS_FILE = path.join(__dirname, "../data/admins.json");
 const pendingWaseetConfirmations = {};
 // Pending admin confirmations: { [adminJid]: { entries: [...], createdAt } }
 const pendingAdminConfirmations = {};
+// Pending interest group confirmations: { [adminJid]: { interest, entries, groupId?, createdAt } }
+const pendingInterestConfirmations = {};
 
 /**
  * Normalize phone number to standard format
@@ -345,12 +348,16 @@ function startQueueProcessor() {
 
 /**
  * Get current date/time in KSA timezone
- * @returns {Date} Date object adjusted for KSA timezone
+ * KSA is always UTC+3 (no daylight saving time)
+ * @returns {Date} Date object with KSA time
  */
 function getKSADate() {
-  return new Date(
-    new Date().toLocaleString("en-US", { timeZone: KSA_TIMEZONE })
-  );
+  const now = new Date();
+  // Get UTC time
+  const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
+  // Add KSA offset (UTC+3 = 3 hours = 3 * 60 * 60 * 1000 ms)
+  const ksaTime = utcTime + (3 * 60 * 60 * 1000);
+  return new Date(ksaTime);
 }
 
 /**
@@ -505,14 +512,14 @@ function parseReminderCommand(message) {
   // Adjust the time to compensate for timezone difference
   reminderDateTime.setMinutes(reminderDateTime.getMinutes() - offsetDiff);
 
-  // Check if date is in the past (compare with KSA time)
-  const nowKSA = getKSADate();
-  if (reminderDateTime < nowKSA) {
+  // Check if date is in the past (compare actual timestamps)
+  // reminderDateTime is already adjusted to be a real timestamp
+  if (reminderDateTime.getTime() < Date.now()) {
     return {
       success: false,
       error:
         "❌ لا يمكن جدولة تذكير في الماضي\nالرجاء اختيار تاريخ ووقت مستقبلي\n⏰ الوقت الحالي (KSA): " +
-        formatKSADate(nowKSA.getTime(), {
+        formatKSADate(Date.now(), {
           hour: "2-digit",
           minute: "2-digit",
         }),
@@ -849,7 +856,22 @@ function getAdminHelpMessage() {
 
 ━━━━━━━━━━━━━━━━━━━━
 
-*🔟 التحكم في البوت*
+*🔟 إدارة المهتمين*
+📝 *الأوامر:*
+• *مهتم* [الاهتمام] ثم قائمة (اسم,رقم) - إنشاء مجموعة
+• *مهتم* IG001 ثم قائمة (اسم,رقم) - إضافة لمجموعة موجودة
+• مجموعات_المهتمين - عرض جميع المجموعات
+• تفاصيل_مجموعة IG001 - عرض تفاصيل مجموعة
+• حذف_مجموعة IG001 - حذف مجموعة
+
+*مثال إنشاء:*
+مهتم فيلا بحي النزهة
+أحمد,0508007053
+محمد,0501234567
+
+━━━━━━━━━━━━━━━━━━━━
+
+*1️⃣1️⃣ التحكم في البوت*
 📝 *الأوامر:* (تدعم رقم واحد أو أكثر)
 • توقف رقم - إيقاف البوت عن الرد
 • تشغيل رقم - تشغيل البوت
@@ -1084,15 +1106,23 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       }
     }
 
-    // Handle send confirmation (نعم)
+    // Handle send confirmation (نعم) for client requests
+    // Skip if there are other pending confirmations that should handle this
     if (command === "نعم" || text.trim() === "نعم") {
-      try {
-        if (
-          !global.pendingClientRequests ||
-          !global.pendingClientRequests[phoneNumber]
-        ) {
-          return "❌ *لا يوجد طلب معلق*\n\nالرجاء إنشاء طلب جديد باستخدام الأمر: طلب";
-        }
+      // Check if other confirmations should handle this first
+      if (pendingWaseetConfirmations[phoneNumber] || 
+          pendingAdminConfirmations[phoneNumber] || 
+          pendingInterestConfirmations[phoneNumber]) {
+        // Let other handlers process this - don't return here
+        // Continue to the specific handlers below
+      } else {
+        try {
+          if (
+            !global.pendingClientRequests ||
+            !global.pendingClientRequests[phoneNumber]
+          ) {
+            return "❌ *لا يوجد طلب معلق*\n\nالرجاء إنشاء طلب جديد باستخدام الأمر: طلب";
+          }
 
         const request = global.pendingClientRequests[phoneNumber];
         const { clientPhone, results } = request;
@@ -1130,7 +1160,8 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         console.error("❌ Error sending to client:", sendError);
         return `❌ *فشل الإرسال للعميل*\n\n${sendError.message}`;
       }
-    }
+      }  // Close the else block
+    }  // Close the if (command === "نعم")
 
     // Handle cancel confirmation (لا)
     if (command === "لا" || text.trim() === "لا") {
@@ -1857,6 +1888,182 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       response += `💡 *نصيحة:* يمكنك كتابة أي أمر للحصول على مزيد من التفاصيل`;
 
       return response;
+    }
+
+    // ============================================
+    // INTEREST GROUPS COMMANDS (مهتم)
+    // ============================================
+
+    // Handle interest confirmation
+    if (command === "نعم" && pendingInterestConfirmations[phoneNumber]) {
+      const pending = pendingInterestConfirmations[phoneNumber];
+      const entries = pending.entries;
+      
+      let result;
+      if (pending.groupId) {
+        // Adding to existing group
+        result = await interestGroupService.addToGroup(pending.groupId, entries);
+        delete pendingInterestConfirmations[phoneNumber];
+        
+        if (!result) {
+          return `❌ المجموعة ${pending.groupId} غير موجودة`;
+        }
+        
+        let response = `✅ *تم إضافة ${result.addedCount} عضو إلى ${pending.groupId}*\n\n`;
+        response += `📋 *الاهتمام:* ${result.group.interest}\n`;
+        response += `👥 *إجمالي الأعضاء:* ${result.group.members.length}\n`;
+        if (result.skippedCount > 0) {
+          response += `⚠️ تم تجاهل ${result.skippedCount} رقم موجود مسبقاً`;
+        }
+        return response;
+      } else {
+        // Creating new group
+        const group = await interestGroupService.createGroup(pending.interest, entries, phoneNumber);
+        delete pendingInterestConfirmations[phoneNumber];
+        
+        let response = `✅ *تم إنشاء مجموعة مهتمين جديدة*\n\n`;
+        response += `🆔 *رقم المجموعة:* ${group.id}\n`;
+        response += `📋 *الاهتمام:* ${group.interest}\n`;
+        response += `👥 *عدد الأعضاء:* ${group.members.length}\n\n`;
+        response += `💡 لإضافة أعضاء لاحقاً:\nمهتم ${group.id}\nاسم,رقم`;
+        return response;
+      }
+    }
+
+    // Handle interest cancellation
+    if (command === "لا" && pendingInterestConfirmations[phoneNumber]) {
+      delete pendingInterestConfirmations[phoneNumber];
+      return "✅ تم إلغاء العملية";
+    }
+
+    // مهتم command - create new group or add to existing
+    if (command === "مهتم") {
+      const lines = text.split("\n").map(l => l.trim()).filter(l => l);
+      
+      if (lines.length < 2) {
+        return `❌ *صيغة غير صحيحة*\n\n📝 *لإنشاء مجموعة جديدة:*\nمهتم [الاهتمام]\nاسم,رقم\nاسم,رقم\n\n📝 *لإضافة لمجموعة موجودة:*\nمهتم IG001\nاسم,رقم`;
+      }
+
+      const firstArg = lines[0].replace("مهتم", "").trim();
+      
+      // Check if first arg is a group ID
+      if (interestGroupService.isGroupId(firstArg)) {
+        const groupId = firstArg.toUpperCase();
+        const group = interestGroupService.getGroup(groupId);
+        
+        if (!group) {
+          return `❌ المجموعة ${groupId} غير موجودة\n\n💡 لعرض المجموعات: مجموعات_المهتمين`;
+        }
+
+        // Parse members from remaining lines
+        const entries = parseFlexibleEntries(lines.slice(1).join("\n"), true);
+        
+        if (entries.length === 0) {
+          return `❌ لم يتم العثور على أرقام صحيحة\n\nالصيغة المطلوبة:\nمهتم ${groupId}\nاسم,رقم`;
+        }
+
+        // Store for confirmation
+        pendingInterestConfirmations[phoneNumber] = {
+          groupId,
+          entries,
+          createdAt: Date.now()
+        };
+
+        let response = `📋 *تأكيد إضافة ${entries.length} عضو إلى ${groupId}*\n\n`;
+        response += `📌 *الاهتمام:* ${group.interest}\n\n`;
+        entries.forEach((e, i) => {
+          response += `${i + 1}. ${e.name || "غير محدد"} - +${e.phone}\n`;
+        });
+        response += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+        response += `✅ أرسل *نعم* للتأكيد\n❌ أرسل *لا* للإلغاء`;
+        return response;
+
+      } else {
+        // Creating new group - firstArg is the interest text
+        if (!firstArg) {
+          return `❌ الرجاء تحديد نص الاهتمام\n\nمثال:\nمهتم فيلا بحي النزهة\nأحمد,0508007053`;
+        }
+
+        // Parse members from remaining lines
+        const entries = parseFlexibleEntries(lines.slice(1).join("\n"), true);
+        
+        if (entries.length === 0) {
+          return `❌ لم يتم العثور على أرقام صحيحة\n\nالصيغة المطلوبة:\nمهتم ${firstArg}\nاسم,رقم`;
+        }
+
+        // Store for confirmation
+        pendingInterestConfirmations[phoneNumber] = {
+          interest: firstArg,
+          entries,
+          createdAt: Date.now()
+        };
+
+        let response = `📋 *تأكيد إنشاء مجموعة مهتمين*\n\n`;
+        response += `📌 *الاهتمام:* ${firstArg}\n`;
+        response += `👥 *الأعضاء (${entries.length}):*\n\n`;
+        entries.forEach((e, i) => {
+          response += `${i + 1}. ${e.name || "غير محدد"} - +${e.phone}\n`;
+        });
+        response += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+        response += `✅ أرسل *نعم* للتأكيد\n❌ أرسل *لا* للإلغاء`;
+        return response;
+      }
+    }
+
+    // List interest groups
+    if (command === "مجموعات_المهتمين" || command === "المهتمين") {
+      const groups = interestGroupService.getAllGroups();
+      
+      if (groups.length === 0) {
+        return `📭 لا توجد مجموعات مهتمين\n\n💡 لإنشاء مجموعة:\nمهتم [الاهتمام]\nاسم,رقم`;
+      }
+
+      let response = `📋 *مجموعات المهتمين (${groups.length})*\n\n`;
+      groups.forEach(g => {
+        response += `🆔 *${g.id}*\n`;
+        response += `📌 ${g.interest}\n`;
+        response += `👥 ${g.members.length} عضو\n`;
+        response += `📅 ${formatKSADate(g.createdAt, { month: "short", day: "numeric" })}\n\n`;
+      });
+      
+      response += `\n💡 لعرض تفاصيل:\nتفاصيل_مجموعة IG001`;
+      return response;
+    }
+
+    // Group details
+    if (command === "تفاصيل_مجموعة") {
+      const groupId = text.split(/\s+/)[1];
+      if (!groupId) {
+        return "❌ الرجاء تحديد رقم المجموعة\nمثال: تفاصيل_مجموعة IG001";
+      }
+
+      const group = interestGroupService.getGroup(groupId);
+      if (!group) {
+        return `❌ المجموعة ${groupId} غير موجودة`;
+      }
+
+      let response = `📋 *تفاصيل المجموعة ${group.id}*\n\n`;
+      response += `📌 *الاهتمام:* ${group.interest}\n`;
+      response += `📅 *تاريخ الإنشاء:* ${formatKSADate(group.createdAt)}\n\n`;
+      response += `👥 *الأعضاء (${group.members.length}):*\n`;
+      group.members.forEach((m, i) => {
+        response += `${i + 1}. ${m.name || "غير محدد"} - +${m.phone}\n`;
+      });
+      return response;
+    }
+
+    // Delete interest group
+    if (command === "حذف_مجموعة") {
+      const groupId = text.split(/\s+/)[1];
+      if (!groupId) {
+        return "❌ الرجاء تحديد رقم المجموعة\nمثال: حذف_مجموعة IG001";
+      }
+
+      const deleted = await interestGroupService.deleteGroup(groupId);
+      if (!deleted) {
+        return `❌ المجموعة ${groupId} غير موجودة`;
+      }
+      return `✅ تم حذف المجموعة ${groupId.toUpperCase()}`;
     }
 
     return null; // Unknown command

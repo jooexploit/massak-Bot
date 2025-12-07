@@ -511,7 +511,7 @@ async function detectAd(text, maxRetries = null, currentRetry = 0) {
       async (apiKey, keyIndex) => {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
-          model: "gemini-2.0-flash-lite",
+          model: "gemini-2.5-flash-lite",
         });
 
         const prompt = `You are an expert at detecting real estate and business advertisements. Analyze if the following text is an advertisement.
@@ -652,7 +652,7 @@ async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
       async (apiKey, keyIndex) => {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
-          model: "gemini-2.0-flash-lite",
+          model: "gemini-2.5-flash-lite",
         });
 
         const prompt = `أنت خبير في كتابة إعلانات وسائل التواصل الاجتماعي بأسلوب عصري وجذاب. قم بتحسين وإعادة صياغة الإعلان التالي بشكل إبداعي:
@@ -977,7 +977,7 @@ ${text}
 
 أرجع فقط اسم التصنيف (واحد فقط) بدون أي نص إضافي أو تفسير.`;
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const result = await model.generateContent(prompt);
         const rawCategory = result.response.text().trim();
         console.log("🏷️ Raw AI category response:", rawCategory);
@@ -2026,7 +2026,7 @@ ${adText}${contactHint}
   // Use retry mechanism with API key rotation
   return await retryWithApiKeyRotation(async (apiKey, keyIndex) => {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const result = await model.generateContent(prompt);
     const response = result.response;
@@ -2376,7 +2376,7 @@ ${adText}${contactHint}
 async function validateUserInput(input, fieldName = "name", context = "") {
   return retryWithApiKeyRotation(async (GEMINI_API_KEY, currentIndex) => {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     let prompt = "";
 

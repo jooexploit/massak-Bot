@@ -7292,10 +7292,205 @@ async function handleRejectWhatsAppMessage(adId, cardElement) {
 
 let allPrivateClients = [];
 let filteredPrivateClients = [];
+let interestGroups = [];
+
+// ============================================
+// INTEREST GROUPS FUNCTIONS
+// ============================================
+
+function toggleInterestGroupsSection() {
+  const container = document.getElementById("interest-groups-container");
+  const icon = document.getElementById("interest-groups-toggle-icon");
+  
+  if (container.style.display === "none") {
+    container.style.display = "block";
+    icon.style.transform = "rotate(180deg)";
+    fetchInterestGroups();
+  } else {
+    container.style.display = "none";
+    icon.style.transform = "rotate(0deg)";
+  }
+}
+
+async function fetchInterestGroups() {
+  try {
+    const response = await fetch("/api/bot/interest-groups", {
+      credentials: "include",
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch interest groups");
+    }
+    
+    const data = await response.json();
+    interestGroups = data.groups || [];
+    
+    document.getElementById("interest-groups-count").textContent = interestGroups.length;
+    renderInterestGroups(interestGroups);
+  } catch (error) {
+    console.error("Error fetching interest groups:", error);
+    document.getElementById("interest-groups-list").innerHTML = `
+      <div style="text-align: center; padding: 20px; color: #dc3545; grid-column: 1 / -1;">
+        <i class="fas fa-exclamation-circle"></i> فشل تحميل المجموعات
+      </div>
+    `;
+  }
+}
+
+function renderInterestGroups(groups) {
+  const container = document.getElementById("interest-groups-list");
+  
+  if (!groups || groups.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 30px; color: #666; grid-column: 1 / -1;">
+        <i class="fas fa-users" style="font-size: 48px; color: #ddd; margin-bottom: 15px;"></i>
+        <h3 style="margin: 0 0 10px 0;">لا توجد مجموعات</h3>
+        <p style="margin: 0;">استخدم أمر <strong style="color: #667eea;">مهتم</strong> من واتساب لإنشاء مجموعة</p>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = groups.map(group => `
+    <div class="interest-group-card" style="
+      background: white;
+      border-radius: 12px;
+      padding: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-right: 4px solid #667eea;
+    ">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div>
+          <span style="
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+          ">${group.id}</span>
+        </div>
+        <div style="display: flex; gap: 5px;">
+          <button onclick="toggleGroupMembers('${group.id}')" class="btn btn-sm btn-secondary" title="عرض الأعضاء">
+            <i class="fas fa-users"></i>
+          </button>
+          <button onclick="deleteInterestGroup('${group.id}')" class="btn btn-sm btn-danger" title="حذف">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div style="font-size: 1.1rem; font-weight: 600; color: #333; margin-bottom: 8px;">
+        📌 ${escapeHtml(group.interest)}
+      </div>
+      
+      <div style="display: flex; gap: 15px; font-size: 0.85rem; color: #666;">
+        <span><i class="fas fa-users" style="color: #667eea;"></i> ${group.members.length} عضو</span>
+        <span><i class="fas fa-calendar" style="color: #667eea;"></i> ${new Date(group.createdAt).toLocaleDateString('en-GB')}</span>
+      </div>
+      
+      <div id="members-${group.id}" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee;">
+        ${group.members.map((m, i) => `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f0;">
+            <span>${i + 1}. ${escapeHtml(m.name || 'غير محدد')}</span>
+            <a href="https://wa.me/${m.phone}" target="_blank" style="color: #25D366; text-decoration: none;">
+              <i class="fab fa-whatsapp"></i> +${m.phone}
+            </a>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleGroupMembers(groupId) {
+  const membersDiv = document.getElementById(`members-${groupId}`);
+  if (membersDiv) {
+    membersDiv.style.display = membersDiv.style.display === "none" ? "block" : "none";
+  }
+}
+
+async function deleteInterestGroup(groupId) {
+  if (!confirm(`هل تريد حذف المجموعة ${groupId}؟`)) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/bot/interest-groups/${groupId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    
+    if (response.ok) {
+      await fetchInterestGroups();
+    } else {
+      alert("فشل حذف المجموعة");
+    }
+  } catch (error) {
+    console.error("Error deleting interest group:", error);
+    alert("حدث خطأ أثناء الحذف");
+  }
+}
+
+// Filter interest groups by search term
+function filterInterestGroupsBySearch() {
+  const search = document.getElementById("pc-search-input")?.value?.toLowerCase().trim() || "";
+  
+  if (!interestGroups || interestGroups.length === 0) return;
+  
+  if (!search) {
+    // No search term - show all groups
+    renderInterestGroups(interestGroups);
+    return;
+  }
+  
+  // Filter groups by:
+  // - Group ID (e.g., IG001)
+  // - Interest text
+  // - Member name
+  // - Member phone
+  const filtered = interestGroups.filter(group => {
+    // Check group ID
+    if (group.id.toLowerCase().includes(search)) return true;
+    
+    // Check interest text
+    if (group.interest.toLowerCase().includes(search)) return true;
+    
+    // Check members
+    return group.members.some(member => {
+      if (member.name && member.name.toLowerCase().includes(search)) return true;
+      if (member.phone && member.phone.includes(search)) return true;
+      return false;
+    });
+  });
+  
+  renderInterestGroups(filtered);
+  
+  // If search found results in groups, expand the section automatically
+  if (filtered.length > 0) {
+    const container = document.getElementById("interest-groups-container");
+    const icon = document.getElementById("interest-groups-toggle-icon");
+    if (container && container.style.display === "none") {
+      container.style.display = "block";
+      if (icon) icon.style.transform = "rotate(180deg)";
+    }
+  }
+}
 
 async function loadPrivateClientsView() {
   try {
     await fetchPrivateClients();
+    // Also update interest groups count
+    const countEl = document.getElementById("interest-groups-count");
+    if (countEl) {
+      try {
+        const resp = await fetch("/api/bot/interest-groups", { credentials: "include" });
+        if (resp.ok) {
+          const data = await resp.json();
+          countEl.textContent = data.count || 0;
+        }
+      } catch (e) { /* ignore */ }
+    }
   } catch (error) {
     console.error("Error loading private clients:", error);
   }
@@ -8119,7 +8314,10 @@ document.addEventListener("DOMContentLoaded", () => {
     let searchTimeout;
     pcSearchInput.addEventListener("input", () => {
       clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(fetchPrivateClients, 500);
+      searchTimeout = setTimeout(() => {
+        fetchPrivateClients();
+        filterInterestGroupsBySearch();
+      }, 500);
     });
   }
 
