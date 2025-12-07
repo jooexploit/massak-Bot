@@ -16,6 +16,10 @@ module.exports = {
 
     // Main categories with their WordPress IDs
     categories: {
+      // Commercial/Featured Categories
+      "اعلانات مسعاك المميزة": 89,
+      "شركاء مسعاك": 29,
+      
       // Rental/Sale Types
       " للإيجار": 66,
       للإيجار: 66,

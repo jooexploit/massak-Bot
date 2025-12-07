@@ -2858,6 +2858,105 @@ router.get(
   }
 );
 
+// =====================================
+// SMART SUMMARY ENDPOINTS
+// =====================================
+
+// Get available filter options for smart summary
+router.get("/daily-summaries/available-filters", authenticateToken, (req, res) => {
+  try {
+    const { getAvailableFilters } = require("../services/dailySummaryService");
+    const filters = getAvailableFilters();
+    res.json({ success: true, filters });
+  } catch (error) {
+    console.error("Error getting available filters:", error);
+    res.status(500).json({ error: "Failed to get available filters" });
+  }
+});
+
+// Preview custom summary (get count and sample before generating)
+router.post("/daily-summaries/preview", authenticateToken, (req, res) => {
+  try {
+    const { previewCustomSummary } = require("../services/dailySummaryService");
+    const filters = req.body;
+    const preview = previewCustomSummary(filters);
+    res.json({ success: true, preview });
+  } catch (error) {
+    console.error("Error previewing custom summary:", error);
+    res.status(500).json({ error: "Failed to preview summary" });
+  }
+});
+
+// Generate custom summary with advanced filters
+router.post("/daily-summaries/generate-custom", authenticateToken, async (req, res) => {
+  try {
+    const {
+      generateCustomSummary,
+      getSummaries,
+      saveSummaries,
+    } = require("../services/dailySummaryService");
+
+    const filters = req.body;
+    console.log("📊 Generating custom summary with filters:", JSON.stringify(filters, null, 2));
+
+    const result = generateCustomSummary(filters);
+
+    if (!result.success || !result.summary) {
+      return res.json({
+        success: true,
+        count: 0,
+        message: result.message || "No ads found matching the selected filters",
+      });
+    }
+
+    // Save the generated summary
+    const allSummaries = getSummaries();
+    allSummaries.unshift(result.summary);
+
+    // Keep only last 10 days of summaries
+    const uniqueDates = [...new Set(allSummaries.map((s) => s.date))];
+    const recentDates = uniqueDates.slice(0, 10);
+    const filtered = allSummaries.filter((s) => recentDates.includes(s.date));
+
+    saveSummaries(filtered);
+    console.log(`💾 Saved custom summary. Total summaries: ${filtered.length}`);
+
+    res.json({
+      success: true,
+      count: result.count,
+      message: result.message,
+      summary: {
+        id: result.summary.id,
+        website: result.summary.website,
+        categoryName: result.summary.categoryName,
+        adsCount: result.summary.adsCount,
+        createdAt: result.summary.createdAt,
+        filters: result.summary.filters,
+      },
+    });
+  } catch (error) {
+    console.error("Error generating custom summary:", error);
+    res.status(500).json({ error: "Failed to generate custom summary" });
+  }
+});
+
+// Get subcategories for selected main categories
+router.post("/daily-summaries/subcategories", authenticateToken, (req, res) => {
+  try {
+    const {
+      getSubcategoriesForCategories,
+    } = require("../services/smartSummaryFilters");
+
+    const { mainCategories, website } = req.body;
+    const subcategories = getSubcategoriesForCategories(mainCategories || [], website);
+
+    res.json({ success: true, subcategories });
+  } catch (error) {
+    console.error("Error getting subcategories:", error);
+    res.status(500).json({ error: "Failed to get subcategories" });
+  }
+});
+
 // Send specific summary to groups
 router.post(
   "/daily-summaries/:id/send",
@@ -2865,7 +2964,7 @@ router.post(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { selectedGroups, customNumbers, delay } = req.body;
+      const { selectedGroups, customNumbers, delay, customMessage } = req.body;
       const sock = req.app.get("whatsappSock");
 
       // Check if socket exists
@@ -2911,6 +3010,9 @@ router.post(
       // Allow resending - users may want to send to different groups or resend if failed
       // Removed the check: if (summary.sent) { return res.status(400).json({ error: "Summary already sent" }); }
 
+      // Use custom message if provided, otherwise use the original summary message
+      const messageToSend = customMessage || summary.message;
+
       const delayMs = (delay || 3) * 1000; // Convert seconds to milliseconds
       let sentCount = 0;
       let failedCount = 0;
@@ -2922,7 +3024,7 @@ router.post(
           try {
             // Use bot's sendMessage function instead of sock.sendMessage directly
             // This ensures proper connection validation before sending
-            await sendMessage(recipientId, summary.message);
+            await sendMessage(recipientId, messageToSend);
             return { success: true };
           } catch (error) {
             const errorMsg = error.message || String(error);

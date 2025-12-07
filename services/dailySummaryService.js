@@ -514,6 +514,303 @@ function getTodaysAdsCount() {
   }
 }
 
+// =====================================
+// SMART SUMMARY - ADVANCED FILTERING
+// =====================================
+
+const {
+  getCategoriesForWebsite,
+  getMainCategoryNames,
+  getSubcategoriesForCategory,
+  getSubcategoriesForCategories,
+  categoryMatchesFilter,
+  isCommercialAd,
+  getDateRangeFromPreset,
+  getCategoryDisplayInfo,
+  DATE_PRESETS,
+} = require("./smartSummaryFilters");
+
+/**
+ * Get ads with advanced filtering options
+ * @param {Object} filters - Advanced filter options
+ * @param {string} filters.website - Filter by website (masaak/hasak)
+ * @param {string} filters.presetPeriod - Date preset (today, yesterday, last7days, custom)
+ * @param {Date|string} filters.startDate - Custom start date
+ * @param {Date|string} filters.endDate - Custom end date
+ * @param {string[]} filters.mainCategories - Main category names to filter
+ * @param {string[]} filters.subCategories - Subcategory names to filter
+ * @param {string[]} filters.sourceGroups - Source group JIDs to filter
+ * @param {boolean} filters.includeCommercial - Include commercial ads (default: true)
+ */
+function getAdsWithAdvancedFilters(filters = {}) {
+  try {
+    const adsFile = path.join(__dirname, "..", "data", "ads.json");
+    if (!fs.existsSync(adsFile)) {
+      return [];
+    }
+
+    const adsData = JSON.parse(fs.readFileSync(adsFile, "utf8"));
+    const adsArray = Array.isArray(adsData) ? adsData : adsData.ads || [];
+
+    // Get date range
+    const dateRange = getDateRangeFromPreset(
+      filters.presetPeriod || "today",
+      filters.startDate,
+      filters.endDate
+    );
+    const startOfRange = dateRange.startDate;
+    const endOfRange = dateRange.endDate;
+
+    console.log(`📊 Filtering ads from ${startOfRange.toISOString()} to ${endOfRange.toISOString()}`);
+
+    // Filter ads based on all criteria
+    const filteredAds = adsArray.filter((ad) => {
+      // Must be sent to groups
+      if (!ad.postedToGroups) return false;
+
+      // Must be accepted
+      if (ad.status !== "accepted") return false;
+
+      // Must have sentAt timestamp
+      if (!ad.sentAt) return false;
+
+      // Check date range
+      const sentAt = new Date(ad.sentAt);
+      if (sentAt < startOfRange || sentAt > endOfRange) return false;
+
+      // Check website filter
+      if (filters.website) {
+        const adWebsite = ad.targetWebsite || ad.wpData?.targetWebsite || "masaak";
+        if (adWebsite !== filters.website) return false;
+      }
+
+      // Check main category filter
+      if (filters.mainCategories && filters.mainCategories.length > 0) {
+        const adCategory = ad.category || ad.wpData?.meta?.arc_category || ad.wpData?.meta?.parent_catt || "";
+        if (!categoryMatchesFilter(adCategory, filters.mainCategories)) return false;
+      }
+
+      // Check subcategory filter
+      if (filters.subCategories && filters.subCategories.length > 0) {
+        const adSubCategory = ad.subCategory || ad.wpData?.meta?.sub_category || ad.wpData?.meta?.child_catt || "";
+        if (!categoryMatchesFilter(adSubCategory, filters.subCategories)) return false;
+      }
+
+      // Check source group filter
+      if (filters.sourceGroups && filters.sourceGroups.length > 0) {
+        const adFromGroup = ad.fromGroup || "";
+        if (!filters.sourceGroups.includes(adFromGroup)) return false;
+      }
+
+      // Check commercial ads filter
+      if (filters.includeCommercial === false) {
+        if (isCommercialAd(ad)) return false;
+      }
+
+      return true;
+    });
+
+    console.log(`📊 Found ${filteredAds.length} ads matching filters`);
+    return filteredAds;
+  } catch (error) {
+    console.error("Error getting ads with advanced filters:", error);
+    return [];
+  }
+}
+
+/**
+ * Get all unique source groups from ads
+ */
+function getUniqueSourceGroups() {
+  try {
+    const adsFile = path.join(__dirname, "..", "data", "ads.json");
+    if (!fs.existsSync(adsFile)) {
+      return [];
+    }
+
+    const adsData = JSON.parse(fs.readFileSync(adsFile, "utf8"));
+    const adsArray = Array.isArray(adsData) ? adsData : adsData.ads || [];
+
+    // Get unique groups with names
+    const groupsMap = new Map();
+    adsArray.forEach((ad) => {
+      if (ad.fromGroup && !groupsMap.has(ad.fromGroup)) {
+        groupsMap.set(ad.fromGroup, {
+          jid: ad.fromGroup,
+          name: ad.fromGroupName || ad.fromGroup
+        });
+      }
+    });
+
+    return Array.from(groupsMap.values()).sort((a, b) => 
+      (a.name || "").localeCompare(b.name || "")
+    );
+  } catch (error) {
+    console.error("Error getting unique source groups:", error);
+    return [];
+  }
+}
+
+/**
+ * Get available filter options for smart summary
+ */
+function getAvailableFilters() {
+  const masaakCategories = getMainCategoryNames("masaak");
+  const hasakCategories = getMainCategoryNames("hasak");
+  const sourceGroups = getUniqueSourceGroups();
+
+  // Build categories with display info
+  const masaakCatInfo = masaakCategories.map(cat => getCategoryDisplayInfo(cat, "masaak"));
+  const hasakCatInfo = hasakCategories.map(cat => getCategoryDisplayInfo(cat, "hasak"));
+
+  return {
+    websites: [
+      { value: "masaak", label: "🔰 مسعاك", labelEn: "Masaak" },
+      { value: "hasak", label: "🌴 حساك", labelEn: "Hasak" }
+    ],
+    datePresets: Object.entries(DATE_PRESETS).map(([key, preset]) => ({
+      value: key,
+      label: preset.label,
+      labelEn: preset.labelEn
+    })),
+    categories: {
+      masaak: masaakCatInfo,
+      hasak: hasakCatInfo
+    },
+    sourceGroups: sourceGroups
+  };
+}
+
+/**
+ * Generate custom summary with advanced filters
+ */
+function generateCustomSummary(filters = {}) {
+  const ads = getAdsWithAdvancedFilters(filters);
+  
+  if (ads.length === 0) {
+    return {
+      success: true,
+      count: 0,
+      message: "No ads found matching the selected filters",
+      summary: null
+    };
+  }
+
+  // Determine date range for title
+  const dateRange = getDateRangeFromPreset(
+    filters.presetPeriod || "today",
+    filters.startDate,
+    filters.endDate
+  );
+
+  // Format dates for display
+  const startDateStr = formatArabicDate(dateRange.startDate);
+  const endDateStr = formatArabicDate(dateRange.endDate);
+  const isSameDay = dateRange.startDate.toDateString() === dateRange.endDate.toDateString();
+  
+  // Build title
+  let title = "";
+  const website = filters.website || "all";
+  const websiteEmoji = website === "hasak" ? "🌴" : (website === "masaak" ? "🔰" : "📊");
+  const websiteName = website === "hasak" ? "حساك" : (website === "masaak" ? "مسعاك" : "");
+
+  if (isSameDay) {
+    title = `ملخص إعلانات ${websiteName} *يوم ${startDateStr}*`;
+  } else {
+    title = `ملخص إعلانات ${websiteName} *من ${startDateStr} إلى ${endDateStr}*`;
+  }
+
+  // Add category info to title if specific categories selected
+  if (filters.mainCategories && filters.mainCategories.length > 0 && filters.mainCategories.length <= 3) {
+    title += `\n📂 ${filters.mainCategories.join(" | ")}`;
+  }
+
+  // Build message
+  let message = `${websiteEmoji} ${title}\n\n`;
+
+  ads.forEach((ad, index) => {
+    const wpUrl = ad.wordpressUrl || ad.wordpressFullUrl || "";
+    const adTitle = ad.wpData?.title || ad.enhancedText?.substring(0, 100) || "عرض مميز";
+    const area = ad.wpData?.meta?.area || ad.wpData?.meta?.arc_space || "";
+    const price = ad.wpData?.meta?.price_amount || ad.wpData?.meta?.price || "";
+
+    let itemLine = `${toArabicNumerals(index + 1)}- ${adTitle.trim()}`;
+
+    if (area && price) {
+      itemLine += ` ${area}م - ${price.toLocaleString("ar-SA")} ريال`;
+    } else if (area) {
+      itemLine += ` ${area}م`;
+    } else if (price) {
+      itemLine += ` - ${price.toLocaleString("ar-SA")} ريال`;
+    }
+
+    message += `${itemLine}\n`;
+
+    if (wpUrl) {
+      message += `🔗 رابط: ${wpUrl}\n`;
+    }
+
+    message += `........................${websiteEmoji}.......................`;
+  });
+
+  // Add footer
+  if (website === "masaak") {
+    message += `\n\n🔰 للمزيد من العروض: https://masaak.com`;
+  } else if (website === "hasak") {
+    message += `\n\n🌴 للمزيد من العروض: https://hsaak.com`;
+  }
+
+  // Create summary object
+  const summary = {
+    id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    website: website,
+    category: filters.mainCategories?.join("|") || "all",
+    categoryName: filters.mainCategories?.join(" | ") || "الكل",
+    message: message,
+    adsCount: ads.length,
+    adIds: ads.map((ad) => ad.id),
+    createdAt: new Date().toISOString(),
+    date: new Date().toISOString().split("T")[0],
+    sent: false,
+    sentAt: null,
+    filters: {
+      presetPeriod: filters.presetPeriod,
+      startDate: dateRange.startDate.toISOString(),
+      endDate: dateRange.endDate.toISOString(),
+      mainCategories: filters.mainCategories,
+      subCategories: filters.subCategories,
+      sourceGroups: filters.sourceGroups,
+      includeCommercial: filters.includeCommercial
+    }
+  };
+
+  return {
+    success: true,
+    count: ads.length,
+    message: `Generated summary with ${ads.length} ads`,
+    summary: summary
+  };
+}
+
+/**
+ * Preview custom summary (returns count and sample without saving)
+ */
+function previewCustomSummary(filters = {}) {
+  const ads = getAdsWithAdvancedFilters(filters);
+  
+  return {
+    count: ads.length,
+    previewAds: ads.slice(0, 5).map(ad => ({
+      id: ad.id,
+      title: ad.wpData?.title || ad.enhancedText?.substring(0, 50) || "عرض",
+      category: ad.category,
+      fromGroup: ad.fromGroupName || ad.fromGroup,
+      sentAt: ad.sentAt
+    })),
+    filters: filters
+  };
+}
+
 /**
  * Get summary statistics
  */
@@ -553,4 +850,10 @@ module.exports = {
   getTodaysAdsCount,
   getCategoryConfigs,
   saveSummaries,
+  // Smart Summary exports
+  getAdsWithAdvancedFilters,
+  getUniqueSourceGroups,
+  getAvailableFilters,
+  generateCustomSummary,
+  previewCustomSummary,
 };

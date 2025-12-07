@@ -468,26 +468,52 @@
                                 style="color: #9C27B0; border-bottom: 2px solid #9C27B0; padding-bottom: 0.5rem; margin-top: 1rem;">
                                 🏷️ Categories</h3>
 
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                            <!-- Commercial Ad Checkbox -->
+                            <div id="commercial-ad-toggle-container"
+                                style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%); border: 2px solid #f0ad4e; border-radius: 8px;">
+                                <label
+                                    style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold; color: #856404;">
+                                    <input type="checkbox" id="wp-preview-is-commercial"
+                                        onchange="toggleCommercialAdCategory()"
+                                        style="width: 22px; height: 22px; cursor: pointer;">
+                                    <span>
+                                        💰 إعلان تجاري ربحي مميز
+                                        <small
+                                            style="font-weight: normal; display: block; margin-top: 3px; color: #856404;">
+                                            عند التفعيل، سيتم تغيير التصنيف تلقائياً إلى "إعلان تجاري مميز"
+                                        </small>
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div id="category-selectors-container"
+                                style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
                                 <div>
                                     <label>parent_catt (فئة رئيسية) *</label>
                                     <select id="wp-preview-parent-catt" class="form-control"
                                         onchange="updateWpSubcategories()">
                                         <option value="">اختر نوع العقار</option>
-                                        <option value="أرض">أرض</option>
-                                        <option value="بيت">بيت</option>
-                                        <option value="دبلكس">دبلكس</option>
-                                        <option value="شقة دبلكسية">شقة دبلكسية</option>
-                                        <option value="شقة">شقة</option>
-                                        <option value="عمارة">عمارة</option>
-                                        <option value="فيلا">فيلا</option>
-                                        <option value="محطة بنزين">محطة بنزين</option>
-                                        <option value="محل تجاري">محل تجاري</option>
-                                        <option value="مزرعة">مزرعة</option>
-                                        <option value="مستودع">مستودع</option>
-                                        <option value="شالية">شالية</option>
-                                        <option value="استراحة">استراحة</option>
-                                        <option value=" للإيجار"> للإيجار</option>
+                                        <optgroup label="📢 إعلانات مميزة">
+                                            <option value="اعلانات مسعاك المميزة">💰 اعلانات مسعاك المميزة</option>
+                                            <option value="إعلان تجاري ربحي مميز">💰 إعلان تجاري ربحي مميز (حساك)
+                                            </option>
+                                        </optgroup>
+                                        <optgroup label="🏠 العقارات">
+                                            <option value="أرض">أرض</option>
+                                            <option value="بيت">بيت</option>
+                                            <option value="دبلكس">دبلكس</option>
+                                            <option value="شقة دبلكسية">شقة دبلكسية</option>
+                                            <option value="شقة">شقة</option>
+                                            <option value="عمارة">عمارة</option>
+                                            <option value="فيلا">فيلا</option>
+                                            <option value="محطة بنزين">محطة بنزين</option>
+                                            <option value="محل تجاري">محل تجاري</option>
+                                            <option value="مزرعة">مزرعة</option>
+                                            <option value="مستودع">مستودع</option>
+                                            <option value="شالية">شالية</option>
+                                            <option value="استراحة">استراحة</option>
+                                            <option value=" للإيجار"> للإيجار</option>
+                                        </optgroup>
                                     </select>
                                 </div>
                                 <div>
@@ -1079,63 +1105,198 @@
                     </div>
                 </div>
 
-                <!-- Actions Card -->
+                <!-- Smart Summary Builder Card -->
                 <div class="card">
                     <div class="card-body">
-                        <h3><i class="fas fa-play-circle"></i> Actions</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
+                            onclick="toggleSmartSummaryBuilder()">
+                            <h3 style="margin: 0;"><i class="fas fa-brain"></i> Smart Summary Builder</h3>
+                            <i class="fas fa-chevron-down" id="smart-builder-toggle-icon"
+                                style="transition: transform 0.3s;"></i>
+                        </div>
 
-                        <!-- Filters -->
-                        <div
-                            style="margin-top: 15px; margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                            <h4 style="font-size: 14px; margin-bottom: 10px; color: #666;">
-                                <i class="fas fa-filter"></i> Filter Options (Optional)
-                            </h4>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                <div>
-                                    <label for="filter-website"
-                                        style="font-size: 12px; color: #888; display: block; margin-bottom: 5px;">Website:</label>
-                                    <select id="filter-website" class="form-control" style="font-size: 14px;">
-                                        <option value="">All Websites</option>
-                                        <option value="masaak">🔰 Masaak</option>
-                                        <option value="hasak">🌴 Hasak</option>
-                                    </select>
+                        <div id="smart-summary-builder" style="margin-top: 20px;">
+                            <!-- Date Selection -->
+                            <div class="smart-filter-section"
+                                style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px;">
+                                <label style="font-weight: bold; color: #333; margin-bottom: 10px; display: block;">
+                                    <i class="fas fa-calendar-alt" style="color: #667eea;"></i> اختيار الفترة الزمنية
+                                </label>
+                                <div id="date-presets"
+                                    style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                                    <button type="button" class="date-preset-btn active" data-preset="today"
+                                        onclick="selectDatePreset('today')">
+                                        اليوم
+                                    </button>
+                                    <button type="button" class="date-preset-btn" data-preset="yesterday"
+                                        onclick="selectDatePreset('yesterday')">
+                                        أمس
+                                    </button>
+                                    <button type="button" class="date-preset-btn" data-preset="last7days"
+                                        onclick="selectDatePreset('last7days')">
+                                        آخر 7 أيام
+                                    </button>
+                                    <button type="button" class="date-preset-btn" data-preset="last30days"
+                                        onclick="selectDatePreset('last30days')">
+                                        آخر 30 يوم
+                                    </button>
+                                    <button type="button" class="date-preset-btn" data-preset="custom"
+                                        onclick="selectDatePreset('custom')">
+                                        مخصص
+                                    </button>
                                 </div>
-                                <div>
-                                    <label for="filter-category"
-                                        style="font-size: 12px; color: #888; display: block; margin-bottom: 5px;">Category:</label>
-                                    <select id="filter-category" class="form-control" style="font-size: 14px;">
-                                        <option value="">All Categories</option>
-                                        <optgroup label="Masaak Categories">
-                                            <option value="أرض">الأراضي والمزارع</option>
-                                            <option value="فيلا|بيت">الفلل والبيوت</option>
-                                            <option value="شقة">الشقق والشقق الدبلكسية</option>
-                                            <option value="دبلكس">الدبلكسات</option>
-                                            <option value="عمارة">العمارات</option>
-                                            <option value="استراحة|شالية">الاستراحات والشاليهات</option>
-                                            <option value="محل تجاري|محل">المحلات التجارية</option>
-                                            <option value="مستودع">المستودعات</option>
-                                            <option value="إيجار">عقارات للإيجار</option>
-                                            <option value="استثمار">الاستثمار والتقبيل</option>
-                                        </optgroup>
-                                        <optgroup label="Hasak Categories">
-                                            <option value="فعالية">فعاليات الأحساء</option>
-                                            <option value="حراج الحسا">المستعمل</option>
-                                        </optgroup>
-                                    </select>
+                                <div id="custom-date-range" style="display: none; margin-top: 10px;">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                        <div>
+                                            <label style="font-size: 12px; color: #666;">من:</label>
+                                            <input type="date" id="smart-start-date" class="form-control"
+                                                style="font-size: 14px;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 12px; color: #666;">إلى:</label>
+                                            <input type="date" id="smart-end-date" class="form-control"
+                                                style="font-size: 14px;">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div style="display: flex; gap: 10px;">
-                            <button id="trigger-summary-btn" class="btn btn-primary">
-                                <i class="fas fa-play-circle"></i> Generate Summary Now
-                            </button>
-                            <button id="refresh-summaries-btn" class="btn btn-secondary">
-                                <i class="fas fa-sync-alt"></i> Refresh
-                            </button>
+                            <!-- Website Selection -->
+                            <div class="smart-filter-section"
+                                style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px;">
+                                <label style="font-weight: bold; color: #333; margin-bottom: 10px; display: block;">
+                                    <i class="fas fa-globe" style="color: #667eea;"></i> الموقع
+                                </label>
+                                <div id="website-chips" style="display: flex; gap: 10px;">
+                                    <button type="button" class="chip-btn" data-website="" onclick="selectWebsite('')">
+                                        📊 الكل
+                                    </button>
+                                    <button type="button" class="chip-btn active" data-website="masaak"
+                                        onclick="selectWebsite('masaak')">
+                                        🔰 مسعاك
+                                    </button>
+                                    <button type="button" class="chip-btn" data-website="hasak"
+                                        onclick="selectWebsite('hasak')">
+                                        🌴 حساك
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Main Categories -->
+                            <div class="smart-filter-section"
+                                style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px;">
+                                <label style="font-weight: bold; color: #333; margin-bottom: 10px; display: block;">
+                                    <i class="fas fa-folder" style="color: #667eea;"></i> النوع (التصنيف الرئيسي)
+                                    <span id="selected-categories-count"
+                                        style="font-size: 12px; color: #888; margin-right: 10px;"></span>
+                                </label>
+                                <div id="main-category-chips"
+                                    style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 200px; overflow-y: auto;">
+                                    <!-- Categories will be loaded dynamically -->
+                                    <span style="color: #999; font-size: 14px;"><i class="fas fa-spinner fa-spin"></i>
+                                        جاري التحميل...</span>
+                                </div>
+                                <div style="margin-top: 8px;">
+                                    <button type="button" class="btn btn-sm btn-secondary"
+                                        onclick="selectAllCategories()">
+                                        <i class="fas fa-check-double"></i> اختيار الكل
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-secondary"
+                                        onclick="clearAllCategories()">
+                                        <i class="fas fa-times"></i> إلغاء الكل
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Subcategories (Dynamic) -->
+                            <div id="subcategories-section" class="smart-filter-section"
+                                style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%); border-radius: 8px; display: none;">
+                                <label style="font-weight: bold; color: #333; margin-bottom: 10px; display: block;">
+                                    <i class="fas fa-folder-open" style="color: #f0ad4e;"></i> النوع الفرعي
+                                </label>
+                                <div id="subcategory-chips" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                    <!-- Subcategories will be loaded dynamically -->
+                                </div>
+                            </div>
+
+                            <!-- Source Groups -->
+                            <div class="smart-filter-section"
+                                style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f4fd 0%, #d1e8fa 100%); border-radius: 8px;">
+                                <label style="font-weight: bold; color: #333; margin-bottom: 10px; display: block;">
+                                    <i class="fas fa-users" style="color: #667eea;"></i> حسب قروب معين (اختياري)
+                                    <span id="selected-groups-count"
+                                        style="font-size: 12px; color: #888; margin-right: 10px;"></span>
+                                </label>
+                                <input type="text" id="source-groups-search" class="form-control"
+                                    placeholder="🔍 ابحث عن مجموعة..." style="margin-bottom: 10px; font-size: 14px;"
+                                    oninput="filterSourceGroups()">
+                                <div id="source-groups-list"
+                                    style="max-height: 200px; overflow-y: auto; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 10px;">
+                                    <span style="color: #999; font-size: 14px;"><i class="fas fa-spinner fa-spin"></i>
+                                        جاري تحميل المجموعات...</span>
+                                </div>
+                                <div style="margin-top: 8px; display: flex; gap: 8px;">
+                                    <button type="button" class="btn btn-sm btn-secondary"
+                                        onclick="selectAllSourceGroups()">
+                                        <i class="fas fa-check-double"></i> اختيار الكل
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-secondary"
+                                        onclick="clearAllSourceGroups()">
+                                        <i class="fas fa-times"></i> إلغاء الكل
+                                    </button>
+                                </div>
+                                <!-- Hidden select to maintain compatibility -->
+                                <select id="source-groups-filter" class="form-control" multiple style="display: none;">
+                                </select>
+                            </div>
+
+                            <!-- Commercial Ads Toggle -->
+                            <div class="smart-filter-section"
+                                style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px;">
+                                <label
+                                    style="font-weight: bold; color: #333; display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                    <input type="checkbox" id="include-commercial" checked
+                                        style="width: 18px; height: 18px;">
+                                    <span><i class="fas fa-ad" style="color: #667eea;"></i> تضمين الإعلانات
+                                        التجارية</span>
+                                </label>
+                            </div>
+
+                            <!-- Preview & Actions -->
+                            <div
+                                style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 20px; padding-top: 15px; border-top: 2px solid #e0e0e0;">
+                                <button id="preview-smart-summary-btn" class="btn btn-secondary"
+                                    onclick="previewSmartSummary()">
+                                    <i class="fas fa-eye"></i> معاينة
+                                    <span id="preview-count"
+                                        style="background: #667eea; color: white; padding: 2px 8px; border-radius: 10px; margin-right: 5px; display: none;">0</span>
+                                </button>
+                                <button id="generate-smart-summary-btn" class="btn btn-primary"
+                                    onclick="generateSmartSummary()">
+                                    <i class="fas fa-magic"></i> إنشاء الملخص الذكي
+                                </button>
+                                <button id="refresh-summaries-btn" class="btn btn-secondary">
+                                    <i class="fas fa-sync-alt"></i> تحديث القائمة
+                                </button>
+                            </div>
+                            <div id="smart-summary-message" class="info-message"
+                                style="display:none; margin-top: 10px;"></div>
                         </div>
-                        <div id="trigger-message" class="info-message" style="display:none; margin-top: 10px;"></div>
                     </div>
+                </div>
+
+                <!-- Legacy Quick Generate (Hidden) -->
+                <div id="legacy-generate" style="display: none;">
+                    <button id="trigger-summary-btn" class="btn btn-primary">
+                        <i class="fas fa-play-circle"></i> Generate Summary Now
+                    </button>
+                    <select id="filter-website" class="form-control" style="display: none;">
+                        <option value="">All Websites</option>
+                    </select>
+                    <select id="filter-category" class="form-control" style="display: none;">
+                        <option value="">All Categories</option>
+                    </select>
+                    <div id="trigger-message" class="info-message" style="display:none;"></div>
                 </div>
 
                 <!-- Summaries List Card -->
@@ -1788,6 +1949,118 @@
                 subSelect.disabled = true;
             }
         }
+
+        // Commercial Ad Category Constants
+        // Hasak: إعلان تجاري ربحي مميز = ID 24
+        // Masaak: اعلانات مسعاك المميزة = ID 89
+        const COMMERCIAL_CATEGORIES = {
+            hasak: { name: 'إعلان تجاري ربحي مميز', id: 24 },
+            masaak: { name: 'اعلانات مسعاك المميزة', id: 89 }
+        };
+
+        // Store original category values when commercial mode is enabled
+        let originalCategoryValues = null;
+
+        // Toggle commercial ad category
+        function toggleCommercialAdCategory() {
+            const isCommercial = document.getElementById('wp-preview-is-commercial')?.checked;
+            const parentSelect = document.getElementById('wp-preview-parent-catt');
+            const subSelect = document.getElementById('wp-preview-sub-catt');
+            const arcCategoryInput = document.getElementById('wp-preview-arc-category');
+            const arcSubcategoryInput = document.getElementById('wp-preview-arc-subcategory');
+            const categoryContainer = document.getElementById('category-selectors-container');
+            const targetWebsite = document.getElementById('wp-preview-target-website')?.value || 'masaak';
+
+            if (isCommercial) {
+                // Store original values
+                originalCategoryValues = {
+                    parentCatt: parentSelect?.value || '',
+                    subCatt: subSelect?.value || '',
+                    arcCategory: arcCategoryInput?.value || '',
+                    arcSubcategory: arcSubcategoryInput?.value || ''
+                };
+
+                // Get commercial category for target website
+                const commercialCat = COMMERCIAL_CATEGORIES[targetWebsite] || COMMERCIAL_CATEGORIES.masaak;
+
+                // Override all category fields with commercial category
+                if (parentSelect) {
+                    parentSelect.value = commercialCat.name;
+                    parentSelect.disabled = true;
+                }
+                if (subSelect) {
+                    subSelect.innerHTML = '<option value="">لا يوجد</option>';
+                    subSelect.value = '';
+                    subSelect.disabled = true;
+                }
+                if (arcCategoryInput) {
+                    arcCategoryInput.value = commercialCat.name;
+                    arcCategoryInput.readOnly = true;
+                }
+                if (arcSubcategoryInput) {
+                    arcSubcategoryInput.value = '';
+                    arcSubcategoryInput.readOnly = true;
+                }
+
+                // Visual feedback - dim the category selectors
+                if (categoryContainer) {
+                    categoryContainer.style.opacity = '0.6';
+                    categoryContainer.style.pointerEvents = 'none';
+                }
+
+                console.log(`✅ Commercial ad mode enabled: ${commercialCat.name} (ID: ${commercialCat.id})`);
+            } else {
+                // Restore original values
+                if (originalCategoryValues) {
+                    if (parentSelect) {
+                        parentSelect.value = originalCategoryValues.parentCatt;
+                        parentSelect.disabled = false;
+                    }
+                    if (arcCategoryInput) {
+                        arcCategoryInput.value = originalCategoryValues.arcCategory;
+                        arcCategoryInput.readOnly = false;
+                    }
+                    if (arcSubcategoryInput) {
+                        arcSubcategoryInput.value = originalCategoryValues.arcSubcategory;
+                        arcSubcategoryInput.readOnly = false;
+                    }
+                    // Restore subcategories
+                    updateWpSubcategories();
+                    if (subSelect) {
+                        subSelect.value = originalCategoryValues.subCatt;
+                        subSelect.disabled = false;
+                    }
+                } else {
+                    // Just re-enable if no original values
+                    if (parentSelect) parentSelect.disabled = false;
+                    if (subSelect) subSelect.disabled = false;
+                    if (arcCategoryInput) arcCategoryInput.readOnly = false;
+                    if (arcSubcategoryInput) arcSubcategoryInput.readOnly = false;
+                }
+
+                // Restore visual state
+                if (categoryContainer) {
+                    categoryContainer.style.opacity = '1';
+                    categoryContainer.style.pointerEvents = 'auto';
+                }
+
+                console.log('✅ Commercial ad mode disabled, original categories restored');
+            }
+        }
+
+        // Listen for website changes to update commercial category
+        document.addEventListener('DOMContentLoaded', function () {
+            const websiteSelect = document.getElementById('wp-preview-target-website');
+            if (websiteSelect) {
+                websiteSelect.addEventListener('change', function () {
+                    const isCommercial = document.getElementById('wp-preview-is-commercial')?.checked;
+                    if (isCommercial) {
+                        // Re-apply commercial category for new website
+                        toggleCommercialAdCategory();
+                    }
+                });
+            }
+        });
 
         // Sync sub_catt with arc_subcategory when changed
         document.addEventListener('DOMContentLoaded', function () {

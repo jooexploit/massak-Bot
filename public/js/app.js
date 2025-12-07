@@ -8297,11 +8297,594 @@ function filterExcludedGroups() {
 
 // ==================== DAILY SUMMARIES VIEW ====================
 
+// Smart Summary Builder State
+let smartSummaryFilters = {
+  presetPeriod: "today",
+  startDate: null,
+  endDate: null,
+  website: "masaak",
+  mainCategories: [],
+  subCategories: [],
+  sourceGroups: [],
+  includeCommercial: true
+};
+let availableFiltersData = null;
+
 async function loadDailySummariesView() {
   await loadSchedulerStatus();
   await loadDailySummaries();
   initDailySummariesEvents();
+  // Initialize Smart Summary Builder
+  await initSmartSummaryBuilder();
 }
+
+// ==================== SMART SUMMARY BUILDER ====================
+
+async function initSmartSummaryBuilder() {
+  try {
+    // Load available filters from API
+    await loadAvailableFilters();
+    
+    // Set default dates
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    const startDateInput = document.getElementById("smart-start-date");
+    const endDateInput = document.getElementById("smart-end-date");
+    if (startDateInput) startDateInput.value = todayStr;
+    if (endDateInput) endDateInput.value = todayStr;
+    
+  } catch (error) {
+    console.error("Error initializing smart summary builder:", error);
+  }
+}
+
+async function loadAvailableFilters() {
+  try {
+    const response = await fetch("/api/bot/daily-summaries/available-filters", {
+      credentials: "include",
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      availableFiltersData = data.filters;
+      
+      // Render category chips
+      renderMainCategoryChips();
+      
+      // Render source groups
+      renderSourceGroups();
+    }
+  } catch (error) {
+    console.error("Error loading available filters:", error);
+  }
+}
+
+function renderMainCategoryChips() {
+  const container = document.getElementById("main-category-chips");
+  if (!container || !availableFiltersData) return;
+  
+  const website = smartSummaryFilters.website;
+  let categories = [];
+  
+  if (website === "masaak") {
+    categories = availableFiltersData.categories.masaak || [];
+  } else if (website === "hasak") {
+    categories = availableFiltersData.categories.hasak || [];
+  } else {
+    // All - combine both
+    categories = [
+      ...(availableFiltersData.categories.masaak || []),
+      ...(availableFiltersData.categories.hasak || [])
+    ];
+  }
+  
+  if (categories.length === 0) {
+    container.innerHTML = '<span style="color: #999;">لا توجد تصنيفات متاحة</span>';
+    return;
+  }
+  
+  container.innerHTML = categories.map(cat => `
+    <button type="button" 
+            class="category-chip ${smartSummaryFilters.mainCategories.includes(cat.name) ? 'active' : ''}" 
+            data-category="${cat.name}"
+            onclick="toggleMainCategory('${cat.name}')">
+      ${cat.icon || '📁'} ${cat.displayName || cat.name}
+    </button>
+  `).join("");
+  
+  updateSelectedCategoriesCount();
+}
+
+function toggleMainCategory(categoryName) {
+  const index = smartSummaryFilters.mainCategories.indexOf(categoryName);
+  if (index > -1) {
+    smartSummaryFilters.mainCategories.splice(index, 1);
+  } else {
+    smartSummaryFilters.mainCategories.push(categoryName);
+  }
+  
+  // Update chip visual
+  const chip = document.querySelector(`[data-category="${categoryName}"]`);
+  if (chip) {
+    chip.classList.toggle("active");
+  }
+  
+  updateSelectedCategoriesCount();
+  updateSubcategories();
+}
+
+function selectAllCategories() {
+  const container = document.getElementById("main-category-chips");
+  const chips = container.querySelectorAll(".category-chip");
+  
+  smartSummaryFilters.mainCategories = [];
+  chips.forEach(chip => {
+    const catName = chip.dataset.category;
+    smartSummaryFilters.mainCategories.push(catName);
+    chip.classList.add("active");
+  });
+  
+  updateSelectedCategoriesCount();
+  updateSubcategories();
+}
+
+function clearAllCategories() {
+  const container = document.getElementById("main-category-chips");
+  const chips = container.querySelectorAll(".category-chip");
+  
+  smartSummaryFilters.mainCategories = [];
+  chips.forEach(chip => {
+    chip.classList.remove("active");
+  });
+  
+  updateSelectedCategoriesCount();
+  updateSubcategories();
+}
+
+function updateSelectedCategoriesCount() {
+  const countSpan = document.getElementById("selected-categories-count");
+  if (countSpan) {
+    const count = smartSummaryFilters.mainCategories.length;
+    countSpan.textContent = count > 0 ? `(${count} محدد)` : "";
+  }
+}
+
+async function updateSubcategories() {
+  const section = document.getElementById("subcategories-section");
+  const container = document.getElementById("subcategory-chips");
+  
+  if (smartSummaryFilters.mainCategories.length === 0) {
+    section.style.display = "none";
+    smartSummaryFilters.subCategories = [];
+    return;
+  }
+  
+  try {
+    const response = await fetch("/api/bot/daily-summaries/subcategories", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mainCategories: smartSummaryFilters.mainCategories,
+        website: smartSummaryFilters.website
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const subcategories = data.subcategories || [];
+      
+      if (subcategories.length > 0) {
+        section.style.display = "block";
+        container.innerHTML = subcategories.map(sub => `
+          <button type="button" 
+                  class="subcategory-chip ${smartSummaryFilters.subCategories.includes(sub) ? 'active' : ''}" 
+                  data-subcategory="${sub}"
+                  onclick="toggleSubcategory('${sub}')">
+            ${sub}
+          </button>
+        `).join("");
+      } else {
+        section.style.display = "none";
+      }
+    }
+  } catch (error) {
+    console.error("Error loading subcategories:", error);
+    section.style.display = "none";
+  }
+}
+
+function toggleSubcategory(subName) {
+  const index = smartSummaryFilters.subCategories.indexOf(subName);
+  if (index > -1) {
+    smartSummaryFilters.subCategories.splice(index, 1);
+  } else {
+    smartSummaryFilters.subCategories.push(subName);
+  }
+  
+  const chip = document.querySelector(`[data-subcategory="${subName}"]`);
+  if (chip) {
+    chip.classList.toggle("active");
+  }
+}
+
+// Source groups state
+let selectedSourceGroups = [];
+
+function renderSourceGroups() {
+  const listContainer = document.getElementById("source-groups-list");
+  const select = document.getElementById("source-groups-filter");
+  
+  if (!listContainer || !availableFiltersData) return;
+  
+  const groups = availableFiltersData.sourceGroups || [];
+  
+  if (groups.length === 0) {
+    listContainer.innerHTML = `
+      <div style="text-align: center; color: #888; padding: 20px;">
+        <i class="fas fa-info-circle" style="font-size: 24px; margin-bottom: 10px;"></i>
+        <p style="margin: 0;">لا توجد مجموعات مصدر للإعلانات</p>
+      </div>
+    `;
+    return;
+  }
+  
+  // Sync hidden select
+  if (select) {
+    select.innerHTML = groups.map(g => 
+      `<option value="${g.jid}">${g.name}</option>`
+    ).join("");
+  }
+  
+  listContainer.innerHTML = groups.map(g => `
+    <label class="source-group-item" data-jid="${g.jid}" data-name="${g.name.toLowerCase()}" 
+           style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; margin-bottom: 4px; 
+                  background: #f8f9fa; border-radius: 6px; cursor: pointer; transition: background 0.2s;">
+      <input type="checkbox" class="source-group-checkbox" value="${g.jid}" 
+             onchange="toggleSourceGroup('${g.jid}')" 
+             style="width: 18px; height: 18px; cursor: pointer;">
+      <span style="flex: 1; font-size: 14px; color: #333;">${g.name}</span>
+      <i class="fas fa-users" style="color: #667eea; font-size: 12px;"></i>
+    </label>
+  `).join("");
+  
+  updateSelectedGroupsCount();
+}
+
+function toggleSourceGroup(jid) {
+  const index = selectedSourceGroups.indexOf(jid);
+  if (index > -1) {
+    selectedSourceGroups.splice(index, 1);
+  } else {
+    selectedSourceGroups.push(jid);
+  }
+  
+  updateSelectedGroupsCount();
+  syncHiddenSelect();
+}
+
+function selectAllSourceGroups() {
+  const checkboxes = document.querySelectorAll(".source-group-checkbox");
+  selectedSourceGroups = [];
+  
+  checkboxes.forEach(cb => {
+    cb.checked = true;
+    if (!selectedSourceGroups.includes(cb.value)) {
+      selectedSourceGroups.push(cb.value);
+    }
+  });
+  
+  updateSelectedGroupsCount();
+  syncHiddenSelect();
+}
+
+function clearAllSourceGroups() {
+  const checkboxes = document.querySelectorAll(".source-group-checkbox");
+  selectedSourceGroups = [];
+  
+  checkboxes.forEach(cb => {
+    cb.checked = false;
+  });
+  
+  updateSelectedGroupsCount();
+  syncHiddenSelect();
+}
+
+function filterSourceGroups() {
+  const searchInput = document.getElementById("source-groups-search");
+  const searchTerm = (searchInput?.value || "").toLowerCase().trim();
+  const items = document.querySelectorAll(".source-group-item");
+  
+  items.forEach(item => {
+    const name = item.dataset.name || "";
+    const matches = name.includes(searchTerm) || searchTerm === "";
+    item.style.display = matches ? "flex" : "none";
+  });
+}
+
+function updateSelectedGroupsCount() {
+  const countSpan = document.getElementById("selected-groups-count");
+  if (countSpan) {
+    const count = selectedSourceGroups.length;
+    countSpan.textContent = count > 0 ? `(${count} مجموعة محددة)` : "(الكل)";
+  }
+}
+
+function syncHiddenSelect() {
+  const select = document.getElementById("source-groups-filter");
+  if (select) {
+    Array.from(select.options).forEach(opt => {
+      opt.selected = selectedSourceGroups.includes(opt.value);
+    });
+  }
+}
+
+function selectDatePreset(preset) {
+  smartSummaryFilters.presetPeriod = preset;
+  
+  // Update button states
+  document.querySelectorAll(".date-preset-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.preset === preset);
+  });
+  
+  // Show/hide custom date range
+  const customRange = document.getElementById("custom-date-range");
+  if (customRange) {
+    customRange.style.display = preset === "custom" ? "block" : "none";
+  }
+}
+
+function selectWebsite(website) {
+  smartSummaryFilters.website = website;
+  
+  // Update chip states
+  document.querySelectorAll("#website-chips .chip-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.website === website);
+  });
+  
+  // Reset categories when website changes
+  smartSummaryFilters.mainCategories = [];
+  smartSummaryFilters.subCategories = [];
+  
+  // Re-render categories
+  renderMainCategoryChips();
+  updateSubcategories();
+}
+
+function toggleSmartSummaryBuilder() {
+  const builder = document.getElementById("smart-summary-builder");
+  const icon = document.getElementById("smart-builder-toggle-icon");
+  
+  if (builder.style.display === "none") {
+    builder.style.display = "block";
+    icon.style.transform = "rotate(0deg)";
+  } else {
+    builder.style.display = "none";
+    icon.style.transform = "rotate(-90deg)";
+  }
+}
+
+function getSmartSummaryFilters() {
+  // Use the selectedSourceGroups array (managed by checkbox UI)
+  const selectedGroups = selectedSourceGroups || [];
+  
+  // Get commercial toggle
+  const includeCommercial = document.getElementById("include-commercial")?.checked ?? true;
+  
+  // Get custom dates if preset is custom
+  let startDate = null;
+  let endDate = null;
+  if (smartSummaryFilters.presetPeriod === "custom") {
+    startDate = document.getElementById("smart-start-date")?.value;
+    endDate = document.getElementById("smart-end-date")?.value;
+  }
+  
+  return {
+    presetPeriod: smartSummaryFilters.presetPeriod,
+    startDate: startDate,
+    endDate: endDate,
+    website: smartSummaryFilters.website || undefined,
+    mainCategories: smartSummaryFilters.mainCategories.length > 0 ? smartSummaryFilters.mainCategories : undefined,
+    subCategories: smartSummaryFilters.subCategories.length > 0 ? smartSummaryFilters.subCategories : undefined,
+    sourceGroups: selectedGroups.length > 0 ? selectedGroups : undefined,
+    includeCommercial: includeCommercial
+  };
+}
+
+async function previewSmartSummary() {
+  const previewBtn = document.getElementById("preview-smart-summary-btn");
+  const previewCount = document.getElementById("preview-count");
+  const messageDiv = document.getElementById("smart-summary-message");
+  
+  try {
+    previewBtn.disabled = true;
+    previewBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري المعاينة...';
+    
+    const filters = getSmartSummaryFilters();
+    
+    const response = await fetch("/api/bot/daily-summaries/preview", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(filters)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const count = data.preview?.count || 0;
+      
+      previewCount.textContent = count;
+      previewCount.style.display = "inline";
+      
+      if (count === 0) {
+        messageDiv.textContent = "⚠️ لا توجد إعلانات تطابق الفلاتر المحددة";
+        messageDiv.className = "info-message warning";
+      } else {
+        messageDiv.textContent = `✅ تم العثور على ${count} إعلان(ات) مطابقة`;
+        messageDiv.className = "info-message success";
+      }
+      messageDiv.style.display = "block";
+      
+      setTimeout(() => {
+        messageDiv.style.display = "none";
+      }, 5000);
+    }
+  } catch (error) {
+    console.error("Error previewing summary:", error);
+    messageDiv.textContent = "❌ حدث خطأ في المعاينة";
+    messageDiv.className = "info-message error";
+    messageDiv.style.display = "block";
+  } finally {
+    previewBtn.disabled = false;
+    previewBtn.innerHTML = '<i class="fas fa-eye"></i> معاينة <span id="preview-count" style="background: #667eea; color: white; padding: 2px 8px; border-radius: 10px; margin-right: 5px;">' + (document.getElementById("preview-count")?.textContent || '0') + '</span>';
+  }
+}
+
+async function generateSmartSummary() {
+  const generateBtn = document.getElementById("generate-smart-summary-btn");
+  const messageDiv = document.getElementById("smart-summary-message");
+  
+  try {
+    generateBtn.disabled = true;
+    generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإنشاء...';
+    
+    const filters = getSmartSummaryFilters();
+    
+    const response = await fetch("/api/bot/daily-summaries/generate-custom", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(filters)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      
+      if (data.count === 0) {
+        messageDiv.textContent = "⚠️ لا توجد إعلانات تطابق الفلاتر المحددة";
+        messageDiv.className = "info-message warning";
+      } else {
+        messageDiv.textContent = `✅ تم إنشاء ملخص يحتوي على ${data.count} إعلان(ات)`;
+        messageDiv.className = "info-message success";
+        
+        // Reload summaries list
+        await loadDailySummaries();
+      }
+      messageDiv.style.display = "block";
+      
+      setTimeout(() => {
+        messageDiv.style.display = "none";
+      }, 5000);
+    } else {
+      throw new Error("Failed to generate summary");
+    }
+  } catch (error) {
+    console.error("Error generating summary:", error);
+    messageDiv.textContent = "❌ حدث خطأ في إنشاء الملخص";
+    messageDiv.className = "info-message error";
+    messageDiv.style.display = "block";
+  } finally {
+    generateBtn.disabled = false;
+    generateBtn.innerHTML = '<i class="fas fa-magic"></i> إنشاء الملخص الذكي';
+  }
+}
+
+// Add CSS for smart summary builder
+(function addSmartSummaryStyles() {
+  const style = document.createElement("style");
+  style.textContent = `
+    /* Date Preset Buttons */
+    .date-preset-btn {
+      padding: 8px 16px;
+      border: 2px solid #667eea;
+      background: white;
+      color: #667eea;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      font-weight: 500;
+    }
+    .date-preset-btn:hover {
+      background: #f0f0ff;
+    }
+    .date-preset-btn.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: transparent;
+    }
+    
+    /* Website Chips */
+    .chip-btn {
+      padding: 10px 20px;
+      border: 2px solid #ddd;
+      background: white;
+      color: #333;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      font-weight: 500;
+    }
+    .chip-btn:hover {
+      border-color: #667eea;
+      background: #f8f9fa;
+    }
+    .chip-btn.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: transparent;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Category Chips */
+    .category-chip {
+      padding: 6px 14px;
+      border: 1px solid #ddd;
+      background: white;
+      color: #555;
+      border-radius: 16px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s ease;
+    }
+    .category-chip:hover {
+      border-color: #667eea;
+      background: #f0f0ff;
+    }
+    .category-chip.active {
+      background: #667eea;
+      color: white;
+      border-color: #667eea;
+    }
+    
+    /* Subcategory Chips */
+    .subcategory-chip {
+      padding: 5px 12px;
+      border: 1px solid #f0ad4e;
+      background: white;
+      color: #856404;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s ease;
+    }
+    .subcategory-chip:hover {
+      background: #fff3cd;
+    }
+    .subcategory-chip.active {
+      background: #f0ad4e;
+      color: white;
+    }
+    
+    /* Smart filter section RTL support */
+    .smart-filter-section {
+      direction: rtl;
+      text-align: right;
+    }
+  `;
+  document.head.appendChild(style);
+})();
 
 async function loadSchedulerStatus() {
   try {
@@ -8830,6 +9413,10 @@ async function sendSummaryFromPreview() {
       return;
     }
 
+    // Get edited message from textarea
+    const messageTextarea = document.getElementById("groups-preview-message");
+    const customMessage = messageTextarea ? messageTextarea.value : null;
+
     // Get delay setting
     const delayInput = document.getElementById("send-delay");
     const delay = delayInput ? parseInt(delayInput.value) : 3;
@@ -8852,7 +9439,7 @@ async function sendSummaryFromPreview() {
       );
     }
 
-    // Send summary to API
+    // Send summary to API (including the edited message)
     const response = await fetch(`/api/bot/daily-summaries/${summaryId}/send`, {
       method: "POST",
       credentials: "include",
@@ -8863,6 +9450,7 @@ async function sendSummaryFromPreview() {
         selectedGroups,
         customNumbers: allCustomNumbers.map((n) => n.phone),
         delay,
+        customMessage, // Send the edited message to the backend
       }),
     });
 
