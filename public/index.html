@@ -93,6 +93,10 @@
                     <span class="nav-icon"><i class="fas fa-users"></i></span>
                     <span class="nav-text">Manage Users</span>
                 </a>
+                <a href="#" class="nav-item admin-only" data-view="reminders" style="display: none;">
+                    <span class="nav-icon"><i class="fas fa-bell"></i></span>
+                    <span class="nav-text">Reminder System</span>
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <div class="user-profile">
@@ -874,6 +878,113 @@
                         </div>
                         <div id="users-list"></div>
                         <div id="users-message" class="info-message" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reminders View (Admin Only) -->
+            <div id="reminders-view" class="content-view">
+                <div class="page-header">
+                    <h1><i class="fas fa-bell"></i> Reminder System</h1>
+                    <p>Manage scheduled reminders and notifications</p>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="reminder-stats-grid"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <div class="reminder-stat-card"
+                        style="background: #fff; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid #3498db;">
+                        <div style="font-size: 0.85rem; color: #666;">Total</div>
+                        <div id="reminder-stat-total" style="font-size: 1.8rem; font-weight: 700; color: #3498db;">0
+                        </div>
+                    </div>
+                    <div class="reminder-stat-card"
+                        style="background: #fff; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid #f39c12;">
+                        <div style="font-size: 0.85rem; color: #666;">Pending</div>
+                        <div id="reminder-stat-pending" style="font-size: 1.8rem; font-weight: 700; color: #f39c12;">0
+                        </div>
+                    </div>
+                    <div class="reminder-stat-card"
+                        style="background: #fff; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid #27ae60;">
+                        <div style="font-size: 0.85rem; color: #666;">Sent</div>
+                        <div id="reminder-stat-sent" style="font-size: 1.8rem; font-weight: 700; color: #27ae60;">0
+                        </div>
+                    </div>
+                    <div class="reminder-stat-card"
+                        style="background: #fff; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid #e74c3c;">
+                        <div style="font-size: 0.85rem; color: #666;">Failed</div>
+                        <div id="reminder-stat-failed" style="font-size: 1.8rem; font-weight: 700; color: #e74c3c;">0
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <!-- Actions Bar -->
+                        <div
+                            style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 15px;">
+                            <button id="create-reminder-btn" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Create Reminder
+                            </button>
+                            <button id="refresh-reminders-btn" class="btn btn-secondary">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <select id="reminder-filter-status" class="form-control" style="max-width: 150px;">
+                                <option value="all">All Status</option>
+                                <option value="pending">⏳ Pending</option>
+                                <option value="sent">✅ Sent</option>
+                                <option value="failed">❌ Failed</option>
+                            </select>
+                            <input type="text" id="reminder-search-input" class="form-control"
+                                placeholder="🔍 Search reminders..." style="max-width: 250px;">
+                        </div>
+
+                        <div id="reminders-message" class="info-message" style="display:none;"></div>
+
+                        <!-- Reminders List -->
+                        <div id="reminders-list"
+                            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px;">
+                            <!-- Reminder cards will be rendered here -->
+                        </div>
+
+                        <!-- Pagination -->
+                        <div id="reminders-pagination"
+                            style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Create/Edit Reminder Modal -->
+            <div id="reminder-modal" class="modal" style="display:none;">
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h3 id="reminder-modal-title"><i class="fas fa-bell"></i> Create Reminder</h3>
+                        <button id="close-reminder-modal" class="btn-close">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label><i class="fas fa-phone"></i> Target Phone Number *</label>
+                            <input type="text" id="reminder-target-number" class="form-control"
+                                placeholder="e.g., 966508007053" required>
+                            <small style="color: #666;">Enter without + prefix</small>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-calendar"></i> Scheduled Date & Time (KSA) *</label>
+                            <input type="datetime-local" id="reminder-scheduled-datetime" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-comment"></i> Reminder Message *</label>
+                            <textarea id="reminder-message-text" class="form-control" rows="4"
+                                placeholder="Enter the reminder message..." required></textarea>
+                        </div>
+                        <div id="reminder-modal-error" class="info-message error" style="display:none;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="save-reminder-btn" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Reminder
+                        </button>
+                        <button id="cancel-reminder-btn" class="btn btn-secondary">Cancel</button>
                     </div>
                 </div>
             </div>

@@ -664,6 +664,15 @@ async function createReminder(adminNumber, reminderData) {
   reminders.push(reminder);
   await saveReminders();
 
+  // Schedule the reminder with the cron scheduler
+  try {
+    const { scheduleReminder } = require("./reminderScheduler");
+    scheduleReminder(reminder);
+    console.log(`📅 Scheduled reminder ${reminder.id} for cron execution`);
+  } catch (error) {
+    console.error(`⚠️ Could not schedule reminder ${reminder.id}:`, error.message);
+  }
+
   return reminder;
 }
 
@@ -705,6 +714,14 @@ function getAdminReminders(adminNumber, limit = 10) {
 async function deleteReminder(reminderId) {
   const index = reminders.findIndex((r) => r.id === reminderId);
   if (index !== -1) {
+    // Cancel the scheduled cron job
+    try {
+      const { cancelScheduledReminder } = require("./reminderScheduler");
+      cancelScheduledReminder(reminderId);
+    } catch (error) {
+      console.error(`⚠️ Could not cancel scheduled job for reminder ${reminderId}:`, error.message);
+    }
+
     reminders.splice(index, 1);
     await saveReminders();
     return true;
@@ -2168,4 +2185,31 @@ module.exports = {
   loadAdminsFromFile,
   saveAdminsToFile,
   ADMIN_NUMBERS, // Export for direct access if needed
+  // Reminder functions for API
+  loadReminders,
+  saveReminders,
+  createReminder,
+  deleteReminder,
+  getAdminReminders,
+  getAllReminders: () => reminders, // Export getter for all reminders
+  updateReminder: async (id, updates) => {
+    const index = reminders.findIndex(r => r.id === id);
+    if (index === -1) return null;
+    reminders[index] = { ...reminders[index], ...updates };
+    await saveReminders();
+
+    // Reschedule if the reminder is still pending
+    if (reminders[index].status === "pending") {
+      try {
+        const { scheduleReminder } = require("./reminderScheduler");
+        scheduleReminder(reminders[index]);
+        console.log(`📅 Rescheduled reminder ${id} after update`);
+      } catch (error) {
+        console.error(`⚠️ Could not reschedule reminder ${id}:`, error.message);
+      }
+    }
+
+    return reminders[index];
+  },
+  getReminderById: (id) => reminders.find(r => r.id === id),
 };

@@ -24,11 +24,15 @@ const MASAAK_CONFIG = {
     "حتى لاتضيع الحقوق وإبراء للذمة", // Line 1: Disclaimer message
     "إذا شاهدت الإعلان تواصل فقط مع منصة مسعاك 0508001475" // Line 2: Contact info with phone number
   ],
-  fontSize: 32, // TODO: CUSTOMIZE - Font size in pixels (reduced for 2 lines)
-  fontColor: "#000000",     // Text color (black)
+  baseFontSize: 32, // Base font size - will be scaled based on image width
+  minFontSize: 16, // Minimum font size for very small images
+  maxFontSize: 48, // Maximum font size for very large images
+  fontFamily: "Cairo, Arial, sans-serif", // Cairo font with fallbacks
+  fontWeight: "normal", // Normal weight as requested
+  fontColor: "#000000", // Text color (black)
   backgroundColor: "#FFFFFF", // Background color (white)
-  position: "bottom-center", // TODO: CUSTOMIZE - Options: top-left, top-right, bottom-left, bottom-right, center, bottom-full
-  padding: 10, // TODO: CUSTOMIZE - Padding from edges
+  position: "bottom-center",
+  padding: 10,
 };
 
 /**
@@ -39,8 +43,9 @@ const HASAK_CONFIG = {
   logoPath: path.join(__dirname, "..", "assets", "hasak_logo.png"), // TODO: CUSTOMIZE - Path to logo
   opacity: 0.8, // TODO: CUSTOMIZE - Logo opacity (0.0 - 1.0)
   scale: 0.15, // TODO: CUSTOMIZE - Logo size as percentage of image width (0.15 = 15%)
-  position: "bottom-left", // TODO: CUSTOMIZE - Options: top-left, top-right, bottom-left, bottom-right, center
+  position: "top-left", // Changed to top-left as requested
   padding: 20, // TODO: CUSTOMIZE - Padding from edges
+  circular: true, // Make logo circular with border radius
 };
 
 // =====================================================
@@ -104,28 +109,42 @@ async function addTextOverlay(imageBuffer, config = MASAAK_CONFIG) {
     const textLines = config.textLines || [config.text];
     const lineCount = textLines.length;
     
+    // Calculate responsive font size based on image width
+    // This ensures text fits properly on both horizontal and vertical images
+    const baseFontSize = config.baseFontSize || config.fontSize || 32;
+    const minFontSize = config.minFontSize || 14;
+    const maxFontSize = config.maxFontSize || 48;
+    
+    // Scale font based on image width (reference: 1080px = base font size)
+    const scaleFactor = width / 1080;
+    let fontSize = Math.round(baseFontSize * scaleFactor);
+    fontSize = Math.max(minFontSize, Math.min(maxFontSize, fontSize));
+    
+    // Get font settings
+    const fontFamily = config.fontFamily || "Cairo, Arial, sans-serif";
+    const fontWeight = config.fontWeight || "normal";
+    
     // Calculate dimensions - make box span full width for better visibility
     const boxWidth = width; // Full image width
-    const lineHeight = config.fontSize * 1.5; // Line height with spacing
+    const lineHeight = fontSize * 1.6; // Line height with spacing
     const boxHeight = (lineCount * lineHeight) + (config.padding * 2);
     
     // Position at the bottom of the image
     const pos = {
       left: 0,
-      top: height - boxHeight - config.padding
+      top: height - boxHeight
     };
     
     // Build text elements for each line (RTL Arabic text)
     const textElements = textLines.map((line, index) => {
       // Calculate Y position: start from top padding, add line height for each subsequent line
-      // Center each line vertically within its allocated space
-      const yPos = config.padding + (index * lineHeight) + (lineHeight / 2) + (config.fontSize * 0.35);
+      const yPos = config.padding + (index * lineHeight) + (lineHeight / 2) + (fontSize * 0.35);
       
       return `
         <text x="${boxWidth / 2}" y="${yPos}" 
-              font-family="Arial, sans-serif" 
-              font-size="${config.fontSize}px" 
-              font-weight="bold"
+              font-family="${fontFamily}" 
+              font-size="${fontSize}px" 
+              font-weight="${fontWeight}"
               fill="${config.fontColor}" 
               text-anchor="middle" 
               dominant-baseline="middle"
@@ -133,16 +152,22 @@ async function addTextOverlay(imageBuffer, config = MASAAK_CONFIG) {
     }).join('\n');
 
     // Create SVG text overlay with background
+    // Include Google Fonts import for Cairo font
     const svgText = `
       <svg width="${boxWidth}" height="${boxHeight}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&amp;display=swap');
+          </style>
+        </defs>
         <rect x="0" y="0" width="${boxWidth}" height="${boxHeight}" 
               fill="${config.backgroundColor}" fill-opacity="0.9"/>
         ${textElements}
       </svg>
     `;
     
-    console.log(`📏 Image: ${width}x${height}, Box: ${boxWidth}x${boxHeight}, Position: left=${pos.left}, top=${pos.top}`);
-    console.log(`📝 Rendering ${lineCount} text line(s)`);
+    console.log(`📏 Image: ${width}x${height}, Box: ${boxWidth}x${boxHeight}, Font: ${fontSize}px`);
+    console.log(`📝 Rendering ${lineCount} text line(s) with ${fontFamily}`);
 
     // Composite the text overlay onto the image
     const result = await sharp(imageBuffer)
@@ -201,24 +226,47 @@ async function addLogoWatermark(imageBuffer, config = HASAK_CONFIG) {
     const { width, height } = metadata;
 
     // Calculate logo size based on scale
-    const logoWidth = Math.floor(width * config.scale);
+    const logoSize = Math.floor(width * config.scale);
 
-    // Resize and add opacity to logo
+    // Resize logo to square for circular crop
     let logoBuffer = await sharp(config.logoPath)
-      .resize(logoWidth)
-      .ensureAlpha(config.opacity)
+      .resize(logoSize, logoSize, { fit: 'cover' })
       .toBuffer();
 
-    // Get logo dimensions after resize
-    const logoMetadata = await sharp(logoBuffer).metadata();
-    const logoHeight = logoMetadata.height;
+    // Apply circular mask if circular option is enabled
+    if (config.circular) {
+      // Create a circular mask using SVG
+      const circleMask = Buffer.from(`
+        <svg width="${logoSize}" height="${logoSize}">
+          <circle cx="${logoSize / 2}" cy="${logoSize / 2}" r="${logoSize / 2}" fill="white"/>
+        </svg>
+      `);
+
+      // Apply the circular mask to the logo
+      logoBuffer = await sharp(logoBuffer)
+        .composite([{
+          input: circleMask,
+          blend: 'dest-in'
+        }])
+        .png()
+        .toBuffer();
+      
+      console.log(`🔵 Applied circular mask to logo (${logoSize}x${logoSize})`);
+    }
+
+    // Apply opacity
+    if (config.opacity < 1) {
+      logoBuffer = await sharp(logoBuffer)
+        .ensureAlpha(config.opacity)
+        .toBuffer();
+    }
 
     // Calculate position
     const pos = calculatePosition(
       width,
       height,
-      logoWidth,
-      logoHeight,
+      logoSize,
+      logoSize,
       config.position,
       config.padding
     );
@@ -228,14 +276,14 @@ async function addLogoWatermark(imageBuffer, config = HASAK_CONFIG) {
       .composite([
         {
           input: logoBuffer,
-          top: pos.top,
-          left: pos.left,
+          top: Math.floor(pos.top),
+          left: Math.floor(pos.left),
           blend: "over",
         },
       ])
       .toBuffer();
 
-    console.log("✅ Logo watermark added successfully");
+    console.log(`✅ Logo watermark added at ${config.position} (circular: ${config.circular || false})`);
     return result;
   } catch (error) {
     console.error("❌ Error adding logo watermark:", error.message);

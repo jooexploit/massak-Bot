@@ -3228,6 +3228,212 @@ router.delete(
   }
 );
 
+// ========== REMINDER MANAGEMENT API ==========
+const reminderService = require("../services/adminCommandService");
+
+// Get all reminders (with optional filtering)
+router.get(
+  "/reminders",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { status, page = 1, limit = 20 } = req.query;
+      let reminders = reminderService.getAllReminders();
+
+      // Filter by status if provided
+      if (status && status !== "all") {
+        reminders = reminders.filter((r) => r.status === status);
+      }
+
+      // Sort by scheduledDateTime (most recent first)
+      reminders.sort((a, b) => b.scheduledDateTime - a.scheduledDateTime);
+
+      // Calculate stats
+      const stats = {
+        total: reminderService.getAllReminders().length,
+        pending: reminderService.getAllReminders().filter((r) => r.status === "pending").length,
+        sent: reminderService.getAllReminders().filter((r) => r.status === "sent").length,
+        failed: reminderService.getAllReminders().filter((r) => r.status === "failed").length,
+      };
+
+      // Pagination
+      const totalItems = reminders.length;
+      const totalPages = Math.ceil(totalItems / limit);
+      const currentPage = parseInt(page);
+      const startIndex = (currentPage - 1) * limit;
+      const paginatedReminders = reminders.slice(startIndex, startIndex + parseInt(limit));
+
+      res.json({
+        success: true,
+        reminders: paginatedReminders,
+        stats,
+        pagination: {
+          currentPage,
+          totalPages,
+          totalItems,
+          limit: parseInt(limit),
+          hasMore: currentPage < totalPages,
+        },
+      });
+    } catch (error) {
+      console.error("Error getting reminders:", error);
+      res.status(500).json({ error: "Failed to get reminders" });
+    }
+  }
+);
+
+// Get single reminder by ID
+router.get(
+  "/reminders/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { id } = req.params;
+      const reminder = reminderService.getReminderById(id);
+
+      if (!reminder) {
+        return res.status(404).json({ error: "Reminder not found" });
+      }
+
+      res.json({
+        success: true,
+        reminder,
+      });
+    } catch (error) {
+      console.error("Error getting reminder:", error);
+      res.status(500).json({ error: "Failed to get reminder" });
+    }
+  }
+);
+
+// Create new reminder
+router.post(
+  "/reminders",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { targetNumber, scheduledDateTime, message } = req.body;
+
+      if (!targetNumber || !scheduledDateTime || !message) {
+        return res.status(400).json({
+          error: "Missing required fields: targetNumber, scheduledDateTime, message",
+        });
+      }
+
+      // Validate scheduledDateTime is in the future
+      const scheduledTime = new Date(scheduledDateTime).getTime();
+      if (scheduledTime <= Date.now()) {
+        return res.status(400).json({
+          error: "Scheduled time must be in the future",
+        });
+      }
+
+      // Clean up the phone number
+      const cleanNumber = targetNumber.replace(/^\+/, "").replace(/\s/g, "");
+
+      // Create reminder using the service
+      const reminder = await reminderService.createReminder(
+        req.user.username, // Use authenticated user as creator
+        {
+          targetNumber: cleanNumber,
+          scheduledDateTime: scheduledTime,
+          message,
+          createdAt: Date.now(),
+        }
+      );
+
+      res.json({
+        success: true,
+        reminder,
+        message: "Reminder created successfully",
+      });
+    } catch (error) {
+      console.error("Error creating reminder:", error);
+      res.status(500).json({ error: "Failed to create reminder" });
+    }
+  }
+);
+
+// Update reminder
+router.put(
+  "/reminders/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { targetNumber, scheduledDateTime, message, status } = req.body;
+
+      // Check if reminder exists
+      const existing = reminderService.getReminderById(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Reminder not found" });
+      }
+
+      // Prepare updates
+      const updates = {};
+      if (targetNumber) {
+        updates.targetNumber = targetNumber.replace(/^\+/, "").replace(/\s/g, "");
+      }
+      if (scheduledDateTime) {
+        const scheduledTime = new Date(scheduledDateTime).getTime();
+        if (scheduledTime <= Date.now() && status !== "sent" && status !== "failed") {
+          return res.status(400).json({
+            error: "Scheduled time must be in the future for pending reminders",
+          });
+        }
+        updates.scheduledDateTime = scheduledTime;
+      }
+      if (message) {
+        updates.message = message;
+      }
+      if (status && ["pending", "sent", "failed"].includes(status)) {
+        updates.status = status;
+      }
+
+      const updated = await reminderService.updateReminder(id, updates);
+
+      res.json({
+        success: true,
+        reminder: updated,
+        message: "Reminder updated successfully",
+      });
+    } catch (error) {
+      console.error("Error updating reminder:", error);
+      res.status(500).json({ error: "Failed to update reminder" });
+    }
+  }
+);
+
+// Delete reminder
+router.delete(
+  "/reminders/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const deleted = await reminderService.deleteReminder(id);
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Reminder not found" });
+      }
+
+      res.json({
+        success: true,
+        message: "Reminder deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting reminder:", error);
+      res.status(500).json({ error: "Failed to delete reminder" });
+    }
+  }
+);
+
 // Export both the router and the reusable WordPress posting function
 module.exports = router;
 module.exports.postAdToWordPress = postAdToWordPress;

@@ -848,6 +848,8 @@ function switchView(viewName) {
     loadPrivateClientsView();
   } else if (viewName === "daily-summaries") {
     loadDailySummariesView();
+  } else if (viewName === "reminders") {
+    loadRemindersView();
   }
 }
 
@@ -9706,6 +9708,726 @@ async function sendSummaryFromPreview() {
       sendBtn.disabled = false;
       sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Messages';
     }
+  }
+}
+
+// ==================== REMINDERS SYSTEM ====================
+
+// Reminders state
+let remindersState = {
+  currentPage: 1,
+  limit: 12,
+  filterStatus: "all",
+  searchQuery: "",
+  reminders: [],
+  stats: {},
+  editingId: null, // null = creating, string = editing
+};
+
+// Load reminders view
+async function loadRemindersView() {
+  await fetchReminders();
+  setupRemindersEventListeners();
+}
+
+// Setup event listeners for reminders (called once per view load)
+function setupRemindersEventListeners() {
+  const createBtn = document.getElementById("create-reminder-btn");
+  const refreshBtn = document.getElementById("refresh-reminders-btn");
+  const filterStatus = document.getElementById("reminder-filter-status");
+  const searchInput = document.getElementById("reminder-search-input");
+  const closeModalBtn = document.getElementById("close-reminder-modal");
+  const saveBtn = document.getElementById("save-reminder-btn");
+  const cancelBtn = document.getElementById("cancel-reminder-btn");
+  const modal = document.getElementById("reminder-modal");
+
+  // Remove old listeners by cloning
+  if (createBtn) {
+    const newCreateBtn = createBtn.cloneNode(true);
+    createBtn.parentNode.replaceChild(newCreateBtn, createBtn);
+    newCreateBtn.addEventListener("click", openCreateReminderModal);
+  }
+
+  if (refreshBtn) {
+    const newRefreshBtn = refreshBtn.cloneNode(true);
+    refreshBtn.parentNode.replaceChild(newRefreshBtn, refreshBtn);
+    newRefreshBtn.addEventListener("click", fetchReminders);
+  }
+
+  if (filterStatus) {
+    const newFilterStatus = filterStatus.cloneNode(true);
+    filterStatus.parentNode.replaceChild(newFilterStatus, filterStatus);
+    newFilterStatus.addEventListener("change", (e) => {
+      remindersState.filterStatus = e.target.value;
+      remindersState.currentPage = 1;
+      fetchReminders();
+    });
+  }
+
+  if (searchInput) {
+    const newSearchInput = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+    let searchTimeout;
+    newSearchInput.addEventListener("input", (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        remindersState.searchQuery = e.target.value.toLowerCase();
+        renderReminders();
+      }, 300);
+    });
+  }
+
+  if (closeModalBtn) {
+    const newCloseBtn = closeModalBtn.cloneNode(true);
+    closeModalBtn.parentNode.replaceChild(newCloseBtn, closeModalBtn);
+    newCloseBtn.addEventListener("click", closeReminderModal);
+  }
+
+  if (saveBtn) {
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    newSaveBtn.addEventListener("click", handleSaveReminder);
+  }
+
+  if (cancelBtn) {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener("click", closeReminderModal);
+  }
+
+  // Close modal on outside click
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeReminderModal();
+    });
+  }
+}
+
+// Fetch reminders from API
+async function fetchReminders() {
+  const list = document.getElementById("reminders-list");
+  if (list) {
+    list.innerHTML = `<div style="text-align: center; padding: 40px; color: #888;">
+      <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+      <p style="margin-top: 10px;">Loading reminders...</p>
+    </div>`;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      page: remindersState.currentPage,
+      limit: remindersState.limit,
+      status: remindersState.filterStatus,
+    });
+
+    const response = await fetch(`/api/bot/reminders?${params}`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch reminders");
+    }
+
+    const data = await response.json();
+    remindersState.reminders = data.reminders || [];
+    remindersState.stats = data.stats || {};
+    remindersState.pagination = data.pagination || {};
+
+    updateRemindersStats();
+    renderReminders();
+  } catch (error) {
+    console.error("Error fetching reminders:", error);
+    if (list) {
+      list.innerHTML = `<div style="text-align: center; padding: 40px; color: #e74c3c;">
+        <i class="fas fa-exclamation-circle" style="font-size: 2rem;"></i>
+        <p style="margin-top: 10px;">Failed to load reminders</p>
+      </div>`;
+    }
+  }
+}
+
+// Update stats display
+function updateRemindersStats() {
+  const stats = remindersState.stats;
+  const totalEl = document.getElementById("reminder-stat-total");
+  const pendingEl = document.getElementById("reminder-stat-pending");
+  const sentEl = document.getElementById("reminder-stat-sent");
+  const failedEl = document.getElementById("reminder-stat-failed");
+
+  if (totalEl) totalEl.textContent = stats.total || 0;
+  if (pendingEl) pendingEl.textContent = stats.pending || 0;
+  if (sentEl) sentEl.textContent = stats.sent || 0;
+  if (failedEl) failedEl.textContent = stats.failed || 0;
+}
+
+// Render reminders cards
+function renderReminders() {
+  const list = document.getElementById("reminders-list");
+  if (!list) return;
+
+  let reminders = [...remindersState.reminders];
+
+  // Apply search filter client-side
+  if (remindersState.searchQuery) {
+    reminders = reminders.filter((r) =>
+      r.message.toLowerCase().includes(remindersState.searchQuery) ||
+      r.targetNumber.includes(remindersState.searchQuery) ||
+      (r.createdBy && r.createdBy.includes(remindersState.searchQuery))
+    );
+  }
+
+  if (reminders.length === 0) {
+    list.innerHTML = `<div style="text-align: center; padding: 40px; color: #888; grid-column: 1 / -1;">
+      <i class="fas fa-bell-slash" style="font-size: 3rem; margin-bottom: 15px;"></i>
+      <p style="margin: 0;">No reminders found</p>
+      <p style="font-size: 0.85rem; margin-top: 5px;">Click "Create Reminder" to add one</p>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = reminders.map((reminder) => createReminderCard(reminder)).join("");
+  renderRemindersPagination();
+}
+
+// Create reminder card HTML
+function createReminderCard(reminder) {
+  const statusColors = {
+    pending: { bg: "#fef3c7", border: "#f59e0b", text: "#92400e", icon: "clock", label: "Pending" },
+    sent: { bg: "#d1fae5", border: "#10b981", text: "#065f46", icon: "check-circle", label: "Sent" },
+    failed: { bg: "#fee2e2", border: "#ef4444", text: "#991b1b", icon: "times-circle", label: "Failed" },
+  };
+
+  const status = statusColors[reminder.status] || statusColors.pending;
+  const scheduledDate = new Date(reminder.scheduledDateTime);
+  const createdDate = new Date(reminder.createdAt);
+  const isPast = scheduledDate < new Date();
+
+  return `
+    <div class="reminder-card" style="
+      background: #fff;
+      border-radius: 10px;
+      padding: 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border-left: 4px solid ${status.border};
+      transition: all 0.2s ease;
+    " onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'; this.style.transform='translateY(-2px)';"
+       onmouseleave="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'; this.style.transform='translateY(0)';">
+      
+      <!-- Status Badge -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <span style="
+          background: ${status.bg};
+          color: ${status.text};
+          padding: 4px 10px;
+          border-radius: 20px;
+          font-size: 0.75rem;
+          font-weight: 600;
+        ">
+          <i class="fas fa-${status.icon}" style="margin-right: 4px;"></i>
+          ${status.label}
+        </span>
+        ${isPast && reminder.status === "pending" ? `
+          <span style="color: #f39c12; font-size: 0.75rem;">
+            <i class="fas fa-exclamation-triangle"></i> Overdue
+          </span>
+        ` : ""}
+      </div>
+
+      <!-- Target Number -->
+      <div style="margin-bottom: 10px;">
+        <div style="font-size: 0.75rem; color: #888; margin-bottom: 2px;">
+          <i class="fas fa-phone"></i> Target
+        </div>
+        <div style="font-weight: 600; font-size: 0.95rem;">+${reminder.targetNumber}</div>
+      </div>
+
+      <!-- Message -->
+      <div style="margin-bottom: 12px;">
+        <div style="font-size: 0.75rem; color: #888; margin-bottom: 2px;">
+          <i class="fas fa-comment"></i> Message
+        </div>
+        <div style="
+          background: #f8f9fa;
+          padding: 10px;
+          border-radius: 6px;
+          font-size: 0.9rem;
+          line-height: 1.4;
+          color: #333;
+          max-height: 60px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        ">${escapeHtml(reminder.message)}</div>
+      </div>
+
+      <!-- Scheduled Time -->
+      <div style="display: flex; gap: 15px; font-size: 0.8rem; color: #666; margin-bottom: 12px;">
+        <div>
+          <i class="fas fa-calendar-alt" style="color: #3498db;"></i>
+          ${scheduledDate.toLocaleDateString("ar-SA", { 
+            year: "numeric", month: "short", day: "numeric" 
+          })}
+        </div>
+        <div>
+          <i class="fas fa-clock" style="color: #3498db;"></i>
+          ${scheduledDate.toLocaleTimeString("ar-SA", { 
+            hour: "2-digit", minute: "2-digit" 
+          })}
+        </div>
+      </div>
+
+      <!-- Created Info -->
+      <div style="font-size: 0.75rem; color: #999; margin-bottom: 12px;">
+        Created by: ${reminder.createdBy || "System"} • 
+        ${createdDate.toLocaleDateString()}
+        ${reminder.sentAt ? `<br>Sent at: ${new Date(reminder.sentAt).toLocaleString()}` : ""}
+      </div>
+
+      <!-- Actions -->
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        ${reminder.status === "sent" ? `
+          <button onclick="window.handleResendReminder('${reminder.id}')" 
+            class="reminder-action-btn" 
+            style="display: inline-flex; align-items: center; gap: 6px; background: #ecfdf5; color: #059669; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;"
+            onmouseenter="this.style.background='#d1fae5'"
+            onmouseleave="this.style.background='#ecfdf5'">
+            <i class="fas fa-redo"></i>
+            <span>Resend</span>
+          </button>
+        ` : `
+          <button onclick="window.openEditReminderModal('${reminder.id}')" 
+            class="reminder-action-btn" 
+            style="display: inline-flex; align-items: center; gap: 6px; background: #eef2ff; color: #4f46e5; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;"
+            onmouseenter="this.style.background='#e0e7ff'"
+            onmouseleave="this.style.background='#eef2ff'">
+            <i class="fas fa-edit"></i>
+            <span>Edit</span>
+          </button>
+        `}
+        <button onclick="window.handleDeleteReminderClick('${reminder.id}')" 
+          class="reminder-action-btn" 
+          style="display: inline-flex; align-items: center; gap: 6px; background: #fef2f2; color: #ef4444; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;"
+          onmouseenter="this.style.background='#fee2e2'"
+          onmouseleave="this.style.background='#fef2f2'">
+          <i class="fas fa-trash"></i>
+          <span>Delete</span>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Render pagination
+function renderRemindersPagination() {
+  const container = document.getElementById("reminders-pagination");
+  if (!container || !remindersState.pagination) return;
+
+  const { currentPage, totalPages } = remindersState.pagination;
+  if (totalPages <= 1) {
+    container.innerHTML = "";
+    return;
+  }
+
+  let html = "";
+  
+  // Previous button
+  if (currentPage > 1) {
+    html += `<button onclick="goToRemindersPage(${currentPage - 1})" class="btn btn-secondary" style="padding: 8px 15px;">
+      <i class="fas fa-chevron-left"></i>
+    </button>`;
+  }
+
+  // Page numbers
+  for (let i = 1; i <= totalPages; i++) {
+    const isActive = i === currentPage;
+    html += `<button onclick="goToRemindersPage(${i})" class="btn ${isActive ? 'btn-primary' : 'btn-secondary'}" 
+      style="padding: 8px 15px; min-width: 40px;">${i}</button>`;
+  }
+
+  // Next button
+  if (currentPage < totalPages) {
+    html += `<button onclick="goToRemindersPage(${currentPage + 1})" class="btn btn-secondary" style="padding: 8px 15px;">
+      <i class="fas fa-chevron-right"></i>
+    </button>`;
+  }
+
+  container.innerHTML = html;
+}
+
+// Go to specific page
+function goToRemindersPage(page) {
+  remindersState.currentPage = page;
+  fetchReminders();
+}
+
+// Open create reminder modal
+function openCreateReminderModal() {
+  remindersState.editingId = null;
+  
+  const modal = document.getElementById("reminder-modal");
+  const title = document.getElementById("reminder-modal-title");
+  const targetInput = document.getElementById("reminder-target-number");
+  const datetimeInput = document.getElementById("reminder-scheduled-datetime");
+  const messageInput = document.getElementById("reminder-message-text");
+  const errorDiv = document.getElementById("reminder-modal-error");
+
+  if (title) title.innerHTML = '<i class="fas fa-bell"></i> Create Reminder';
+  if (targetInput) targetInput.value = "";
+  if (datetimeInput) {
+    // Set default to 1 hour from now
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    datetimeInput.value = now.toISOString().slice(0, 16);
+  }
+  if (messageInput) messageInput.value = "";
+  if (errorDiv) errorDiv.style.display = "none";
+
+  if (modal) modal.style.display = "flex";
+}
+
+// Open edit reminder modal
+function openEditReminderModal(reminder) {
+  remindersState.editingId = reminder.id;
+  
+  const modal = document.getElementById("reminder-modal");
+  const title = document.getElementById("reminder-modal-title");
+  const targetInput = document.getElementById("reminder-target-number");
+  const datetimeInput = document.getElementById("reminder-scheduled-datetime");
+  const messageInput = document.getElementById("reminder-message-text");
+  const errorDiv = document.getElementById("reminder-modal-error");
+
+  if (title) title.innerHTML = '<i class="fas fa-edit"></i> Edit Reminder';
+  if (targetInput) targetInput.value = reminder.targetNumber;
+  if (datetimeInput) {
+    const date = new Date(reminder.scheduledDateTime);
+    datetimeInput.value = date.toISOString().slice(0, 16);
+  }
+  if (messageInput) messageInput.value = reminder.message;
+  if (errorDiv) errorDiv.style.display = "none";
+
+  if (modal) modal.style.display = "flex";
+}
+
+// Close reminder modal
+function closeReminderModal() {
+  const modal = document.getElementById("reminder-modal");
+  if (modal) modal.style.display = "none";
+  remindersState.editingId = null;
+}
+
+// Show modal error
+function showReminderModalError(message) {
+  const errorDiv = document.getElementById("reminder-modal-error");
+  if (errorDiv) {
+    errorDiv.textContent = message;
+    errorDiv.style.display = "block";
+  }
+}
+
+// Handle save reminder (create or update)
+async function handleSaveReminder() {
+  const targetInput = document.getElementById("reminder-target-number");
+  const datetimeInput = document.getElementById("reminder-scheduled-datetime");
+  const messageInput = document.getElementById("reminder-message-text");
+  const saveBtn = document.getElementById("save-reminder-btn");
+
+  const targetNumber = targetInput?.value?.trim();
+  const scheduledDateTime = datetimeInput?.value;
+  const message = messageInput?.value?.trim();
+
+  // Validate
+  if (!targetNumber || !scheduledDateTime || !message) {
+    showReminderModalError("Please fill in all required fields");
+    return;
+  }
+
+  // Validate phone number format
+  if (!/^\d{10,15}$/.test(targetNumber.replace(/\D/g, ""))) {
+    showReminderModalError("Invalid phone number format");
+    return;
+  }
+
+  // Validate future date (only for new reminders or pending ones)
+  const scheduledTime = new Date(scheduledDateTime);
+  if (!remindersState.editingId && scheduledTime <= new Date()) {
+    showReminderModalError("Scheduled time must be in the future");
+    return;
+  }
+
+  // Disable button
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  }
+
+  try {
+    const isEditing = !!remindersState.editingId;
+    const url = isEditing 
+      ? `/api/bot/reminders/${remindersState.editingId}`
+      : "/api/bot/reminders";
+    
+    const response = await fetch(url, {
+      method: isEditing ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        targetNumber,
+        scheduledDateTime: scheduledTime.toISOString(),
+        message,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || "Failed to save reminder");
+    }
+
+    closeReminderModal();
+    await fetchReminders();
+    
+    // Show success message
+    const msgEl = document.getElementById("reminders-message");
+    if (msgEl) {
+      msgEl.textContent = `✅ Reminder ${isEditing ? "updated" : "created"} successfully!`;
+      msgEl.className = "info-message success";
+      msgEl.style.display = "block";
+      setTimeout(() => { msgEl.style.display = "none"; }, 3000);
+    }
+  } catch (error) {
+    console.error("Error saving reminder:", error);
+    showReminderModalError(error.message);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Reminder';
+    }
+  }
+}
+
+// Handle delete reminder
+async function handleDeleteReminder(id) {
+  if (!confirm("Are you sure you want to delete this reminder?")) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/bot/reminders/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to delete reminder");
+    }
+
+    await fetchReminders();
+    
+    // Show success message
+    const msgEl = document.getElementById("reminders-message");
+    if (msgEl) {
+      msgEl.textContent = "✅ Reminder deleted successfully!";
+      msgEl.className = "info-message success";
+      msgEl.style.display = "block";
+      setTimeout(() => { msgEl.style.display = "none"; }, 3000);
+    }
+  } catch (error) {
+    console.error("Error deleting reminder:", error);
+    alert("Failed to delete reminder");
+  }
+}
+
+// Make goToRemindersPage global
+window.goToRemindersPage = goToRemindersPage;
+
+// Global function to open edit modal by reminder ID
+window.openEditReminderModal = function(reminderId) {
+  const reminder = remindersState.reminders.find(r => r.id === reminderId);
+  if (!reminder) {
+    console.error("Reminder not found:", reminderId);
+    alert("Reminder not found");
+    return;
+  }
+  
+  remindersState.editingId = reminder.id;
+  
+  const modal = document.getElementById("reminder-modal");
+  const title = document.getElementById("reminder-modal-title");
+  const targetInput = document.getElementById("reminder-target-number");
+  const datetimeInput = document.getElementById("reminder-scheduled-datetime");
+  const messageInput = document.getElementById("reminder-message-text");
+  const errorDiv = document.getElementById("reminder-modal-error");
+
+  if (title) title.innerHTML = '<i class="fas fa-edit"></i> Edit Reminder';
+  if (targetInput) targetInput.value = reminder.targetNumber;
+  if (datetimeInput) {
+    const date = new Date(reminder.scheduledDateTime);
+    datetimeInput.value = date.toISOString().slice(0, 16);
+  }
+  if (messageInput) messageInput.value = reminder.message;
+  if (errorDiv) errorDiv.style.display = "none";
+
+  if (modal) modal.style.display = "flex";
+};
+
+// Global function to handle delete click
+window.handleDeleteReminderClick = function(reminderId) {
+  handleDeleteReminder(reminderId);
+};
+
+// Global function to handle resend for sent reminders
+window.handleResendReminder = async function(reminderId) {
+  const reminder = remindersState.reminders.find(r => r.id === reminderId);
+  if (!reminder) {
+    alert("Reminder not found");
+    return;
+  }
+
+  // Show custom dialog
+  const choice = await showResendDialog(reminder);
+  
+  if (choice === "edit") {
+    // Open edit modal for user to modify before resending
+    window.openEditReminderModal(reminderId);
+  } else if (choice === "resend") {
+    // Create a new reminder with same data but new scheduled time
+    await createResendReminder(reminder);
+  }
+};
+
+// Show resend dialog with Edit or Resend Same options
+function showResendDialog(reminder) {
+  return new Promise((resolve) => {
+    const dialogHtml = `
+      <div id="resend-dialog-overlay" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      ">
+        <div style="
+          background: white;
+          border-radius: 12px;
+          padding: 24px;
+          max-width: 400px;
+          width: 90%;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        ">
+          <h3 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 10px;">
+            <i class="fas fa-redo" style="color: #059669;"></i>
+            Resend Reminder
+          </h3>
+          <p style="color: #666; margin-bottom: 10px;">
+            <strong>To:</strong> +${reminder.targetNumber}
+          </p>
+          <p style="color: #666; margin-bottom: 20px; background: #f8f9fa; padding: 10px; border-radius: 6px; font-size: 0.9rem;">
+            "${reminder.message.substring(0, 100)}${reminder.message.length > 100 ? '...' : ''}"
+          </p>
+          <p style="color: #555; margin-bottom: 20px;">
+            Would you like to edit the reminder or resend the same message?
+          </p>
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button id="resend-cancel" style="
+              padding: 10px 18px;
+              border: 1px solid #ddd;
+              background: white;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 0.9rem;
+            ">Cancel</button>
+            <button id="resend-edit" style="
+              padding: 10px 18px;
+              background: #eef2ff;
+              color: #4f46e5;
+              border: none;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 0.9rem;
+              font-weight: 500;
+            "><i class="fas fa-edit"></i> Edit First</button>
+            <button id="resend-same" style="
+              padding: 10px 18px;
+              background: #059669;
+              color: white;
+              border: none;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 0.9rem;
+              font-weight: 500;
+            "><i class="fas fa-paper-plane"></i> Resend Same</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', dialogHtml);
+    
+    const overlay = document.getElementById('resend-dialog-overlay');
+    const cancelBtn = document.getElementById('resend-cancel');
+    const editBtn = document.getElementById('resend-edit');
+    const sameBtn = document.getElementById('resend-same');
+    
+    const cleanup = (result) => {
+      overlay.remove();
+      resolve(result);
+    };
+    
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cleanup(null);
+    });
+    cancelBtn.addEventListener('click', () => cleanup(null));
+    editBtn.addEventListener('click', () => cleanup('edit'));
+    sameBtn.addEventListener('click', () => cleanup('resend'));
+  });
+}
+
+// Create a new reminder based on an existing one (resend)
+async function createResendReminder(oldReminder) {
+  // Set new scheduled time to 1 hour from now
+  const newScheduledTime = new Date();
+  newScheduledTime.setHours(newScheduledTime.getHours() + 1);
+  
+  try {
+    const response = await fetch("/api/bot/reminders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        targetNumber: oldReminder.targetNumber,
+        scheduledDateTime: newScheduledTime.toISOString(),
+        message: oldReminder.message,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || "Failed to create reminder");
+    }
+
+    await fetchReminders();
+    
+    // Show success message
+    const msgEl = document.getElementById("reminders-message");
+    if (msgEl) {
+      msgEl.textContent = `✅ New reminder created! Scheduled for ${newScheduledTime.toLocaleString()}`;
+      msgEl.className = "info-message success";
+      msgEl.style.display = "block";
+      setTimeout(() => { msgEl.style.display = "none"; }, 4000);
+    }
+  } catch (error) {
+    console.error("Error creating resend reminder:", error);
+    alert("Failed to create reminder: " + error.message);
   }
 }
 

@@ -750,7 +750,7 @@ function generateCustomSummary(filters = {}) {
       message += `🔗 رابط: ${wpUrl}\n`;
     }
 
-    message += `........................${websiteEmoji}.......................`;
+    message += `........................${websiteEmoji}.......................\n`;
   });
 
   // Add footer
