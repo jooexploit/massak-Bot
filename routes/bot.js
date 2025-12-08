@@ -849,6 +849,224 @@ router.post(
   }
 );
 
+// ========================================================
+// BACKGROUND BULK MESSAGE SENDING
+// Continues processing even if user closes the browser
+// Sends completion notification to admin phone
+// ========================================================
+
+// Track active bulk sending jobs
+const activeBulkJobs = new Map();
+
+// Send bulk messages in background (admin and author)
+router.post(
+  "/send-bulk-messages",
+  authenticateToken,
+  authorizeRole(["admin", "author"]),
+  async (req, res) => {
+    try {
+      const { 
+        adId, 
+        message, 
+        groups = [], 
+        customNumbers = [], 
+        delaySeconds = 3 
+      } = req.body;
+
+      if (!message) {
+        return res.status(400).json({ error: "Message is required" });
+      }
+
+      const allRecipients = [...groups, ...customNumbers.map(n => ({ ...n, isPrivate: true }))];
+      
+      if (allRecipients.length === 0) {
+        return res.status(400).json({ error: "At least one recipient is required" });
+      }
+
+      // Generate a unique job ID
+      const jobId = `bulk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // Store job info
+      const jobInfo = {
+        id: jobId,
+        adId,
+        message,
+        groups,
+        customNumbers,
+        delaySeconds,
+        totalRecipients: allRecipients.length,
+        startedAt: new Date().toISOString(),
+        status: "processing",
+        successCount: 0,
+        failCount: 0,
+        currentIndex: 0,
+      };
+      
+      activeBulkJobs.set(jobId, jobInfo);
+
+      console.log(`🚀 [BULK SEND] Started job ${jobId}`);
+      console.log(`   📊 Total recipients: ${allRecipients.length}`);
+      console.log(`   ⏱️ Delay: ${delaySeconds}s between messages`);
+      console.log(`   📢 Groups: ${groups.length}`);
+      console.log(`   📱 Custom numbers: ${customNumbers.length}`);
+
+      // Return immediately - processing happens in background
+      res.json({
+        success: true,
+        jobId,
+        message: "Bulk sending started in background",
+        totalRecipients: allRecipients.length,
+      });
+
+      // Process messages in background (async, non-blocking)
+      processBulkMessagesInBackground(jobInfo).catch(err => {
+        console.error(`❌ [BULK SEND] Job ${jobId} failed:`, err);
+        jobInfo.status = "failed";
+        jobInfo.error = err.message;
+      });
+
+    } catch (error) {
+      console.error("Error starting bulk send:", error);
+      res.status(500).json({ error: error.message || "Failed to start bulk send" });
+    }
+  }
+);
+
+// Get bulk job status
+router.get(
+  "/bulk-job/:jobId",
+  authenticateToken,
+  authorizeRole(["admin", "author"]),
+  (req, res) => {
+    const { jobId } = req.params;
+    const job = activeBulkJobs.get(jobId);
+    
+    if (!job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+    
+    res.json({ success: true, job });
+  }
+);
+
+/**
+ * Process bulk messages in the background
+ * This function runs independently of the HTTP request
+ */
+async function processBulkMessagesInBackground(jobInfo) {
+  const { id: jobId, adId, message, groups, customNumbers, delaySeconds } = jobInfo;
+  const delayMs = delaySeconds * 1000;
+  
+  console.log(`\n📦 [BULK SEND] Processing job ${jobId}...`);
+  
+  // First send to groups
+  for (let i = 0; i < groups.length; i++) {
+    const groupId = groups[i];
+    jobInfo.currentIndex = i + 1;
+    
+    try {
+      console.log(`📢 [${jobInfo.currentIndex}/${jobInfo.totalRecipients}] Sending to group: ${groupId}`);
+      await sendMessage(groupId, message);
+      jobInfo.successCount++;
+      console.log(`   ✅ Success`);
+    } catch (err) {
+      console.error(`   ❌ Failed:`, err.message);
+      jobInfo.failCount++;
+    }
+    
+    // Delay between messages
+    if (i < groups.length - 1 || customNumbers.length > 0) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  
+  // Then send to custom numbers (private messages)
+  for (let i = 0; i < customNumbers.length; i++) {
+    const number = customNumbers[i];
+    jobInfo.currentIndex = groups.length + i + 1;
+    
+    // Normalize phone number
+    let cleanPhone = number.phone.replace(/\D/g, "");
+    
+    // Handle Egyptian numbers (starting with 0)
+    if (cleanPhone.startsWith("0")) {
+      cleanPhone = "2" + cleanPhone;
+    }
+    // Handle Saudi numbers
+    else if (!cleanPhone.startsWith("2") && !cleanPhone.startsWith("966") && !cleanPhone.startsWith("971")) {
+      if (cleanPhone.startsWith("5")) {
+        cleanPhone = "966" + cleanPhone;
+      } else {
+        cleanPhone = "20" + cleanPhone;
+      }
+    }
+    
+    const whatsappNumber = cleanPhone.includes("@") ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
+    
+    try {
+      console.log(`📱 [${jobInfo.currentIndex}/${jobInfo.totalRecipients}] Sending to: ${number.name || cleanPhone}`);
+      await sendMessage(whatsappNumber, message);
+      jobInfo.successCount++;
+      console.log(`   ✅ Success`);
+    } catch (err) {
+      console.error(`   ❌ Failed:`, err.message);
+      jobInfo.failCount++;
+    }
+    
+    // Delay between messages (except for the last one)
+    if (i < customNumbers.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  
+  // Mark as completed
+  jobInfo.status = "completed";
+  jobInfo.completedAt = new Date().toISOString();
+  
+  console.log(`\n✅ [BULK SEND] Job ${jobId} completed!`);
+  console.log(`   📊 Success: ${jobInfo.successCount}/${jobInfo.totalRecipients}`);
+  console.log(`   ❌ Failed: ${jobInfo.failCount}`);
+  
+  // Update ad status and mark as sent
+  if (adId) {
+    try {
+      const ok = updateAdStatus(adId, "accepted");
+      if (ok) {
+        console.log(`   📝 Updated ad ${adId} status to accepted`);
+      }
+    } catch (err) {
+      console.error(`   ⚠️ Failed to update ad status:`, err.message);
+    }
+  }
+  
+  // Send completion notification to admin
+  const ADMIN_PHONE = "966508001475@s.whatsapp.net";
+  const completionMessage = `✅ *إرسال جماعي مكتمل*
+
+📦 رقم المهمة: ${jobId}
+📊 الإجمالي: ${jobInfo.totalRecipients}
+✅ نجح: ${jobInfo.successCount}
+❌ فشل: ${jobInfo.failCount}
+⏱️ التأخير: ${delaySeconds} ثانية
+🕐 وقت الإنتهاء: ${new Date().toLocaleString("ar-EG", { timeZone: "Africa/Cairo" })}
+
+${jobInfo.failCount === 0 ? "🎉 تم الإرسال بنجاح للجميع!" : "⚠️ بعض الرسائل فشلت في الإرسال"}`;
+
+  try {
+    console.log(`📤 Sending completion notification to admin...`);
+    await sendMessage(ADMIN_PHONE, completionMessage);
+    console.log(`   ✅ Admin notified`);
+  } catch (err) {
+    console.error(`   ❌ Failed to notify admin:`, err.message);
+  }
+  
+  // Clean up old jobs after 1 hour
+  setTimeout(() => {
+    activeBulkJobs.delete(jobId);
+    console.log(`🧹 Cleaned up job ${jobId}`);
+  }, 60 * 60 * 1000);
+}
+
 // --- Ads endpoints ---
 
 // List fetched ads with pagination (admin and author)

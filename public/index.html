@@ -85,17 +85,17 @@
                     <span class="nav-icon"><i class="fas fa-chart-line"></i></span>
                     <span class="nav-text">Daily Summaries</span>
                 </a>
-                <a href="#" class="nav-item" data-view="settings">
-                    <span class="nav-icon"><i class="fas fa-cog"></i></span>
-                    <span class="nav-text">Settings</span>
+                <a href="#" class="nav-item admin-only" data-view="reminders" style="display: none;">
+                    <span class="nav-icon"><i class="fas fa-bell"></i></span>
+                    <span class="nav-text">Reminder System</span>
                 </a>
                 <a href="#" class="nav-item admin-only" data-view="users" style="display: none;">
                     <span class="nav-icon"><i class="fas fa-users"></i></span>
                     <span class="nav-text">Manage Users</span>
                 </a>
-                <a href="#" class="nav-item admin-only" data-view="reminders" style="display: none;">
-                    <span class="nav-icon"><i class="fas fa-bell"></i></span>
-                    <span class="nav-text">Reminder System</span>
+                <a href="#" class="nav-item" data-view="settings">
+                    <span class="nav-icon"><i class="fas fa-cog"></i></span>
+                    <span class="nav-text">Settings</span>
                 </a>
             </nav>
             <div class="sidebar-footer">
@@ -332,7 +332,7 @@
                                 <div
                                     style="margin-bottom: 10px; padding: 10px; background: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;">
                                     <strong>⏱️ Sending Delay:</strong>
-                                    <input type="number" id="send-delay" value="3" min="1" max="60"
+                                    <input type="number" id="send-delay" value="60" min="20" max="6000"
                                         style="width: 60px; margin: 0 5px;" /> seconds between messages
                                     <small style="display: block; color: #856404; margin-top: 5px;">
                                         <i class="fas fa-info-circle"></i> Delays help prevent WhatsApp from blocking
@@ -370,6 +370,59 @@
                                     <div id="groups-preview-custom-numbers-list"
                                         style="margin-top: 10px; padding: 10px; background: white; border-radius: 6px; min-height: 60px; border: 1px solid #ddd;">
                                         <!-- Custom numbers will be rendered here -->
+                                    </div>
+                                </div>
+
+                                <!-- Private Clients Section -->
+                                <div
+                                    style="margin-top: 15px; padding: 15px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-radius: 8px; border: 2px solid #66bb6a;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
+                                        onclick="togglePrivateClientsSection()">
+                                        <label
+                                            style="font-weight: bold; font-size: 1.1em; color: #2e7d32; margin-bottom: 0; cursor: pointer;">
+                                            <i class="fas fa-user-friends" style="color: #43a047;"></i> 📱 Private
+                                            Clients
+                                            <span id="private-clients-preview-count"
+                                                style="background: #43a047; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">0</span>
+                                        </label>
+                                        <i class="fas fa-chevron-down" id="private-clients-toggle-icon"
+                                            style="color: #43a047; transition: transform 0.3s;"></i>
+                                    </div>
+                                    <div id="private-clients-preview-container"
+                                        style="display: none; margin-top: 12px;">
+                                        <div id="private-clients-preview-list"
+                                            style="max-height: 250px; overflow-y: auto; background: white; border-radius: 6px; padding: 10px; border: 1px solid #a5d6a7;">
+                                            <p style="text-align: center; color: #666; padding: 15px;">⏳ Loading
+                                                clients...</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Interest Groups Section -->
+                                <div
+                                    style="margin-top: 15px; padding: 15px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 8px; border: 2px solid #42a5f5;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
+                                        onclick="toggleInterestGroupsPreviewSection()">
+                                        <label
+                                            style="font-weight: bold; font-size: 1.1em; color: #1565c0; margin-bottom: 0; cursor: pointer;">
+                                            <i class="fas fa-users-cog" style="color: #1e88e5;"></i> 👥 Interest Groups
+                                            <span id="interest-groups-preview-count"
+                                                style="background: #1e88e5; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">0</span>
+                                        </label>
+                                        <i class="fas fa-chevron-down" id="interest-groups-preview-toggle-icon"
+                                            style="color: #1e88e5; transition: transform 0.3s;"></i>
+                                    </div>
+                                    <small style="color: #1976d2; display: block; margin-top: 6px;">
+                                        <i class="fas fa-info-circle"></i> Selecting a group sends to ALL members in
+                                        that group
+                                    </small>
+                                    <div id="interest-groups-preview-container"
+                                        style="display: none; margin-top: 12px;">
+                                        <div id="interest-groups-preview-list"
+                                            style="max-height: 250px; overflow-y: auto; background: white; border-radius: 6px; padding: 10px; border: 1px solid #90caf9;">
+                                            <p style="text-align: center; color: #666; padding: 15px;">⏳ Loading
+                                                groups...</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1458,26 +1511,7 @@
                     <p>Configure system preferences</p>
                 </div>
 
-                <!-- API Keys Alert Banner -->
-                <div id="api-keys-alert" class="alert-banner"
-                    style="display: none; background: #fee; border: 2px solid #f44; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: #f44;"></i>
-                        <div style="flex: 1;">
-                            <h3 style="margin: 0 0 0.5rem 0; color: #c00;">⚠️ API Key Limit Reached!</h3>
-                            <p id="api-keys-alert-message" style="margin: 0; color: #333;">
-                                All API keys have reached their quota limits. Please add new API keys to continue
-                                processing messages.
-                            </p>
-                            <div id="api-keys-status-details"
-                                style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
-                            </div>
-                        </div>
-                        <button id="dismiss-api-alert" class="btn btn-secondary" style="white-space: nowrap;">
-                            <i class="fas fa-times"></i> Dismiss
-                        </button>
-                    </div>
-                </div>
+
 
                 <!-- Recycle Bin Settings -->
                 <div class="card">
@@ -1735,7 +1769,7 @@
                 </div>
 
                 <!-- API Keys Settings -->
-                <div class="card admin-only" style="display: none; margin-top: 1rem;">
+                <div class="card" style="margin-top: 1rem;">
                     <div class="card-body">
                         <h3><i class="fas fa-key"></i> Gemini API Keys Management</h3>
                         <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">

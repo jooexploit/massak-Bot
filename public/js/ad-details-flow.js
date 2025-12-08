@@ -331,6 +331,10 @@ async function openGroupsPreviewModal(adId, message) {
     if (typeof renderGroupsPreviewCustomNumbersList === "function") {
       renderGroupsPreviewCustomNumbersList();
     }
+    
+    // Load private clients and interest groups for the new sections
+    await loadPrivateClientsForPreview();
+    await loadInterestGroupsForPreview();
   } catch (error) {
     console.error("Error loading groups:", error);
     if (groupsList) {
@@ -677,10 +681,18 @@ async function handleGroupsPreviewSend() {
       });
     });
 
-  // Combine both sources
+  // Get selected private clients (new)
+  const selectedPrivateClients = getSelectedPrivateClients();
+  
+  // Get selected interest group members (new - expands groups to individual members)
+  const selectedInterestGroupMembers = getSelectedInterestGroupMembers();
+
+  // Combine all custom numbers sources
   const allCustomNumbers = [
     ...selectedCustomNumbersFromSaved,
     ...selectedCustomNumbersFromManual,
+    ...selectedPrivateClients.map(c => ({ name: c.name, phone: c.phone, source: "Private Client" })),
+    ...selectedInterestGroupMembers.map(m => ({ name: m.name, phone: m.phone, source: m.source })),
   ];
 
   // Remove duplicates based on phone number
@@ -691,21 +703,13 @@ async function handleGroupsPreviewSend() {
   // Debug logging
   console.log("📊 Send Debug Info:");
   console.log("Selected Groups:", selectedGroups.length, selectedGroups);
-  console.log(
-    "Custom Numbers (Saved):",
-    selectedCustomNumbersFromSaved.length,
-    selectedCustomNumbersFromSaved
-  );
-  console.log(
-    "Custom Numbers (Manual):",
-    selectedCustomNumbersFromManual.length,
-    selectedCustomNumbersFromManual
-  );
-  console.log("Total Custom Numbers:", customNumbers.length, customNumbers);
+  console.log("Private Clients:", selectedPrivateClients.length);
+  console.log("Interest Group Members:", selectedInterestGroupMembers.length);
+  console.log("Total Custom Numbers (deduplicated):", customNumbers.length);
 
   // Require at least one recipient (group OR custom number)
   if (selectedGroups.length === 0 && customNumbers.length === 0) {
-    alert("⚠️ Please select at least one group OR custom phone number");
+    alert("⚠️ Please select at least one group, private client, interest group, or custom phone number");
     return;
   }
 
@@ -715,187 +719,82 @@ async function handleGroupsPreviewSend() {
   // Get delay value (in seconds)
   const delayInput = document.getElementById("send-delay");
   const delaySeconds = delayInput ? parseInt(delayInput.value) || 3 : 3;
-  const delayMs = delaySeconds * 1000;
 
   showLoadingOverlay(
-    `📱 Sending to ${totalRecipients} recipient(s) with ${delaySeconds}s delay...`
+    `📱 Starting background send to ${totalRecipients} recipient(s)...`
   );
 
   try {
-    let successCount = 0;
-    let failCount = 0;
-    let groupsSent = 0;
-    let numbersSent = 0;
+    // Send request to backend - it will process in background
+    const response = await fetch("/api/bot/send-bulk-messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        adId,
+        message,
+        groups: selectedGroups,
+        customNumbers,
+        delaySeconds,
+      }),
+    });
 
-    // Send to groups first
-    for (let i = 0; i < selectedGroups.length; i++) {
-      const groupId = selectedGroups[i];
-
-      try {
-        await fetch("/api/bot/send-message", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ number: groupId, message }),
-        });
-        successCount++;
-        groupsSent++;
-
-        // Update loading message with progress
-        showLoadingOverlay(
-          `📱 Sent ${successCount}/${totalRecipients} messages... (📢 Groups: ${groupsSent}, 📱 Private: ${numbersSent}) - ${delaySeconds}s delay`
-        );
-
-        // Wait before sending next message
-        if (i < selectedGroups.length - 1 || customNumbers.length > 0) {
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-        }
-      } catch (err) {
-        console.error(`Failed to send to group ${groupId}:`, err);
-        failCount++;
-      }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP ${response.status}`);
     }
 
-    // Send to custom numbers (private messages)
-    for (let i = 0; i < customNumbers.length; i++) {
-      const number = customNumbers[i];
+    const result = await response.json();
+    
+    console.log("✅ Bulk send started:", result);
 
-      // Normalize phone number to international format
-      let cleanPhone = number.phone.replace(/\D/g, ""); // Remove non-digits
-
-      // Handle Egyptian numbers (starting with 0)
-      if (cleanPhone.startsWith("0")) {
-        cleanPhone = "2" + cleanPhone; // Add Egypt country code but keep leading 0 -> 201...
-      }
-      // Handle Saudi numbers (966)
-      else if (
-        !cleanPhone.startsWith("2") &&
-        !cleanPhone.startsWith("966") &&
-        !cleanPhone.startsWith("971")
-      ) {
-        // If no country code and doesn't start with 0, assume Saudi
-        if (cleanPhone.startsWith("5")) {
-          cleanPhone = "966" + cleanPhone;
-        } else {
-          // Default to Egypt
-          cleanPhone = "20" + cleanPhone;
-        }
-      }
-
-      // Format: phone@s.whatsapp.net (for private messages)
-      const whatsappNumber = cleanPhone.includes("@")
-        ? cleanPhone
-        : `${cleanPhone}@s.whatsapp.net`;
-
-      console.log(`📱 Sending to private number: ${number.name}`);
-      console.log(`   📞 Original: ${number.phone}`);
-      console.log(`   🔧 Cleaned: ${cleanPhone}`);
-      console.log(`   📲 WhatsApp JID: ${whatsappNumber}`);
-
+    // Mark the ad as sent (stores groups/numbers info)
+    if (adId) {
       try {
-        const response = await fetch("/api/bot/send-message", {
+        await fetch(`/api/bot/ads/${adId}/mark-sent`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            number: whatsappNumber,
-            message,
-            recipientName: number.name, // Optional: for logging
+            selectedGroups,
+            customNumbers,
           }),
         });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `HTTP ${response.status}`);
-        }
-
-        const result = await response.json();
-        successCount++;
-        numbersSent++;
-        console.log(`✅ Successfully sent to ${number.name} (${cleanPhone})`);
-
-        // Update loading message with progress
-        showLoadingOverlay(
-          `📱 Sent ${successCount}/${totalRecipients} messages... (📢 Groups: ${groupsSent}, 📱 Private: ${numbersSent}) - ${delaySeconds}s delay`
-        );
-
-        // Wait before sending next message (except for the last one)
-        if (i < customNumbers.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-        }
-      } catch (err) {
-        console.error(
-          `❌ Failed to send to ${number.name} (${number.phone}):`,
-          err.message || err
-        );
-        console.error("Error details:", err);
-        failCount++;
+      } catch (markErr) {
+        console.error("❌ Failed to mark as sent:", markErr);
       }
     }
 
-    // Update ad status to accepted
-    await updateAdStatus(adId, "accepted");
+    // Show success message
+    let resultMessage = `🚀 تم بدء الإرسال في الخلفية!
 
-    // Mark the ad as sent (stores groups/numbers info)
-    console.log(
-      "📝 [UPDATE] Marking ad as sent, adId:",
-      adId,
-      "groups:",
-      selectedGroups.length,
-      "numbers:",
-      customNumbers.length
-    );
-    try {
-      const markResponse = await fetch(`/api/bot/ads/${adId}/mark-sent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          selectedGroups: selectedGroups,
-          customNumbers: customNumbers,
-        }),
-      });
-      const markResult = await markResponse.json();
-      console.log("✅ [UPDATE] Mark-sent response:", markResult);
-    } catch (markErr) {
-      console.error("❌ [UPDATE] Failed to mark as sent:", markErr);
-    }
+📊 الإجمالي: ${totalRecipients} مستلم
+📢 المجموعات: ${selectedGroups.length}
+📱 الأرقام الخاصة: ${customNumbers.length}
+⏱️ التأخير: ${delaySeconds} ثانية
 
-    // Show detailed success message
-    let resultMessage = `✅ Successfully sent ${successCount}/${totalRecipients} messages!`;
-    if (failCount > 0) {
-      resultMessage += `\n⚠️ ${failCount} message(s) failed to send.`;
-    }
-    if (groupsSent > 0) {
-      resultMessage += `\n📢 Groups: ${groupsSent}`;
-    }
-    if (numbersSent > 0) {
-      resultMessage += `\n📱 Private Numbers: ${numbersSent}`;
-    }
+✅ يمكنك إغلاق الصفحة - الإرسال سيستمر
+📲 سيتم إرسال إشعار على واتساب عند الإنتهاء`;
 
-    console.log("✅ Send Complete:", resultMessage);
-
+    hideLoadingOverlay();
     showSuccessStatus(resultMessage);
 
     closeGroupsPreviewModal();
 
-    // Reload the appropriate view with a small delay to ensure backend has written the file
-    console.log("🔄 [RELOAD] Current hash:", window.location.hash);
+    // Reload the appropriate view
     if (window.location.hash === "#whatsapp-messages") {
-      console.log("🔄 [RELOAD] Waiting 500ms for backend to persist data...");
       await new Promise((resolve) => setTimeout(resolve, 500));
-      console.log("🔄 [RELOAD] Reloading WhatsApp messages view...");
       await loadWhatsAppMessagesView();
-      console.log("✅ [RELOAD] WhatsApp messages view reloaded");
     } else {
       fetchAndRenderAds();
     }
   } catch (err) {
     hideLoadingOverlay();
-    console.error("Error sending messages:", err);
-    alert("❌ Failed to send messages");
+    console.error("Error starting bulk send:", err);
+    alert("❌ Failed to start sending: " + err.message);
   }
 }
+
 
 // -------------------------
 // Direct Post to WordPress (without opening preview modal)
@@ -1650,4 +1549,386 @@ function showSuccessStatus(message, autoHide = true) {
       hideLoadingOverlay();
     }, 3000);
   }
+}
+
+// ========================================================================================
+// PRIVATE CLIENTS AND INTEREST GROUPS SELECTION
+// ========================================================================================
+
+// Cache for private clients and interest groups
+let cachedPrivateClients = [];
+let cachedInterestGroups = [];
+
+/**
+ * Toggle Private Clients section visibility
+ */
+function togglePrivateClientsSection() {
+  const container = document.getElementById("private-clients-preview-container");
+  const icon = document.getElementById("private-clients-toggle-icon");
+  
+  if (container) {
+    const isHidden = container.style.display === "none";
+    container.style.display = isHidden ? "block" : "none";
+    if (icon) {
+      icon.style.transform = isHidden ? "rotate(180deg)" : "rotate(0deg)";
+    }
+  }
+}
+
+/**
+ * Toggle Interest Groups section visibility (in preview modal)
+ */
+function toggleInterestGroupsPreviewSection() {
+  const container = document.getElementById("interest-groups-preview-container");
+  const icon = document.getElementById("interest-groups-preview-toggle-icon");
+  
+  if (container) {
+    const isHidden = container.style.display === "none";
+    container.style.display = isHidden ? "block" : "none";
+    if (icon) {
+      icon.style.transform = isHidden ? "rotate(180deg)" : "rotate(0deg)";
+    }
+  }
+}
+
+/**
+ * Load private clients from the API
+ */
+async function loadPrivateClientsForPreview() {
+  try {
+    const response = await fetch("/api/bot/private-clients", {
+      credentials: "include"
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch private clients");
+    }
+    
+    const data = await response.json();
+    cachedPrivateClients = data.clients || [];
+    console.log(`✅ Loaded ${cachedPrivateClients.length} private clients for preview`);
+    
+    // Update count badge
+    const countEl = document.getElementById("private-clients-preview-count");
+    if (countEl) {
+      countEl.textContent = cachedPrivateClients.length;
+    }
+    
+    // Render the list
+    renderPrivateClientsPreview();
+    
+    return cachedPrivateClients;
+  } catch (error) {
+    console.error("Error loading private clients:", error);
+    cachedPrivateClients = [];
+    return [];
+  }
+}
+
+/**
+ * Load interest groups from the API
+ */
+async function loadInterestGroupsForPreview() {
+  try {
+    const response = await fetch("/api/bot/interest-groups", {
+      credentials: "include"
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch interest groups");
+    }
+    
+    const data = await response.json();
+    cachedInterestGroups = data.groups || [];
+    console.log(`✅ Loaded ${cachedInterestGroups.length} interest groups for preview`);
+    
+    // Update count badge
+    const countEl = document.getElementById("interest-groups-preview-count");
+    if (countEl) {
+      countEl.textContent = cachedInterestGroups.length;
+    }
+    
+    // Render the list
+    renderInterestGroupsPreview();
+    
+    return cachedInterestGroups;
+  } catch (error) {
+    console.error("Error loading interest groups:", error);
+    cachedInterestGroups = [];
+    return [];
+  }
+}
+
+/**
+ * Render private clients as checkboxes with role-based filtering
+ */
+function renderPrivateClientsPreview() {
+  const container = document.getElementById("private-clients-preview-list");
+  if (!container) return;
+  
+  if (cachedPrivateClients.length === 0) {
+    container.innerHTML = `
+      <p style="text-align: center; color: #999; padding: 15px;">
+        <i class="fas fa-info-circle"></i> No private clients available
+      </p>
+    `;
+    return;
+  }
+  
+  // Define available roles
+  const roles = [
+    { key: "باحث", label: "باحث (Seeker)", emoji: "🔍", color: "#4CAF50" },
+    { key: "مالك", label: "مالك (Owner)", emoji: "🏠", color: "#2196F3" },
+    { key: "مستثمر", label: "مستثمر (Investor)", emoji: "💰", color: "#FF9800" },
+    { key: "وسيط", label: "وسيط (Broker)", emoji: "🤝", color: "#9C27B0" }
+  ];
+  
+  // Count clients per role
+  const roleCounts = {};
+  roles.forEach(r => roleCounts[r.key] = 0);
+  cachedPrivateClients.forEach(client => {
+    const role = client.role || "";
+    if (roleCounts.hasOwnProperty(role)) {
+      roleCounts[role]++;
+    }
+  });
+  
+  let html = "";
+  
+  // Role selection header
+  html += `
+    <div class="role-filters-section" style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%); border-radius: 8px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+        <i class="fas fa-filter" style="color: #666;"></i>
+        <span style="font-weight: 600; color: #333;">Select by Role:</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+  `;
+  
+  roles.forEach(role => {
+    const count = roleCounts[role.key] || 0;
+    if (count > 0) {
+      html += `
+        <label class="role-filter-item" style="display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: white; border: 2px solid ${role.color}; border-radius: 20px; cursor: pointer; transition: all 0.2s;">
+          <input type="checkbox" 
+                 class="role-filter-checkbox"
+                 data-role="${escapeHtml(role.key)}"
+                 style="width: 16px; height: 16px; cursor: pointer; accent-color: ${role.color};">
+          <span style="font-weight: 500; color: ${role.color};">${role.emoji} ${role.label}</span>
+          <span style="background: ${role.color}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">${count}</span>
+        </label>
+      `;
+    }
+  });
+  
+  html += `
+      </div>
+      <small style="display: block; margin-top: 8px; color: #888;">
+        <i class="fas fa-info-circle"></i> Select a role to select all clients with that role. You can still individually toggle clients below.
+      </small>
+    </div>
+  `;
+  
+  // Divider
+  html += `<div style="height: 1px; background: linear-gradient(90deg, transparent, #ccc, transparent); margin: 10px 0;"></div>`;
+  
+  // Individual clients section
+  html += `<div class="clients-list-section">`;
+  
+  cachedPrivateClients.forEach((client) => {
+    const phone = client.phoneNumber || client.phone || "";
+    const name = client.name || "Unknown";
+    const role = client.role || "";
+    const roleEmoji = getRoleEmoji(role);
+    const roleInfo = roles.find(r => r.key === role);
+    const roleColor = roleInfo ? roleInfo.color : "#666";
+    
+    html += `
+      <div class="private-client-item" style="display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #e8f5e9; transition: background 0.2s;" data-role="${escapeHtml(role)}">
+        <input type="checkbox" 
+               class="private-client-checkbox"
+               id="pc-${escapeHtml(phone)}"
+               value="${escapeHtml(phone)}"
+               data-name="${escapeHtml(name)}"
+               data-role="${escapeHtml(role)}"
+               style="width: 18px; height: 18px; cursor: pointer; accent-color: ${roleColor};">
+        <label for="pc-${escapeHtml(phone)}" style="flex: 1; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 600; color: #2e7d32;">${escapeHtml(name)}</div>
+            <div style="font-size: 0.85em; color: #666;">
+              <i class="fas fa-phone" style="font-size: 11px;"></i> ${escapeHtml(phone)}
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <span style="background: ${roleColor}20; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; color: ${roleColor}; border: 1px solid ${roleColor};">
+              ${roleEmoji} ${escapeHtml(role) || "N/A"}
+            </span>
+          </div>
+        </label>
+      </div>
+    `;
+  });
+  
+  html += `</div>`;
+  
+  container.innerHTML = html;
+  
+  // Wire up role filter checkboxes
+  container.querySelectorAll(".role-filter-checkbox").forEach(roleCheckbox => {
+    roleCheckbox.addEventListener("change", function() {
+      const role = this.dataset.role;
+      const isChecked = this.checked;
+      
+      // Select/deselect all clients with this role
+      container.querySelectorAll(`.private-client-checkbox[data-role="${role}"]`).forEach(clientCb => {
+        clientCb.checked = isChecked;
+      });
+    });
+  });
+  
+  // Wire up individual client checkboxes to update role filter state
+  container.querySelectorAll(".private-client-checkbox").forEach(clientCb => {
+    clientCb.addEventListener("change", function() {
+      updateRoleFilterCheckboxStates(container);
+    });
+  });
+}
+
+/**
+ * Update role filter checkbox states based on individual selections
+ */
+function updateRoleFilterCheckboxStates(container) {
+  container.querySelectorAll(".role-filter-checkbox").forEach(roleCheckbox => {
+    const role = roleCheckbox.dataset.role;
+    const clientsWithRole = container.querySelectorAll(`.private-client-checkbox[data-role="${role}"]`);
+    const checkedClientsWithRole = container.querySelectorAll(`.private-client-checkbox[data-role="${role}"]:checked`);
+    
+    if (clientsWithRole.length === 0) {
+      roleCheckbox.checked = false;
+      roleCheckbox.indeterminate = false;
+    } else if (checkedClientsWithRole.length === clientsWithRole.length) {
+      roleCheckbox.checked = true;
+      roleCheckbox.indeterminate = false;
+    } else if (checkedClientsWithRole.length > 0) {
+      roleCheckbox.checked = false;
+      roleCheckbox.indeterminate = true;
+    } else {
+      roleCheckbox.checked = false;
+      roleCheckbox.indeterminate = false;
+    }
+  });
+}
+
+/**
+ * Render interest groups as checkboxes
+ */
+function renderInterestGroupsPreview() {
+  const container = document.getElementById("interest-groups-preview-list");
+  if (!container) return;
+  
+  if (cachedInterestGroups.length === 0) {
+    container.innerHTML = `
+      <p style="text-align: center; color: #999; padding: 15px;">
+        <i class="fas fa-info-circle"></i> No interest groups available
+      </p>
+    `;
+    return;
+  }
+  
+  let html = "";
+  cachedInterestGroups.forEach((group) => {
+    const id = group.id || "";
+    const interest = group.interest || "Unknown";
+    const memberCount = group.members ? group.members.length : 0;
+    
+    html += `
+      <div class="interest-group-item" style="display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #bbdefb; transition: background 0.2s;">
+        <input type="checkbox" 
+               class="interest-group-checkbox"
+               id="ig-${escapeHtml(id)}"
+               value="${escapeHtml(id)}"
+               data-interest="${escapeHtml(interest)}"
+               data-members='${JSON.stringify(group.members || [])}'
+               style="width: 18px; height: 18px; cursor: pointer;">
+        <label for="ig-${escapeHtml(id)}" style="flex: 1; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 600; color: #1565c0;">
+              <i class="fas fa-tag" style="font-size: 12px;"></i> ${escapeHtml(interest)}
+            </div>
+            <div style="font-size: 0.85em; color: #666;">
+              Group ID: ${escapeHtml(id)}
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <span style="background: #e3f2fd; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; color: #1565c0;">
+              <i class="fas fa-users"></i> ${memberCount} members
+            </span>
+          </div>
+        </label>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+/**
+ * Get emoji for role type
+ */
+function getRoleEmoji(role) {
+  switch (role) {
+    case "باحث": return "🔍";
+    case "مالك": return "🏠";
+    case "مستثمر": return "💰";
+    case "وسيط": return "🤝";
+    default: return "👤";
+  }
+}
+
+/**
+ * Get selected private clients
+ */
+function getSelectedPrivateClients() {
+  const selected = [];
+  document.querySelectorAll("#private-clients-preview-list .private-client-checkbox:checked")
+    .forEach((cb) => {
+      selected.push({
+        phone: cb.value,
+        name: cb.dataset.name || "Unknown",
+        role: cb.dataset.role || ""
+      });
+    });
+  return selected;
+}
+
+/**
+ * Get selected interest groups and expand to member phones
+ */
+function getSelectedInterestGroupMembers() {
+  const allMembers = [];
+  const seenPhones = new Set();
+  
+  document.querySelectorAll("#interest-groups-preview-list .interest-group-checkbox:checked")
+    .forEach((cb) => {
+      try {
+        const members = JSON.parse(cb.dataset.members || "[]");
+        const groupInterest = cb.dataset.interest || "Interest Group";
+        
+        members.forEach((member) => {
+          const phone = member.phone || "";
+          if (phone && !seenPhones.has(phone)) {
+            seenPhones.add(phone);
+            allMembers.push({
+              phone: phone,
+              name: member.name || "Member",
+              source: `Interest Group: ${groupInterest}`
+            });
+          }
+        });
+      } catch (e) {
+        console.error("Error parsing interest group members:", e);
+      }
+    });
+  
+  return allMembers;
 }
