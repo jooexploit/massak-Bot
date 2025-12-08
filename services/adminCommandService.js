@@ -1328,10 +1328,13 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           global.messageQueue = [];
         }
 
-        const queueId = `${phoneNumber}_${Date.now()}`;
+        // FIX: phoneNumber already contains the JID suffix (@s.whatsapp.net or @lid)
+        // Don't append @s.whatsapp.net again!
+        const adminJid = phoneNumber.includes("@") ? phoneNumber : `${phoneNumber}@s.whatsapp.net`;
+        const queueId = `${adminJid}_${Date.now()}`;
         global.messageQueue.push({
           id: queueId,
-          to: `${phoneNumber}@s.whatsapp.net`,
+          to: adminJid, // Use the already-formatted JID
           messages: [
             { text: adminMsg, delay: 0 },
             { text: propertiesMsg.trim(), delay: 2000 },

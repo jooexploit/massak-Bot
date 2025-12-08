@@ -1073,6 +1073,20 @@ async function initializeBot() {
       connectTimeoutMs: 60000,
       qrTimeout: 60000,
       emitOwnEvents: false,
+      // FIX: Ignore newsletter and certain JIDs that cause "xml-not-well-formed" Stream Errors
+      // This is a known Baileys bug where newsletter messages corrupt the connection
+      // See: https://github.com/WhiskeySockets/Baileys/issues/794
+      shouldIgnoreJid: (jid) => {
+        // Ignore newsletter channels - they cause xml-not-well-formed errors
+        if (jid.endsWith("@newsletter")) {
+          return true;
+        }
+        // Ignore broadcast/status updates 
+        if (jid === "status@broadcast") {
+          return true;
+        }
+        return false;
+      },
       // CRITICAL: Provide getMessage to prevent "Stream Errored" on retry
       getMessage: async (key) => {
         // Return undefined if message not found in store
@@ -2065,8 +2079,83 @@ async function disconnectBot() {
   }
 }
 async function sendMessage(numberOrJid, message) {
+  // Helper function to wait for connection to be restored
+  const waitForConnection = async (maxWaitMs = 15000) => {
+    const startTime = Date.now();
+    while (Date.now() - startTime < maxWaitMs) {
+      if (connectionStatus === "connected" && sock) {
+        return true;
+      }
+      console.log(`⏳ Waiting for connection... (${connectionStatus})`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    return connectionStatus === "connected" && sock;
+  };
+
+  // Helper function to send with retry for Stream Errors
+  const sendWithRetry = async (jid, messageContent, maxRetries = 3) => {
+    let lastError = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      // Check connection before each attempt
+      if (connectionStatus !== "connected" || !sock) {
+        console.log(`⏸️ Not connected before attempt ${attempt}, waiting...`);
+        const connected = await waitForConnection();
+        if (!connected) {
+          throw new Error("Bot is not connected after waiting");
+        }
+      }
+
+      try {
+        await sock.sendMessage(jid, messageContent);
+        return; // Success!
+      } catch (sendError) {
+        lastError = sendError;
+        const errorMsg = sendError.message || String(sendError);
+        
+        console.warn(`⚠️ Send attempt ${attempt}/${maxRetries} failed: ${errorMsg}`);
+        
+        // Check if it's a retriable error
+        const isStreamError = errorMsg.includes("Stream Errored") || 
+                              errorMsg.includes("xml-not-well-formed");
+        const isConnectionError = errorMsg.includes("Connection") || 
+                                   errorMsg.includes("closed") ||
+                                   errorMsg.includes("Timed Out") ||
+                                   errorMsg.includes("timeout");
+        const isRetriableError = isStreamError || isConnectionError;
+        
+        if (isRetriableError && attempt < maxRetries) {
+          // Wait for connection to stabilize
+          const delayMs = attempt * 3000; // 3s, 6s, 9s
+          console.log(`⏳ Waiting ${delayMs}ms for connection to stabilize...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          
+          // Wait for reconnection if needed
+          if (connectionStatus !== "connected") {
+            console.log(`🔄 Waiting for reconnection before retry...`);
+            const connected = await waitForConnection(20000);
+            if (!connected) {
+              console.error(`❌ Connection not restored after ${attempt} attempts`);
+              continue; // Try again anyway
+            }
+            console.log(`✅ Connection restored, retrying...`);
+          }
+        } else if (attempt === maxRetries) {
+          throw lastError;
+        }
+      }
+    }
+    
+    throw lastError || new Error("Send failed after all retries");
+  };
+
+  // Initial connection check
   if (connectionStatus !== "connected" || !sock) {
-    throw new Error("Bot is not connected");
+    console.log(`⏸️ Not connected, waiting up to 15s...`);
+    const connected = await waitForConnection();
+    if (!connected) {
+      throw new Error("Bot is not connected");
+    }
   }
 
   let jid = numberOrJid;
@@ -2132,50 +2221,28 @@ async function sendMessage(numberOrJid, message) {
           console.log(`📎 Added link preview without thumbnail`);
         }
 
-        // Try sending with link preview with retry logic
-        const maxRetries = 2;
-        let lastError = null;
-        
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          try {
-            await sock.sendMessage(jid, messageContent);
-            console.log(`✅ Message sent with link preview to ${jid}`);
-            return; // Exit after successful send
-          } catch (sendError) {
-            lastError = sendError;
-            const isTimeout = sendError.message?.includes("Timed Out") || 
-                             sendError.output?.statusCode === 408 ||
-                             sendError.message?.includes("timeout");
-            
-            console.warn(`⚠️ Attempt ${attempt}/${maxRetries} failed to send with link preview: ${sendError.message}`);
-            
-            if (isTimeout && attempt < maxRetries) {
-              // Wait before retrying (exponential backoff)
-              const delayMs = attempt * 2000; // 2 seconds, 4 seconds
-              console.log(`⏳ Waiting ${delayMs}ms before retry...`);
-              await new Promise(resolve => setTimeout(resolve, delayMs));
-            } else if (attempt === maxRetries) {
-              // All retries failed, fall back to sending without link preview
-              console.warn(`⚠️ All ${maxRetries} attempts failed, sending without link preview`);
-              console.error(`📍 Last error:`, lastError.message);
-              break; // Exit retry loop and fall through to plain text send
-            }
-          }
+        // Send with retry logic
+        try {
+          await sendWithRetry(jid, messageContent);
+          console.log(`✅ Message sent with link preview to ${jid}`);
+          return; // Exit after successful send
+        } catch (sendError) {
+          console.warn(`⚠️ Failed to send with link preview after retries: ${sendError.message}`);
+          console.warn(`⚠️ Falling back to plain text send...`);
+          // Fall through to plain text send
         }
-        
-        // If we reach here, all retries failed - fall through to send without link preview
       } else {
         console.warn(`⚠️ Failed to generate link preview, sending without it`);
       }
     } catch (error) {
       console.error(`❌ Error generating link preview:`, error.message);
-      console.error(`📍 Error details:`, error);
       // Fall through to send without link preview
     }
   }
 
   // Send message without link preview (no URLs or preview generation failed)
-  await sock.sendMessage(jid, { text: message });
+  // Now with retry logic for Stream Errors
+  await sendWithRetry(jid, { text: message });
   console.log(`✅ Message sent (plain text) to ${jid}`);
 }
 
