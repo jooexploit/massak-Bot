@@ -8,6 +8,7 @@ const fs = require("fs").promises;
 const path = require("path");
 const waseetDetector = require("./waseetDetector");
 const interestGroupService = require("./interestGroupService");
+const wordpressPostService = require("./wordpressPostService");
 
 // KSA Timezone configuration
 const KSA_TIMEZONE = "Asia/Riyadh";
@@ -31,6 +32,8 @@ const pendingWaseetConfirmations = {};
 const pendingAdminConfirmations = {};
 // Pending interest group confirmations: { [adminJid]: { interest, entries, groupId?, createdAt } }
 const pendingInterestConfirmations = {};
+// Pending WordPress post actions: { [adminJid]: { website, post, action, createdAt } }
+const pendingWordPressActions = {};
 
 /**
  * Normalize phone number to standard format
@@ -211,6 +214,16 @@ async function saveAdminsToFile() {
 
 // Message queue for reliable delivery
 let isProcessingQueue = false;
+let queueProcessorInterval = null;
+
+/**
+ * Force reset the queue processor state
+ * Call this on reconnection to ensure proper retry
+ */
+function resetQueueProcessor() {
+  console.log("🔄 Resetting queue processor state...");
+  isProcessingQueue = false;
+}
 
 /**
  * Process message queue - sends queued messages when connection is stable
@@ -239,27 +252,50 @@ async function processMessageQueue() {
     while (global.messageQueue.length > 0) {
       const item = global.messageQueue[0]; // Peek at first item
 
-      // Check if item is too old (> 10 minutes)
-      if (Date.now() - item.createdAt > 600000) {
-        console.log(`⏰ Queue item ${item.id} expired, removing...`);
+      // Check if item is too old (> 30 minutes - increased from 10 for connection recovery)
+      const QUEUE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+      if (Date.now() - item.createdAt > QUEUE_TIMEOUT_MS) {
+        console.log(`⏰ Queue item ${item.id} expired (>30min), removing...`);
         global.messageQueue.shift();
         continue;
       }
 
-      // Check connection
-      const status = botModule.getConnectionStatus();
+      // Check connection with retry wait
+      let status = botModule.getConnectionStatus();
       if (status !== "connected") {
         console.log(
-          `⏸️ Connection not ready (${status}), pausing queue processor...`
+          `⏸️ Connection not ready (${status}), waiting up to 30s for reconnection...`
         );
-        break; // Exit loop, will retry later
+        
+        // Wait up to 30 seconds for connection to restore
+        let waitedMs = 0;
+        const maxWaitMs = 30000;
+        while (waitedMs < maxWaitMs && status !== "connected") {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          waitedMs += 2000;
+          status = botModule.getConnectionStatus();
+          if (status === "connected") {
+            console.log(`✅ Connection restored after ${waitedMs}ms`);
+            break;
+          }
+        }
+        
+        if (status !== "connected") {
+          console.log(`⏸️ Connection still not ready after ${maxWaitMs}ms, pausing queue processor...`);
+          break; // Exit loop, will retry later
+        }
       }
 
       console.log(`📤 Processing queue item: ${item.id}`);
 
+      // Initialize message progress tracking
+      if (typeof item.messagesSent === 'undefined') {
+        item.messagesSent = 0;
+      }
+
       try {
-        // Send all messages in sequence
-        for (let i = 0; i < item.messages.length; i++) {
+        // Send messages in sequence, starting from where we left off
+        for (let i = item.messagesSent; i < item.messages.length; i++) {
           const msg = item.messages[i];
 
           // Wait for specified delay
@@ -267,12 +303,53 @@ async function processMessageQueue() {
             await new Promise((resolve) => setTimeout(resolve, msg.delay));
           }
 
-          // Send message
+          // Verify connection before each send
+          const sendStatus = botModule.getConnectionStatus();
+          if (sendStatus !== "connected") {
+            console.log(`🔌 Connection lost before message ${i + 1}, will retry...`);
+            throw new Error("Connection lost during message sequence");
+          }
+
+          // Send message with retry
           console.log(
             `  → Sending message ${i + 1}/${item.messages.length}...`
           );
-          await botModule.sendMessage(item.to, msg.text);
-          console.log(`  ✅ Message ${i + 1} sent`);
+          
+          let sendSuccess = false;
+          let sendAttempts = 0;
+          const maxSendAttempts = 3;
+          
+          while (!sendSuccess && sendAttempts < maxSendAttempts) {
+            try {
+              sendAttempts++;
+              await botModule.sendMessage(item.to, msg.text);
+              sendSuccess = true;
+              item.messagesSent = i + 1; // Track progress
+              console.log(`  ✅ Message ${i + 1} sent (attempt ${sendAttempts})`);
+            } catch (sendError) {
+              console.error(`  ⚠️ Send attempt ${sendAttempts}/${maxSendAttempts} failed:`, sendError.message);
+              
+              // Check if it's a connection error
+              if (sendError.message?.includes("Connection") || 
+                  sendError.message?.includes("Stream") ||
+                  sendError.message?.includes("closed")) {
+                // Wait for potential reconnection
+                console.log(`  ⏳ Waiting 5s for connection recovery...`);
+                await new Promise((resolve) => setTimeout(resolve, 5000));
+                
+                // Check if reconnected
+                const retryStatus = botModule.getConnectionStatus();
+                if (retryStatus !== "connected") {
+                  throw new Error("Connection not recovered after send failure");
+                }
+              } else if (sendAttempts >= maxSendAttempts) {
+                throw sendError;
+              } else {
+                // Non-connection error, wait briefly and retry
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+              }
+            }
+          }
         }
 
         console.log(`✅ Queue item ${item.id} completed successfully`);
@@ -291,20 +368,21 @@ async function processMessageQueue() {
         // Check if connection is lost
         const currentStatus = botModule.getConnectionStatus();
         if (currentStatus !== "connected") {
-          console.log(`🔌 Connection lost, stopping queue processor`);
+          console.log(`🔌 Connection lost, pausing queue processor. Will resume on reconnect.`);
+          console.log(`📋 Item ${item.id} has ${item.messagesSent || 0}/${item.messages.length} messages sent`);
           break; // Stop processing, will retry when connection restored
         }
 
         // If connection is OK but message failed, retry later
         item.retryCount = (item.retryCount || 0) + 1;
-        if (item.retryCount >= 3) {
+        if (item.retryCount >= 5) { // Increased from 3 to 5 retries
           console.log(
-            `❌ Max retries reached for ${item.id}, removing from queue`
+            `❌ Max retries (5) reached for ${item.id}, removing from queue`
           );
           global.messageQueue.shift();
         } else {
           console.log(
-            `⏳ Will retry ${item.id} later (attempt ${item.retryCount}/3)`
+            `⏳ Will retry ${item.id} later (attempt ${item.retryCount}/5)`
           );
           // Move to end of queue
           global.messageQueue.push(global.messageQueue.shift());
@@ -335,11 +413,19 @@ async function processMessageQueue() {
 function startQueueProcessor() {
   console.log("🚀 Message queue processor started");
 
+  // IMPORTANT: Reset the processing flag to handle reconnection scenarios
+  resetQueueProcessor();
+
   // Process immediately
   processMessageQueue();
 
+  // Clear any existing interval to prevent duplicates
+  if (queueProcessorInterval) {
+    clearInterval(queueProcessorInterval);
+  }
+
   // Then check every 30 seconds
-  setInterval(() => {
+  queueProcessorInterval = setInterval(() => {
     if (global.messageQueue && global.messageQueue.length > 0) {
       processMessageQueue();
     }
@@ -930,6 +1016,152 @@ async function handleAdminCommand(sock, message, phoneNumber) {
   const command = text.split(/\s+/)[0];
 
   try {
+    // ============================================
+    // WORDPRESS POST MANAGEMENT - URL DETECTION
+    // ============================================
+    
+    // Check for WordPress post action confirmations first
+    if (pendingWordPressActions[phoneNumber]) {
+      const pending = pendingWordPressActions[phoneNumber];
+      
+      // Handle delete confirmation ("حذف" or "1")
+      if ((command === "حذف" || command === "1") && pending.action === "awaiting_action") {
+        try {
+          console.log(`🗑️ Admin confirmed delete for post ${pending.post.id} on ${pending.website}`);
+          await wordpressPostService.deletePost(pending.website, pending.post.id);
+          delete pendingWordPressActions[phoneNumber];
+          return `✅ *تم حذف المقال بنجاح*
+
+🗑️ *العنوان:* ${wordpressPostService.stripHtml(pending.post.title?.rendered)}
+🌐 *الموقع:* ${pending.website === "masaak" ? "مسعاك" : "حساك"}`;
+        } catch (deleteError) {
+          console.error("❌ Error deleting post:", deleteError);
+          delete pendingWordPressActions[phoneNumber];
+          return `❌ *فشل حذف المقال*\n\n${deleteError.message}`;
+        }
+      }
+      
+      // Handle edit request ("تعديل" or "2")
+      if ((command === "تعديل" || command === "2") && pending.action === "awaiting_action") {
+        pending.action = "awaiting_edit";
+        
+        // Send edit messages with website context
+        const editMessages = wordpressPostService.formatPostForEditing(pending.post, pending.website);
+        
+        // Queue messages for sending
+        const botModule = require("../whatsapp/bot");
+        for (let i = 0; i < editMessages.length; i++) {
+          setTimeout(async () => {
+            try {
+              await botModule.sendMessage(phoneNumber, editMessages[i]);
+            } catch (err) {
+              console.error("Error sending edit message:", err);
+            }
+          }, i * 1500);
+        }
+        
+        return null; // Messages will be sent via setTimeout
+      }
+      
+      // Handle edit submission (user sends edited content)
+      if (pending.action === "awaiting_edit") {
+        const editData = wordpressPostService.parseEditMessage(text);
+        
+        if (editData) {
+          try {
+            console.log(`📝 Admin editing ${editData.field} (${editData.type}) for post ${pending.post.id}`);
+            
+            const updatePayload = {};
+            
+            // Handle post fields (title, content)
+            if (editData.type === "post" && editData.postField) {
+              updatePayload[editData.postField] = editData.value;
+            }
+            // Handle meta fields
+            else if (editData.type === "meta" && editData.metaKey) {
+              updatePayload.meta = {
+                [editData.metaKey]: editData.value
+              };
+            }
+            
+            const updatedPost = await wordpressPostService.updatePost(
+              pending.website, 
+              pending.post.id, 
+              updatePayload
+            );
+            
+            // Update pending post with new data
+            pending.post = updatedPost;
+            
+            // Get field label for response
+            const fieldLabel = editData.field;
+            
+            return `✅ *تم تحديث "${fieldLabel}" بنجاح*
+
+🔗 *رابط المعاينة:* ${updatedPost.link}
+
+━━━━━━━━━━━━━━━━━━━━
+
+📝 لتعديل حقل آخر، أرسل الحقل المعدل
+✅ للإنهاء ارسل *"تم"*`;
+          } catch (updateError) {
+            console.error("❌ Error updating post:", updateError);
+            return `❌ *فشل تحديث المقال*\n\n${updateError.message}`;
+          }
+        }
+        
+        // Check for "done" command to finish editing
+        if (command === "تم" || command === "انتهيت" || command === "done") {
+          const postLink = pending.post.link;
+          delete pendingWordPressActions[phoneNumber];
+          return `✅ *تم الانتهاء من التعديل*
+
+🔗 *رابط المقال:* ${postLink}
+
+💡 يمكنك فتح الرابط للتحقق من التعديلات`;
+        }
+      }
+      
+      // Handle cancel ("إلغاء" or "3")
+      if (command === "إلغاء" || command === "الغاء" || command === "3") {
+        delete pendingWordPressActions[phoneNumber];
+        return "✅ تم إلغاء العملية";
+      }
+    }
+    
+    // Detect WordPress URL in message
+    const wpUrlInfo = wordpressPostService.detectWordPressUrl(text);
+    if (wpUrlInfo) {
+      console.log(`🔗 WordPress URL detected: ${wpUrlInfo.website}/${wpUrlInfo.slug}`);
+      
+      try {
+        const post = await wordpressPostService.getPostBySlug(wpUrlInfo.website, wpUrlInfo.slug);
+        
+        if (!post) {
+          return `❌ *لم يتم العثور على المقال*
+
+🔗 الرابط: ${text}
+🌐 الموقع: ${wpUrlInfo.website === "masaak" ? "مسعاك" : "حساك"}
+
+💡 تأكد من صحة الرابط أو أن المقال موجود`;
+        }
+        
+        // Store pending action
+        pendingWordPressActions[phoneNumber] = {
+          website: wpUrlInfo.website,
+          post: post,
+          action: "awaiting_action",
+          createdAt: Date.now(),
+        };
+        
+        // Return post summary with options
+        return wordpressPostService.formatPostSummary(post, wpUrlInfo.website);
+      } catch (fetchError) {
+        console.error("❌ Error fetching WordPress post:", fetchError);
+        return `❌ *فشل جلب المقال*\n\n${fetchError.message}`;
+      }
+    }
+
     // Client request registration command (طلب)
     if (command === "طلب" || text.startsWith("طلب\n")) {
       try {
@@ -2182,6 +2414,7 @@ module.exports = {
   getAdminHelpMessage,
   processMessageQueue,
   startQueueProcessor,
+  resetQueueProcessor, // For connection recovery
   loadAdminsFromFile,
   saveAdminsToFile,
   ADMIN_NUMBERS, // Export for direct access if needed
