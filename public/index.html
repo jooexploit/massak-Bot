@@ -89,6 +89,10 @@
                     <span class="nav-icon"><i class="fas fa-bell"></i></span>
                     <span class="nav-text">Reminder System</span>
                 </a>
+                <a href="#" class="nav-item admin-only" data-view="custom-messages" style="display: none;">
+                    <span class="nav-icon"><i class="fas fa-envelope"></i></span>
+                    <span class="nav-text">custom messages</span>
+                </a>
                 <a href="#" class="nav-item admin-only" data-view="users" style="display: none;">
                     <span class="nav-icon"><i class="fas fa-users"></i></span>
                     <span class="nav-text">Manage Users</span>
@@ -1500,6 +1504,474 @@
                                 <p style="margin-top: 10px;">Loading summaries...</p>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Messages View (Admin Only) -->
+            <div id="custom-messages-view" class="content-view">
+                <div class="page-header"
+                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div>
+                        <h1><i class="fas fa-envelope"></i> رسائل</h1>
+                        <p>إنشاء وجدولة رسائل WhatsApp مخصصة مع دعم الكلمات الديناميكية</p>
+                    </div>
+                    <button id="create-custom-message-btn" class="btn btn-primary" style="font-size: 1rem;">
+                        <i class="fas fa-plus"></i> إنشاء رسالة جديدة
+                    </button>
+                </div>
+
+                <!-- Tabs -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <div style="display: flex; border-bottom: 2px solid #eee;">
+                        <button class="custom-msg-tab active" data-tab="messages"
+                            style="flex: 1; padding: 15px; border: none; background: none; cursor: pointer; font-size: 1rem; font-weight: bold; color: #333; border-bottom: 3px solid #667eea;">
+                            📝 الرسائل
+                        </button>
+                        <button class="custom-msg-tab" data-tab="schedules"
+                            style="flex: 1; padding: 15px; border: none; background: none; cursor: pointer; font-size: 1rem; color: #666;">
+                            📅 الجداول
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Messages Tab Content -->
+                <div id="custom-messages-tab" class="custom-msg-tab-content active">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>📝 الرسائل المخصصة</h2>
+                        </div>
+                        <div class="card-body">
+                            <div id="custom-messages-list" style="display: grid; gap: 15px;">
+                                <div style="text-align: center; padding: 40px; color: #999;">
+                                    <i class="fas fa-envelope-open" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                                    <p>لا توجد رسائل مخصصة بعد</p>
+                                    <p style="font-size: 0.9rem;">اضغط "إنشاء رسالة جديدة" للبدء</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schedules Tab Content -->
+                <div id="custom-schedules-tab" class="custom-msg-tab-content" style="display: none;">
+                    <div class="card">
+                        <div class="card-header"
+                            style="display: flex; justify-content: space-between; align-items: center;">
+                            <h2>📅 الجداول المخصصة</h2>
+                            <button id="create-schedule-btn" class="btn btn-success btn-sm">
+                                <i class="fas fa-plus"></i> إنشاء جدول جديد
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="custom-schedules-list" style="display: grid; gap: 15px;">
+                                <div style="text-align: center; padding: 40px; color: #999;">
+                                    <i class="fas fa-calendar-times" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                                    <p>لا توجد جداول بعد</p>
+                                    <p style="font-size: 0.9rem;">أنشئ رسالة أولاً ثم أضف جدول لها</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Create/Edit Custom Message Modal -->
+            <div id="custom-message-modal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 800px;">
+                    <div class="modal-header"
+                        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                        <h2 id="custom-message-modal-title"><i class="fas fa-envelope"></i> إنشاء رسالة مخصصة</h2>
+                        <span class="close" id="close-custom-message-modal" style="color: white;">&times;</span>
+                    </div>
+                    <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            <!-- Message Name -->
+                            <div>
+                                <label style="font-weight: bold; margin-bottom: 8px; display: block;">
+                                    📌 اسم الرسالة:
+                                </label>
+                                <input type="text" id="custom-msg-name" class="form-control"
+                                    placeholder="مثال: رسالة ترحيب يومية" style="font-size: 1rem;">
+                            </div>
+
+                            <!-- Message Content -->
+                            <div>
+                                <label style="font-weight: bold; margin-bottom: 8px; display: block;">
+                                    📝 نص الرسالة:
+                                </label>
+                                <textarea id="custom-msg-content" class="form-control" rows="8"
+                                    style="font-family: monospace; font-size: 0.95rem; direction: rtl;"
+                                    placeholder="اكتب رسالتك هنا...&#10;&#10;استخدم {{greeting}} للتحية العشوائية&#10;استخدم {{name}} لاسم المستلم"></textarea>
+                                <small style="color: #666; display: block; margin-top: 5px;">
+                                    💡 استخدم *نص عريض* و _مائل_ للتنسيق
+                                </small>
+                            </div>
+
+                            <!-- Dynamic Words Section -->
+                            <div
+                                style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 20px; border-radius: 10px; border: 2px solid #66bb6a;">
+                                <label style="font-weight: bold; margin-bottom: 15px; display: block; color: #2e7d32;">
+                                    🎲 الكلمات الديناميكية:
+                                </label>
+                                <small style="color: #388e3c; display: block; margin-bottom: 15px;">
+                                    أضف كلمات ديناميكية وسيختار النظام واحدة عشوائياً عند كل إرسال
+                                </small>
+
+                                <div id="dynamic-words-container">
+                                    <!-- Default greeting -->
+                                    <div class="dynamic-word-group"
+                                        style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+                                        <div
+                                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                            <label style="font-weight: bold; color: #1565c0;">{{greeting}}</label>
+                                        </div>
+                                        <div class="dynamic-word-options"
+                                            style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                            <span class="dynamic-word-tag"
+                                                style="background: #e3f2fd; padding: 6px 12px; border-radius: 20px; font-size: 0.9rem;">
+                                                السلام عليكم <button type="button" class="remove-word-btn"
+                                                    style="border: none; background: none; color: #e53935; cursor: pointer; margin-left: 5px;">×</button>
+                                            </span>
+                                            <span class="dynamic-word-tag"
+                                                style="background: #e3f2fd; padding: 6px 12px; border-radius: 20px; font-size: 0.9rem;">
+                                                مرحباً <button type="button" class="remove-word-btn"
+                                                    style="border: none; background: none; color: #e53935; cursor: pointer; margin-left: 5px;">×</button>
+                                            </span>
+                                            <span class="dynamic-word-tag"
+                                                style="background: #e3f2fd; padding: 6px 12px; border-radius: 20px; font-size: 0.9rem;">
+                                                حياك الله <button type="button" class="remove-word-btn"
+                                                    style="border: none; background: none; color: #e53935; cursor: pointer; margin-left: 5px;">×</button>
+                                            </span>
+                                            <span class="dynamic-word-tag"
+                                                style="background: #e3f2fd; padding: 6px 12px; border-radius: 20px; font-size: 0.9rem;">
+                                                أهلاً وسهلاً <button type="button" class="remove-word-btn"
+                                                    style="border: none; background: none; color: #e53935; cursor: pointer; margin-left: 5px;">×</button>
+                                            </span>
+                                        </div>
+                                        <div style="display: flex; gap: 8px; margin-top: 10px;">
+                                            <input type="text" class="form-control add-word-input"
+                                                placeholder="أضف كلمة جديدة..." style="flex: 1;">
+                                            <button type="button" class="btn btn-success btn-sm add-word-btn">
+                                                <i class="fas fa-plus"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="button" id="add-dynamic-var-btn" class="btn btn-primary btn-sm"
+                                    style="margin-top: 10px;">
+                                    <i class="fas fa-plus"></i> إضافة متغير ديناميكي جديد
+                                </button>
+                            </div>
+
+                            <!-- Available Variables -->
+                            <div style="background: #f5f5f5; padding: 15px; border-radius: 8px;">
+                                <label style="font-weight: bold; margin-bottom: 10px; display: block;">
+                                    📋 المتغيرات المتاحة:
+                                </label>
+                                <div style="display: flex; flex-wrap: wrap; gap: 8px;" id="available-variables-list">
+                                    <span class="var-tag"
+                                        style="background: #e0e0e0; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-family: monospace;"
+                                        data-var="name">{{name}} - اسم المستلم</span>
+                                    <span class="var-tag"
+                                        style="background: #e0e0e0; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-family: monospace;"
+                                        data-var="phone">{{phone}} - رقم الهاتف</span>
+                                    <span class="var-tag"
+                                        style="background: #e0e0e0; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-family: monospace;"
+                                        data-var="role">{{role}} - الدور</span>
+                                    <span class="var-tag"
+                                        style="background: #e0e0e0; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-family: monospace;"
+                                        data-var="date">{{date}} - التاريخ</span>
+                                    <span class="var-tag"
+                                        style="background: #e0e0e0; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-family: monospace;"
+                                        data-var="time">{{time}} - الوقت</span>
+                                    <span class="var-tag"
+                                        style="background: #e0e0e0; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-family: monospace;"
+                                        data-var="day">{{day}} - اليوم</span>
+                                </div>
+                                <small style="color: #666; margin-top: 8px; display: block;">
+                                    💡 اضغط على أي متغير لإضافته للرسالة
+                                </small>
+                            </div>
+
+                            <!-- Preview Section -->
+                            <div
+                                style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); padding: 20px; border-radius: 10px; border: 2px solid #ffb74d;">
+                                <label style="font-weight: bold; margin-bottom: 10px; display: block; color: #e65100;">
+                                    👁️ معاينة الرسالة:
+                                </label>
+                                <div id="custom-msg-preview"
+                                    style="background: white; padding: 15px; border-radius: 8px; white-space: pre-wrap; font-family: inherit; min-height: 100px; direction: rtl; border-left: 4px solid #4caf50;">
+                                    <span style="color: #999;">المعاينة ستظهر هنا...</span>
+                                </div>
+                                <button type="button" id="refresh-preview-btn" class="btn btn-warning btn-sm"
+                                    style="margin-top: 10px;">
+                                    <i class="fas fa-sync-alt"></i> تحديث المعاينة
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="cancel-custom-message-btn" class="btn btn-secondary">إلغاء</button>
+                        <button id="save-custom-message-btn" class="btn btn-primary">
+                            <i class="fas fa-save"></i> حفظ الرسالة
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Create/Edit Schedule Modal -->
+            <div id="schedule-modal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 800px;">
+                    <div class="modal-header"
+                        style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white;">
+                        <h2 id="schedule-modal-title"><i class="fas fa-calendar-alt"></i> إنشاء جدول جديد</h2>
+                        <span class="close" id="close-schedule-modal" style="color: white;">&times;</span>
+                    </div>
+                    <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            <!-- Select Message -->
+                            <div>
+                                <label style="font-weight: bold; margin-bottom: 8px; display: block;">
+                                    📝 اختر الرسالة:
+                                </label>
+                                <select id="schedule-message-select" class="form-control" style="font-size: 1rem;">
+                                    <option value="">-- اختر رسالة --</option>
+                                </select>
+                            </div>
+
+                            <!-- Schedule Name -->
+                            <div>
+                                <label style="font-weight: bold; margin-bottom: 8px; display: block;">
+                                    📌 اسم الجدول:
+                                </label>
+                                <input type="text" id="schedule-name" class="form-control"
+                                    placeholder="مثال: إرسال يومي للعملاء">
+                            </div>
+
+                            <!-- Days Selection -->
+                            <div style="background: #e3f2fd; padding: 20px; border-radius: 10px;">
+                                <label style="font-weight: bold; margin-bottom: 15px; display: block; color: #1565c0;">
+                                    📅 أيام الإرسال:
+                                </label>
+                                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                                    <label
+                                        style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 15px; background: white; border-radius: 20px;">
+                                        <input type="checkbox" class="schedule-day" value="sunday" checked> الأحد
+                                    </label>
+                                    <label
+                                        style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 15px; background: white; border-radius: 20px;">
+                                        <input type="checkbox" class="schedule-day" value="monday" checked> الإثنين
+                                    </label>
+                                    <label
+                                        style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 15px; background: white; border-radius: 20px;">
+                                        <input type="checkbox" class="schedule-day" value="tuesday" checked> الثلاثاء
+                                    </label>
+                                    <label
+                                        style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 15px; background: white; border-radius: 20px;">
+                                        <input type="checkbox" class="schedule-day" value="wednesday" checked> الأربعاء
+                                    </label>
+                                    <label
+                                        style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 15px; background: white; border-radius: 20px;">
+                                        <input type="checkbox" class="schedule-day" value="thursday" checked> الخميس
+                                    </label>
+                                    <label
+                                        style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 15px; background: white; border-radius: 20px;">
+                                        <input type="checkbox" class="schedule-day" value="friday"> الجمعة
+                                    </label>
+                                    <label
+                                        style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 15px; background: white; border-radius: 20px;">
+                                        <input type="checkbox" class="schedule-day" value="saturday"> السبت
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Time Range -->
+                            <div style="background: #fff3e0; padding: 20px; border-radius: 10px;">
+                                <label style="font-weight: bold; margin-bottom: 15px; display: block; color: #e65100;">
+                                    ⏰ وقت الإرسال:
+                                </label>
+                                <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center;">
+                                    <div>
+                                        <label>من:</label>
+                                        <input type="time" id="schedule-start-time" class="form-control" value="09:00"
+                                            style="width: 120px;">
+                                    </div>
+                                    <div>
+                                        <label>إلى:</label>
+                                        <input type="time" id="schedule-end-time" class="form-control" value="17:00"
+                                            style="width: 120px;">
+                                    </div>
+                                </div>
+                                <small style="color: #bf360c; margin-top: 10px; display: block;">
+                                    💡 سيتم الإرسال في وقت عشوائي ضمن هذه الفترة (توقيت السعودية)
+                                </small>
+                            </div>
+
+                            <!-- Delay Settings -->
+                            <div style="background: #fce4ec; padding: 20px; border-radius: 10px;">
+                                <label style="font-weight: bold; margin-bottom: 10px; display: block; color: #c2185b;">
+                                    ⏱️ التأخير بين الرسائل:
+                                </label>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="number" id="schedule-delay" class="form-control" value="60" min="20"
+                                        max="300" style="width: 100px;">
+                                    <span>ثانية</span>
+                                </div>
+                                <small style="color: #880e4f; margin-top: 8px; display: block;">
+                                    ⚠️ الحد الأدنى 20 ثانية لتجنب الحظر من WhatsApp
+                                </small>
+                            </div>
+
+                            <!-- Recipients Selection -->
+                            <div
+                                style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 20px; border-radius: 10px; border: 2px solid #66bb6a;">
+                                <label style="font-weight: bold; margin-bottom: 15px; display: block; color: #2e7d32;">
+                                    👥 المستلمين:
+                                </label>
+
+                                <!-- Collections & Groups Selection -->
+                                <div style="margin-bottom: 15px;">
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <label style="font-weight: 600;">📂 المجموعات والمجموعات المحفوظة:</label>
+                                        <button type="button" id="schedule-refresh-groups-btn"
+                                            class="btn btn-primary btn-sm" style="font-size: 0.8rem;">
+                                            <i class="fas fa-sync-alt"></i> تحديث
+                                        </button>
+                                    </div>
+                                    <div
+                                        style="margin-bottom: 8px; padding: 8px; background: #e3f2fd; border-radius: 4px; border-left: 4px solid #2196F3;">
+                                        <small style="color: #1565c0;">
+                                            <i class="fas fa-info-circle"></i> اختر مجموعة محفوظة لتحديد كل مجموعاتها
+                                            مرة واحدة
+                                        </small>
+                                    </div>
+                                    <div id="schedule-groups-list"
+                                        style="max-height: 250px; overflow-y: auto; background: white; padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
+                                        <p style="color: #999; text-align: center;">جاري تحميل المجموعات...</p>
+                                    </div>
+                                </div>
+
+                                <!-- Custom Phone Numbers Section -->
+                                <div
+                                    style="margin-bottom: 15px; padding: 15px; background: #f0f8ff; border-radius: 8px; border: 2px solid #4CAF50;">
+                                    <label
+                                        style="font-weight: bold; font-size: 1em; color: #2c3e50; margin-bottom: 10px; display: block;">
+                                        <i class="fas fa-phone" style="color: #4CAF50;"></i> أرقام هواتف إضافية:
+                                    </label>
+                                    <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:12px;">
+                                        <div style="flex:1;">
+                                            <input type="text" id="schedule-custom-number-name" placeholder="الاسم"
+                                                class="form-control" style="height: 40px;">
+                                        </div>
+                                        <div style="flex:1;">
+                                            <input type="text" id="schedule-custom-number-phone"
+                                                placeholder="رقم الهاتف (966...)" class="form-control"
+                                                style="height: 40px;">
+                                        </div>
+                                        <button type="button" id="schedule-add-custom-number-btn"
+                                            class="btn btn-success" style="height: 40px; min-width: 80px;">
+                                            <i class="fas fa-plus"></i> إضافة
+                                        </button>
+                                    </div>
+                                    <div id="schedule-custom-numbers-list"
+                                        style="padding: 10px; background: white; border-radius: 6px; min-height: 50px; border: 1px solid #ddd;">
+                                        <p style="color: #999; text-align: center; margin: 0; font-size: 0.9rem;">
+                                            <i class="fas fa-phone-slash"></i> لم تتم إضافة أرقام بعد
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <!-- Private Clients Section -->
+                                <div
+                                    style="margin-bottom: 15px; padding: 15px; background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); border-radius: 8px; border: 2px solid #ff9800;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
+                                        onclick="toggleSchedulePrivateClientsSection()">
+                                        <label
+                                            style="font-weight: bold; font-size: 1em; color: #e65100; margin-bottom: 0; cursor: pointer;">
+                                            <i class="fas fa-user-friends" style="color: #ff9800;"></i> 📱 العملاء
+                                            الخاصين
+                                            <span id="schedule-private-clients-count"
+                                                style="background: #ff9800; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">0</span>
+                                        </label>
+                                        <i class="fas fa-chevron-down" id="schedule-private-clients-toggle-icon"
+                                            style="color: #ff9800; transition: transform 0.3s;"></i>
+                                    </div>
+                                    <div id="schedule-private-clients-container"
+                                        style="display: none; margin-top: 12px;">
+                                        <!-- Role Filter -->
+                                        <div style="margin-bottom: 10px;">
+                                            <label
+                                                style="font-size: 0.9rem; color: #e65100; margin-bottom: 5px; display: block;">
+                                                <i class="fas fa-filter"></i> تصفية حسب الدور:
+                                            </label>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                                <label
+                                                    style="display: flex; align-items: center; gap: 5px; background: white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                                    <input type="checkbox" class="schedule-client-role" value="all"
+                                                        checked> الكل
+                                                </label>
+                                                <label
+                                                    style="display: flex; align-items: center; gap: 5px; background: white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                                    <input type="checkbox" class="schedule-client-role" value="وسيط">
+                                                    وسيط
+                                                </label>
+                                                <label
+                                                    style="display: flex; align-items: center; gap: 5px; background: white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                                    <input type="checkbox" class="schedule-client-role" value="عميل">
+                                                    عميل
+                                                </label>
+                                                <label
+                                                    style="display: flex; align-items: center; gap: 5px; background: white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                                    <input type="checkbox" class="schedule-client-role" value="مالك">
+                                                    مالك
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div id="schedule-private-clients-list"
+                                            style="max-height: 200px; overflow-y: auto; background: white; border-radius: 6px; padding: 10px; border: 1px solid #ddd;">
+                                            <p style="text-align: center; color: #666; padding: 10px;">⏳ جاري تحميل
+                                                العملاء...</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Interest Groups Section -->
+                                <div
+                                    style="padding: 15px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 8px; border: 2px solid #42a5f5;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
+                                        onclick="toggleScheduleInterestGroupsSection()">
+                                        <label
+                                            style="font-weight: bold; font-size: 1em; color: #1565c0; margin-bottom: 0; cursor: pointer;">
+                                            <i class="fas fa-users-cog" style="color: #1e88e5;"></i> 👥 مجموعات المهتمين
+                                            <span id="schedule-interest-groups-count"
+                                                style="background: #1e88e5; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">0</span>
+                                        </label>
+                                        <i class="fas fa-chevron-down" id="schedule-interest-groups-toggle-icon"
+                                            style="color: #1e88e5; transition: transform 0.3s;"></i>
+                                    </div>
+                                    <small style="color: #1976d2; display: block; margin-top: 6px;">
+                                        <i class="fas fa-info-circle"></i> اختيار مجموعة يعني الإرسال لكل أعضائها
+                                    </small>
+                                    <div id="schedule-interest-groups-container"
+                                        style="display: none; margin-top: 12px;">
+                                        <div id="schedule-interest-groups"
+                                            style="max-height: 200px; overflow-y: auto; background: white; border-radius: 6px; padding: 10px; border: 1px solid #90caf9;">
+                                            <p style="text-align: center; color: #666; padding: 10px;">⏳ جاري التحميل...
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="cancel-schedule-btn" class="btn btn-secondary">إلغاء</button>
+                        <button id="save-schedule-btn" class="btn btn-success">
+                            <i class="fas fa-save"></i> حفظ الجدول
+                        </button>
                     </div>
                 </div>
             </div>

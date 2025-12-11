@@ -850,6 +850,8 @@ function switchView(viewName) {
     loadDailySummariesView();
   } else if (viewName === "reminders") {
     loadRemindersView();
+  } else if (viewName === "custom-messages") {
+    loadCustomMessagesView();
   }
 }
 
@@ -10431,6 +10433,1327 @@ async function createResendReminder(oldReminder) {
   }
 }
 
+// ==================== CUSTOM MESSAGES SYSTEM ====================
+
+// Custom Messages State
+let customMessagesState = {
+  messages: [],
+  schedules: [],
+  editingMessageId: null,
+  editingScheduleId: null,
+  dynamicWords: { greeting: ["السلام عليكم", "مرحباً", "حياك الله", "أهلاً وسهلاً"] },
+  availableVariables: [],
+  // Schedule recipients state
+  scheduleCustomNumbers: [],
+  schedulePrivateClients: [],
+  schedulePrivateClientsExpanded: false,
+  scheduleInterestGroupsExpanded: false,
+};
+
+// Load Custom Messages View
+async function loadCustomMessagesView() {
+  await fetchCustomMessages();
+  await fetchSchedules();
+  setupCustomMessagesEventListeners();
+}
+
+// Setup event listeners for custom messages
+function setupCustomMessagesEventListeners() {
+  // Tab switching
+  document.querySelectorAll(".custom-msg-tab").forEach((tab) => {
+    tab.addEventListener("click", (e) => {
+      switchCustomMessagesTab(e.target.dataset.tab);
+    });
+  });
+
+  // Create message button
+  const createBtn = document.getElementById("create-custom-message-btn");
+  if (createBtn) {
+    const newBtn = createBtn.cloneNode(true);
+    createBtn.parentNode.replaceChild(newBtn, createBtn);
+    newBtn.addEventListener("click", openCreateMessageModal);
+  }
+
+  // Create schedule button
+  const createScheduleBtn = document.getElementById("create-schedule-btn");
+  if (createScheduleBtn) {
+    const newBtn = createScheduleBtn.cloneNode(true);
+    createScheduleBtn.parentNode.replaceChild(newBtn, createScheduleBtn);
+    newBtn.addEventListener("click", openCreateScheduleModal);
+  }
+
+  // Message modal buttons
+  const closeMessageModal = document.getElementById("close-custom-message-modal");
+  const cancelMessageBtn = document.getElementById("cancel-custom-message-btn");
+  const saveMessageBtn = document.getElementById("save-custom-message-btn");
+  const refreshPreviewBtn = document.getElementById("refresh-preview-btn");
+  const addDynamicVarBtn = document.getElementById("add-dynamic-var-btn");
+
+  if (closeMessageModal) closeMessageModal.addEventListener("click", closeCustomMessageModal);
+  if (cancelMessageBtn) cancelMessageBtn.addEventListener("click", closeCustomMessageModal);
+  if (saveMessageBtn) {
+    const newSaveBtn = saveMessageBtn.cloneNode(true);
+    saveMessageBtn.parentNode.replaceChild(newSaveBtn, saveMessageBtn);
+    newSaveBtn.addEventListener("click", handleSaveCustomMessage);
+  }
+  if (refreshPreviewBtn) refreshPreviewBtn.addEventListener("click", updateMessagePreview);
+  if (addDynamicVarBtn) addDynamicVarBtn.addEventListener("click", addNewDynamicWordGroup);
+
+  // Schedule modal buttons
+  const closeScheduleModal = document.getElementById("close-schedule-modal");
+  const cancelScheduleBtn = document.getElementById("cancel-schedule-btn");
+  const saveScheduleBtn = document.getElementById("save-schedule-btn");
+
+  if (closeScheduleModal) closeScheduleModal.addEventListener("click", closeScheduleModal2);
+  if (cancelScheduleBtn) cancelScheduleBtn.addEventListener("click", closeScheduleModal2);
+  if (saveScheduleBtn) {
+    const newSaveBtn = saveScheduleBtn.cloneNode(true);
+    saveScheduleBtn.parentNode.replaceChild(newSaveBtn, saveScheduleBtn);
+    newSaveBtn.addEventListener("click", handleSaveSchedule);
+  }
+
+  // Variable tags click to insert
+  document.querySelectorAll("#available-variables-list .var-tag").forEach((tag) => {
+    tag.addEventListener("click", () => {
+      const varName = tag.dataset.var;
+      insertVariableToMessage(`{{${varName}}}`);
+    });
+  });
+
+  // Message content change listener for preview
+  const contentInput = document.getElementById("custom-msg-content");
+  if (contentInput) {
+    contentInput.addEventListener("input", debounce(updateMessagePreview, 500));
+  }
+}
+
+// Debounce helper
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// Switch tabs
+function switchCustomMessagesTab(tabName) {
+  // Update tab buttons
+  document.querySelectorAll(".custom-msg-tab").forEach((tab) => {
+    if (tab.dataset.tab === tabName) {
+      tab.classList.add("active");
+      tab.style.fontWeight = "bold";
+      tab.style.color = "#333";
+      tab.style.borderBottom = "3px solid #667eea";
+    } else {
+      tab.classList.remove("active");
+      tab.style.fontWeight = "normal";
+      tab.style.color = "#666";
+      tab.style.borderBottom = "none";
+    }
+  });
+
+  // Show/hide content
+  document.querySelectorAll(".custom-msg-tab-content").forEach((content) => {
+    content.style.display = "none";
+  });
+
+  const activeContent = document.getElementById(
+    tabName === "messages" ? "custom-messages-tab" : "custom-schedules-tab"
+  );
+  if (activeContent) activeContent.style.display = "block";
+}
+
+// Fetch custom messages from API
+async function fetchCustomMessages() {
+  const list = document.getElementById("custom-messages-list");
+  if (list) {
+    list.innerHTML = `<div style="text-align: center; padding: 40px; color: #888;">
+      <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+      <p style="margin-top: 10px;">جاري تحميل الرسائل...</p>
+    </div>`;
+  }
+
+  try {
+    const response = await fetch("/api/bot/custom-messages", {
+      credentials: "include",
+    });
+
+    if (!response.ok) throw new Error("Failed to fetch messages");
+
+    const data = await response.json();
+    customMessagesState.messages = data.messages || [];
+    customMessagesState.availableVariables = data.availableVariables || [];
+
+    renderCustomMessages();
+  } catch (error) {
+    console.error("Error fetching custom messages:", error);
+    if (list) {
+      list.innerHTML = `<div style="text-align: center; padding: 40px; color: #e74c3c;">
+        <i class="fas fa-exclamation-circle" style="font-size: 2rem;"></i>
+        <p style="margin-top: 10px;">فشل تحميل الرسائل</p>
+      </div>`;
+    }
+  }
+}
+
+// Fetch schedules from API
+async function fetchSchedules() {
+  const list = document.getElementById("custom-schedules-list");
+  if (list) {
+    list.innerHTML = `<div style="text-align: center; padding: 40px; color: #888;">
+      <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+      <p style="margin-top: 10px;">جاري تحميل الجداول...</p>
+    </div>`;
+  }
+
+  try {
+    const response = await fetch("/api/bot/schedules", {
+      credentials: "include",
+    });
+
+    if (!response.ok) throw new Error("Failed to fetch schedules");
+
+    const data = await response.json();
+    customMessagesState.schedules = data.schedules || [];
+
+    renderSchedules();
+  } catch (error) {
+    console.error("Error fetching schedules:", error);
+    if (list) {
+      list.innerHTML = `<div style="text-align: center; padding: 40px; color: #e74c3c;">
+        <i class="fas fa-exclamation-circle" style="font-size: 2rem;"></i>
+        <p style="margin-top: 10px;">فشل تحميل الجداول</p>
+      </div>`;
+    }
+  }
+}
+
+// Render custom messages list
+function renderCustomMessages() {
+  const list = document.getElementById("custom-messages-list");
+  if (!list) return;
+
+  const messages = customMessagesState.messages;
+
+  if (messages.length === 0) {
+    list.innerHTML = `<div style="text-align: center; padding: 40px; color: #999;">
+      <i class="fas fa-envelope-open" style="font-size: 3rem; margin-bottom: 15px;"></i>
+      <p>لا توجد رسائل مخصصة بعد</p>
+      <p style="font-size: 0.9rem;">اضغط "إنشاء رسالة جديدة" للبدء</p>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = messages.map((msg) => createMessageCard(msg)).join("");
+}
+
+// Create message card HTML
+function createMessageCard(message) {
+  const createdDate = new Date(message.createdAt).toLocaleDateString("ar-SA");
+  const variablesCount = (message.variables || []).length;
+  const dynamicWordsCount = Object.keys(message.dynamicWords || {}).length;
+
+  return `
+    <div class="custom-message-card" style="
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border-left: 4px solid #667eea;
+      transition: all 0.2s ease;
+    " onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'; this.style.transform='translateY(-2px)';"
+       onmouseleave="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'; this.style.transform='translateY(0)';">
+      
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 style="margin: 0; color: #333; font-size: 1.1rem;">
+          <i class="fas fa-envelope" style="color: #667eea; margin-left: 8px;"></i>
+          ${escapeHtml(message.name)}
+        </h3>
+        <span style="font-size: 0.8rem; color: #999;">${createdDate}</span>
+      </div>
+      
+      <!-- Content Preview -->
+      <div style="
+        background: #f8f9fa;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        color: #555;
+        direction: rtl;
+        max-height: 80px;
+        overflow: hidden;
+        margin-bottom: 15px;
+        white-space: pre-wrap;
+      ">${escapeHtml(message.content.substring(0, 200))}${message.content.length > 200 ? "..." : ""}</div>
+      
+      <!-- Stats -->
+      <div style="display: flex; gap: 15px; margin-bottom: 15px; font-size: 0.85rem; color: #666;">
+        ${variablesCount > 0 ? `<span><i class="fas fa-code" style="color: #3498db;"></i> ${variablesCount} متغير</span>` : ""}
+        ${dynamicWordsCount > 0 ? `<span><i class="fas fa-random" style="color: #9b59b6;"></i> ${dynamicWordsCount} كلمة ديناميكية</span>` : ""}
+      </div>
+      
+      <!-- Actions -->
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button onclick="window.editCustomMessage('${message.id}')" 
+          style="flex: 1; min-width: 80px; display: flex; align-items: center; justify-content: center; gap: 6px; background: #eef2ff; color: #4f46e5; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;"
+          onmouseenter="this.style.background='#e0e7ff'"
+          onmouseleave="this.style.background='#eef2ff'">
+          <i class="fas fa-edit"></i> تعديل
+        </button>
+        <button onclick="window.createScheduleForMessage('${message.id}')" 
+          style="flex: 1; min-width: 80px; display: flex; align-items: center; justify-content: center; gap: 6px; background: #ecfdf5; color: #059669; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;"
+          onmouseenter="this.style.background='#d1fae5'"
+          onmouseleave="this.style.background='#ecfdf5'">
+          <i class="fas fa-calendar-plus"></i> جدولة
+        </button>
+        <button onclick="window.deleteCustomMessage('${message.id}')" 
+          style="display: flex; align-items: center; justify-content: center; gap: 6px; background: #fef2f2; color: #ef4444; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;"
+          onmouseenter="this.style.background='#fee2e2'"
+          onmouseleave="this.style.background='#fef2f2'">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Render schedules list
+function renderSchedules() {
+  const list = document.getElementById("custom-schedules-list");
+  if (!list) return;
+
+  const schedules = customMessagesState.schedules;
+
+  if (schedules.length === 0) {
+    list.innerHTML = `<div style="text-align: center; padding: 40px; color: #999;">
+      <i class="fas fa-calendar-times" style="font-size: 3rem; margin-bottom: 15px;"></i>
+      <p>لا توجد جداول بعد</p>
+      <p style="font-size: 0.9rem;">أنشئ رسالة أولاً ثم أضف جدول لها</p>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = schedules.map((sch) => createScheduleCard(sch)).join("");
+}
+
+// Create schedule card HTML
+function createScheduleCard(schedule) {
+  const message = customMessagesState.messages.find((m) => m.id === schedule.messageId);
+  const messageName = message ? message.name : "رسالة غير موجودة";
+  const nextRun = schedule.nextRun ? new Date(schedule.nextRun).toLocaleString("ar-SA") : "غير محدد";
+  const lastRun = schedule.lastRun ? new Date(schedule.lastRun).toLocaleString("ar-SA") : "لم يتم التشغيل";
+  const daysArabic = {
+    sunday: "الأحد", monday: "الإثنين", tuesday: "الثلاثاء",
+    wednesday: "الأربعاء", thursday: "الخميس", friday: "الجمعة", saturday: "السبت"
+  };
+  const selectedDays = (schedule.schedule?.days || []).map((d) => daysArabic[d]).join(" • ");
+
+  return `
+    <div class="schedule-card" style="
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border-left: 4px solid ${schedule.enabled ? "#10b981" : "#9ca3af"};
+      transition: all 0.2s ease;
+      opacity: ${schedule.enabled ? "1" : "0.7"};
+    ">
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 style="margin: 0; color: #333; font-size: 1.1rem;">
+          <i class="fas fa-calendar-alt" style="color: ${schedule.enabled ? "#10b981" : "#9ca3af"}; margin-left: 8px;"></i>
+          ${escapeHtml(schedule.name || messageName)}
+        </h3>
+        <button onclick="window.toggleScheduleEnabled('${schedule.id}')" 
+          style="padding: 6px 12px; border-radius: 20px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 500;
+          background: ${schedule.enabled ? "#d1fae5" : "#f3f4f6"}; color: ${schedule.enabled ? "#059669" : "#6b7280"};">
+          ${schedule.enabled ? "✅ مفعّل" : "⏸️ متوقف"}
+        </button>
+      </div>
+      
+      <!-- Details -->
+      <div style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
+        <div style="margin-bottom: 8px;"><strong>📝 الرسالة:</strong> ${escapeHtml(messageName)}</div>
+        <div style="margin-bottom: 8px;"><strong>📅 الأيام:</strong> ${selectedDays || "لا يوجد"}</div>
+        <div style="margin-bottom: 8px;"><strong>⏰ الوقت:</strong> ${schedule.schedule?.startTime || "09:00"} - ${schedule.schedule?.endTime || "17:00"}</div>
+        <div style="margin-bottom: 8px;"><strong>⏱️ التأخير:</strong> ${schedule.settings?.delaySeconds || 60} ثانية</div>
+      </div>
+      
+      <!-- Run Info -->
+      <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 15px;">
+        <div><strong>التشغيل التالي:</strong> ${nextRun}</div>
+        <div style="margin-top: 5px;"><strong>آخر تشغيل:</strong> ${lastRun}</div>
+      </div>
+      
+      <!-- Actions -->
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button onclick="window.runScheduleNow('${schedule.id}')" 
+          style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+          <i class="fas fa-play"></i> تشغيل الآن
+        </button>
+        <button onclick="window.editSchedule('${schedule.id}')" 
+          style="display: flex; align-items: center; justify-content: center; gap: 6px; background: #eef2ff; color: #4f46e5; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button onclick="window.deleteSchedule('${schedule.id}')" 
+          style="display: flex; align-items: center; justify-content: center; gap: 6px; background: #fef2f2; color: #ef4444; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Open create message modal
+function openCreateMessageModal() {
+  customMessagesState.editingMessageId = null;
+  customMessagesState.dynamicWords = { greeting: ["السلام عليكم", "مرحباً", "حياك الله", "أهلاً وسهلاً"] };
+
+  const modal = document.getElementById("custom-message-modal");
+  const title = document.getElementById("custom-message-modal-title");
+  const nameInput = document.getElementById("custom-msg-name");
+  const contentInput = document.getElementById("custom-msg-content");
+  const previewDiv = document.getElementById("custom-msg-preview");
+
+  if (title) title.innerHTML = '<i class="fas fa-envelope"></i> إنشاء رسالة مخصصة';
+  if (nameInput) nameInput.value = "";
+  if (contentInput) contentInput.value = "";
+  if (previewDiv) previewDiv.innerHTML = '<span style="color: #999;">المعاينة ستظهر هنا...</span>';
+
+  renderDynamicWordsUI();
+  if (modal) modal.style.display = "flex";
+}
+
+// Close message modal
+function closeCustomMessageModal() {
+  const modal = document.getElementById("custom-message-modal");
+  if (modal) modal.style.display = "none";
+  customMessagesState.editingMessageId = null;
+}
+
+// Close schedule modal
+function closeScheduleModal2() {
+  const modal = document.getElementById("schedule-modal");
+  if (modal) modal.style.display = "none";
+  customMessagesState.editingScheduleId = null;
+}
+
+// Render dynamic words UI
+function renderDynamicWordsUI() {
+  const container = document.getElementById("dynamic-words-container");
+  if (!container) return;
+
+  container.innerHTML = Object.entries(customMessagesState.dynamicWords)
+    .map(([key, words]) => `
+      <div class="dynamic-word-group" data-key="${key}" style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <label style="font-weight: bold; color: #1565c0;">{{${key}}}</label>
+          ${key !== "greeting" ? `<button type="button" onclick="window.removeDynamicWordGroup('${key}')" style="background: #fef2f2; color: #ef4444; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">
+            <i class="fas fa-times"></i> حذف
+          </button>` : ""}
+        </div>
+        <div class="dynamic-word-options" style="display: flex; flex-wrap: wrap; gap: 8px;">
+          ${words.map((word, index) => `
+            <span class="dynamic-word-tag" style="background: #e3f2fd; padding: 6px 12px; border-radius: 20px; font-size: 0.9rem;">
+              ${escapeHtml(word)} 
+              <button type="button" onclick="window.removeWordFromGroup('${key}', ${index})" style="border: none; background: none; color: #e53935; cursor: pointer; margin-left: 5px;">×</button>
+            </span>
+          `).join("")}
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <input type="text" class="form-control add-word-input" data-key="${key}" placeholder="أضف كلمة جديدة..." style="flex: 1;">
+          <button type="button" onclick="window.addWordToGroup('${key}')" class="btn btn-success btn-sm">
+            <i class="fas fa-plus"></i>
+          </button>
+        </div>
+      </div>
+    `)
+    .join("");
+}
+
+// Add new dynamic word group
+function addNewDynamicWordGroup() {
+  const varName = prompt("أدخل اسم المتغير (بالإنجليزية، مثال: closing):");
+  if (varName && /^[a-zA-Z_]+$/.test(varName)) {
+    if (customMessagesState.dynamicWords[varName]) {
+      alert("هذا المتغير موجود بالفعل!");
+      return;
+    }
+    customMessagesState.dynamicWords[varName] = [];
+    renderDynamicWordsUI();
+  } else if (varName) {
+    alert("يجب أن يكون الاسم بالإنجليزية فقط بدون مسافات");
+  }
+}
+
+// Remove dynamic word group
+window.removeDynamicWordGroup = function (key) {
+  if (confirm(`هل تريد حذف المتغير {{${key}}}؟`)) {
+    delete customMessagesState.dynamicWords[key];
+    renderDynamicWordsUI();
+  }
+};
+
+// Add word to group
+window.addWordToGroup = function (key) {
+  const input = document.querySelector(`.add-word-input[data-key="${key}"]`);
+  if (input && input.value.trim()) {
+    customMessagesState.dynamicWords[key].push(input.value.trim());
+    input.value = "";
+    renderDynamicWordsUI();
+  }
+};
+
+// Remove word from group
+window.removeWordFromGroup = function (key, index) {
+  customMessagesState.dynamicWords[key].splice(index, 1);
+  renderDynamicWordsUI();
+};
+
+// Insert variable to message
+function insertVariableToMessage(variable) {
+  const textarea = document.getElementById("custom-msg-content");
+  if (!textarea) return;
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+
+  textarea.value = text.substring(0, start) + variable + text.substring(end);
+  textarea.focus();
+  textarea.selectionStart = textarea.selectionEnd = start + variable.length;
+  updateMessagePreview();
+}
+
+// Update message preview
+function updateMessagePreview() {
+  const content = document.getElementById("custom-msg-content")?.value || "";
+  const previewDiv = document.getElementById("custom-msg-preview");
+  if (!previewDiv) return;
+
+  let preview = content;
+
+  // Replace dynamic words with sample
+  for (const [key, words] of Object.entries(customMessagesState.dynamicWords)) {
+    if (words.length > 0) {
+      const sample = words[Math.floor(Math.random() * words.length)];
+      preview = preview.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), sample);
+    }
+  }
+
+  // Replace built-in variables with samples
+  const samples = {
+    name: "أحمد محمد",
+    phone: "966501234567",
+    role: "عميل",
+    date: new Date().toLocaleDateString("ar-SA"),
+    time: new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
+    day: new Date().toLocaleDateString("ar-SA", { weekday: "long" }),
+  };
+
+  for (const [key, value] of Object.entries(samples)) {
+    preview = preview.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+  }
+
+  previewDiv.innerHTML = preview ? escapeHtml(preview) : '<span style="color: #999;">المعاينة ستظهر هنا...</span>';
+}
+
+// Save custom message
+async function handleSaveCustomMessage() {
+  const nameInput = document.getElementById("custom-msg-name");
+  const contentInput = document.getElementById("custom-msg-content");
+  const saveBtn = document.getElementById("save-custom-message-btn");
+
+  const name = nameInput?.value?.trim();
+  const content = contentInput?.value?.trim();
+
+  if (!name || !content) {
+    alert("يرجى إدخال اسم الرسالة والمحتوى");
+    return;
+  }
+
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  }
+
+  try {
+    const isEditing = !!customMessagesState.editingMessageId;
+    const url = isEditing
+      ? `/api/bot/custom-messages/${customMessagesState.editingMessageId}`
+      : "/api/bot/custom-messages";
+
+    const response = await fetch(url, {
+      method: isEditing ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        name,
+        content,
+        dynamicWords: customMessagesState.dynamicWords,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || "Failed to save message");
+    }
+
+    closeCustomMessageModal();
+    await fetchCustomMessages();
+    alert(`✅ تم ${isEditing ? "تحديث" : "حفظ"} الرسالة بنجاح!`);
+  } catch (error) {
+    console.error("Error saving message:", error);
+    alert("❌ فشل حفظ الرسالة: " + error.message);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i> حفظ الرسالة';
+    }
+  }
+}
+
+// Edit custom message
+window.editCustomMessage = async function (id) {
+  const message = customMessagesState.messages.find((m) => m.id === id);
+  if (!message) {
+    alert("الرسالة غير موجودة");
+    return;
+  }
+
+  customMessagesState.editingMessageId = id;
+  customMessagesState.dynamicWords = message.dynamicWords || { greeting: [] };
+
+  const modal = document.getElementById("custom-message-modal");
+  const title = document.getElementById("custom-message-modal-title");
+  const nameInput = document.getElementById("custom-msg-name");
+  const contentInput = document.getElementById("custom-msg-content");
+
+  if (title) title.innerHTML = '<i class="fas fa-edit"></i> تعديل الرسالة';
+  if (nameInput) nameInput.value = message.name;
+  if (contentInput) contentInput.value = message.content;
+
+  renderDynamicWordsUI();
+  updateMessagePreview();
+  if (modal) modal.style.display = "flex";
+};
+
+// Delete custom message
+window.deleteCustomMessage = async function (id) {
+  if (!confirm("هل أنت متأكد من حذف هذه الرسالة؟")) return;
+
+  try {
+    const response = await fetch(`/api/bot/custom-messages/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || "Failed to delete");
+    }
+
+    await fetchCustomMessages();
+    alert("✅ تم حذف الرسالة بنجاح");
+  } catch (error) {
+    console.error("Error deleting message:", error);
+    alert("❌ فشل حذف الرسالة: " + error.message);
+  }
+};
+
+// Open create schedule modal
+function openCreateScheduleModal() {
+  customMessagesState.editingScheduleId = null;
+  customMessagesState.scheduleCustomNumbers = [];
+  customMessagesState.schedulePrivateClients = [];
+  customMessagesState.schedulePrivateClientsExpanded = false;
+  customMessagesState.scheduleInterestGroupsExpanded = false;
+  
+  const modal = document.getElementById("schedule-modal");
+  const title = document.getElementById("schedule-modal-title");
+  const messageSelect = document.getElementById("schedule-message-select");
+  const nameInput = document.getElementById("schedule-name");
+
+  if (title) title.innerHTML = '<i class="fas fa-calendar-alt"></i> إنشاء جدول جديد';
+  if (nameInput) nameInput.value = "";
+
+  // Populate message select
+  if (messageSelect) {
+    messageSelect.innerHTML = '<option value="">-- اختر رسالة --</option>' +
+      customMessagesState.messages.map((m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join("");
+  }
+
+  // Reset day checkboxes to default
+  document.querySelectorAll(".schedule-day").forEach((cb) => {
+    cb.checked = ["sunday", "monday", "tuesday", "wednesday", "thursday"].includes(cb.value);
+  });
+
+  // Reset time inputs
+  const startTime = document.getElementById("schedule-start-time");
+  const endTime = document.getElementById("schedule-end-time");
+  const delay = document.getElementById("schedule-delay");
+  if (startTime) startTime.value = "09:00";
+  if (endTime) endTime.value = "17:00";
+  if (delay) delay.value = "60";
+
+  // Reset sections visibility
+  const privateClientsContainer = document.getElementById("schedule-private-clients-container");
+  const interestGroupsContainer = document.getElementById("schedule-interest-groups-container");
+  const privateClientsIcon = document.getElementById("schedule-private-clients-toggle-icon");
+  const interestGroupsIcon = document.getElementById("schedule-interest-groups-toggle-icon");
+  
+  if (privateClientsContainer) privateClientsContainer.style.display = "none";
+  if (interestGroupsContainer) interestGroupsContainer.style.display = "none";
+  if (privateClientsIcon) privateClientsIcon.style.transform = "rotate(0deg)";
+  if (interestGroupsIcon) interestGroupsIcon.style.transform = "rotate(0deg)";
+
+  // Reset custom numbers display
+  renderScheduleCustomNumbers();
+  
+  // Setup event listeners for this modal
+  setupScheduleModalListeners();
+
+  // Load all recipient data
+  loadScheduleRecipientsData();
+  
+  if (modal) modal.style.display = "flex";
+}
+
+// Setup schedule modal event listeners
+function setupScheduleModalListeners() {
+  // Custom number add button
+  const addNumBtn = document.getElementById("schedule-add-custom-number-btn");
+  if (addNumBtn) {
+    const newBtn = addNumBtn.cloneNode(true);
+    addNumBtn.parentNode.replaceChild(newBtn, addNumBtn);
+    newBtn.addEventListener("click", addScheduleCustomNumber);
+  }
+
+  // Refresh groups button
+  const refreshBtn = document.getElementById("schedule-refresh-groups-btn");
+  if (refreshBtn) {
+    const newRefreshBtn = refreshBtn.cloneNode(true);
+    refreshBtn.parentNode.replaceChild(newRefreshBtn, refreshBtn);
+    newRefreshBtn.addEventListener("click", async () => {
+      newRefreshBtn.disabled = true;
+      newRefreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحديث...';
+      await loadScheduleRecipientsData(true);
+      newRefreshBtn.disabled = false;
+      newRefreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> تحديث';
+    });
+  }
+
+  // Role filter checkboxes
+  document.querySelectorAll(".schedule-client-role").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (cb.value === "all" && cb.checked) {
+        // Uncheck others when "all" is selected
+        document.querySelectorAll(".schedule-client-role:not([value='all'])").forEach((other) => {
+          other.checked = false;
+        });
+      } else if (cb.value !== "all" && cb.checked) {
+        // Uncheck "all" when specific role is selected
+        const allCheckbox = document.querySelector(".schedule-client-role[value='all']");
+        if (allCheckbox) allCheckbox.checked = false;
+      }
+      filterSchedulePrivateClients();
+    });
+  });
+}
+
+// Load all schedule recipients data
+async function loadScheduleRecipientsData(forceRefresh = false) {
+  const groupsList = document.getElementById("schedule-groups-list");
+  const privateClientsList = document.getElementById("schedule-private-clients-list");
+  const interestGroupsList = document.getElementById("schedule-interest-groups");
+
+  // Show loading states
+  if (groupsList) {
+    groupsList.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> جاري تحميل المجموعات...</p>';
+  }
+
+  try {
+    // Fetch groups (with optional refresh)
+    let groupsResponse;
+    if (forceRefresh) {
+      groupsResponse = await fetch("/api/bot/groups/refresh", { method: "POST", credentials: "include" });
+    } else {
+      groupsResponse = await fetch("/api/bot/groups", { credentials: "include" });
+    }
+    
+    // Fetch collections
+    const collectionsResponse = await fetch("/api/bot/collections", { credentials: "include" });
+    
+    let groups = [];
+    let collections = [];
+    
+    if (groupsResponse.ok) {
+      const data = await groupsResponse.json();
+      groups = data.groups || [];
+    }
+    
+    if (collectionsResponse.ok) {
+      const data = await collectionsResponse.json();
+      collections = data.collections || [];
+    }
+
+    // Render groups and collections
+    renderScheduleGroupsAndCollections(groups, collections);
+
+    // Load saved custom numbers
+    const savedNumbers = window.savedCustomNumbers || [];
+    
+    // Load private clients
+    await loadSchedulePrivateClients();
+    
+    // Load interest groups
+    await loadScheduleInterestGroups();
+
+  } catch (error) {
+    console.error("Error loading schedule recipients:", error);
+    if (groupsList) {
+      groupsList.innerHTML = '<p style="color: #e74c3c; text-align: center; padding: 20px;"><i class="fas fa-exclamation-circle"></i> فشل تحميل البيانات</p>';
+    }
+  }
+}
+
+// Render groups and collections with hierarchy
+function renderScheduleGroupsAndCollections(groups, collections) {
+  const container = document.getElementById("schedule-groups-list");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  // First, render saved custom numbers if any
+  const savedNumbers = window.savedCustomNumbers || [];
+  if (savedNumbers.length > 0) {
+    const numbersSection = document.createElement("div");
+    numbersSection.className = "saved-numbers-section";
+    numbersSection.innerHTML = '<div style="font-weight: bold; padding: 8px; background: #e8f5e9; margin-bottom: 5px; border-radius: 4px;"><i class="fas fa-phone" style="color: #4CAF50;"></i> 📱 أرقام محفوظة</div>';
+    
+    savedNumbers.forEach((num, index) => {
+      const item = document.createElement("div");
+      item.innerHTML = `
+        <label style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; border-bottom: 1px solid #eee; margin-left: 15px;">
+          <input type="checkbox" class="schedule-saved-number" value="${num.phone}" data-name="${escapeHtml(num.name)}">
+          <span style="flex: 1;"><strong>${escapeHtml(num.name)}</strong> - ${num.phone}</span>
+        </label>
+      `;
+      numbersSection.appendChild(item);
+    });
+    
+    container.appendChild(numbersSection);
+    
+    // Add divider
+    const divider = document.createElement("hr");
+    divider.style.cssText = "margin: 15px 0; border-top: 2px dashed #ddd;";
+    container.appendChild(divider);
+  }
+
+  // Render collections
+  if (collections.length > 0) {
+    const collectionsSection = document.createElement("div");
+    collectionsSection.className = "collections-section";
+    collectionsSection.innerHTML = '<div style="font-weight: bold; padding: 8px; background: #e3f2fd; margin-bottom: 5px; border-radius: 4px;"><i class="fas fa-folder" style="color: #2196F3;"></i> 📂 المجموعات المحفوظة (Collections)</div>';
+    
+    collections.forEach((col) => {
+      const groupCount = col.groups?.length || 0;
+      const item = document.createElement("div");
+      item.innerHTML = `
+        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; cursor: pointer; background: #f5f5f5; margin: 5px 0; border-radius: 6px; font-weight: 600;">
+          <input type="checkbox" class="schedule-collection" value="${col.id}" data-groups='${JSON.stringify(col.groups || [])}'>
+          <span style="flex: 1; color: #1565c0;">${escapeHtml(col.name)} <small style="color: #666;">(${groupCount} مجموعة)</small></span>
+        </label>
+      `;
+      
+      // Add collection checkbox change handler
+      const checkbox = item.querySelector("input");
+      checkbox.addEventListener("change", (e) => {
+        const collectionGroups = JSON.parse(e.target.dataset.groups || "[]");
+        document.querySelectorAll(".schedule-group").forEach((groupCb) => {
+          if (collectionGroups.includes(groupCb.value)) {
+            groupCb.checked = e.target.checked;
+          }
+        });
+      });
+      
+      collectionsSection.appendChild(item);
+    });
+    
+    container.appendChild(collectionsSection);
+    
+    // Add divider
+    const divider = document.createElement("hr");
+    divider.style.cssText = "margin: 15px 0; border-top: 2px dashed #ddd;";
+    container.appendChild(divider);
+  }
+
+  // Render all groups
+  if (groups.length > 0) {
+    const groupsSection = document.createElement("div");
+    groupsSection.className = "groups-section";
+    groupsSection.innerHTML = '<div style="font-weight: bold; padding: 8px; background: #f3e5f5; margin-bottom: 5px; border-radius: 4px;"><i class="fas fa-users" style="color: #9c27b0;"></i> 👥 كل المجموعات</div>';
+    
+    groups.forEach((g) => {
+      // Use jid as the primary identifier (WhatsApp API returns jid, not id)
+      const groupId = g.jid || g.id || g.groupId;
+      const groupName = g.name || g.subject || groupId;
+      const item = document.createElement("div");
+      item.innerHTML = `
+        <label style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; border-bottom: 1px solid #eee;">
+          <input type="checkbox" class="schedule-group" value="${groupId}">
+          <span style="flex: 1;">${escapeHtml(groupName)}</span>
+        </label>
+      `;
+      groupsSection.appendChild(item);
+    });
+    
+    container.appendChild(groupsSection);
+  }
+
+  if (savedNumbers.length === 0 && collections.length === 0 && groups.length === 0) {
+    container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">لا توجد مجموعات متاحة</p>';
+  }
+}
+
+// Load private clients for schedule
+async function loadSchedulePrivateClients() {
+  const container = document.getElementById("schedule-private-clients-list");
+  const countBadge = document.getElementById("schedule-private-clients-count");
+  
+  if (!container) return;
+  
+  container.innerHTML = '<p style="text-align: center; color: #666; padding: 10px;"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</p>';
+  
+  try {
+    const response = await fetch("/api/bot/private-clients", { credentials: "include" });
+    if (response.ok) {
+      const data = await response.json();
+      customMessagesState.schedulePrivateClients = data.clients || [];
+      
+      if (countBadge) {
+        countBadge.textContent = customMessagesState.schedulePrivateClients.length;
+      }
+      
+      renderSchedulePrivateClients();
+    }
+  } catch (error) {
+    console.error("Error loading private clients:", error);
+    container.innerHTML = '<p style="color: #e74c3c; text-align: center;">فشل تحميل العملاء</p>';
+  }
+}
+
+// Render private clients list
+function renderSchedulePrivateClients() {
+  const container = document.getElementById("schedule-private-clients-list");
+  if (!container) return;
+  
+  const clients = customMessagesState.schedulePrivateClients;
+  
+  if (clients.length === 0) {
+    container.innerHTML = '<p style="color: #999; text-align: center; padding: 10px;">لا يوجد عملاء خاصين</p>';
+    return;
+  }
+  
+  // Get selected roles
+  const selectedRoles = [];
+  document.querySelectorAll(".schedule-client-role:checked").forEach((cb) => {
+    selectedRoles.push(cb.value);
+  });
+  
+  const showAll = selectedRoles.includes("all") || selectedRoles.length === 0;
+  
+  const filteredClients = showAll 
+    ? clients 
+    : clients.filter((c) => selectedRoles.includes(c.role || "عميل"));
+  
+  container.innerHTML = filteredClients.map((client) => `
+    <label style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; border-bottom: 1px solid #f0f0f0;">
+      <input type="checkbox" class="schedule-private-client" value="${client.phone}" data-name="${escapeHtml(client.name || 'غير معروف')}">
+      <span style="flex: 1;">
+        <strong>${escapeHtml(client.name || 'غير معروف')}</strong>
+        <span style="font-size: 0.85rem; color: #888; margin-right: 8px;">${client.phone}</span>
+        ${client.role ? `<span style="background: #e3f2fd; color: #1565c0; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem;">${escapeHtml(client.role)}</span>` : ''}
+      </span>
+    </label>
+  `).join("") || '<p style="color: #999; text-align: center; padding: 10px;">لا نتائج للتصفية المحددة</p>';
+}
+
+// Filter private clients by role
+function filterSchedulePrivateClients() {
+  renderSchedulePrivateClients();
+}
+
+// Load interest groups for schedule
+async function loadScheduleInterestGroups() {
+  const container = document.getElementById("schedule-interest-groups");
+  const countBadge = document.getElementById("schedule-interest-groups-count");
+  
+  if (!container) return;
+  
+  container.innerHTML = '<p style="text-align: center; color: #666; padding: 10px;"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</p>';
+  
+  try {
+    const response = await fetch("/api/bot/interest-groups", { credentials: "include" });
+    if (response.ok) {
+      const data = await response.json();
+      const groups = data.groups || [];
+      
+      if (countBadge) {
+        countBadge.textContent = groups.length;
+      }
+      
+      container.innerHTML = groups.length > 0
+        ? groups.map((g) => `
+            <label style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; border-bottom: 1px solid #f0f0f0;">
+              <input type="checkbox" class="schedule-interest-group" value="${g.id}">
+              <span style="flex: 1;">
+                <strong>${escapeHtml(g.interest)}</strong>
+                <span style="background: #e3f2fd; color: #1565c0; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-right: 8px;">${g.members?.length || 0} عضو</span>
+              </span>
+            </label>
+          `).join("")
+        : '<p style="color: #999; text-align: center; padding: 10px;">لا توجد مجموعات مهتمين</p>';
+    }
+  } catch (error) {
+    console.error("Error loading interest groups:", error);
+    container.innerHTML = '<p style="color: #999; text-align: center;">لا توجد مجموعات مهتمين</p>';
+  }
+}
+
+// Add custom number for schedule
+function addScheduleCustomNumber() {
+  const nameInput = document.getElementById("schedule-custom-number-name");
+  const phoneInput = document.getElementById("schedule-custom-number-phone");
+  
+  const name = nameInput?.value?.trim();
+  const phone = phoneInput?.value?.trim()?.replace(/\D/g, "");
+  
+  if (!name || !phone) {
+    alert("يرجى إدخال الاسم ورقم الهاتف");
+    return;
+  }
+  
+  if (phone.length < 10) {
+    alert("رقم الهاتف غير صحيح");
+    return;
+  }
+  
+  // Check for duplicates
+  if (customMessagesState.scheduleCustomNumbers.some((n) => n.phone === phone)) {
+    alert("هذا الرقم موجود بالفعل");
+    return;
+  }
+  
+  customMessagesState.scheduleCustomNumbers.push({ name, phone });
+  
+  nameInput.value = "";
+  phoneInput.value = "";
+  
+  renderScheduleCustomNumbers();
+}
+
+// Render schedule custom numbers
+function renderScheduleCustomNumbers() {
+  const container = document.getElementById("schedule-custom-numbers-list");
+  if (!container) return;
+  
+  const numbers = customMessagesState.scheduleCustomNumbers;
+  
+  if (numbers.length === 0) {
+    container.innerHTML = '<p style="color: #999; text-align: center; margin: 0; font-size: 0.9rem;"><i class="fas fa-phone-slash"></i> لم تتم إضافة أرقام بعد</p>';
+    return;
+  }
+  
+  container.innerHTML = numbers.map((num, index) => `
+    <div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 6px; margin-bottom: 5px; color: white;">
+      <div style="flex: 1;">
+        <strong>${escapeHtml(num.name)}</strong>
+        <span style="opacity: 0.9; margin-right: 10px;">${num.phone}</span>
+      </div>
+      <button type="button" onclick="removeScheduleCustomNumber(${index})" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 10px; border-radius: 4px; cursor: pointer;">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  `).join("");
+}
+
+// Remove schedule custom number
+window.removeScheduleCustomNumber = function(index) {
+  customMessagesState.scheduleCustomNumbers.splice(index, 1);
+  renderScheduleCustomNumbers();
+};
+
+// Toggle private clients section
+window.toggleSchedulePrivateClientsSection = function() {
+  const container = document.getElementById("schedule-private-clients-container");
+  const icon = document.getElementById("schedule-private-clients-toggle-icon");
+  
+  if (!container) return;
+  
+  customMessagesState.schedulePrivateClientsExpanded = !customMessagesState.schedulePrivateClientsExpanded;
+  
+  if (customMessagesState.schedulePrivateClientsExpanded) {
+    container.style.display = "block";
+    if (icon) icon.style.transform = "rotate(180deg)";
+  } else {
+    container.style.display = "none";
+    if (icon) icon.style.transform = "rotate(0deg)";
+  }
+};
+
+// Toggle interest groups section
+window.toggleScheduleInterestGroupsSection = function() {
+  const container = document.getElementById("schedule-interest-groups-container");
+  const icon = document.getElementById("schedule-interest-groups-toggle-icon");
+  
+  if (!container) return;
+  
+  customMessagesState.scheduleInterestGroupsExpanded = !customMessagesState.scheduleInterestGroupsExpanded;
+  
+  if (customMessagesState.scheduleInterestGroupsExpanded) {
+    container.style.display = "block";
+    if (icon) icon.style.transform = "rotate(180deg)";
+  } else {
+    container.style.display = "none";
+    if (icon) icon.style.transform = "rotate(0deg)";
+  }
+};
+
+// Create schedule for specific message
+window.createScheduleForMessage = function (messageId) {
+  openCreateScheduleModal();
+  setTimeout(() => {
+    const messageSelect = document.getElementById("schedule-message-select");
+    if (messageSelect) messageSelect.value = messageId;
+  }, 100);
+};
+
+// Save schedule
+async function handleSaveSchedule() {
+  const messageSelect = document.getElementById("schedule-message-select");
+  const nameInput = document.getElementById("schedule-name");
+  const startTime = document.getElementById("schedule-start-time");
+  const endTime = document.getElementById("schedule-end-time");
+  const delay = document.getElementById("schedule-delay");
+  const saveBtn = document.getElementById("save-schedule-btn");
+
+  const messageId = messageSelect?.value;
+  if (!messageId) {
+    alert("يرجى اختيار رسالة");
+    return;
+  }
+
+  // Get selected days
+  const days = [];
+  document.querySelectorAll(".schedule-day:checked").forEach((cb) => {
+    days.push(cb.value);
+  });
+
+  if (days.length === 0) {
+    alert("يرجى اختيار يوم واحد على الأقل");
+    return;
+  }
+
+  // Get selected groups
+  const groups = [];
+  document.querySelectorAll(".schedule-group:checked").forEach((cb) => {
+    groups.push(cb.value);
+  });
+
+  // Get selected saved numbers
+  const savedNumbers = [];
+  document.querySelectorAll(".schedule-saved-number:checked").forEach((cb) => {
+    savedNumbers.push({
+      phone: cb.value,
+      name: cb.dataset.name || ""
+    });
+  });
+
+  // Get manually added custom numbers
+  const customNumbers = [...customMessagesState.scheduleCustomNumbers];
+
+  // Get selected private clients
+  const selectedPrivateClients = [];
+  document.querySelectorAll(".schedule-private-client:checked").forEach((cb) => {
+    selectedPrivateClients.push({
+      phone: cb.value,
+      name: cb.dataset.name || ""
+    });
+  });
+
+  // Get selected interest groups
+  const interestGroups = [];
+  document.querySelectorAll(".schedule-interest-group:checked").forEach((cb) => {
+    interestGroups.push(cb.value);
+  });
+
+  // Check if at least one recipient is selected
+  const hasRecipients = groups.length > 0 || 
+                        savedNumbers.length > 0 || 
+                        customNumbers.length > 0 || 
+                        selectedPrivateClients.length > 0 || 
+                        interestGroups.length > 0;
+
+  if (!hasRecipients) {
+    alert("يرجى اختيار مستلم واحد على الأقل");
+    return;
+  }
+
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+  }
+
+  try {
+    const isEditing = !!customMessagesState.editingScheduleId;
+    const url = isEditing
+      ? `/api/bot/schedules/${customMessagesState.editingScheduleId}`
+      : "/api/bot/schedules";
+
+    const response = await fetch(url, {
+      method: isEditing ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        messageId,
+        name: nameInput?.value?.trim() || "",
+        schedule: {
+          type: "daily",
+          days,
+          startTime: startTime?.value || "09:00",
+          endTime: endTime?.value || "17:00",
+        },
+        recipients: {
+          groups,
+          savedNumbers,
+          customNumbers,
+          privateClients: selectedPrivateClients,
+          interestGroups,
+        },
+        settings: {
+          delaySeconds: parseInt(delay?.value) || 60,
+        },
+        enabled: true,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || "Failed to save schedule");
+    }
+
+    closeScheduleModal2();
+    await fetchSchedules();
+    alert(`✅ تم ${isEditing ? "تحديث" : "إنشاء"} الجدول بنجاح!`);
+  } catch (error) {
+    console.error("Error saving schedule:", error);
+    alert("❌ فشل حفظ الجدول: " + error.message);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i> حفظ الجدول';
+    }
+  }
+}
+
+// Toggle schedule enabled
+window.toggleScheduleEnabled = async function (id) {
+  try {
+    const response = await fetch(`/api/bot/schedules/${id}/toggle`, {
+      method: "POST",
+      credentials: "include",
+    });
+
+    if (!response.ok) throw new Error("Failed to toggle");
+
+    await fetchSchedules();
+  } catch (error) {
+    console.error("Error toggling schedule:", error);
+    alert("❌ فشل تغيير حالة الجدول");
+  }
+};
+
+// Run schedule now
+window.runScheduleNow = async function (id) {
+  if (!confirm("هل تريد تشغيل هذا الجدول الآن؟")) return;
+
+  try {
+    const response = await fetch(`/api/bot/schedules/${id}/run-now`, {
+      method: "POST",
+      credentials: "include",
+    });
+
+    if (!response.ok) throw new Error("Failed to run");
+
+    alert("✅ تم بدء تشغيل الجدول في الخلفية");
+  } catch (error) {
+    console.error("Error running schedule:", error);
+    alert("❌ فشل تشغيل الجدول");
+  }
+};
+
+// Edit schedule
+window.editSchedule = async function (id) {
+  const schedule = customMessagesState.schedules.find((s) => s.id === id);
+  if (!schedule) {
+    alert("الجدول غير موجود");
+    return;
+  }
+
+  customMessagesState.editingScheduleId = id;
+  openCreateScheduleModal();
+
+  setTimeout(() => {
+    const messageSelect = document.getElementById("schedule-message-select");
+    const nameInput = document.getElementById("schedule-name");
+    const startTime = document.getElementById("schedule-start-time");
+    const endTime = document.getElementById("schedule-end-time");
+    const delay = document.getElementById("schedule-delay");
+    const privateClients = document.getElementById("schedule-private-clients");
+    const title = document.getElementById("schedule-modal-title");
+
+    if (title) title.innerHTML = '<i class="fas fa-edit"></i> تعديل الجدول';
+    if (messageSelect) messageSelect.value = schedule.messageId;
+    if (nameInput) nameInput.value = schedule.name || "";
+    if (startTime) startTime.value = schedule.schedule?.startTime || "09:00";
+    if (endTime) endTime.value = schedule.schedule?.endTime || "17:00";
+    if (delay) delay.value = schedule.settings?.delaySeconds || 60;
+    if (privateClients) privateClients.checked = schedule.recipients?.privateClients || false;
+
+    // Set day checkboxes
+    document.querySelectorAll(".schedule-day").forEach((cb) => {
+      cb.checked = (schedule.schedule?.days || []).includes(cb.value);
+    });
+  }, 200);
+};
+
+// Delete schedule
+window.deleteSchedule = async function (id) {
+  if (!confirm("هل أنت متأكد من حذف هذا الجدول؟")) return;
+
+  try {
+    const response = await fetch(`/api/bot/schedules/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (!response.ok) throw new Error("Failed to delete");
+
+    await fetchSchedules();
+    alert("✅ تم حذف الجدول بنجاح");
+  } catch (error) {
+    console.error("Error deleting schedule:", error);
+    alert("❌ فشل حذف الجدول: " + error.message);
+  }
+};
+
 // ==================== END OF FILE ====================
 
 // Add CSS for highlight animation
@@ -10465,3 +11788,4 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+

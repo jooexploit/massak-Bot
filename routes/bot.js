@@ -3652,6 +3652,445 @@ router.delete(
   }
 );
 
+// ========================================
+// CUSTOM MESSAGES AND SCHEDULES (ADMIN ONLY)
+// ========================================
+
+const customMessageService = require("../services/customMessageService");
+const messageSchedulerService = require("../services/messageSchedulerService");
+
+// --- Custom Messages ---
+
+// List all custom messages
+router.get(
+  "/custom-messages",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const messages = customMessageService.getAllMessages();
+      const variables = customMessageService.getAvailableVariables();
+
+      res.json({
+        success: true,
+        messages,
+        availableVariables: variables,
+      });
+    } catch (error) {
+      console.error("Error fetching custom messages:", error);
+      res.status(500).json({ error: "Failed to fetch custom messages" });
+    }
+  }
+);
+
+// Get single custom message
+router.get(
+  "/custom-messages/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { id } = req.params;
+      const message = customMessageService.getMessageById(id);
+
+      if (!message) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+
+      res.json({
+        success: true,
+        message,
+      });
+    } catch (error) {
+      console.error("Error fetching custom message:", error);
+      res.status(500).json({ error: "Failed to fetch custom message" });
+    }
+  }
+);
+
+// Create custom message
+router.post(
+  "/custom-messages",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { name, content, dynamicWords } = req.body;
+
+      if (!name || !content) {
+        return res.status(400).json({ error: "Name and content are required" });
+      }
+
+      // Validate content
+      const validation = customMessageService.validateMessage(content);
+      if (!validation.valid) {
+        return res.status(400).json({
+          error: "Invalid message format",
+          details: validation.errors,
+        });
+      }
+
+      const message = await customMessageService.createMessage(
+        { name, content, dynamicWords },
+        req.user.username
+      );
+
+      res.json({
+        success: true,
+        message,
+      });
+    } catch (error) {
+      console.error("Error creating custom message:", error);
+      res.status(500).json({ error: "Failed to create custom message" });
+    }
+  }
+);
+
+// Update custom message
+router.put(
+  "/custom-messages/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, content, dynamicWords } = req.body;
+
+      // Validate content if provided
+      if (content) {
+        const validation = customMessageService.validateMessage(content);
+        if (!validation.valid) {
+          return res.status(400).json({
+            error: "Invalid message format",
+            details: validation.errors,
+          });
+        }
+      }
+
+      const message = await customMessageService.updateMessage(id, {
+        name,
+        content,
+        dynamicWords,
+      });
+
+      res.json({
+        success: true,
+        message,
+      });
+    } catch (error) {
+      console.error("Error updating custom message:", error);
+      res.status(500).json({ error: error.message || "Failed to update custom message" });
+    }
+  }
+);
+
+// Delete custom message
+router.delete(
+  "/custom-messages/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      await customMessageService.deleteMessage(id);
+
+      res.json({
+        success: true,
+        message: "Message deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting custom message:", error);
+      res.status(500).json({ error: error.message || "Failed to delete custom message" });
+    }
+  }
+);
+
+// Preview custom message with sample data
+router.post(
+  "/custom-messages/:id/preview",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { id } = req.params;
+      const sampleData = req.body.sampleData || {};
+
+      const preview = customMessageService.previewMessage(id, sampleData);
+
+      res.json({
+        success: true,
+        preview,
+      });
+    } catch (error) {
+      console.error("Error previewing message:", error);
+      res.status(500).json({ error: error.message || "Failed to preview message" });
+    }
+  }
+);
+
+// Send custom message immediately (manual send)
+router.post(
+  "/custom-messages/:id/send",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { groups, customNumbers, delaySeconds = 60 } = req.body;
+
+      const message = customMessageService.getMessageById(id);
+      if (!message) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+
+      // Create a temporary schedule-like object for sending
+      const tempSchedule = {
+        id: `temp_${Date.now()}`,
+        messageId: id,
+        enabled: true,
+        recipients: {
+          groups: groups || [],
+          customNumbers: customNumbers || [],
+        },
+        settings: {
+          delaySeconds,
+          randomizeOrder: false,
+        },
+      };
+
+      // Use the scheduler service to send
+      const result = await messageSchedulerService.executeScheduleNow(tempSchedule.id) || 
+        { success: true, message: "Message sending started" };
+
+      res.json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      console.error("Error sending custom message:", error);
+      res.status(500).json({ error: error.message || "Failed to send custom message" });
+    }
+  }
+);
+
+// --- Schedules ---
+
+// List all schedules
+router.get(
+  "/schedules",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const schedules = customMessageService.getAllSchedules();
+      const schedulerStatus = messageSchedulerService.getSchedulerStatus();
+
+      res.json({
+        success: true,
+        schedules,
+        schedulerStatus,
+      });
+    } catch (error) {
+      console.error("Error fetching schedules:", error);
+      res.status(500).json({ error: "Failed to fetch schedules" });
+    }
+  }
+);
+
+// Get single schedule
+router.get(
+  "/schedules/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { id } = req.params;
+      const schedule = customMessageService.getScheduleById(id);
+
+      if (!schedule) {
+        return res.status(404).json({ error: "Schedule not found" });
+      }
+
+      res.json({
+        success: true,
+        schedule,
+      });
+    } catch (error) {
+      console.error("Error fetching schedule:", error);
+      res.status(500).json({ error: "Failed to fetch schedule" });
+    }
+  }
+);
+
+// Create schedule
+router.post(
+  "/schedules",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { messageId, name, schedule, recipients, settings, enabled } = req.body;
+
+      if (!messageId) {
+        return res.status(400).json({ error: "Message ID is required" });
+      }
+
+      const newSchedule = await customMessageService.createSchedule(
+        { messageId, name, schedule, recipients, settings, enabled },
+        req.user.username
+      );
+
+      // Register with scheduler
+      messageSchedulerService.scheduleMessage(newSchedule);
+
+      res.json({
+        success: true,
+        schedule: newSchedule,
+      });
+    } catch (error) {
+      console.error("Error creating schedule:", error);
+      res.status(500).json({ error: error.message || "Failed to create schedule" });
+    }
+  }
+);
+
+// Update schedule
+router.put(
+  "/schedules/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { messageId, name, schedule, recipients, settings, enabled } = req.body;
+
+      const updatedSchedule = await customMessageService.updateSchedule(id, {
+        messageId,
+        name,
+        schedule,
+        recipients,
+        settings,
+        enabled,
+      });
+
+      // Update scheduler
+      messageSchedulerService.reschedule(id);
+
+      res.json({
+        success: true,
+        schedule: updatedSchedule,
+      });
+    } catch (error) {
+      console.error("Error updating schedule:", error);
+      res.status(500).json({ error: error.message || "Failed to update schedule" });
+    }
+  }
+);
+
+// Delete schedule
+router.delete(
+  "/schedules/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Cancel from scheduler first
+      messageSchedulerService.cancelScheduledMessage(id);
+
+      await customMessageService.deleteSchedule(id);
+
+      res.json({
+        success: true,
+        message: "Schedule deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting schedule:", error);
+      res.status(500).json({ error: error.message || "Failed to delete schedule" });
+    }
+  }
+);
+
+// Toggle schedule enabled/disabled
+router.post(
+  "/schedules/:id/toggle",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const schedule = await customMessageService.toggleSchedule(id);
+
+      // Update scheduler
+      messageSchedulerService.reschedule(id);
+
+      res.json({
+        success: true,
+        schedule,
+        message: `Schedule ${schedule.enabled ? "enabled" : "disabled"} successfully`,
+      });
+    } catch (error) {
+      console.error("Error toggling schedule:", error);
+      res.status(500).json({ error: error.message || "Failed to toggle schedule" });
+    }
+  }
+);
+
+// Execute schedule immediately
+router.post(
+  "/schedules/:id/run-now",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Execute in background
+      messageSchedulerService.executeScheduleNow(id).catch((err) => {
+        console.error(`Background execution failed for ${id}:`, err);
+      });
+
+      res.json({
+        success: true,
+        message: "Schedule execution started in background",
+      });
+    } catch (error) {
+      console.error("Error executing schedule:", error);
+      res.status(500).json({ error: error.message || "Failed to execute schedule" });
+    }
+  }
+);
+
+// Get schedule run history
+router.get(
+  "/schedules/:id/history",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { id } = req.params;
+      const schedule = customMessageService.getScheduleById(id);
+
+      if (!schedule) {
+        return res.status(404).json({ error: "Schedule not found" });
+      }
+
+      res.json({
+        success: true,
+        history: schedule.runHistory || [],
+        lastRun: schedule.lastRun,
+        nextRun: schedule.nextRun,
+      });
+    } catch (error) {
+      console.error("Error fetching schedule history:", error);
+      res.status(500).json({ error: "Failed to fetch schedule history" });
+    }
+  }
+);
+
 // Export both the router and the reusable WordPress posting function
 module.exports = router;
 module.exports.postAdToWordPress = postAdToWordPress;

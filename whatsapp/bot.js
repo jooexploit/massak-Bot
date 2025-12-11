@@ -1312,6 +1312,11 @@ async function initializeBot() {
         // Initialize reminder scheduler
         reminderScheduler.initScheduler(sock);
 
+        // Initialize custom message scheduler
+        const messageSchedulerService = require("../services/messageSchedulerService");
+        messageSchedulerService.initScheduler(sock, sendMessage);
+        console.log("✅ Custom message scheduler initialized");
+
         // Start message queue processor for reliable delivery
         const adminCommandService = require("../services/adminCommandService");
         adminCommandService.startQueueProcessor();
