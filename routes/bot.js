@@ -4,6 +4,7 @@ const websiteConfig = require("../config/website.config");
 const {
   getQRCode,
   getConnectionStatus,
+  getMessageHandlerHealth, // NEW: Health monitoring
   disconnectBot,
   sendMessage,
   getRecycleBin,
@@ -755,6 +756,30 @@ router.get("/status", authenticateToken, (req, res) => {
   } catch (error) {
     console.error("Error getting status:", error);
     res.status(500).json({ error: "Failed to get status" });
+  }
+});
+
+// Get message handler health status (accessible to all authenticated users)
+// NEW: Helps diagnose issues where bot appears connected but doesn't respond
+router.get("/health", authenticateToken, (req, res) => {
+  try {
+    const health = getMessageHandlerHealth();
+    const status = getConnectionStatus();
+    const queueStats = messageQueue.getStats();
+
+    res.json({
+      success: true,
+      connectionStatus: status,
+      messageHandler: health,
+      queue: queueStats,
+      serverTime: new Date().toISOString(),
+      recommendation: !health.isHealthy 
+        ? "⚠️ Message handler may be stale. Consider restarting the bot."
+        : "✅ Message handler is healthy"
+    });
+  } catch (error) {
+    console.error("Error getting health status:", error);
+    res.status(500).json({ error: "Failed to get health status" });
   }
 });
 

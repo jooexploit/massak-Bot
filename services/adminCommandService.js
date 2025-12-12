@@ -999,21 +999,39 @@ function getAdminHelpMessage() {
  * Handle admin command
  */
 async function handleAdminCommand(sock, message, phoneNumber) {
+  // ============================================
+  // 📥 DEBUG LOGGING - Track all admin commands
+  // ============================================
+  const timestamp = new Date().toISOString();
+  console.log(`\n${"=".repeat(60)}`);
+  console.log(`📥 ADMIN COMMAND HANDLER CALLED`);
+  console.log(`⏰ Time: ${timestamp}`);
+  console.log(`📱 From: ${phoneNumber}`);
+  console.log(`💬 Message: ${message?.substring(0, 100)}${message?.length > 100 ? "..." : ""}`);
+  console.log(`🔌 Socket available: ${!!sock}`);
+  console.log(`${"=".repeat(60)}`);
+
   if (!isAdmin(phoneNumber)) {
+    console.log(`❌ Not an admin, ignoring command`);
     return null; // Not an admin, ignore
   }
+  
+  console.log(`✅ Admin verified: ${phoneNumber}`);
 
   // Check if message is null or empty (media without text)
   if (!message || typeof message !== "string") {
+    console.log(`⏭️ Ignoring - no text message (type: ${typeof message})`);
     return null; // No text message, ignore
   }
 
   const text = message.trim();
   if (!text) {
+    console.log(`⏭️ Ignoring - empty message after trim`);
     return null; // Empty message, ignore
   }
 
   const command = text.split(/\s+/)[0];
+  console.log(`🔍 Processing command: "${command}"`);
 
   try {
     // ============================================

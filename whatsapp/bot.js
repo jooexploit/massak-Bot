@@ -106,6 +106,16 @@ let categories = []; // Store custom categories
 // Pending admin actions waiting for confirmation: { [adminJid]: { type: 'stop'|'start'|'waseet', phones: ["9665..."], createdAt } }
 const pendingActions = {};
 
+// ============================================
+// 🔍 MESSAGE HANDLER HEALTH MONITORING
+// Tracks if the message handler is still active
+// ============================================
+let lastMessageReceivedAt = Date.now();
+let messageHandlerHealthCheckInterval = null;
+let totalMessagesProcessed = 0;
+let messageHandlerErrors = 0;
+const ADMIN_NOTIFICATION_JID = "201090952790@s.whatsapp.net"; // Admin for error notifications
+
 function loadAds() {
   try {
     if (!fs.existsSync(path.join(__dirname, "..", "data"))) {
@@ -1342,15 +1352,74 @@ async function initializeBot() {
             console.error("Failed to fetch groups:", err);
           }
         }, 2000);
+
+        // ============================================
+        // 🔍 MESSAGE HANDLER HEALTH CHECK
+        // Monitors if the message handler is still receiving messages
+        // ============================================
+        if (messageHandlerHealthCheckInterval) {
+          clearInterval(messageHandlerHealthCheckInterval);
+        }
+        
+        messageHandlerHealthCheckInterval = setInterval(async () => {
+          if (connectionStatus !== "connected") return;
+          
+          const timeSinceLastMessage = Date.now() - lastMessageReceivedAt;
+          const minutesSinceLastMessage = Math.floor(timeSinceLastMessage / 60000);
+          
+          // Log health status every 10 minutes
+          console.log(`📊 [HEALTH CHECK] Minutes since last message: ${minutesSinceLastMessage}, Total processed: ${totalMessagesProcessed}, Errors: ${messageHandlerErrors}`);
+          
+          // Warning: No messages for 30 minutes (possible handler issue)
+          if (timeSinceLastMessage > 30 * 60 * 1000) {
+            console.warn(`⚠️ [HEALTH] No messages received in ${minutesSinceLastMessage} minutes - handler may be stale!`);
+            
+            // Notify admin once per hour of inactivity
+            if (minutesSinceLastMessage === 30 || minutesSinceLastMessage === 60 || minutesSinceLastMessage % 60 === 0) {
+              try {
+                if (sock) {
+                  await sock.sendMessage(ADMIN_NOTIFICATION_JID, {
+                    text: `⚠️ *تنبيه: البوت لم يستقبل رسائل*\n\n⏰ آخر رسالة منذ: ${minutesSinceLastMessage} دقيقة\n📊 إجمالي الرسائل: ${totalMessagesProcessed}\n\nإذا كانت المجموعات نشطة، قد تحتاج لإعادة تشغيل البوت.`
+                  });
+                  console.log("📧 Admin notified about message handler inactivity");
+                }
+              } catch (notifyError) {
+                console.error("❌ Failed to notify admin:", notifyError.message);
+              }
+            }
+          }
+        }, 10 * 60 * 1000); // Check every 10 minutes
+
+        console.log("✅ Message handler health check initialized");
       }
     });
 
     // Message handler: fetch messages from groups and store as 'ads'
     console.log("🎧 Setting up messages.upsert event listener...");
     sock.ev.on("messages.upsert", async ({ messages }) => {
+      // ============================================
+      // 🔍 HEALTH TRACKING - Update activity timestamp
+      // ============================================
+      lastMessageReceivedAt = Date.now();
+      totalMessagesProcessed++;
+
       console.log(
-        `🔔 messages.upsert event triggered! Messages count: ${messages.length}`
+        `🔔 [${new Date().toISOString()}] messages.upsert #${totalMessagesProcessed} - Messages count: ${messages.length}`
       );
+
+      // ============================================
+      // 🛡️ CONNECTION VALIDATION - Check before processing
+      // ============================================
+      if (connectionStatus !== "connected") {
+        console.warn(`⚠️ [HEALTH] Ignoring message - connection status: ${connectionStatus}`);
+        return;
+      }
+
+      if (!sock) {
+        console.warn(`⚠️ [HEALTH] Ignoring message - sock is null`);
+        return;
+      }
+
       try {
         const msg = messages[0];
 
@@ -2007,7 +2076,25 @@ async function initializeBot() {
             console.error("❌ Failed to process message from queue:", error);
           });
       } catch (error) {
-        console.error("❌ Error in message handler:", error);
+        messageHandlerErrors++;
+        console.error("❌ ============================================");
+        console.error(`❌ CRITICAL ERROR in message handler (error #${messageHandlerErrors})`);
+        console.error(`❌ Time: ${new Date().toISOString()}`);
+        console.error(`❌ Error:`, error.message || error);
+        console.error(`❌ Stack:`, error.stack);
+        console.error("❌ ============================================");
+
+        // Try to notify admin about critical failures (every 5th error to avoid spam)
+        if (messageHandlerErrors % 5 === 1 && sock && connectionStatus === "connected") {
+          try {
+            await sock.sendMessage(ADMIN_NOTIFICATION_JID, {
+              text: `⚠️ *تنبيه: خطأ في البوت*\n\n🕐 الوقت: ${new Date().toLocaleString("ar-EG", { timeZone: "Africa/Cairo" })}\n❌ الخطأ: ${error.message?.substring(0, 100) || "Unknown"}\n📊 إجمالي الأخطاء: ${messageHandlerErrors}\n\nيرجى مراجعة سجلات الخادم.`
+            });
+            console.log("📧 Admin notified about message handler error");
+          } catch (notifyError) {
+            console.error("❌ Failed to notify admin:", notifyError.message);
+          }
+        }
       }
     });
 
@@ -2036,6 +2123,25 @@ function getQRCode() {
 
 function getConnectionStatus() {
   return connectionStatus;
+}
+
+/**
+ * Get message handler health status
+ * @returns {Object} Health status including last message time, total processed, errors
+ */
+function getMessageHandlerHealth() {
+  const timeSinceLastMessage = Date.now() - lastMessageReceivedAt;
+  const minutesSinceLastMessage = Math.floor(timeSinceLastMessage / 60000);
+  
+  return {
+    lastMessageReceivedAt: lastMessageReceivedAt,
+    minutesSinceLastMessage: minutesSinceLastMessage,
+    totalMessagesProcessed: totalMessagesProcessed,
+    messageHandlerErrors: messageHandlerErrors,
+    isHealthy: minutesSinceLastMessage < 30 || totalMessagesProcessed === 0,
+    connectionStatus: connectionStatus,
+    socketActive: !!sock
+  };
 }
 
 async function disconnectBot() {
@@ -2945,6 +3051,7 @@ module.exports = {
   initializeBot,
   getQRCode,
   getConnectionStatus,
+  getMessageHandlerHealth, // NEW: Health monitoring
   disconnectBot,
   sendMessage,
   sendImage,
