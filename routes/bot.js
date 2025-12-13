@@ -2183,11 +2183,11 @@ router.get("/api-keys/status", authenticateToken, (req, res) => {
   }
 });
 
-// Update settings (admin only)
+// Update settings (admin and author)
 router.put(
   "/settings",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   (req, res) => {
     try {
       const {
