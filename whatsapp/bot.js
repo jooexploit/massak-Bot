@@ -1354,43 +1354,121 @@ async function initializeBot() {
         }, 2000);
 
         // ============================================
-        // 🔍 MESSAGE HANDLER HEALTH CHECK
-        // Monitors if the message handler is still receiving messages
+        // 🔄 AUTO-RECONNECT FOR STALE CONNECTIONS
+        // Automatically reconnects when message handler stops receiving events
+        // This fixes the "zombie connection" issue in Baileys
         // ============================================
         if (messageHandlerHealthCheckInterval) {
           clearInterval(messageHandlerHealthCheckInterval);
         }
         
+        // Track that we successfully connected - used to determine if we should auto-reconnect
+        const connectionStartTime = Date.now();
+        let hasReceivedFirstMessage = false;
+        
         messageHandlerHealthCheckInterval = setInterval(async () => {
-          if (connectionStatus !== "connected") return;
+          if (connectionStatus !== "connected" || !sock) return;
           
           const timeSinceLastMessage = Date.now() - lastMessageReceivedAt;
           const minutesSinceLastMessage = Math.floor(timeSinceLastMessage / 60000);
+          const minutesSinceConnectionStart = Math.floor((Date.now() - connectionStartTime) / 60000);
           
-          // Log health status every 10 minutes
-          console.log(`📊 [HEALTH CHECK] Minutes since last message: ${minutesSinceLastMessage}, Total processed: ${totalMessagesProcessed}, Errors: ${messageHandlerErrors}`);
+          // Log health status every check
+          console.log(`📊 [HEALTH CHECK] Minutes since last message: ${minutesSinceLastMessage}, Total processed: ${totalMessagesProcessed}, Connection age: ${minutesSinceConnectionStart}min`);
           
-          // Warning: No messages for 30 minutes (possible handler issue)
-          if (timeSinceLastMessage > 30 * 60 * 1000) {
-            console.warn(`⚠️ [HEALTH] No messages received in ${minutesSinceLastMessage} minutes - handler may be stale!`);
-            
-            // Notify admin once per hour of inactivity
-            if (minutesSinceLastMessage === 30 || minutesSinceLastMessage === 60 || minutesSinceLastMessage % 60 === 0) {
-              try {
-                if (sock) {
-                  await sock.sendMessage(ADMIN_NOTIFICATION_JID, {
-                    text: `⚠️ *تنبيه: البوت لم يستقبل رسائل*\n\n⏰ آخر رسالة منذ: ${minutesSinceLastMessage} دقيقة\n📊 إجمالي الرسائل: ${totalMessagesProcessed}\n\nإذا كانت المجموعات نشطة، قد تحتاج لإعادة تشغيل البوت.`
-                  });
-                  console.log("📧 Admin notified about message handler inactivity");
-                }
-              } catch (notifyError) {
-                console.error("❌ Failed to notify admin:", notifyError.message);
-              }
-            }
+          // Update flag if we received any messages
+          if (totalMessagesProcessed > 0) {
+            hasReceivedFirstMessage = true;
           }
-        }, 10 * 60 * 1000); // Check every 10 minutes
+          
+          // AUTO-RECONNECT TRIGGER CONDITIONS:
+          // Scenario A: We received messages before but stopped receiving (20 min)
+          // Scenario B: We never received ANY messages for 60 minutes (fresh start failure)
+          const STALE_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes
+          const NEVER_RECEIVED_THRESHOLD_MS = 60 * 60 * 1000; // 60 minutes
+          
+          const scenarioA_StaleAfterWorking = 
+            hasReceivedFirstMessage && 
+            timeSinceLastMessage > STALE_THRESHOLD_MS;
+            
+          const scenarioB_NeverReceivedAny = 
+            !hasReceivedFirstMessage && 
+            totalMessagesProcessed === 0 && 
+            minutesSinceConnectionStart >= 60 &&
+            (Date.now() - connectionStartTime) > NEVER_RECEIVED_THRESHOLD_MS;
+          
+          const shouldAutoReconnect = scenarioA_StaleAfterWorking || scenarioB_NeverReceivedAny;
+          
+          if (shouldAutoReconnect) {
+            console.warn(`\n🚨 ============================================`);
+            console.warn(`🚨 STALE CONNECTION DETECTED - AUTO-RECONNECTING`);
+            console.warn(`🚨 Last message: ${minutesSinceLastMessage} minutes ago`);
+            console.warn(`🚨 Total processed before stale: ${totalMessagesProcessed}`);
+            console.warn(`🚨 ============================================\n`);
+            
+            // Notify admin about auto-reconnect
+            try {
+              await sock.sendMessage(ADMIN_NOTIFICATION_JID, {
+                text: `🔄 *إعادة اتصال تلقائية*\n\n⚠️ البوت لم يستقبل رسائل لمدة ${minutesSinceLastMessage} دقيقة\n📊 إجمالي الرسائل قبل التوقف: ${totalMessagesProcessed}\n\n🔄 جاري إعادة الاتصال تلقائياً...`
+              });
+            } catch (e) {
+              console.error("Failed to notify admin about auto-reconnect:", e.message);
+            }
+            
+            // Clear the interval to prevent multiple reconnect attempts
+            if (messageHandlerHealthCheckInterval) {
+              clearInterval(messageHandlerHealthCheckInterval);
+              messageHandlerHealthCheckInterval = null;
+            }
+            
+            // Reset counters for fresh start
+            totalMessagesProcessed = 0;
+            messageHandlerErrors = 0;
+            lastMessageReceivedAt = Date.now();
+            
+            // FORCE RECONNECTION
+            console.log("🔌 Forcing socket close...");
+            try {
+              if (sock) {
+                sock.ev.removeAllListeners();
+                if (sock.ws && sock.ws.readyState === sock.ws.OPEN) {
+                  sock.ws.close();
+                }
+                sock = null;
+              }
+            } catch (closeError) {
+              console.error("Error closing socket:", closeError.message);
+            }
+            
+            // Set status and trigger reconnect
+            connectionStatus = "reconnecting";
+            isReconnecting = false;
+            reconnectAttempts = 0;
+            
+            // Wait a moment then reinitialize
+            console.log("⏳ Waiting 3 seconds before reinitializing...");
+            setTimeout(async () => {
+              console.log("🚀 Reinitializing bot connection...");
+              releaseInitLock();
+              initInProgress = false;
+              try {
+                await initializeBot();
+                console.log("✅ Auto-reconnect completed!");
+              } catch (reinitError) {
+                console.error("❌ Auto-reconnect failed:", reinitError.message);
+              }
+            }, 3000);
+            
+            return; // Exit this interval callback
+          }
+          
+          // Warning at 15 minutes (before auto-reconnect)
+          if (timeSinceLastMessage > 15 * 60 * 1000 && hasReceivedFirstMessage) {
+            console.warn(`⚠️ [WARNING] No messages in ${minutesSinceLastMessage} minutes. Auto-reconnect will trigger at 20 minutes.`);
+          }
+        }, 5 * 60 * 1000); // Check every 5 minutes
 
-        console.log("✅ Message handler health check initialized");
+        console.log("✅ Auto-reconnect health monitor initialized (triggers at 20min inactivity)");
       }
     });
 
@@ -2133,12 +2211,32 @@ function getMessageHandlerHealth() {
   const timeSinceLastMessage = Date.now() - lastMessageReceivedAt;
   const minutesSinceLastMessage = Math.floor(timeSinceLastMessage / 60000);
   
+  // Auto-reconnect timing info
+  const hasReceivedAnyMessages = totalMessagesProcessed > 0;
+  let autoReconnectStatus;
+  let minutesUntilAutoReconnect;
+  
+  if (hasReceivedAnyMessages) {
+    // Scenario A: Stale after working - triggers at 20 min
+    minutesUntilAutoReconnect = Math.max(0, 20 - minutesSinceLastMessage);
+    autoReconnectStatus = minutesUntilAutoReconnect > 0 
+      ? `${minutesUntilAutoReconnect} min until auto-reconnect (stale threshold: 20 min)`
+      : "🚨 Auto-reconnect should trigger soon!";
+  } else {
+    // Scenario B: Never received - triggers at 60 min of connection
+    autoReconnectStatus = "Waiting for first message (auto-reconnect at 60 min if no messages)";
+    minutesUntilAutoReconnect = null;
+  }
+  
   return {
     lastMessageReceivedAt: lastMessageReceivedAt,
     minutesSinceLastMessage: minutesSinceLastMessage,
     totalMessagesProcessed: totalMessagesProcessed,
     messageHandlerErrors: messageHandlerErrors,
-    isHealthy: minutesSinceLastMessage < 30 || totalMessagesProcessed === 0,
+    hasReceivedAnyMessages: hasReceivedAnyMessages,
+    autoReconnectStatus: autoReconnectStatus,
+    minutesUntilAutoReconnect: minutesUntilAutoReconnect,
+    isHealthy: (hasReceivedAnyMessages && minutesSinceLastMessage < 20) || !hasReceivedAnyMessages,
     connectionStatus: connectionStatus,
     socketActive: !!sock
   };
