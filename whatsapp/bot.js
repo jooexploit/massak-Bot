@@ -1097,13 +1097,69 @@ async function initializeBot() {
         }
         return false;
       },
-      // CRITICAL: Provide getMessage to prevent "Stream Errored" on retry
+      // Provide getMessage for message retry operations
       getMessage: async (key) => {
-        // Return undefined if message not found in store
-        // This prevents Baileys from failing on retry attempts
+        // Return undefined - we don't maintain a message store
         return undefined;
       },
     });
+
+    console.log("✅ WhatsApp socket created successfully");
+
+    // ============================================
+    // 🔍 DIAGNOSTIC EVENT LISTENERS
+    // Monitor all message-related events for debugging
+    // ============================================
+    
+    // Track messages.update events (message status changes)
+    sock.ev.on("messages.update", (updates) => {
+      console.log(`📝 [EVENT] messages.update - ${updates.length} update(s)`);
+    });
+    
+    // Track message reactions
+    sock.ev.on("messages.reaction", (reactions) => {
+      console.log(`👍 [EVENT] messages.reaction - ${reactions.length} reaction(s)`);
+    });
+    
+    // Track presence updates (typing indicators, online status)
+    sock.ev.on("presence.update", (presence) => {
+      // Only log if it's from a group (reduces noise)
+      if (presence.id?.includes("@g.us")) {
+        console.log(`👁️ [EVENT] presence.update - ${presence.id}`);
+      }
+    });
+
+    // Track group updates
+    sock.ev.on("groups.update", (updates) => {
+      console.log(`👥 [EVENT] groups.update - ${updates.length} group(s) updated`);
+    });
+
+    // Track group participant updates
+    sock.ev.on("group-participants.update", (update) => {
+      console.log(`👥 [EVENT] group-participants.update - ${update.action} in ${update.id}`);
+    });
+
+    // ============================================
+    // 🏓 WEBSOCKET KEEPALIVE PING
+    // Periodically ping to keep connection alive
+    // ============================================
+    let keepalivePingInterval = null;
+    const startKeepalivePing = () => {
+      if (keepalivePingInterval) clearInterval(keepalivePingInterval);
+      
+      keepalivePingInterval = setInterval(async () => {
+        if (connectionStatus === "connected" && sock) {
+          try {
+            // Query own status to keep connection alive
+            await sock.fetchStatus(sock.user?.id);
+            console.log(`🏓 [KEEPALIVE] Ping successful`);
+          } catch (pingError) {
+            console.warn(`⚠️ [KEEPALIVE] Ping failed: ${pingError.message}`);
+            // If ping fails multiple times, the auto-reconnect will catch it
+          }
+        }
+      }, 5 * 60 * 1000); // Ping every 5 minutes
+    };
 
     // CRITICAL: Register creds.update BEFORE connection.update
     // This ensures credentials are saved immediately when they change
@@ -1332,6 +1388,10 @@ async function initializeBot() {
         adminCommandService.startQueueProcessor();
         console.log("✅ Message queue processor initialized");
 
+        // Start keepalive ping to prevent WebSocket from going stale
+        startKeepalivePing();
+        console.log("✅ WebSocket keepalive ping started");
+
         // Fetch all groups when connected
         setTimeout(async () => {
           try {
@@ -1382,10 +1442,10 @@ async function initializeBot() {
           }
           
           // AUTO-RECONNECT TRIGGER CONDITIONS:
-          // Scenario A: We received messages before but stopped receiving (20 min)
-          // Scenario B: We never received ANY messages for 60 minutes (fresh start failure)
-          const STALE_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes
-          const NEVER_RECEIVED_THRESHOLD_MS = 60 * 60 * 1000; // 60 minutes
+          // Scenario A: We received messages before but stopped receiving (15 min)
+          // Scenario B: We never received ANY messages for 30 minutes (fresh start failure)
+          const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes (was 20)
+          const NEVER_RECEIVED_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes (was 60)
           
           const scenarioA_StaleAfterWorking = 
             hasReceivedFirstMessage && 
@@ -1394,7 +1454,7 @@ async function initializeBot() {
           const scenarioB_NeverReceivedAny = 
             !hasReceivedFirstMessage && 
             totalMessagesProcessed === 0 && 
-            minutesSinceConnectionStart >= 60 &&
+            minutesSinceConnectionStart >= 30 &&
             (Date.now() - connectionStartTime) > NEVER_RECEIVED_THRESHOLD_MS;
           
           const shouldAutoReconnect = scenarioA_StaleAfterWorking || scenarioB_NeverReceivedAny;
@@ -1462,13 +1522,13 @@ async function initializeBot() {
             return; // Exit this interval callback
           }
           
-          // Warning at 15 minutes (before auto-reconnect)
-          if (timeSinceLastMessage > 15 * 60 * 1000 && hasReceivedFirstMessage) {
-            console.warn(`⚠️ [WARNING] No messages in ${minutesSinceLastMessage} minutes. Auto-reconnect will trigger at 20 minutes.`);
+          // Warning at 10 minutes (before auto-reconnect at 15 min)
+          if (timeSinceLastMessage > 10 * 60 * 1000 && hasReceivedFirstMessage) {
+            console.warn(`⚠️ [WARNING] No messages in ${minutesSinceLastMessage} minutes. Auto-reconnect will trigger at 15 minutes.`);
           }
-        }, 5 * 60 * 1000); // Check every 5 minutes
+        }, 3 * 60 * 1000); // Check every 3 minutes (was 5)
 
-        console.log("✅ Auto-reconnect health monitor initialized (triggers at 20min inactivity)");
+        console.log("✅ Auto-reconnect health monitor initialized (triggers at 15min stale / 30min no messages)");
       }
     });
 
@@ -2211,20 +2271,20 @@ function getMessageHandlerHealth() {
   const timeSinceLastMessage = Date.now() - lastMessageReceivedAt;
   const minutesSinceLastMessage = Math.floor(timeSinceLastMessage / 60000);
   
-  // Auto-reconnect timing info
+  // Auto-reconnect timing info (thresholds: 15 min stale, 30 min no messages)
   const hasReceivedAnyMessages = totalMessagesProcessed > 0;
   let autoReconnectStatus;
   let minutesUntilAutoReconnect;
   
   if (hasReceivedAnyMessages) {
-    // Scenario A: Stale after working - triggers at 20 min
-    minutesUntilAutoReconnect = Math.max(0, 20 - minutesSinceLastMessage);
+    // Scenario A: Stale after working - triggers at 15 min
+    minutesUntilAutoReconnect = Math.max(0, 15 - minutesSinceLastMessage);
     autoReconnectStatus = minutesUntilAutoReconnect > 0 
-      ? `${minutesUntilAutoReconnect} min until auto-reconnect (stale threshold: 20 min)`
+      ? `${minutesUntilAutoReconnect} min until auto-reconnect (stale threshold: 15 min)`
       : "🚨 Auto-reconnect should trigger soon!";
   } else {
-    // Scenario B: Never received - triggers at 60 min of connection
-    autoReconnectStatus = "Waiting for first message (auto-reconnect at 60 min if no messages)";
+    // Scenario B: Never received - triggers at 30 min of connection
+    autoReconnectStatus = "Waiting for first message (auto-reconnect at 30 min if no messages)";
     minutesUntilAutoReconnect = null;
   }
   
@@ -2236,7 +2296,7 @@ function getMessageHandlerHealth() {
     hasReceivedAnyMessages: hasReceivedAnyMessages,
     autoReconnectStatus: autoReconnectStatus,
     minutesUntilAutoReconnect: minutesUntilAutoReconnect,
-    isHealthy: (hasReceivedAnyMessages && minutesSinceLastMessage < 20) || !hasReceivedAnyMessages,
+    isHealthy: (hasReceivedAnyMessages && minutesSinceLastMessage < 15) || !hasReceivedAnyMessages,
     connectionStatus: connectionStatus,
     socketActive: !!sock
   };
