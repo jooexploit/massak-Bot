@@ -1983,7 +1983,127 @@
                     <p>Configure system preferences</p>
                 </div>
 
+                <!-- WhatsApp Message Footers -->
+                <div class="card admin-only" style="display: none; margin-top: 1rem;">
+                    <div class="card-body">
+                        <h3><i class="fas fa-comment-dots"></i> WhatsApp Message Footers</h3>
+                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
+                            Customize the footer text that appears at the bottom of all WhatsApp messages.
+                            Use line breaks for multi-line footers. Emojis and WhatsApp formatting (*bold*) are
+                            supported.
+                        </p>
 
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label for="hasak-footer" style="font-weight: bold;">
+                                <span
+                                    style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px;">🌴
+                                    Hasak</span>
+                                Footer Text:
+                            </label>
+                            <textarea id="hasak-footer" class="form-control" rows="5"
+                                placeholder="Enter footer for Hasak messages..."
+                                style="font-family: inherit; line-height: 1.6; margin-top: 8px; direction: rtl;"></textarea>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label for="masaak-footer" style="font-weight: bold;">
+                                <span
+                                    style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px;">🔰
+                                    Masaak</span>
+                                Footer Text:
+                            </label>
+                            <textarea id="masaak-footer" class="form-control" rows="4"
+                                placeholder="Enter footer for Masaak messages..."
+                                style="font-family: inherit; line-height: 1.6; margin-top: 8px; direction: rtl;"></textarea>
+                        </div>
+
+                        <button id="reset-footers-btn" class="btn btn-secondary">
+                            <i class="fas fa-undo"></i> Reset to Defaults
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Group Collections Management (Admin Only) -->
+                <div class="card admin-only" style="display: none; margin-top: 1rem;">
+                    <div class="card-body">
+                        <h3><i class="fas fa-folder"></i> Group Collections</h3>
+                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
+                            Create collections/folders to organize your WhatsApp groups for easier bulk messaging.
+                        </p>
+
+                        <div id="collections-list" style="margin-bottom: 1rem;">
+                            <!-- Collections will be rendered here -->
+                        </div>
+
+                        <button id="add-collection-btn" class="btn btn-success">
+                            <i class="fas fa-plus"></i> Create New Collection
+                        </button>
+
+                        <div id="collection-form"
+                            style="display: none; background: #f5f5f5; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                            <h4 id="collection-form-title">Create New Collection</h4>
+                            <div class="form-group">
+                                <label for="collection-name-input">Collection Name:</label>
+                                <input type="text" id="collection-name-input" class="form-control"
+                                    placeholder="e.g., Real Estate Groups">
+                            </div>
+                            <div class="form-group">
+                                <label>Select Groups:</label>
+                                <div id="collection-groups-list"
+                                    style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: white;">
+                                    <!-- Groups checkboxes will be rendered here -->
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                                <button id="settings-save-collection-btn" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Save Collection
+                                </button>
+                                <button id="cancel-collection-btn" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Keys Settings -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-body">
+                        <h3><i class="fas fa-key"></i> Gemini API Keys Management</h3>
+                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
+                            Add multiple API keys. If one reaches its limit, the system will automatically switch to the
+                            next one. Drag to reorder priority.
+                        </p>
+
+                        <div id="api-keys-list" style="margin-bottom: 1rem;"></div>
+
+                        <button id="add-api-key-btn" class="btn btn-success" style="margin-bottom: 1rem;">
+                            <i class="fas fa-plus"></i> Add New API Key
+                        </button>
+
+                        <div id="api-key-form"
+                            style="display: none; background: #f5f5f5; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            <h4>Add New API Key</h4>
+                            <div class="form-group">
+                                <label for="api-key-name">Key Name:</label>
+                                <input type="text" id="api-key-name" class="form-control"
+                                    placeholder="e.g., Primary Key">
+                            </div>
+                            <div class="form-group">
+                                <label for="api-key-value">API Key:</label>
+                                <input type="text" id="api-key-value" class="form-control" placeholder="AIzaSy...">
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button id="save-api-key-btn" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Save Key
+                                </button>
+                                <button id="cancel-api-key-btn" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Recycle Bin Settings -->
                 <div class="card">
@@ -2041,48 +2161,7 @@
                     </div>
                 </div>
 
-                <!-- Group Collections Management (Admin Only) -->
-                <div class="card admin-only" style="display: none; margin-top: 1rem;">
-                    <div class="card-body">
-                        <h3><i class="fas fa-folder"></i> Group Collections</h3>
-                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
-                            Create collections/folders to organize your WhatsApp groups for easier bulk messaging.
-                        </p>
 
-                        <div id="collections-list" style="margin-bottom: 1rem;">
-                            <!-- Collections will be rendered here -->
-                        </div>
-
-                        <button id="add-collection-btn" class="btn btn-success">
-                            <i class="fas fa-plus"></i> Create New Collection
-                        </button>
-
-                        <div id="collection-form"
-                            style="display: none; background: #f5f5f5; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
-                            <h4 id="collection-form-title">Create New Collection</h4>
-                            <div class="form-group">
-                                <label for="collection-name-input">Collection Name:</label>
-                                <input type="text" id="collection-name-input" class="form-control"
-                                    placeholder="e.g., Real Estate Groups">
-                            </div>
-                            <div class="form-group">
-                                <label>Select Groups:</label>
-                                <div id="collection-groups-list"
-                                    style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: white;">
-                                    <!-- Groups checkboxes will be rendered here -->
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                                <button id="settings-save-collection-btn" class="btn btn-primary">
-                                    <i class="fas fa-save"></i> Save Collection
-                                </button>
-                                <button id="cancel-collection-btn" class="btn btn-secondary">
-                                    <i class="fas fa-times"></i> Cancel
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- Categories Management -->
                 <div class="card" style="margin-top: 1rem;">
@@ -2180,45 +2259,7 @@
                     </div>
                 </div>
 
-                <!-- WhatsApp Message Footers -->
-                <div class="card admin-only" style="display: none; margin-top: 1rem;">
-                    <div class="card-body">
-                        <h3><i class="fas fa-comment-dots"></i> WhatsApp Message Footers</h3>
-                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
-                            Customize the footer text that appears at the bottom of all WhatsApp messages.
-                            Use line breaks for multi-line footers. Emojis and WhatsApp formatting (*bold*) are
-                            supported.
-                        </p>
 
-                        <div class="form-group" style="margin-bottom: 1.5rem;">
-                            <label for="hasak-footer" style="font-weight: bold;">
-                                <span
-                                    style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px;">🌴
-                                    Hasak</span>
-                                Footer Text:
-                            </label>
-                            <textarea id="hasak-footer" class="form-control" rows="5"
-                                placeholder="Enter footer for Hasak messages..."
-                                style="font-family: inherit; line-height: 1.6; margin-top: 8px; direction: rtl;"></textarea>
-                        </div>
-
-                        <div class="form-group" style="margin-bottom: 1.5rem;">
-                            <label for="masaak-footer" style="font-weight: bold;">
-                                <span
-                                    style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px;">🔰
-                                    Masaak</span>
-                                Footer Text:
-                            </label>
-                            <textarea id="masaak-footer" class="form-control" rows="4"
-                                placeholder="Enter footer for Masaak messages..."
-                                style="font-family: inherit; line-height: 1.6; margin-top: 8px; direction: rtl;"></textarea>
-                        </div>
-
-                        <button id="reset-footers-btn" class="btn btn-secondary">
-                            <i class="fas fa-undo"></i> Reset to Defaults
-                        </button>
-                    </div>
-                </div>
 
                 <!-- Category Limits Settings -->
                 <div class="card admin-only" style="display: none; margin-top: 1rem;">
@@ -2240,44 +2281,7 @@
                     </div>
                 </div>
 
-                <!-- API Keys Settings -->
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-body">
-                        <h3><i class="fas fa-key"></i> Gemini API Keys Management</h3>
-                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
-                            Add multiple API keys. If one reaches its limit, the system will automatically switch to the
-                            next one. Drag to reorder priority.
-                        </p>
 
-                        <div id="api-keys-list" style="margin-bottom: 1rem;"></div>
-
-                        <button id="add-api-key-btn" class="btn btn-success" style="margin-bottom: 1rem;">
-                            <i class="fas fa-plus"></i> Add New API Key
-                        </button>
-
-                        <div id="api-key-form"
-                            style="display: none; background: #f5f5f5; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-                            <h4>Add New API Key</h4>
-                            <div class="form-group">
-                                <label for="api-key-name">Key Name:</label>
-                                <input type="text" id="api-key-name" class="form-control"
-                                    placeholder="e.g., Primary Key">
-                            </div>
-                            <div class="form-group">
-                                <label for="api-key-value">API Key:</label>
-                                <input type="text" id="api-key-value" class="form-control" placeholder="AIzaSy...">
-                            </div>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <button id="save-api-key-btn" class="btn btn-primary">
-                                    <i class="fas fa-save"></i> Save Key
-                                </button>
-                                <button id="cancel-api-key-btn" class="btn btn-secondary">
-                                    <i class="fas fa-times"></i> Cancel
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
                     <button id="save-all-settings-btn" class="btn btn-primary admin-only" style="display: none;">

@@ -5,6 +5,83 @@
 let currentAdDetails = null;
 
 // -------------------------
+// Copy Ad Content to Clipboard
+// -------------------------
+async function copyAdContentToClipboard(adId, type = 'enhanced') {
+  try {
+    // Try to get content from the ad details modal first
+    let contentElement = document.getElementById(`ad-content-${type}-${adId}`);
+    
+    // If not found, try the main ads list view
+    if (!contentElement) {
+      contentElement = document.getElementById(`ad-content-main-${adId}`);
+    }
+    
+    // If still not found, try to get from currentAdDetails
+    let textToCopy = '';
+    if (contentElement) {
+      textToCopy = contentElement.textContent || contentElement.innerText;
+    } else if (currentAdDetails) {
+      textToCopy = type === 'enhanced' && currentAdDetails.enhancedText 
+        ? currentAdDetails.enhancedText 
+        : currentAdDetails.text;
+    }
+    
+    if (!textToCopy || textToCopy.trim() === '') {
+      console.error('No content found to copy');
+      return;
+    }
+    
+    // Copy to clipboard
+    await navigator.clipboard.writeText(textToCopy.trim());
+    
+    // Find the button that was clicked and show success feedback
+    const buttons = document.querySelectorAll(`button[onclick*="copyAdContentToClipboard('${adId}'"]`);
+    buttons.forEach(button => {
+      const originalHTML = button.innerHTML;
+      button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+      button.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+      
+      setTimeout(() => {
+        button.innerHTML = originalHTML;
+        button.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+      }, 2000);
+    });
+    
+    console.log('✅ Ad content copied to clipboard');
+  } catch (err) {
+    console.error('Failed to copy to clipboard:', err);
+    // Fallback for older browsers
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = textToCopy;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      // Show success
+      const buttons = document.querySelectorAll(`button[onclick*="copyAdContentToClipboard('${adId}'"]`);
+      buttons.forEach(button => {
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        button.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+        
+        setTimeout(() => {
+          button.innerHTML = originalHTML;
+          button.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        }, 2000);
+      });
+    } catch (fallbackErr) {
+      console.error('Fallback copy also failed:', fallbackErr);
+      alert('Failed to copy to clipboard. Please copy manually.');
+    }
+  }
+}
+
+// -------------------------
 // Ad Details Modal
 // -------------------------
 async function openAdDetailsModal(id, ad) {
@@ -85,11 +162,16 @@ async function openAdDetailsModal(id, ad) {
         hasEnhanced
           ? `
         <div style="margin-bottom: 1rem;">
-          <strong>📄 Ad Content</strong>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+            <strong>📄 Ad Content</strong>
+            <button onclick="copyAdContentToClipboard('${id}', 'enhanced')" class="btn btn-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+              <i class="fas fa-copy"></i> Copy
+            </button>
+          </div>
           <div style="background: #e8f5e9; padding: 0.75rem; margin-top: 0.5rem; border-radius: 4px; border-left: 4px solid #4CAF50;">
             <small style="color: #388E3C; font-weight: 500;">✨ Enhanced Version:</small>
           </div>
-          <div style="background: #fff; padding: 1rem; margin-top: 0.25rem; border-radius: 4px; white-space: pre-wrap;">
+          <div id="ad-content-enhanced-${id}" style="background: #fff; padding: 1rem; margin-top: 0.25rem; border-radius: 4px; white-space: pre-wrap;">
 ${escapeHtml(ad.enhancedText)}</div>
         </div>
         
@@ -101,8 +183,13 @@ ${escapeHtml(ad.text)}</div>
       `
           : `
         <div style="margin-bottom: 1rem;">
-          <strong>📄 Ad Content</strong>
-          <div style="background: #fff; padding: 1rem; margin-top: 0.5rem; border-radius: 4px; white-space: pre-wrap;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+            <strong>📄 Ad Content</strong>
+            <button onclick="copyAdContentToClipboard('${id}', 'original')" class="btn btn-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+              <i class="fas fa-copy"></i> Copy
+            </button>
+          </div>
+          <div id="ad-content-original-${id}" style="background: #fff; padding: 1rem; margin-top: 0.5rem; border-radius: 4px; white-space: pre-wrap;">
 ${escapeHtml(ad.text)}</div>
         </div>
       `

@@ -42,9 +42,9 @@ const MASAAK_CONFIG = {
 const HASAK_CONFIG = {
   logoPath: path.join(__dirname, "..", "assets", "hasak_logo.png"), // TODO: CUSTOMIZE - Path to logo
   opacity: 0.8, // TODO: CUSTOMIZE - Logo opacity (0.0 - 1.0)
-  scale: 0.15, // TODO: CUSTOMIZE - Logo size as percentage of image width (0.15 = 15%)
+  scale: 0.20, // TODO: CUSTOMIZE - Logo size as percentage of image width (0.15 = 15%)
   position: "top-left", // Changed to top-left as requested
-  padding: 20, // TODO: CUSTOMIZE - Padding from edges
+  padding: 40, // TODO: CUSTOMIZE - Padding from edges
   circular: true, // Make logo circular with border radius
 };
 

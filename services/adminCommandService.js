@@ -81,6 +81,7 @@ function normalizePhoneNumber(phone) {
  * - "رقم,اسم" (number comma name)
  * - Just numbers on separate lines
  * - Number with name on same line separated by space
+ * - Numbers with spaces like "0508 007053" (will be joined)
  * @param {string} text - Message text after command
  * @param {boolean} requireName - Whether name is required (true for waseet, false for admin)
  * @returns {Array} Array of { phone, name } objects
@@ -93,7 +94,7 @@ function parseFlexibleEntries(text, requireName = true) {
   
   for (const line of lines) {
     // Skip the command itself if it's on the first line
-    if (line === "وسيط" || line === "أدمن" || line === "ادمن") continue;
+    if (line === "وسيط" || line === "أدمن" || line === "ادمن" || line.startsWith("مهتم")) continue;
     
     // Try different parsing patterns
     let phone = null;
@@ -103,7 +104,7 @@ function parseFlexibleEntries(text, requireName = true) {
     if (line.includes(",")) {
       const parts = line.split(",").map(p => p.trim());
       for (const part of parts) {
-        // Check if this part looks like a phone number
+        // Check if this part looks like a phone number (remove spaces first)
         const cleanedPart = part.replace(/[\s\-\(\)\+\.]/g, "");
         if (/^\d{9,15}$/.test(cleanedPart)) {
           phone = part;
@@ -112,20 +113,80 @@ function parseFlexibleEntries(text, requireName = true) {
         }
       }
     }
-    // Pattern 2: "+number name" or "number name" or just "number"
+    // Pattern 2: "+number name" or "number name" or just "number" 
+    // Also handles numbers with spaces like "0508 007053"
     else {
       const parts = line.split(/\s+/);
-      for (const part of parts) {
-        const cleanedPart = part.replace(/[\s\-\(\)\+\.]/g, "");
-        if (/^\d{9,15}$/.test(cleanedPart) || part.startsWith("+")) {
-          phone = part;
-        } else if (part.length > 0 && !phone) {
-          // This might be a name before the number
-          name = name ? name + " " + part : part;
-        } else if (part.length > 0 && phone) {
-          // This is name after the number
-          name = name ? name + " " + part : part;
+      
+      // First, try to join digit parts to form a phone number
+      // This handles cases like "0508 007053" becoming "0508007053"
+      let digitParts = [];
+      let nameParts = [];
+      let foundCompletePhone = false;
+      
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const cleanedPart = part.replace(/[\-\(\)\+\.]/g, "");
+        
+        // Check if this part is purely digits or starts with +
+        if (/^\d+$/.test(cleanedPart) || part.startsWith("+")) {
+          // If we already found a complete phone, this might be another number
+          // or part of a split number
+          if (foundCompletePhone) {
+            // Check if joining with previous digits would make sense
+            const combined = (phone || "").replace(/[\s\-\(\)\+\.]/g, "") + cleanedPart;
+            if (/^\d{9,15}$/.test(combined)) {
+              // Yes, this is a continuation of the phone number
+              phone = phone + " " + part;
+            } else {
+              // This looks like a separate number, treat as part of name
+              nameParts.push(part);
+            }
+          } else {
+            // Accumulate digit parts
+            digitParts.push(part);
+            
+            // Check if accumulated digits form a valid phone
+            const combinedDigits = digitParts.join("").replace(/[\-\(\)\+\.]/g, "");
+            if (/^\d{9,15}$/.test(combinedDigits)) {
+              phone = digitParts.join(" ");
+              foundCompletePhone = true;
+              digitParts = [];
+            }
+          }
+        } else if (part.length > 0) {
+          // Non-digit part
+          if (digitParts.length > 0) {
+            // We had some digits but didn't complete a phone
+            // Check if digits so far could be a partial phone 
+            const combinedDigits = digitParts.join("").replace(/[\-\(\)\+\.]/g, "");
+            if (!foundCompletePhone && /^\d{9,15}$/.test(combinedDigits)) {
+              phone = digitParts.join(" ");
+              foundCompletePhone = true;
+            } else if (!foundCompletePhone) {
+              // Digits weren't a phone, add them to name
+              nameParts = nameParts.concat(digitParts);
+            }
+            digitParts = [];
+          }
+          nameParts.push(part);
         }
+      }
+      
+      // Handle remaining digit parts at end of line
+      if (digitParts.length > 0) {
+        const combinedDigits = digitParts.join("").replace(/[\-\(\)\+\.]/g, "");
+        if (!foundCompletePhone && /^\d{9,15}$/.test(combinedDigits)) {
+          phone = digitParts.join(" ");
+        } else if (!foundCompletePhone) {
+          // Not a valid phone, treat as part of name
+          nameParts = nameParts.concat(digitParts);
+        }
+      }
+      
+      // Build the name from name parts
+      if (nameParts.length > 0) {
+        name = nameParts.join(" ");
       }
     }
     
@@ -1035,6 +1096,29 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
   try {
     // ============================================
+    // ADMIN COMMAND PRIORITY CHECK
+    // ============================================
+    // List of known admin command keywords that should take priority over WordPress URL detection
+    const adminCommandKeywords = [
+      "تذكير", "التذكيرات", "قائمة_التذكيرات", "حذف_تذكير",
+      "مساعدة", "help", "أوامر", "اوامر", "Help",
+      "احصائيات", "إحصائيات", "احصاءات",
+      "طلب", "نعم", "لا",
+      "عدد_الإعلانات", "آخر_الإعلانات", "حذف_إعلان",
+      "عدد_العملاء", "العملاء", "تفاصيل_عميل", "حذف_عميل",
+      "وسيط", "وسطاء", "حذف_وسيط", "قائمة_الوسطاء", "تفاصيل_وسيط",
+      "أدمن", "ادمن", "حذف_أدمن", "حذف_ادمن", "قائمة_الأدمنز", "قائمة_الادمنز",
+      "مهتم", "مجموعات_المهتمين", "تفاصيل_مجموعة", "حذف_مجموعة",
+      "توقف", "ايقاف", "تشغيل", "تفعيل"
+    ];
+    
+    // Check if the message starts with an admin command keyword
+    // This prevents WordPress URL detection from overriding admin commands
+    const isAdminCommand = adminCommandKeywords.some(keyword => 
+      command === keyword || text.startsWith(keyword + "\n") || text.startsWith(keyword + " ")
+    );
+    
+    // ============================================
     // WORDPRESS POST MANAGEMENT - URL DETECTION
     // ============================================
     
@@ -1147,8 +1231,9 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       }
     }
     
-    // Detect WordPress URL in message
-    const wpUrlInfo = wordpressPostService.detectWordPressUrl(text);
+    // Detect WordPress URL in message (ONLY if not an admin command)
+    // This ensures admin commands take priority over WordPress link processing
+    const wpUrlInfo = !isAdminCommand ? wordpressPostService.detectWordPressUrl(text) : null;
     if (wpUrlInfo) {
       console.log(`🔗 WordPress URL detected: ${wpUrlInfo.website}/${wpUrlInfo.slug}`);
       

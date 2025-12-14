@@ -1473,8 +1473,8 @@ function renderAds(list, reset = true, pagination = {}) {
     const catObj = allCategories.find((c) => c.name === ad.category);
     const catColor = catObj ? catObj.color : "#95a5a6";
 
-    // AI confidence badge
-    const aiConfidenceBadge = ad.aiConfidence
+    // AI confidence badge - only show for non-rejected ads
+    const aiConfidenceBadge = ad.status !== 'rejected' && ad.aiConfidence
       ? `<span style="background: ${
           ad.aiConfidence > 70
             ? "#28a745"
@@ -1500,12 +1500,24 @@ function renderAds(list, reset = true, pagination = {}) {
             <i class="fas fa-home"></i> مسعاك
           </span>`;
 
+    // Header styling based on status
+    const isRejected = ad.status === 'rejected';
+    const headerBgColor = isRejected ? 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)' : '#5a67d8';
+    
+    // Rejection reason badge for header
+    const rejectionBadge = isRejected && ad.rejectionReason
+      ? `<div style="margin-top: 8px; background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+          <i class="fas fa-ban"></i>
+          <span style="direction: rtl;">❌ ${escapeHtml(ad.rejectionReason.length > 60 ? ad.rejectionReason.substring(0, 60) + '...' : ad.rejectionReason)}</span>
+        </div>`
+      : '';
+
     el.innerHTML = `
       <div class="card-body">
         <!-- FAQ-style Header (Clickable) -->
         <div class="ad-faq-header" data-ad-id="${
           ad.id
-        }" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #5a67d8; color: white; border-radius: 8px; transition: all 0.3s ease;">
+        }" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 12px; background: ${headerBgColor}; color: white; border-radius: 8px; transition: all 0.3s ease;">
           <div style="flex: 1;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;">
               <span style="background: rgba(255,255,255,0.3); padding: 4px 10px; border-radius: 6px; font-weight: bold; margin-right: 5px;">#${
@@ -1521,6 +1533,7 @@ function renderAds(list, reset = true, pagination = {}) {
               }</strong>
               ${aiConfidenceBadge}
               ${websiteBadge}
+              ${isRejected ? '<span style="background: rgba(255,255,255,0.3); padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: bold;"><i class="fas fa-times-circle"></i> مرفوض</span>' : ''}
             </div>
             <div style="display: flex; gap: 15px; align-items: center; font-size: 0.9rem; opacity: 0.95; flex-wrap: wrap;">
               <span><i class="fas fa-users"></i> From: ${
@@ -1529,11 +1542,12 @@ function renderAds(list, reset = true, pagination = {}) {
               <span><i class="fas fa-clock"></i> ${new Date(
                 ad.timestamp
               ).toLocaleString()}</span>
-              <span><i class="fas fa-tag"></i> ${ad.status}</span>
+              ${!isRejected ? `<span><i class="fas fa-tag"></i> ${ad.status}</span>` : ''}
               <span style="color: ${catColor}; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 12px;"><i class="fas fa-folder"></i> ${
       ad.category || "None"
     }</span>
             </div>
+            ${rejectionBadge}
           </div>
         </div>
 
@@ -1588,11 +1602,16 @@ function renderAds(list, reset = true, pagination = {}) {
               ? `
           <!-- Enhanced Version Section -->
           <div style="margin-bottom: 20px;">
-            <div style="background: #5a67d8; color: white; padding: 8px 15px; border-radius: 6px 6px 0 0; font-weight: bold; display: flex; align-items: center; gap: 8px;">
-              <i class="fas fa-sparkles"></i>
-              <span>✨ Enhanced Version</span>
+            <div style="background: #5a67d8; color: white; padding: 8px 15px; border-radius: 6px 6px 0 0; font-weight: bold; display: flex; align-items: center; justify-content: space-between;">
+              <span style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-sparkles"></i>
+                <span>✨ Enhanced Version</span>
+              </span>
+              <button onclick="copyAdContentToClipboard('${ad.id}', 'enhanced-main')" class="btn btn-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <i class="fas fa-copy"></i> Copy
+              </button>
             </div>
-            <div style="white-space:pre-wrap; padding: 15px; background: #f0f8ff; border: 2px solid #5a67d8; border-top: none; border-radius: 0 0 6px 6px;">
+            <div id="ad-content-enhanced-main-${ad.id}" style="white-space:pre-wrap; padding: 15px; background: #f0f8ff; border: 2px solid #5a67d8; border-top: none; border-radius: 0 0 6px 6px;">
               ${escapeHtml(ad.enhancedText)}
               ${
                 ad.isEdited
@@ -1616,22 +1635,32 @@ function renderAds(list, reset = true, pagination = {}) {
           
           <!-- Original Version Section -->
           <div style="margin-bottom: 20px;">
-            <div style="background: #6c757d; color: white; padding: 8px 15px; border-radius: 6px 6px 0 0; font-weight: bold; display: flex; align-items: center; gap: 8px;">
-              <i class="fas fa-file-alt"></i>
-              <span>📄 Original Version</span>
+            <div style="background: #6c757d; color: white; padding: 8px 15px; border-radius: 6px 6px 0 0; font-weight: bold; display: flex; align-items: center; justify-content: space-between;">
+              <span style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-file-alt"></i>
+                <span>📄 Original Version</span>
+              </span>
+              <button onclick="copyAdContentToClipboard('${ad.id}', 'original-main')" class="btn btn-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <i class="fas fa-copy"></i> Copy
+              </button>
             </div>
-            <div style="white-space:pre-wrap; padding: 15px; background: #f5f5f5; border: 2px solid #6c757d; border-top: none; border-radius: 0 0 6px 6px;">
+            <div id="ad-content-original-main-${ad.id}" style="white-space:pre-wrap; padding: 15px; background: #f5f5f5; border: 2px solid #6c757d; border-top: none; border-radius: 0 0 6px 6px;">
               ${escapeHtml(ad.text)}
             </div>
           </div>
           `
               : `
           <div style="margin-bottom: 20px;">
-            <div style="background: #6c757d; color: white; padding: 8px 15px; border-radius: 6px 6px 0 0; font-weight: bold; display: flex; align-items: center; gap: 8px;">
-              <i class="fas fa-file-alt"></i>
-              <span>📄 Ad Content</span>
+            <div style="background: #6c757d; color: white; padding: 8px 15px; border-radius: 6px 6px 0 0; font-weight: bold; display: flex; align-items: center; justify-content: space-between;">
+              <span style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-file-alt"></i>
+                <span>📄 Ad Content</span>
+              </span>
+              <button onclick="copyAdContentToClipboard('${ad.id}', 'main')" class="btn btn-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <i class="fas fa-copy"></i> Copy
+              </button>
             </div>
-            <div style="white-space:pre-wrap; padding: 15px; background: #f5f5f5; border: 2px solid #6c757d; border-top: none; border-radius: 0 0 6px 6px;">
+            <div id="ad-content-main-${ad.id}" style="white-space:pre-wrap; padding: 15px; background: #f5f5f5; border: 2px solid #6c757d; border-top: none; border-radius: 0 0 6px 6px;">
               ${escapeHtml(ad.text)}
             </div>
           </div>
