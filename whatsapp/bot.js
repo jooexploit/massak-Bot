@@ -116,6 +116,15 @@ let totalMessagesProcessed = 0;
 let messageHandlerErrors = 0;
 const ADMIN_NOTIFICATION_JID = "201090952790@s.whatsapp.net"; // Admin for error notifications
 
+// ============================================
+// 🏓 KEEPALIVE PING TRACKING
+// Tracks ping failures to detect zombie connections
+// ============================================
+let keepalivePingInterval = null;
+let lastSuccessfulPing = Date.now();
+let consecutivePingFailures = 0;
+const MAX_PING_FAILURES = 3;
+
 function loadAds() {
   try {
     if (!fs.existsSync(path.join(__dirname, "..", "data"))) {
@@ -1141,24 +1150,84 @@ async function initializeBot() {
 
     // ============================================
     // 🏓 WEBSOCKET KEEPALIVE PING
-    // Periodically ping to keep connection alive
+    // Actively validates connection with timeout and failure tracking
     // ============================================
-    let keepalivePingInterval = null;
     const startKeepalivePing = () => {
       if (keepalivePingInterval) clearInterval(keepalivePingInterval);
+      consecutivePingFailures = 0;
+      lastSuccessfulPing = Date.now();
       
       keepalivePingInterval = setInterval(async () => {
         if (connectionStatus === "connected" && sock) {
           try {
-            // Query own status to keep connection alive
-            await sock.fetchStatus(sock.user?.id);
-            console.log(`🏓 [KEEPALIVE] Ping successful`);
+            const pingStart = Date.now();
+            // Use presenceSubscribe with timeout - requires actual server response
+            await Promise.race([
+              sock.presenceSubscribe(sock.user?.id),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Ping timeout')), 15000))
+            ]);
+            const pingLatency = Date.now() - pingStart;
+            console.log(`🏓 [KEEPALIVE] Ping successful (${pingLatency}ms)`);
+            lastSuccessfulPing = Date.now();
+            consecutivePingFailures = 0;
           } catch (pingError) {
-            console.warn(`⚠️ [KEEPALIVE] Ping failed: ${pingError.message}`);
-            // If ping fails multiple times, the auto-reconnect will catch it
+            consecutivePingFailures++;
+            console.warn(`⚠️ [KEEPALIVE] Ping failed (${consecutivePingFailures}/${MAX_PING_FAILURES}): ${pingError.message}`);
+            
+            if (consecutivePingFailures >= MAX_PING_FAILURES) {
+              console.error(`🚨 [KEEPALIVE] ${MAX_PING_FAILURES} consecutive ping failures - ZOMBIE CONNECTION DETECTED!`);
+              
+              // Notify admin
+              try {
+                await sock.sendMessage(ADMIN_NOTIFICATION_JID, {
+                  text: `🚨 *اتصال ميت (Zombie)*\n\n⚠️ فشل الـ Ping ${MAX_PING_FAILURES} مرات متتالية\n🔄 جاري إعادة الاتصال...`
+                });
+              } catch (e) { /* ignore */ }
+              
+              // Clear interval
+              if (keepalivePingInterval) {
+                clearInterval(keepalivePingInterval);
+                keepalivePingInterval = null;
+              }
+              
+              // Force reconnection
+              console.log("🔌 Forcing socket close due to ping failures...");
+              try {
+                if (sock) {
+                  sock.ev.removeAllListeners();
+                  if (sock.ws && sock.ws.readyState === sock.ws.OPEN) {
+                    sock.ws.close();
+                  }
+                  sock = null;
+                }
+              } catch (closeError) {
+                console.warn("Socket cleanup error:", closeError.message);
+              }
+              
+              // CRITICAL: Release locks BEFORE setTimeout
+              releaseInitLock();
+              initInProgress = false;
+              isReconnecting = false;
+              reconnectAttempts = 0;
+              connectionStatus = "reconnecting";
+              totalMessagesProcessed = 0;
+              lastMessageReceivedAt = Date.now();
+              consecutivePingFailures = 0;
+              
+              // Wait then reinitialize
+              setTimeout(async () => {
+                console.log("🚀 Reinitializing after ping failure...");
+                try {
+                  await initializeBot();
+                  console.log("✅ Ping-failure reconnect completed!");
+                } catch (reinitError) {
+                  console.error("❌ Ping-failure reconnect failed:", reinitError.message);
+                }
+              }, 3000);
+            }
           }
         }
-      }, 5 * 60 * 1000); // Ping every 5 minutes
+      }, 2 * 60 * 1000); // Ping every 2 minutes (was 5)
     };
 
     // CRITICAL: Register creds.update BEFORE connection.update
@@ -1442,10 +1511,10 @@ async function initializeBot() {
           }
           
           // AUTO-RECONNECT TRIGGER CONDITIONS:
-          // Scenario A: We received messages before but stopped receiving (15 min)
-          // Scenario B: We never received ANY messages for 30 minutes (fresh start failure)
-          const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes (was 20)
-          const NEVER_RECEIVED_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes (was 60)
+          // Scenario A: We received messages before but stopped receiving (10 min)
+          // Scenario B: We never received ANY messages for 20 minutes (fresh start failure)
+          const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes (was 15)
+          const NEVER_RECEIVED_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes (was 30)
           
           const scenarioA_StaleAfterWorking = 
             hasReceivedFirstMessage && 
@@ -1454,7 +1523,7 @@ async function initializeBot() {
           const scenarioB_NeverReceivedAny = 
             !hasReceivedFirstMessage && 
             totalMessagesProcessed === 0 && 
-            minutesSinceConnectionStart >= 30 &&
+            minutesSinceConnectionStart >= 20 &&
             (Date.now() - connectionStartTime) > NEVER_RECEIVED_THRESHOLD_MS;
           
           const shouldAutoReconnect = scenarioA_StaleAfterWorking || scenarioB_NeverReceivedAny;
@@ -1481,10 +1550,17 @@ async function initializeBot() {
               messageHandlerHealthCheckInterval = null;
             }
             
+            // Also clear keepalive ping interval
+            if (keepalivePingInterval) {
+              clearInterval(keepalivePingInterval);
+              keepalivePingInterval = null;
+            }
+            
             // Reset counters for fresh start
             totalMessagesProcessed = 0;
             messageHandlerErrors = 0;
             lastMessageReceivedAt = Date.now();
+            consecutivePingFailures = 0;
             
             // FORCE RECONNECTION
             console.log("🔌 Forcing socket close...");
@@ -1500,17 +1576,17 @@ async function initializeBot() {
               console.error("Error closing socket:", closeError.message);
             }
             
-            // Set status and trigger reconnect
-            connectionStatus = "reconnecting";
+            // CRITICAL FIX: Release locks BEFORE setTimeout, not inside it
+            releaseInitLock();
+            initInProgress = false;
             isReconnecting = false;
             reconnectAttempts = 0;
+            connectionStatus = "reconnecting";
             
             // Wait a moment then reinitialize
             console.log("⏳ Waiting 3 seconds before reinitializing...");
             setTimeout(async () => {
               console.log("🚀 Reinitializing bot connection...");
-              releaseInitLock();
-              initInProgress = false;
               try {
                 await initializeBot();
                 console.log("✅ Auto-reconnect completed!");
@@ -1522,13 +1598,13 @@ async function initializeBot() {
             return; // Exit this interval callback
           }
           
-          // Warning at 10 minutes (before auto-reconnect at 15 min)
-          if (timeSinceLastMessage > 10 * 60 * 1000 && hasReceivedFirstMessage) {
-            console.warn(`⚠️ [WARNING] No messages in ${minutesSinceLastMessage} minutes. Auto-reconnect will trigger at 15 minutes.`);
+          // Warning at 7 minutes (before auto-reconnect at 10 min)
+          if (timeSinceLastMessage > 7 * 60 * 1000 && hasReceivedFirstMessage) {
+            console.warn(`⚠️ [WARNING] No messages in ${minutesSinceLastMessage} minutes. Auto-reconnect will trigger at 10 minutes.`);
           }
-        }, 3 * 60 * 1000); // Check every 3 minutes (was 5)
+        }, 2 * 60 * 1000); // Check every 2 minutes (was 3)
 
-        console.log("✅ Auto-reconnect health monitor initialized (triggers at 15min stale / 30min no messages)");
+        console.log("✅ Auto-reconnect health monitor initialized (triggers at 10min stale / 20min no messages)");
       }
     });
 
@@ -1558,8 +1634,10 @@ async function initializeBot() {
         return;
       }
 
+      // Process ALL messages, not just the first one
+      // (Baileys may batch multiple messages in a single upsert event)
+      for (const msg of messages) {
       try {
-        const msg = messages[0];
 
         // Log all incoming messages for debugging
         console.log(
@@ -2234,6 +2312,7 @@ async function initializeBot() {
           }
         }
       }
+      } // End for loop over messages
     });
 
     // Retry any pending ads from previous runs
