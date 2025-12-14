@@ -118,6 +118,7 @@ async function createMessage(data, createdBy = "admin") {
     id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
     name: data.name || "رسالة جديدة",
     content: data.content || "",
+    imagePath: data.imagePath || null, // Image path for sending with message
     dynamicWords: data.dynamicWords || {},
     variables: extractVariables(data.content || ""),
     createdBy,
@@ -146,6 +147,10 @@ async function updateMessage(id, data) {
     name: data.name !== undefined ? data.name : customMessages[index].name,
     content:
       data.content !== undefined ? data.content : customMessages[index].content,
+    imagePath:
+      data.imagePath !== undefined
+        ? data.imagePath
+        : customMessages[index].imagePath,
     dynamicWords:
       data.dynamicWords !== undefined
         ? data.dynamicWords

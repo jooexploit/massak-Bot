@@ -1449,7 +1449,7 @@ async function initializeBot() {
 
         // Initialize custom message scheduler
         const messageSchedulerService = require("../services/messageSchedulerService");
-        messageSchedulerService.initScheduler(sock, sendMessage);
+        messageSchedulerService.initScheduler(sock, sendMessage, sendImage);
         console.log("✅ Custom message scheduler initialized");
 
         // Start message queue processor for reliable delivery

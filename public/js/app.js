@@ -10722,7 +10722,8 @@ function createMessageCard(message) {
       ">${escapeHtml(message.content.substring(0, 200))}${message.content.length > 200 ? "..." : ""}</div>
       
       <!-- Stats -->
-      <div style="display: flex; gap: 15px; margin-bottom: 15px; font-size: 0.85rem; color: #666;">
+      <div style="display: flex; gap: 15px; margin-bottom: 15px; font-size: 0.85rem; color: #666; flex-wrap: wrap;">
+        ${message.imagePath ? `<span style="color: #1565c0;"><i class="fas fa-image" style="color: #42a5f5;"></i> صورة مرفقة</span>` : ""}
         ${variablesCount > 0 ? `<span><i class="fas fa-code" style="color: #3498db;"></i> ${variablesCount} متغير</span>` : ""}
         ${dynamicWordsCount > 0 ? `<span><i class="fas fa-random" style="color: #9b59b6;"></i> ${dynamicWordsCount} كلمة ديناميكية</span>` : ""}
       </div>
@@ -10855,6 +10856,9 @@ function openCreateMessageModal() {
   if (contentInput) contentInput.value = "";
   if (previewDiv) previewDiv.innerHTML = '<span style="color: #999;">المعاينة ستظهر هنا...</span>';
 
+  // Reset image UI
+  resetCustomMessageImageUI();
+  
   renderDynamicWordsUI();
   if (modal) modal.style.display = "flex";
 }
@@ -10993,10 +10997,93 @@ function updateMessagePreview() {
   previewDiv.innerHTML = preview ? escapeHtml(preview) : '<span style="color: #999;">المعاينة ستظهر هنا...</span>';
 }
 
+// Image preview and remove functions for custom messages
+function previewCustomMessageImage(input) {
+  const previewContainer = document.getElementById("custom-msg-image-preview-container");
+  const previewImg = document.getElementById("custom-msg-image-preview");
+  const filenameText = document.getElementById("custom-msg-image-filename");
+  const removeBtn = document.getElementById("custom-msg-remove-image-btn");
+
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    
+    // Check file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      alert("❌ حجم الصورة كبير جداً. الحد الأقصى 10 ميجابايت");
+      input.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      if (previewImg) previewImg.src = e.target.result;
+      if (filenameText) filenameText.textContent = file.name;
+      if (previewContainer) previewContainer.style.display = "block";
+      if (removeBtn) removeBtn.style.display = "inline-block";
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function removeCustomMessageImage() {
+  const input = document.getElementById("custom-msg-image-input");
+  const previewContainer = document.getElementById("custom-msg-image-preview-container");
+  const previewImg = document.getElementById("custom-msg-image-preview");
+  const filenameText = document.getElementById("custom-msg-image-filename");
+  const removeBtn = document.getElementById("custom-msg-remove-image-btn");
+
+  if (input) input.value = "";
+  if (previewImg) previewImg.src = "";
+  if (filenameText) filenameText.textContent = "";
+  if (previewContainer) previewContainer.style.display = "none";
+  if (removeBtn) removeBtn.style.display = "none";
+  
+  // Mark for removal when editing
+  customMessagesState.removeImage = true;
+}
+
+// Reset image UI for modal
+function resetCustomMessageImageUI() {
+  const input = document.getElementById("custom-msg-image-input");
+  const previewContainer = document.getElementById("custom-msg-image-preview-container");
+  const previewImg = document.getElementById("custom-msg-image-preview");
+  const filenameText = document.getElementById("custom-msg-image-filename");
+  const removeBtn = document.getElementById("custom-msg-remove-image-btn");
+
+  if (input) input.value = "";
+  if (previewImg) previewImg.src = "";
+  if (filenameText) filenameText.textContent = "";
+  if (previewContainer) previewContainer.style.display = "none";
+  if (removeBtn) removeBtn.style.display = "none";
+  customMessagesState.removeImage = false;
+  customMessagesState.existingImagePath = null;
+}
+
+// Show existing image in edit mode
+function showExistingImage(imagePath) {
+  if (!imagePath) return;
+  
+  const previewContainer = document.getElementById("custom-msg-image-preview-container");
+  const previewImg = document.getElementById("custom-msg-image-preview");
+  const filenameText = document.getElementById("custom-msg-image-filename");
+  const removeBtn = document.getElementById("custom-msg-remove-image-btn");
+
+  // Extract filename from path
+  const filename = imagePath.split(/[/\\]/).pop();
+  
+  if (previewImg) previewImg.src = `/api/bot/custom-messages/image/${filename}`;
+  if (filenameText) filenameText.textContent = filename;
+  if (previewContainer) previewContainer.style.display = "block";
+  if (removeBtn) removeBtn.style.display = "inline-block";
+  
+  customMessagesState.existingImagePath = imagePath;
+}
+
 // Save custom message
 async function handleSaveCustomMessage() {
   const nameInput = document.getElementById("custom-msg-name");
   const contentInput = document.getElementById("custom-msg-content");
+  const imageInput = document.getElementById("custom-msg-image-input");
   const saveBtn = document.getElementById("save-custom-message-btn");
 
   const name = nameInput?.value?.trim();
@@ -11018,15 +11105,26 @@ async function handleSaveCustomMessage() {
       ? `/api/bot/custom-messages/${customMessagesState.editingMessageId}`
       : "/api/bot/custom-messages";
 
+    // Use FormData for image upload support
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("content", content);
+    formData.append("dynamicWords", JSON.stringify(customMessagesState.dynamicWords));
+    
+    // Add image if selected
+    if (imageInput?.files?.length > 0) {
+      formData.append("image", imageInput.files[0]);
+    }
+    
+    // Mark for image removal if in edit mode and user removed the image
+    if (isEditing && customMessagesState.removeImage) {
+      formData.append("removeImage", "true");
+    }
+
     const response = await fetch(url, {
       method: isEditing ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({
-        name,
-        content,
-        dynamicWords: customMessagesState.dynamicWords,
-      }),
+      body: formData, // FormData automatically sets correct Content-Type
     });
 
     if (!response.ok) {
@@ -11067,6 +11165,12 @@ window.editCustomMessage = async function (id) {
   if (title) title.innerHTML = '<i class="fas fa-edit"></i> تعديل الرسالة';
   if (nameInput) nameInput.value = message.name;
   if (contentInput) contentInput.value = message.content;
+
+  // Reset then show existing image if any
+  resetCustomMessageImageUI();
+  if (message.imagePath) {
+    showExistingImage(message.imagePath);
+  }
 
   renderDynamicWordsUI();
   updateMessagePreview();

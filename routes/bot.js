@@ -7,6 +7,7 @@ const {
   getMessageHandlerHealth, // NEW: Health monitoring
   disconnectBot,
   sendMessage,
+  sendImage, // For sending images with custom messages
   getRecycleBin,
   restoreFromRecycleBin,
   deleteFromRecycleBin,
@@ -43,6 +44,39 @@ const {
 } = require("../services/aiService");
 const messageQueue = require("../services/messageQueue");
 const axios = require("axios");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+
+// Configure multer for custom message images
+const customMessageImagesDir = path.join(__dirname, "..", "data", "custom_message_images");
+if (!fs.existsSync(customMessageImagesDir)) {
+  fs.mkdirSync(customMessageImagesDir, { recursive: true });
+}
+
+const customMessageImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, customMessageImagesDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const filename = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}${ext}`;
+    cb(null, filename);
+  }
+});
+
+const uploadCustomMessageImage = multer({
+  storage: customMessageImageStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 const router = express.Router();
 
@@ -3738,6 +3772,7 @@ router.post(
   "/custom-messages",
   authenticateToken,
   authorizeRole(["admin"]),
+  uploadCustomMessageImage.single("image"),
   async (req, res) => {
     try {
       const { name, content, dynamicWords } = req.body;
@@ -3755,8 +3790,21 @@ router.post(
         });
       }
 
+      // Parse dynamicWords if it's a string (from FormData)
+      let parsedDynamicWords = dynamicWords;
+      if (typeof dynamicWords === "string") {
+        try {
+          parsedDynamicWords = JSON.parse(dynamicWords);
+        } catch (e) {
+          parsedDynamicWords = {};
+        }
+      }
+
+      // Get image path if uploaded
+      const imagePath = req.file ? req.file.path : null;
+
       const message = await customMessageService.createMessage(
-        { name, content, dynamicWords },
+        { name, content, dynamicWords: parsedDynamicWords, imagePath },
         req.user.username
       );
 
@@ -3776,10 +3824,11 @@ router.put(
   "/custom-messages/:id",
   authenticateToken,
   authorizeRole(["admin"]),
+  uploadCustomMessageImage.single("image"),
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, content, dynamicWords } = req.body;
+      const { name, content, dynamicWords, removeImage } = req.body;
 
       // Validate content if provided
       if (content) {
@@ -3792,10 +3841,49 @@ router.put(
         }
       }
 
+      // Parse dynamicWords if it's a string (from FormData)
+      let parsedDynamicWords = dynamicWords;
+      if (typeof dynamicWords === "string") {
+        try {
+          parsedDynamicWords = JSON.parse(dynamicWords);
+        } catch (e) {
+          parsedDynamicWords = undefined;
+        }
+      }
+
+      // Handle image: new upload, removal, or keep existing
+      let imagePath = undefined;
+      if (req.file) {
+        // New image uploaded
+        imagePath = req.file.path;
+        
+        // Delete old image if exists
+        const existingMessage = customMessageService.getMessageById(id);
+        if (existingMessage?.imagePath && fs.existsSync(existingMessage.imagePath)) {
+          try {
+            fs.unlinkSync(existingMessage.imagePath);
+          } catch (e) {
+            console.warn("Could not delete old image:", e.message);
+          }
+        }
+      } else if (removeImage === "true" || removeImage === true) {
+        // Remove existing image
+        imagePath = null;
+        const existingMessage = customMessageService.getMessageById(id);
+        if (existingMessage?.imagePath && fs.existsSync(existingMessage.imagePath)) {
+          try {
+            fs.unlinkSync(existingMessage.imagePath);
+          } catch (e) {
+            console.warn("Could not delete old image:", e.message);
+          }
+        }
+      }
+
       const message = await customMessageService.updateMessage(id, {
         name,
         content,
-        dynamicWords,
+        dynamicWords: parsedDynamicWords,
+        imagePath,
       });
 
       res.json({
@@ -3827,6 +3915,46 @@ router.delete(
     } catch (error) {
       console.error("Error deleting custom message:", error);
       res.status(500).json({ error: error.message || "Failed to delete custom message" });
+    }
+  }
+);
+
+// Serve custom message images
+router.get(
+  "/custom-messages/image/:filename",
+  authenticateToken,
+  (req, res) => {
+    try {
+      const { filename } = req.params;
+      
+      // Security: Only allow alphanumeric, underscore, dash, and dot in filename
+      if (!/^[a-zA-Z0-9_\-\.]+$/.test(filename)) {
+        return res.status(400).json({ error: "Invalid filename" });
+      }
+      
+      const imagePath = path.join(customMessageImagesDir, filename);
+      
+      // Check if file exists
+      if (!fs.existsSync(imagePath)) {
+        return res.status(404).json({ error: "Image not found" });
+      }
+      
+      // Determine content type
+      const ext = path.extname(filename).toLowerCase();
+      const contentTypes = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp'
+      };
+      const contentType = contentTypes[ext] || 'application/octet-stream';
+      
+      res.setHeader('Content-Type', contentType);
+      res.sendFile(imagePath);
+    } catch (error) {
+      console.error("Error serving custom message image:", error);
+      res.status(500).json({ error: "Failed to serve image" });
     }
   }
 );

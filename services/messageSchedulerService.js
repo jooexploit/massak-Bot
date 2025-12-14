@@ -5,6 +5,7 @@
  */
 
 const cron = require("node-cron");
+const fs = require("fs");
 const customMessageService = require("./customMessageService");
 
 // KSA Timezone
@@ -19,8 +20,9 @@ let sock = null;
 // Backup check interval
 let backupCheckInterval = null;
 
-// Reference to sendMessage function from bot.js
+// Reference to sendMessage and sendImage functions from bot.js
 let sendMessageFunc = null;
+let sendImageFunc = null;
 
 // ========================================
 // HELPER FUNCTIONS
@@ -279,16 +281,37 @@ async function sendToRecipients(schedule, processedMessage) {
             cleanPhone = "20" + cleanPhone;
           }
         }
-        jid = `${cleanPhone}@s.whatsapp.net`;
+         jid = `${cleanPhone}@s.whatsapp.net`;
       }
 
-      // Send message
-      if (sendMessageFunc) {
-        await sendMessageFunc(jid, personalizedMessage);
-      } else if (sock) {
-        await sock.sendMessage(jid, { text: personalizedMessage });
+      // Check if message has an image
+      const hasImage = message.imagePath && fs.existsSync(message.imagePath);
+      
+      // Send message with or without image
+      if (hasImage) {
+        // Read image buffer
+        const imageBuffer = fs.readFileSync(message.imagePath);
+        
+        if (sendImageFunc) {
+          await sendImageFunc(jid, imageBuffer, personalizedMessage);
+        } else if (sock) {
+          await sock.sendMessage(jid, { 
+            image: imageBuffer, 
+            caption: personalizedMessage 
+          });
+        } else {
+          throw new Error("No socket available");
+        }
+        console.log(`   📸 Sent with image to ${recipient.name}`);
       } else {
-        throw new Error("No socket available");
+        // Send text only
+        if (sendMessageFunc) {
+          await sendMessageFunc(jid, personalizedMessage);
+        } else if (sock) {
+          await sock.sendMessage(jid, { text: personalizedMessage });
+        } else {
+          throw new Error("No socket available");
+        }
       }
 
       result.successCount++;
@@ -500,10 +523,12 @@ function reschedule(scheduleId) {
  * Initialize the message scheduler
  * @param {object} sockInstance - WhatsApp socket instance
  * @param {function} sendMessage - sendMessage function from bot.js
+ * @param {function} sendImage - sendImage function from bot.js (optional)
  */
-function initScheduler(sockInstance, sendMessage = null) {
+function initScheduler(sockInstance, sendMessage = null, sendImage = null) {
   sock = sockInstance;
   sendMessageFunc = sendMessage;
+  sendImageFunc = sendImage;
 
   console.log("✅ Initializing custom message scheduler...");
 
@@ -548,10 +573,13 @@ function stopScheduler() {
 /**
  * Update socket instance (call when reconnecting)
  */
-function updateSocket(sockInstance, sendMessage = null) {
+function updateSocket(sockInstance, sendMessage = null, sendImage = null) {
   sock = sockInstance;
   if (sendMessage) {
     sendMessageFunc = sendMessage;
+  }
+  if (sendImage) {
+    sendImageFunc = sendImage;
   }
   console.log("🔄 Custom message scheduler socket updated");
 }

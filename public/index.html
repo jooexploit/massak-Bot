@@ -1595,6 +1595,36 @@
                                     placeholder="مثال: رسالة ترحيب يومية" style="font-size: 1rem;">
                             </div>
 
+                            <!-- Image Upload Section -->
+                            <div
+                                style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 20px; border-radius: 10px; border: 2px solid #42a5f5;">
+                                <label style="font-weight: bold; margin-bottom: 15px; display: block; color: #1565c0;">
+                                    🖼️ صورة مرفقة (اختياري):
+                                </label>
+                                <div id="custom-msg-image-preview-container"
+                                    style="display: none; margin-bottom: 15px; text-align: center;">
+                                    <img id="custom-msg-image-preview" src="" alt="معاينة الصورة"
+                                        style="max-width: 100%; max-height: 200px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                                    <p id="custom-msg-image-filename"
+                                        style="margin-top: 8px; color: #666; font-size: 0.85rem;"></p>
+                                </div>
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <label for="custom-msg-image-input" class="btn btn-primary"
+                                        style="cursor: pointer; margin: 0;">
+                                        <i class="fas fa-upload"></i> اختر صورة
+                                    </label>
+                                    <input type="file" id="custom-msg-image-input" accept="image/*"
+                                        style="display: none;" onchange="previewCustomMessageImage(this)">
+                                    <button type="button" id="custom-msg-remove-image-btn" class="btn btn-danger"
+                                        style="display: none;" onclick="removeCustomMessageImage()">
+                                        <i class="fas fa-trash"></i> إزالة الصورة
+                                    </button>
+                                </div>
+                                <small style="color: #1976d2; display: block; margin-top: 10px;">
+                                    💡 الصورة ستُرسل مع نص الرسالة كتعليق. الحد الأقصى: 10 ميجابايت
+                                </small>
+                            </div>
+
                             <!-- Message Content -->
                             <div>
                                 <label style="font-weight: bold; margin-bottom: 8px; display: block;">
