@@ -587,11 +587,14 @@ function isAdmin(phoneNumber) {
 
 /**
  * Parse reminder command
- * Format: تذكير +201155719115 يوم/تاريخ ساعة رسالة
+ * Format: تذكير +201155719115 [اسم] يوم/تاريخ ساعة رسالة
+ * The name is optional - if the third part looks like a date, no name is assumed
  * Examples:
- * - تذكير +201155719115 غدا 3:00م اتصل بالعميل
- * - تذكير +201155719115 2025-11-10 14:30 موعد مع العميل
- * - تذكير +201155719115 يوم 5:00م متابعة الطلب
+ * - تذكير +201155719115 غدا 3:00م اتصل بالعميل (without name)
+ * - تذكير +201155719115 أحمد غدا 3:00م اتصل بالعميل (with name)
+ * - تذكير +201155719115 2025-11-10 14:30 موعد مع العميل (without name)
+ * - تذكير +201155719115 محمد علي 2025-11-10 14:30 موعد (with name, 2 words)
+ * - تذكير +201155719115 يوم 5:00م متابعة الطلب (without name)
  */
 function parseReminderCommand(message) {
   const parts = message.trim().split(/\s+/);
@@ -600,15 +603,57 @@ function parseReminderCommand(message) {
     return {
       success: false,
       error:
-        "❌ صيغة الأمر غير صحيحة\n\n✅ الصيغة الصحيحة:\nتذكير +966xxxxxxxxx يوم/تاريخ ساعة رسالة\n\nمثال:\nتذكير +201155719115 غدا 3:00م اتصل بالعميل",
+        "❌ صيغة الأمر غير صحيحة\n\n✅ الصيغة الصحيحة:\nتذكير +966xxxxxxxxx [اسم] يوم/تاريخ ساعة رسالة\n\nأمثلة:\n• تذكير +201155719115 غدا 3:00م اتصل بالعميل\n• تذكير +201155719115 أحمد غدا 3:00م اتصل بالعميل",
     };
   }
 
   const command = parts[0]; // تذكير
   const targetNumber = parts[1]; // +201155719115
-  const dateInput = parts[2]; // يوم/غدا/تاريخ
-  const timeInput = parts[3]; // 3:00م
-  const messageText = parts.slice(4).join(" "); // باقي الرسالة
+  
+  // Check if parts[2] looks like a date or is a name
+  // Date patterns: اليوم, يوم, غدا, غداً, بعدغد, بعد_غد, YYYY-MM-DD, DD/MM/YYYY
+  const datePatterns = ["اليوم", "يوم", "غدا", "غداً", "بعدغد", "بعد_غد"];
+  const looksLikeDate = (str) => {
+    if (datePatterns.includes(str)) return true;
+    if (str.includes("-") && /^\d{4}-\d{1,2}-\d{1,2}$/.test(str)) return true;
+    if (str.includes("/") && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) return true;
+    return false;
+  };
+  
+  let name = null;
+  let dateIndex = 2; // Default: no name, date starts at index 2
+  
+  // Check if parts[2] is a name (not a date)
+  if (!looksLikeDate(parts[2])) {
+    // parts[2] is a name, now find where the date starts
+    // The name can be multiple words until we find a date pattern
+    let nameWords = [];
+    for (let i = 2; i < parts.length - 2; i++) {
+      if (looksLikeDate(parts[i])) {
+        dateIndex = i;
+        break;
+      }
+      nameWords.push(parts[i]);
+    }
+    
+    if (nameWords.length > 0) {
+      name = nameWords.join(" ");
+    }
+  }
+  
+  // Now extract date, time, and message based on dateIndex
+  const dateInput = parts[dateIndex]; // يوم/غدا/تاريخ
+  const timeInput = parts[dateIndex + 1]; // 3:00م
+  const messageText = parts.slice(dateIndex + 2).join(" "); // باقي الرسالة
+  
+  // Validate we have enough parts
+  if (!dateInput || !timeInput || !messageText) {
+    return {
+      success: false,
+      error:
+        "❌ صيغة الأمر غير صحيحة\n\n✅ الصيغة الصحيحة:\nتذكير +966xxxxxxxxx [اسم] يوم/تاريخ ساعة رسالة\n\nأمثلة:\n• تذكير +201155719115 غدا 3:00م اتصل بالعميل\n• تذكير +201155719115 أحمد غدا 3:00م اتصل بالعميل",
+    };
+  }
 
   // Validate phone number
   if (!targetNumber.startsWith("+") || targetNumber.length < 10) {
@@ -677,6 +722,7 @@ function parseReminderCommand(message) {
     success: true,
     data: {
       targetNumber: targetNumber.replace("+", ""),
+      name: name, // Can be null if not provided
       scheduledDateTime: reminderDateTime.getTime(),
       message: messageText,
       createdAt: Date.now(),
@@ -801,6 +847,7 @@ async function createReminder(adminNumber, reminderData) {
     id: Date.now().toString(),
     createdBy: adminNumber.replace("@s.whatsapp.net", ""),
     targetNumber: reminderData.targetNumber,
+    name: reminderData.name || null, // Optional name field
     scheduledDateTime: reminderData.scheduledDateTime,
     message: reminderData.message,
     status: "pending", // pending, sent, failed
@@ -931,11 +978,12 @@ function getAdminHelpMessage() {
 
 *4️⃣ إنشاء تذكير*
 📝 *الأمر:* تذكير
-📋 *الصيغة:* تذكير +رقم تاريخ وقت رسالة
+📋 *الصيغة:* تذكير +رقم [اسم] تاريخ وقت رسالة
 
 *أمثلة:*
 • تذكير +201155719115 اليوم 3:00م اتصل بالعميل
-• تذكير +966508007053 غدا 14:30 موعد مهم
+• تذكير +201155719115 أحمد اليوم 3:00م اتصل بالعميل
+• تذكير +966508007053 محمد علي غدا 14:30 موعد مهم
 • تذكير +201155719115 2025-11-10 9:00ص متابعة الطلب
 
 *صيغ التاريخ:*
@@ -1559,7 +1607,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
       return `✅ *تم إنشاء التذكير بنجاح*
 
-📱 *رقم المستلم:* +${reminder.targetNumber}
+📱 *رقم المستلم:* +${reminder.targetNumber}${reminder.name ? `\n👤 *الاسم:* ${reminder.name}` : ""}
 📅 *التاريخ:* ${formatKSADate(reminder.scheduledDateTime, {
         year: "numeric",
         month: "long",

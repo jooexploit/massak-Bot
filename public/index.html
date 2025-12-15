@@ -585,7 +585,45 @@
                                 </div>
                             </div>
 
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                            <!-- Hasak Categories Container (shown when hasak is selected) -->
+                            <div id="hasak-category-container" style="display:none; margin-bottom: 0.5rem;">
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                                    <div>
+                                        <label>arc_category (تصنيف حساك) *</label>
+                                        <select id="wp-preview-hasak-category" class="form-control"
+                                            onchange="updateHasakArcFields()">
+                                            <option value="">اختر التصنيف</option>
+                                            <option value="أسر منتجة" data-id="10">👨‍👩‍👧‍👦 أسر منتجة</option>
+                                            <option value="إعلان تجاري ربحي مميز" data-id="24">💰 إعلان تجاري ربحي مميز
+                                            </option>
+                                            <option value="الفعاليات والانشطة" data-id="19">🎉 الفعاليات والانشطة
+                                            </option>
+                                            <option value="برامج ووظائف" data-id="30">💼 برامج ووظائف</option>
+                                            <option value="توصيل سيارات" data-id="25">🚗 توصيل سيارات</option>
+                                            <option value="حراج الحسا" data-id="18">🛒 حراج الحسا</option>
+                                            <option value="فعالية مجانية مميزة" data-id="17">🎁 فعالية مجانية مميزة
+                                            </option>
+                                            <option value="كوفيهات أو مطاعم" data-id="21">☕ كوفيهات أو مطاعم</option>
+                                            <option value="محلات تجارية" data-id="23">🏪 محلات تجارية</option>
+                                            <option value="مركز ترفيهي" data-id="20">🎢 مركز ترفيهي</option>
+                                            <option value="منتجعات وإستراحات" data-id="22">🏖️ منتجعات وإستراحات
+                                            </option>
+                                        </select>
+                                        <small style="color: #1565c0; font-size: 0.75rem;">اختر تصنيف حساك
+                                            المناسب</small>
+                                    </div>
+                                    <div>
+                                        <label>arc_subcategory (تصنيف فرعي)</label>
+                                        <input id="wp-preview-hasak-subcategory" class="form-control"
+                                            placeholder="أدخل التصنيف الفرعي" />
+                                        <small style="color: #666; font-size: 0.75rem;">اختياري - التصنيف الفرعي</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Masaak Categories Container (shown when masaak is selected) -->
+                            <div id="masaak-category-container"
+                                style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
                                 <div>
                                     <label>arc_category (تصنيف العقار)</label>
                                     <input id="wp-preview-arc-category" class="form-control"
@@ -1025,6 +1063,12 @@
                             <input type="text" id="reminder-target-number" class="form-control"
                                 placeholder="e.g., 966508007053" required>
                             <small style="color: #666;">Enter without + prefix</small>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-user"></i> Name (Optional)</label>
+                            <input type="text" id="reminder-target-name" class="form-control"
+                                placeholder="e.g., أحمد محمد">
+                            <small style="color: #666;">Optional: Name of the person for easy identification</small>
                         </div>
                         <div class="form-group">
                             <label><i class="fas fa-calendar"></i> Scheduled Date & Time (KSA) *</label>
@@ -1780,8 +1824,50 @@
                                     placeholder="مثال: إرسال يومي للعملاء">
                             </div>
 
-                            <!-- Days Selection -->
-                            <div style="background: #e3f2fd; padding: 20px; border-radius: 10px;">
+                            <!-- Repeat Type Selection -->
+                            <div
+                                style="background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%); padding: 20px; border-radius: 10px; border: 2px solid #ab47bc;">
+                                <label style="font-weight: bold; margin-bottom: 15px; display: block; color: #7b1fa2;">
+                                    🔄 نوع التكرار:
+                                </label>
+                                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                                    <label
+                                        style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 18px; background: white; border-radius: 25px; border: 2px solid transparent; transition: all 0.2s;"
+                                        class="repeat-type-option">
+                                        <input type="radio" name="schedule-repeat-type" value="daily" checked
+                                            onchange="toggleRepeatTypeUI()">
+                                        <span style="font-weight: 500;">📅 يومي</span>
+                                    </label>
+                                    <label
+                                        style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 18px; background: white; border-radius: 25px; border: 2px solid transparent; transition: all 0.2s;"
+                                        class="repeat-type-option">
+                                        <input type="radio" name="schedule-repeat-type" value="weekly"
+                                            onchange="toggleRepeatTypeUI()">
+                                        <span style="font-weight: 500;">📆 أسبوعي</span>
+                                    </label>
+                                    <label
+                                        style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 18px; background: white; border-radius: 25px; border: 2px solid transparent; transition: all 0.2s;"
+                                        class="repeat-type-option">
+                                        <input type="radio" name="schedule-repeat-type" value="monthly"
+                                            onchange="toggleRepeatTypeUI()">
+                                        <span style="font-weight: 500;">🗓️ شهري</span>
+                                    </label>
+                                    <label
+                                        style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 18px; background: white; border-radius: 25px; border: 2px solid transparent; transition: all 0.2s;"
+                                        class="repeat-type-option">
+                                        <input type="radio" name="schedule-repeat-type" value="yearly"
+                                            onchange="toggleRepeatTypeUI()">
+                                        <span style="font-weight: 500;">🎂 سنوي</span>
+                                    </label>
+                                </div>
+                                <small style="color: #7b1fa2; margin-top: 10px; display: block;">
+                                    💡 يحدد متى سيتم تكرار الإرسال
+                                </small>
+                            </div>
+
+                            <!-- Days Selection (for daily/weekly) -->
+                            <div id="schedule-days-section"
+                                style="background: #e3f2fd; padding: 20px; border-radius: 10px;">
                                 <label style="font-weight: bold; margin-bottom: 15px; display: block; color: #1565c0;">
                                     📅 أيام الإرسال:
                                 </label>
@@ -1815,6 +1901,122 @@
                                         <input type="checkbox" class="schedule-day" value="saturday"> السبت
                                     </label>
                                 </div>
+                            </div>
+
+                            <!-- Monthly Settings (hidden by default) -->
+                            <div id="schedule-monthly-section"
+                                style="display: none; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 20px; border-radius: 10px; border: 2px solid #66bb6a;">
+                                <label style="font-weight: bold; margin-bottom: 15px; display: block; color: #2e7d32;">
+                                    📅 يوم الشهر:
+                                </label>
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <select id="schedule-day-of-month" class="form-control"
+                                        style="width: 120px; font-size: 1rem;">
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                        <option value="6">6</option>
+                                        <option value="7">7</option>
+                                        <option value="8">8</option>
+                                        <option value="9">9</option>
+                                        <option value="10">10</option>
+                                        <option value="11">11</option>
+                                        <option value="12">12</option>
+                                        <option value="13">13</option>
+                                        <option value="14">14</option>
+                                        <option value="15" selected>15</option>
+                                        <option value="16">16</option>
+                                        <option value="17">17</option>
+                                        <option value="18">18</option>
+                                        <option value="19">19</option>
+                                        <option value="20">20</option>
+                                        <option value="21">21</option>
+                                        <option value="22">22</option>
+                                        <option value="23">23</option>
+                                        <option value="24">24</option>
+                                        <option value="25">25</option>
+                                        <option value="26">26</option>
+                                        <option value="27">27</option>
+                                        <option value="28">28</option>
+                                        <option value="29">29</option>
+                                        <option value="30">30</option>
+                                        <option value="31">31</option>
+                                    </select>
+                                    <span style="color: #2e7d32;">من كل شهر</span>
+                                </div>
+                                <small style="color: #388e3c; margin-top: 10px; display: block;">
+                                    💡 إذا اخترت يوم 31 وكان الشهر أقل من ذلك، سيتم الإرسال في آخر يوم من الشهر
+                                </small>
+                            </div>
+
+                            <!-- Yearly Settings (hidden by default) -->
+                            <div id="schedule-yearly-section"
+                                style="display: none; background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%); padding: 20px; border-radius: 10px; border: 2px solid #ffc107;">
+                                <label style="font-weight: bold; margin-bottom: 15px; display: block; color: #f57c00;">
+                                    🎂 التاريخ السنوي:
+                                </label>
+                                <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                                    <div>
+                                        <label style="font-size: 0.9rem; color: #f57c00;">اليوم:</label>
+                                        <select id="schedule-yearly-day" class="form-control"
+                                            style="width: 80px; font-size: 1rem;">
+                                            <option value="1">1</option>
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                            <option value="4">4</option>
+                                            <option value="5">5</option>
+                                            <option value="6">6</option>
+                                            <option value="7">7</option>
+                                            <option value="8">8</option>
+                                            <option value="9">9</option>
+                                            <option value="10">10</option>
+                                            <option value="11">11</option>
+                                            <option value="12">12</option>
+                                            <option value="13">13</option>
+                                            <option value="14">14</option>
+                                            <option value="15" selected>15</option>
+                                            <option value="16">16</option>
+                                            <option value="17">17</option>
+                                            <option value="18">18</option>
+                                            <option value="19">19</option>
+                                            <option value="20">20</option>
+                                            <option value="21">21</option>
+                                            <option value="22">22</option>
+                                            <option value="23">23</option>
+                                            <option value="24">24</option>
+                                            <option value="25">25</option>
+                                            <option value="26">26</option>
+                                            <option value="27">27</option>
+                                            <option value="28">28</option>
+                                            <option value="29">29</option>
+                                            <option value="30">30</option>
+                                            <option value="31">31</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.9rem; color: #f57c00;">الشهر:</label>
+                                        <select id="schedule-yearly-month" class="form-control"
+                                            style="width: 130px; font-size: 1rem;">
+                                            <option value="1">يناير</option>
+                                            <option value="2">فبراير</option>
+                                            <option value="3">مارس</option>
+                                            <option value="4">أبريل</option>
+                                            <option value="5">مايو</option>
+                                            <option value="6">يونيو</option>
+                                            <option value="7">يوليو</option>
+                                            <option value="8">أغسطس</option>
+                                            <option value="9">سبتمبر</option>
+                                            <option value="10">أكتوبر</option>
+                                            <option value="11">نوفمبر</option>
+                                            <option value="12" selected>ديسمبر</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <small style="color: #f57c00; margin-top: 10px; display: block;">
+                                    💡 سيتم الإرسال في نفس التاريخ كل سنة
+                                </small>
                             </div>
 
                             <!-- Time Range -->
@@ -2104,9 +2306,6 @@
                             Add multiple API keys. If one reaches its limit, the system will automatically switch to the
                             next one. Drag to reorder priority.
                         </p>
-
-                        <div id="api-keys-list" style="margin-bottom: 1rem;"></div>
-
                         <button id="add-api-key-btn" class="btn btn-success" style="margin-bottom: 1rem;">
                             <i class="fas fa-plus"></i> Add New API Key
                         </button>
@@ -2132,6 +2331,9 @@
                                 </button>
                             </div>
                         </div>
+                        <div id="api-keys-list" style="margin-bottom: 1rem;"></div>
+
+
                     </div>
                 </div>
 
@@ -2592,6 +2794,96 @@
             " للإيجار": ["شقة", "دبلكس", "فيلا", "بيت", "شقة دبلكسية", "عمارة", "استراحة", "شالية", "محل تجاري", "مزرعة", "مستودع"]
         };
 
+        // Hasak Categories Mapping (category name -> WordPress ID)
+        const HASAK_CATEGORIES_MAP = {
+            "أسر منتجة": 10,
+            "إعلان تجاري ربحي مميز": 24,
+            "الفعاليات والانشطة": 19,
+            "برامج ووظائف": 30,
+            "توصيل سيارات": 25,
+            "حراج الحسا": 18,
+            "فعالية مجانية مميزة": 17,
+            "كوفيهات أو مطاعم": 21,
+            "محلات تجارية": 23,
+            "مركز ترفيهي": 20,
+            "منتجعات وإستراحات": 22
+        };
+
+        // Toggle category container visibility based on target website
+        function toggleCategoryContainersByWebsite(targetWebsite) {
+            const hasakContainer = document.getElementById('hasak-category-container');
+            const masaakContainer = document.getElementById('masaak-category-container');
+            const categorySelectorsContainer = document.getElementById('category-selectors-container');
+
+            if (targetWebsite === 'hasak') {
+                // Show Hasak dropdown, hide Masaak inputs
+                if (hasakContainer) hasakContainer.style.display = 'block';
+                if (masaakContainer) masaakContainer.style.display = 'none';
+                // Also hide the parent_catt/sub_catt dropdowns for Hasak
+                if (categorySelectorsContainer) categorySelectorsContainer.style.display = 'none';
+                console.log('🔄 Switched to Hasak category mode');
+            } else {
+                // Show Masaak inputs, hide Hasak dropdown
+                if (hasakContainer) hasakContainer.style.display = 'none';
+                if (masaakContainer) masaakContainer.style.display = 'grid';
+                // Show parent_catt/sub_catt dropdowns for Masaak
+                if (categorySelectorsContainer) categorySelectorsContainer.style.display = 'grid';
+                console.log('🔄 Switched to Masaak category mode');
+            }
+        }
+
+        // Update arc_category and arc_subcategory when Hasak dropdown changes
+        function updateHasakArcFields() {
+            const hasakCategorySelect = document.getElementById('wp-preview-hasak-category');
+            const hasakSubcategoryInput = document.getElementById('wp-preview-hasak-subcategory');
+            const arcCategoryInput = document.getElementById('wp-preview-arc-category');
+            const arcSubcategoryInput = document.getElementById('wp-preview-arc-subcategory');
+
+            if (hasakCategorySelect) {
+                const selectedValue = hasakCategorySelect.value;
+                const selectedOption = hasakCategorySelect.options[hasakCategorySelect.selectedIndex];
+                const categoryId = selectedOption ? selectedOption.dataset.id : null;
+
+                // Update hidden arc_category field
+                if (arcCategoryInput) {
+                    arcCategoryInput.value = selectedValue;
+                }
+
+                // Log for debugging
+                console.log('🏷️ Hasak category selected:', selectedValue, '(ID:', categoryId, ')');
+            }
+
+            // Also sync subcategory
+            if (hasakSubcategoryInput && arcSubcategoryInput) {
+                arcSubcategoryInput.value = hasakSubcategoryInput.value;
+            }
+        }
+
+        // Initialize Hasak category dropdown from existing arc_category value
+        function initializeHasakCategoryFromArc() {
+            const hasakCategorySelect = document.getElementById('wp-preview-hasak-category');
+            const hasakSubcategoryInput = document.getElementById('wp-preview-hasak-subcategory');
+            const arcCategoryInput = document.getElementById('wp-preview-arc-category');
+            const arcSubcategoryInput = document.getElementById('wp-preview-arc-subcategory');
+
+            if (hasakCategorySelect && arcCategoryInput) {
+                const arcValue = arcCategoryInput.value;
+                // Try to find matching option
+                const options = hasakCategorySelect.options;
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].value === arcValue) {
+                        hasakCategorySelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // Also sync subcategory
+            if (hasakSubcategoryInput && arcSubcategoryInput) {
+                hasakSubcategoryInput.value = arcSubcategoryInput.value || '';
+            }
+        }
+
         // Function to update subcategories based on parent selection
         function updateWpSubcategories() {
             const parentSelect = document.getElementById('wp-preview-parent-catt');
@@ -2724,16 +3016,36 @@
             }
         }
 
-        // Listen for website changes to update commercial category
+        // Listen for website changes to update commercial category and toggle category containers
         document.addEventListener('DOMContentLoaded', function () {
             const websiteSelect = document.getElementById('wp-preview-target-website');
             if (websiteSelect) {
                 websiteSelect.addEventListener('change', function () {
+                    const targetWebsite = this.value;
+
+                    // Toggle category containers based on website
+                    toggleCategoryContainersByWebsite(targetWebsite);
+
+                    // Initialize Hasak dropdown if switching to Hasak
+                    if (targetWebsite === 'hasak') {
+                        initializeHasakCategoryFromArc();
+                    }
+
+                    // Handle commercial category toggle
                     const isCommercial = document.getElementById('wp-preview-is-commercial')?.checked;
                     if (isCommercial) {
                         // Re-apply commercial category for new website
                         toggleCommercialAdCategory();
                     }
+                });
+            }
+
+            // Also set up the Hasak subcategory input to sync with arc_subcategory
+            const hasakSubcategoryInput = document.getElementById('wp-preview-hasak-subcategory');
+            const arcSubcategoryInput = document.getElementById('wp-preview-arc-subcategory');
+            if (hasakSubcategoryInput && arcSubcategoryInput) {
+                hasakSubcategoryInput.addEventListener('input', function () {
+                    arcSubcategoryInput.value = this.value;
                 });
             }
         });

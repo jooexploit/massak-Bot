@@ -418,6 +418,7 @@ async function executeScheduleNow(scheduleId) {
 
 /**
  * Schedule a message using node-cron
+ * Supports: daily, weekly, monthly, yearly repeat types
  */
 function scheduleMessage(schedule) {
   if (!schedule || !schedule.enabled) {
@@ -427,13 +428,12 @@ function scheduleMessage(schedule) {
   // Cancel any existing job
   cancelScheduledMessage(schedule.id);
 
-  const { startTime, endTime, days } = schedule.schedule;
+  const { startTime, endTime, days, repeatType, dayOfMonth, month } = schedule.schedule;
 
-  // For daily schedules, pick a random time within the range
+  // For all schedules, pick a random time within the range
   const randomTime = getRandomTimeInRange(startTime, endTime);
 
-  // Create cron expression based on schedule type
-  // For daily: run at random time within range on allowed days
+  // Day name to number mapping
   const dayNumbers = {
     sunday: 0,
     monday: 1,
@@ -444,13 +444,52 @@ function scheduleMessage(schedule) {
     saturday: 6,
   };
 
-  const allowedDayNumbers = (days || []).map((d) => dayNumbers[d]).join(",");
+  let cronExpression;
+  let scheduleDescription;
 
-  // Cron: minute hour * * dayOfWeek
-  const cronExpression = `${randomTime.minute} ${randomTime.hour} * * ${allowedDayNumbers}`;
+  const scheduleRepeatType = repeatType || "daily";
+
+  switch (scheduleRepeatType) {
+    case "monthly": {
+      // Monthly: run on specific day of month
+      // Cron: minute hour dayOfMonth * *
+      const targetDay = dayOfMonth || 1;
+      cronExpression = `${randomTime.minute} ${randomTime.hour} ${targetDay} * *`;
+      scheduleDescription = `Monthly on day ${targetDay} at ${randomTime.hour}:${String(randomTime.minute).padStart(2, "0")}`;
+      break;
+    }
+
+    case "yearly": {
+      // Yearly: run on specific day and month
+      // Cron: minute hour dayOfMonth month *
+      const targetDay = dayOfMonth || 1;
+      const targetMonth = month || 1;
+      cronExpression = `${randomTime.minute} ${randomTime.hour} ${targetDay} ${targetMonth} *`;
+      const monthNames = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      scheduleDescription = `Yearly on ${monthNames[targetMonth]} ${targetDay} at ${randomTime.hour}:${String(randomTime.minute).padStart(2, "0")}`;
+      break;
+    }
+
+    case "weekly":
+    case "daily":
+    default: {
+      // Daily/Weekly: run on specific days of week
+      const allowedDayNumbers = (days || []).map((d) => dayNumbers[d]).join(",");
+      
+      if (!allowedDayNumbers) {
+        console.error(`❌ No days specified for schedule ${schedule.id}`);
+        return;
+      }
+
+      // Cron: minute hour * * dayOfWeek
+      cronExpression = `${randomTime.minute} ${randomTime.hour} * * ${allowedDayNumbers}`;
+      scheduleDescription = `${scheduleRepeatType === "weekly" ? "Weekly" : "Daily"} at ${randomTime.hour}:${String(randomTime.minute).padStart(2, "0")} on ${(days || []).join(", ")}`;
+      break;
+    }
+  }
 
   console.log(
-    `📅 Scheduling ${schedule.id}: ${cronExpression} (${randomTime.hour}:${String(randomTime.minute).padStart(2, "0")} on ${days.join(", ")})`
+    `📅 Scheduling ${schedule.id}: ${cronExpression} (${scheduleDescription})`
   );
 
   try {

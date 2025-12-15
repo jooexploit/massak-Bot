@@ -557,6 +557,26 @@ async function postAdToWordPress(
       subCatt
     );
 
+    // ============================================
+    // CATEGORY ID CONSISTENCY FIX
+    // If AI already detected a valid category_id in meta, prefer that
+    // This ensures consistency between meta.category_id and categories array
+    // ============================================
+    const aiDetectedCategoryId = wpData.meta?.category_id;
+    if (aiDetectedCategoryId && aiDetectedCategoryId !== 1 && typeof aiDetectedCategoryId === 'number') {
+      console.log("🔧 AI detected category_id:", aiDetectedCategoryId);
+      console.log("🔧 Computed category_id:", categoryId);
+      
+      // If computed categoryId is default (1) but AI has a valid one, use AI's
+      if (categoryId === 1 || categoryId === website.categories?.default) {
+        categoryId = aiDetectedCategoryId;
+        console.log("✅ Using AI-detected category_id instead of default:", categoryId);
+      }
+    }
+    
+    // Ensure meta.category_id matches the final categoryId for consistency
+    wpData.meta.category_id = categoryId;
+
     console.log("Final Category ID:", categoryId);
     console.log("Final Subcategory ID:", subcategoryId);
     console.log("======================================\n");
@@ -3592,7 +3612,7 @@ router.post(
   authorizeRole(["admin"]),
   async (req, res) => {
     try {
-      const { targetNumber, scheduledDateTime, message } = req.body;
+      const { targetNumber, name, scheduledDateTime, message } = req.body;
 
       if (!targetNumber || !scheduledDateTime || !message) {
         return res.status(400).json({
@@ -3616,6 +3636,7 @@ router.post(
         req.user.username, // Use authenticated user as creator
         {
           targetNumber: cleanNumber,
+          name: name || null, // Optional name field
           scheduledDateTime: scheduledTime,
           message,
           createdAt: Date.now(),
@@ -3642,7 +3663,7 @@ router.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { targetNumber, scheduledDateTime, message, status } = req.body;
+      const { targetNumber, name, scheduledDateTime, message, status } = req.body;
 
       // Check if reminder exists
       const existing = reminderService.getReminderById(id);
@@ -3654,6 +3675,10 @@ router.put(
       const updates = {};
       if (targetNumber) {
         updates.targetNumber = targetNumber.replace(/^\+/, "").replace(/\s/g, "");
+      }
+      // Handle name - allow setting to null or a value
+      if (name !== undefined) {
+        updates.name = name || null;
       }
       if (scheduledDateTime) {
         const scheduledTime = new Date(scheduledDateTime).getTime();
@@ -3707,6 +3732,119 @@ router.delete(
     } catch (error) {
       console.error("Error deleting reminder:", error);
       res.status(500).json({ error: "Failed to delete reminder" });
+    }
+  }
+);
+
+// Send follow-up message for a reminder
+router.post(
+  "/reminders/:id/followup",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { confirm } = req.body; // If true, send even with missing links
+
+      // Get the reminder
+      const reminder = reminderService.getReminderById(id);
+      if (!reminder) {
+        return res.status(404).json({ error: "Reminder not found" });
+      }
+
+      // Extract links from the reminder message
+      const mapsLinkRegex = /(https?:\/\/(maps\.app\.goo\.gl|www\.google\.com\/maps|goo\.gl\/maps|maps\.google\.com)[^\s]+)/i;
+      const websiteLinkRegex = /(https?:\/\/(www\.)?(masaak|hasak)\.com[^\s]+)/i;
+
+      const mapsMatch = reminder.message.match(mapsLinkRegex);
+      const websiteMatch = reminder.message.match(websiteLinkRegex);
+
+      const mapsLink = mapsMatch ? mapsMatch[0] : null;
+      const websiteLink = websiteMatch ? websiteMatch[0] : null;
+
+      // Determine which site for footer
+      const isHasak = websiteLink && websiteLink.includes("hasak.com");
+      
+      // Client name
+      const clientName = reminder.name || "العميل";
+
+      // Generate follow-up message
+      let followUpMessage = `السلام عليكم 
+${clientName}
+بخصوص العقار هذا هل تمت معاينته و بشر هل مناسب لك
+
+`;
+
+      if (websiteLink) {
+        followUpMessage += `*✅رابط الاعلان* 
+${websiteLink}
+`;
+      }
+
+      if (mapsLink) {
+        followUpMessage += `*📍اللوكيشن للعقار* 
+${mapsLink}
+`;
+      }
+
+      // Add footer based on website
+      if (isHasak) {
+        followUpMessage += `┈┉🌴 *حساك العقارية* 🌴┅┄
+للتواصل عبدالرحمن السليم 0508001475`;
+      } else {
+        followUpMessage += `┈┉🔰 *مسعاك العقارية* 🔰┅┄
+للتواصل عبدالرحمن السليم 0508001475`;
+      }
+
+      // Check if links are missing
+      const missingLinks = [];
+      if (!websiteLink) missingLinks.push("رابط الموقع (masaak/hasak)");
+      if (!mapsLink) missingLinks.push("رابط الخريطة (Maps)");
+
+      // If links are missing and not confirmed, return preview
+      if (missingLinks.length > 0 && !confirm) {
+        return res.json({
+          success: true,
+          needsConfirmation: true,
+          preview: {
+            message: followUpMessage,
+            missingLinks,
+            targetNumber: reminder.targetNumber,
+            clientName,
+            warning: `⚠️ الروابط التالية غير موجودة في رسالة التذكير الأصلية: ${missingLinks.join("، ")}`,
+          },
+        });
+      }
+
+      // Send the follow-up message
+      const targetJid = `${reminder.targetNumber}@s.whatsapp.net`;
+      
+      // Use custom message if provided (from the edit dialog), otherwise use generated message
+      const { customMessage } = req.body;
+      const messageToSend = customMessage || followUpMessage;
+      
+      try {
+        await sendMessage(targetJid, messageToSend);
+
+        // Log the follow-up
+        console.log(`✅ Follow-up sent for reminder ${id} to +${reminder.targetNumber}`);
+
+        res.json({
+          success: true,
+          message: "تم إرسال رسالة المتابعة بنجاح",
+          sentTo: reminder.targetNumber,
+          clientName,
+        });
+      } catch (sendError) {
+        console.error(`❌ Failed to send follow-up for reminder ${id}:`, sendError);
+        res.status(500).json({
+          error: "فشل إرسال رسالة المتابعة",
+          details: sendError.message,
+        });
+      }
+    } catch (error) {
+      console.error("Error processing follow-up:", error);
+      res.status(500).json({ error: "Failed to process follow-up request" });
     }
   }
 );

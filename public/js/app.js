@@ -10,6 +10,29 @@ let savedCustomNumbers = []; // Saved custom phone numbers with names
 let selectedCustomNumbers = []; // Currently selected custom numbers for sending
 let initialDataLoaded = false; // Track if initial data has been loaded
 
+// Predefined website categories
+const masaakCategories = [
+  "أدوات صحية", "أرض", "استراحة", "اعلانات مسعاك المميزة", "بدون محلات",
+  "برامج ووظائف", "بطن", "بقالة", "بوفية", "بيت", "تجاري", "تجارية",
+  "جوالات", "حلاق", "حلويات", "دبلكس", "دور", "دور أرضي", "دور أول",
+  "دور ثالث", "دور ثاني", "دور وشقق", "دور وملحق", "دورين", "زاوية",
+  "زراعية", "سكنية", "سكنية تجارية", "سوبر ماركت", "شالية", "شركاء مسعاك",
+  "شركات ومؤسسات", "شقة", "شقة دبلكسية", "صغير", "صك", "صيدلية", "طلبات",
+  "عربي", "عرق", "عمارة", "عن مسعاك", "فريق مسعاك", "فود ترك", "فيلا",
+  "قطع سيارات", "كبير", "كوفي", "للإيجار", "للاستثمار", "للتقبيل",
+  "مجتمع حساك", "محطة بنزين", "محل", "محل أثاث", "محل تجاري", "محل زينة",
+  "محل سباكة", "محل عصاير", "محل فواكه", "محل كماليات", "محل كهرباء",
+  "محل ملابس", "محلات للتقبيل", "مزرعة", "مستودع", "مشاع", "مشغل نسائي",
+  "مطعم", "مع محلات", "مغسلة سيارات", "مغسلة ملابس", "وقف"
+];
+
+const hasakCategories = [
+  "أسر منتجة", "إعلان تجاري ربحي مميز", "الفعاليات والانشطة", "برامج ووظائف",
+  "توصيل سيارات", "حراج الحسا", "شركاء حساك", "عن حساك", "فريق حساك",
+  "فعاليات و أنشطة", "فعالية مجانية مميزة", "كوفيهات أو مطاعم", "مجتمع حساك",
+  "محلات تجارية", "مركز ترفيهي", "منتجعات وإستراحات"
+];
+
 // DOM Elements
 const loginPage = document.getElementById("login-page");
 const dashboardPage = document.getElementById("dashboard-page");
@@ -203,7 +226,12 @@ function setupEventListeners() {
   // Website and Group filters for Ads view
   const adsWebsiteFilter = document.getElementById("ads-website-filter");
   const adsGroupFilter = document.getElementById("ads-group-filter");
-  if (adsWebsiteFilter) adsWebsiteFilter.addEventListener("change", fetchAndRenderAds);
+  if (adsWebsiteFilter) {
+    adsWebsiteFilter.addEventListener("change", () => {
+      updateCategoryFilter(); // Update categories based on selected website
+      fetchAndRenderAds();
+    });
+  }
   if (adsGroupFilter) adsGroupFilter.addEventListener("change", fetchAndRenderAds);
 
   // Live search functionality
@@ -1502,13 +1530,13 @@ function renderAds(list, reset = true, pagination = {}) {
 
     // Header styling based on status
     const isRejected = ad.status === 'rejected';
-    const headerBgColor = isRejected ? 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)' : '#5a67d8';
+    const headerBgColor = '#5a67d8'; // Same normal color for all ads
     
-    // Rejection reason badge for header
+    // Rejection reason badge for header - subtle amber/orange color that's easy on the eyes
     const rejectionBadge = isRejected && ad.rejectionReason
-      ? `<div style="margin-top: 8px; background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
-          <i class="fas fa-ban"></i>
-          <span style="direction: rtl;">❌ ${escapeHtml(ad.rejectionReason.length > 60 ? ad.rejectionReason.substring(0, 60) + '...' : ad.rejectionReason)}</span>
+      ? `<div style="margin-top: 8px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; color: white;">
+          <i class="fas fa-exclamation-triangle"></i>
+          <span style="direction: rtl;">سبب الرفض: ${escapeHtml(ad.rejectionReason.length > 60 ? ad.rejectionReason.substring(0, 60) + '...' : ad.rejectionReason)}</span>
         </div>`
       : '';
 
@@ -1825,13 +1853,13 @@ function renderAds(list, reset = true, pagination = {}) {
             ad.status === "rejected"
               ? `
           <!-- Rejected Ad Info and Actions -->
-          <div style="background: #fff3cd; padding: 12px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #ffc107;">
+          <div style="background: #fffbeb; padding: 12px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #f59e0b;">
             <div style="margin-bottom: 10px;">
-              <strong style="color: #856404;">❌ سبب الرفض / Rejection Reason:</strong>
-              <div style="margin-top: 5px; padding: 8px; background: white; border-radius: 4px; color: #333; direction: rtl; text-align: right;">
+              <strong style="color: #b45309;">⚠️ سبب الرفض / Rejection Reason:</strong>
+              <div style="margin-top: 5px; padding: 10px; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 6px; color: #92400e; direction: rtl; text-align: right; font-weight: 500; border: 1px solid #fcd34d;">
                 ${escapeHtml(ad.rejectionReason || "مرفوض من قبل المستخدم")}
               </div>
-              <small style="color: #666; display: block; margin-top: 5px;">
+              <small style="color: #78716c; display: block; margin-top: 5px;">
                 تم الرفض: ${ad.rejectedAt ? new Date(ad.rejectedAt).toLocaleString("ar-SA") : "N/A"}
               </small>
             </div>
@@ -2981,14 +3009,49 @@ async function loadCategories() {
 }
 
 function updateCategoryFilter() {
+  const websiteFilter = document.getElementById("ads-website-filter")?.value || "all";
+  
   categoryFilter.innerHTML =
-    '<option value="all">All Categories</option><option value="uncategorized">Uncategorized</option>';
-  allCategories.forEach((cat) => {
+    '<option value="all">📁 All Categories</option><option value="uncategorized">❓ Uncategorized</option>';
+  
+  // Determine which categories to show based on selected website
+  let categoriesToShow = [];
+  
+  if (websiteFilter === "masaak") {
+    categoriesToShow = masaakCategories;
+  } else if (websiteFilter === "hasak") {
+    categoriesToShow = hasakCategories;
+  } else {
+    // Show all unique categories from both websites
+    categoriesToShow = [...new Set([...masaakCategories, ...hasakCategories])].sort();
+  }
+  
+  // Add predefined categories
+  categoriesToShow.forEach((catName) => {
     const opt = document.createElement("option");
-    opt.value = cat.name;
-    opt.textContent = cat.name;
-    opt.style.color = cat.color;
+    opt.value = catName;
+    opt.textContent = catName;
     categoryFilter.appendChild(opt);
+  });
+  
+  // Add separator if there are custom categories
+  if (allCategories.length > 0) {
+    const separator = document.createElement("option");
+    separator.disabled = true;
+    separator.textContent = "── Custom Categories ──";
+    categoryFilter.appendChild(separator);
+  }
+  
+  // Add user-defined custom categories
+  allCategories.forEach((cat) => {
+    // Skip if already in predefined list
+    if (!categoriesToShow.includes(cat.name)) {
+      const opt = document.createElement("option");
+      opt.value = cat.name;
+      opt.textContent = `✨ ${cat.name}`;
+      opt.style.color = cat.color;
+      categoryFilter.appendChild(opt);
+    }
   });
 }
 
@@ -9903,6 +9966,7 @@ function renderReminders() {
     reminders = reminders.filter((r) =>
       r.message.toLowerCase().includes(remindersState.searchQuery) ||
       r.targetNumber.includes(remindersState.searchQuery) ||
+      (r.name && r.name.toLowerCase().includes(remindersState.searchQuery)) ||
       (r.createdBy && r.createdBy.includes(remindersState.searchQuery))
     );
   }
@@ -9972,6 +10036,16 @@ function createReminderCard(reminder) {
         <div style="font-weight: 600; font-size: 0.95rem;">+${reminder.targetNumber}</div>
       </div>
 
+      ${reminder.name ? `
+      <!-- Name -->
+      <div style="margin-bottom: 10px;">
+        <div style="font-size: 0.75rem; color: #888; margin-bottom: 2px;">
+          <i class="fas fa-user"></i> Name
+        </div>
+        <div style="font-weight: 600; font-size: 0.95rem; color: #4f46e5;">${escapeHtml(reminder.name)}</div>
+      </div>
+      ` : ""}
+
       <!-- Message -->
       <div style="margin-bottom: 12px;">
         <div style="font-size: 0.75rem; color: #888; margin-bottom: 2px;">
@@ -9984,9 +10058,11 @@ function createReminderCard(reminder) {
           font-size: 0.9rem;
           line-height: 1.4;
           color: #333;
-          max-height: 60px;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          max-height: 150px;
+          overflow-y: auto;
+          word-wrap: break-word;
+          word-break: break-word;
+          white-space: pre-wrap;
         ">${escapeHtml(reminder.message)}</div>
       </div>
 
@@ -10016,6 +10092,15 @@ function createReminderCard(reminder) {
       <!-- Actions -->
       <div style="display: flex; gap: 10px; flex-wrap: wrap;">
         ${reminder.status === "sent" ? `
+          <button onclick="window.handleFollowUpReminder('${reminder.id}')" 
+            class="reminder-action-btn" 
+            style="display: inline-flex; align-items: center; gap: 6px; background: #fef3c7; color: #d97706; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;"
+            onmouseenter="this.style.background='#fde68a'"
+            onmouseleave="this.style.background='#fef3c7'"
+            title="إرسال رسالة متابعة للعميل">
+            <i class="fas fa-comment-dots"></i>
+            <span>متابعة</span>
+          </button>
           <button onclick="window.handleResendReminder('${reminder.id}')" 
             class="reminder-action-btn" 
             style="display: inline-flex; align-items: center; gap: 6px; background: #ecfdf5; color: #059669; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;"
@@ -10104,12 +10189,14 @@ function openCreateReminderModal() {
   const modal = document.getElementById("reminder-modal");
   const title = document.getElementById("reminder-modal-title");
   const targetInput = document.getElementById("reminder-target-number");
+  const nameInput = document.getElementById("reminder-target-name");
   const datetimeInput = document.getElementById("reminder-scheduled-datetime");
   const messageInput = document.getElementById("reminder-message-text");
   const errorDiv = document.getElementById("reminder-modal-error");
 
   if (title) title.innerHTML = '<i class="fas fa-bell"></i> Create Reminder';
   if (targetInput) targetInput.value = "";
+  if (nameInput) nameInput.value = "";
   if (datetimeInput) {
     // Set default to 1 hour from now
     const now = new Date();
@@ -10129,12 +10216,14 @@ function openEditReminderModal(reminder) {
   const modal = document.getElementById("reminder-modal");
   const title = document.getElementById("reminder-modal-title");
   const targetInput = document.getElementById("reminder-target-number");
+  const nameInput = document.getElementById("reminder-target-name");
   const datetimeInput = document.getElementById("reminder-scheduled-datetime");
   const messageInput = document.getElementById("reminder-message-text");
   const errorDiv = document.getElementById("reminder-modal-error");
 
   if (title) title.innerHTML = '<i class="fas fa-edit"></i> Edit Reminder';
   if (targetInput) targetInput.value = reminder.targetNumber;
+  if (nameInput) nameInput.value = reminder.name || "";
   if (datetimeInput) {
     const date = new Date(reminder.scheduledDateTime);
     datetimeInput.value = date.toISOString().slice(0, 16);
@@ -10164,11 +10253,13 @@ function showReminderModalError(message) {
 // Handle save reminder (create or update)
 async function handleSaveReminder() {
   const targetInput = document.getElementById("reminder-target-number");
+  const nameInput = document.getElementById("reminder-target-name");
   const datetimeInput = document.getElementById("reminder-scheduled-datetime");
   const messageInput = document.getElementById("reminder-message-text");
   const saveBtn = document.getElementById("save-reminder-btn");
 
   const targetNumber = targetInput?.value?.trim();
+  const name = nameInput?.value?.trim() || null; // Optional, can be null
   const scheduledDateTime = datetimeInput?.value;
   const message = messageInput?.value?.trim();
 
@@ -10209,6 +10300,7 @@ async function handleSaveReminder() {
       credentials: "include",
       body: JSON.stringify({
         targetNumber,
+        name,
         scheduledDateTime: scheduledTime.toISOString(),
         message,
       }),
@@ -10290,12 +10382,14 @@ window.openEditReminderModal = function(reminderId) {
   const modal = document.getElementById("reminder-modal");
   const title = document.getElementById("reminder-modal-title");
   const targetInput = document.getElementById("reminder-target-number");
+  const nameInput = document.getElementById("reminder-target-name");
   const datetimeInput = document.getElementById("reminder-scheduled-datetime");
   const messageInput = document.getElementById("reminder-message-text");
   const errorDiv = document.getElementById("reminder-modal-error");
 
   if (title) title.innerHTML = '<i class="fas fa-edit"></i> Edit Reminder';
   if (targetInput) targetInput.value = reminder.targetNumber;
+  if (nameInput) nameInput.value = reminder.name || "";
   if (datetimeInput) {
     const date = new Date(reminder.scheduledDateTime);
     datetimeInput.value = date.toISOString().slice(0, 16);
@@ -10436,6 +10530,7 @@ async function createResendReminder(oldReminder) {
       credentials: "include",
       body: JSON.stringify({
         targetNumber: oldReminder.targetNumber,
+        name: oldReminder.name,
         scheduledDateTime: newScheduledTime.toISOString(),
         message: oldReminder.message,
       }),
@@ -10459,6 +10554,180 @@ async function createResendReminder(oldReminder) {
   } catch (error) {
     console.error("Error creating resend reminder:", error);
     alert("Failed to create reminder: " + error.message);
+  }
+}
+
+// Handle follow-up message for a reminder
+window.handleFollowUpReminder = async function(reminderId) {
+  try {
+    // First, get the preview (without confirm to check for missing links)
+    const response = await fetch(`/api/bot/reminders/${reminderId}/followup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ confirm: false }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || "Failed to generate follow-up");
+    }
+
+    const data = await response.json();
+
+    // If needs confirmation (missing links), show dialog with editing capability
+    if (data.needsConfirmation) {
+      const result = await showFollowUpConfirmDialog(data.preview);
+      if (!result.confirmed) return;
+
+      // Send with confirmation and edited message
+      const confirmResponse = await fetch(`/api/bot/reminders/${reminderId}/followup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ 
+          confirm: true,
+          customMessage: result.editedMessage 
+        }),
+      });
+
+      if (!confirmResponse.ok) {
+        const errorData = await confirmResponse.json();
+        throw new Error(errorData.error || "Failed to send follow-up");
+      }
+
+      const confirmData = await confirmResponse.json();
+      showFollowUpSuccess(confirmData);
+    } else {
+      // All links present, sent directly
+      showFollowUpSuccess(data);
+    }
+  } catch (error) {
+    console.error("Error handling follow-up:", error);
+    alert("❌ خطأ: " + error.message);
+  }
+};
+
+// Show follow-up confirmation dialog with preview and editing capability
+function showFollowUpConfirmDialog(preview) {
+  return new Promise((resolve) => {
+    const dialogHtml = `
+      <div id="followup-dialog-overlay" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      ">
+        <div style="
+          background: white;
+          border-radius: 12px;
+          padding: 0;
+          max-width: 550px;
+          width: 90%;
+          max-height: 90vh;
+          overflow: hidden;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        ">
+          <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 16px 20px;">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 10px; font-size: 1.1rem;">
+              <i class="fas fa-exclamation-triangle"></i>
+              تحذير - روابط مفقودة
+            </h3>
+          </div>
+          
+          <div style="padding: 20px; max-height: 65vh; overflow-y: auto;">
+            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+              <strong style="color: #92400e;">${preview.warning}</strong>
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+              <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px;">
+                <i class="fas fa-user"></i> الإرسال إلى:
+              </div>
+              <div style="font-weight: 600;">+${preview.targetNumber} (${preview.clientName})</div>
+            </div>
+            
+            <div style="margin-bottom: 8px; font-size: 0.85rem; color: #666;">
+              <i class="fas fa-edit"></i> الرسالة (يمكنك التعديل):
+            </div>
+            <textarea id="followup-message-edit" style="
+              width: 100%;
+              min-height: 200px;
+              padding: 12px;
+              border: 2px solid #e5e7eb;
+              border-radius: 8px;
+              font-size: 0.9rem;
+              line-height: 1.6;
+              direction: rtl;
+              text-align: right;
+              resize: vertical;
+              font-family: inherit;
+              box-sizing: border-box;
+            ">${preview.message}</textarea>
+          </div>
+          
+          <div style="display: flex; gap: 10px; justify-content: flex-end; padding: 16px 20px; background: #f9fafb; border-top: 1px solid #e5e7eb;">
+            <button id="followup-cancel" style="
+              padding: 10px 18px;
+              border: 1px solid #ddd;
+              background: white;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 0.9rem;
+            ">إلغاء</button>
+            <button id="followup-confirm" style="
+              padding: 10px 18px;
+              border: none;
+              background: linear-gradient(135deg, #f59e0b, #d97706);
+              color: white;
+              border-radius: 6px;
+              cursor: pointer;
+              font-weight: 600;
+              font-size: 0.9rem;
+            ">
+              <i class="fas fa-paper-plane"></i>
+              إرسال الرسالة
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', dialogHtml);
+
+    const overlay = document.getElementById('followup-dialog-overlay');
+    const cancelBtn = document.getElementById('followup-cancel');
+    const confirmBtn = document.getElementById('followup-confirm');
+    const messageTextarea = document.getElementById('followup-message-edit');
+
+    function cleanup(result) {
+      const editedMessage = messageTextarea ? messageTextarea.value : null;
+      overlay.remove();
+      resolve(result ? { confirmed: true, editedMessage } : { confirmed: false });
+    }
+
+    cancelBtn.addEventListener('click', () => cleanup(false));
+    confirmBtn.addEventListener('click', () => cleanup(true));
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cleanup(false);
+    });
+  });
+}
+
+// Show success message after follow-up sent
+function showFollowUpSuccess(data) {
+  const msgEl = document.getElementById("reminders-message");
+  if (msgEl) {
+    msgEl.innerHTML = `✅ ${data.message || "تم إرسال رسالة المتابعة بنجاح"} إلى +${data.sentTo}`;
+    msgEl.className = "info-message success";
+    msgEl.style.display = "block";
+    setTimeout(() => { msgEl.style.display = "none"; }, 5000);
   }
 }
 
@@ -10784,6 +11053,37 @@ function createScheduleCard(schedule) {
   };
   const selectedDays = (schedule.schedule?.days || []).map((d) => daysArabic[d]).join(" • ");
 
+  // Get repeat type info
+  const repeatType = schedule.schedule?.repeatType || "daily";
+  const repeatTypeLabels = {
+    daily: { label: "📅 يومي", color: "#1565c0" },
+    weekly: { label: "📆 أسبوعي", color: "#2e7d32" },
+    monthly: { label: "🗓️ شهري", color: "#7b1fa2" },
+    yearly: { label: "🎂 سنوي", color: "#f57c00" }
+  };
+  const repeatInfo = repeatTypeLabels[repeatType] || repeatTypeLabels.daily;
+
+  // Get schedule details based on type
+  let scheduleDetails = "";
+  const monthNames = ["", "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+  
+  switch (repeatType) {
+    case "monthly":
+      const dayOfMonth = schedule.schedule?.dayOfMonth || 1;
+      scheduleDetails = `<div style="margin-bottom: 8px;"><strong>📅 التكرار:</strong> يوم ${dayOfMonth} من كل شهر</div>`;
+      break;
+    case "yearly":
+      const yearlyDay = schedule.schedule?.dayOfMonth || 1;
+      const yearlyMonth = schedule.schedule?.month || 1;
+      scheduleDetails = `<div style="margin-bottom: 8px;"><strong>📅 التكرار:</strong> ${yearlyDay} ${monthNames[yearlyMonth]} من كل سنة</div>`;
+      break;
+    case "weekly":
+    case "daily":
+    default:
+      scheduleDetails = `<div style="margin-bottom: 8px;"><strong>📅 الأيام:</strong> ${selectedDays || "لا يوجد"}</div>`;
+      break;
+  }
+
   return `
     <div class="schedule-card" style="
       background: white;
@@ -10800,17 +11100,22 @@ function createScheduleCard(schedule) {
           <i class="fas fa-calendar-alt" style="color: ${schedule.enabled ? "#10b981" : "#9ca3af"}; margin-left: 8px;"></i>
           ${escapeHtml(schedule.name || messageName)}
         </h3>
-        <button onclick="window.toggleScheduleEnabled('${schedule.id}')" 
-          style="padding: 6px 12px; border-radius: 20px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 500;
-          background: ${schedule.enabled ? "#d1fae5" : "#f3f4f6"}; color: ${schedule.enabled ? "#059669" : "#6b7280"};">
-          ${schedule.enabled ? "✅ مفعّل" : "⏸️ متوقف"}
-        </button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="padding: 4px 10px; border-radius: 15px; font-size: 0.75rem; font-weight: 600; background: ${repeatInfo.color}20; color: ${repeatInfo.color};">
+            ${repeatInfo.label}
+          </span>
+          <button onclick="window.toggleScheduleEnabled('${schedule.id}')" 
+            style="padding: 6px 12px; border-radius: 20px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 500;
+            background: ${schedule.enabled ? "#d1fae5" : "#f3f4f6"}; color: ${schedule.enabled ? "#059669" : "#6b7280"};">
+            ${schedule.enabled ? "✅ مفعّل" : "⏸️ متوقف"}
+          </button>
+        </div>
       </div>
       
       <!-- Details -->
       <div style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
         <div style="margin-bottom: 8px;"><strong>📝 الرسالة:</strong> ${escapeHtml(messageName)}</div>
-        <div style="margin-bottom: 8px;"><strong>📅 الأيام:</strong> ${selectedDays || "لا يوجد"}</div>
+        ${scheduleDetails}
         <div style="margin-bottom: 8px;"><strong>⏰ الوقت:</strong> ${schedule.schedule?.startTime || "09:00"} - ${schedule.schedule?.endTime || "17:00"}</div>
         <div style="margin-bottom: 8px;"><strong>⏱️ التأخير:</strong> ${schedule.settings?.delaySeconds || 60} ثانية</div>
       </div>
@@ -10839,6 +11144,7 @@ function createScheduleCard(schedule) {
     </div>
   `;
 }
+
 
 // Open create message modal
 function openCreateMessageModal() {
@@ -11234,6 +11540,11 @@ function openCreateScheduleModal() {
   if (startTime) startTime.value = "09:00";
   if (endTime) endTime.value = "17:00";
   if (delay) delay.value = "60";
+
+  // Reset repeat type to daily
+  const dailyRadio = document.querySelector('input[name="schedule-repeat-type"][value="daily"]');
+  if (dailyRadio) dailyRadio.checked = true;
+  toggleRepeatTypeUI();
 
   // Reset sections visibility
   const privateClientsContainer = document.getElementById("schedule-private-clients-container");
@@ -11668,6 +11979,46 @@ window.createScheduleForMessage = function (messageId) {
   }, 100);
 };
 
+// Toggle repeat type UI - shows/hides relevant sections based on repeat type
+window.toggleRepeatTypeUI = function() {
+  const repeatType = document.querySelector('input[name="schedule-repeat-type"]:checked')?.value || "daily";
+  
+  const daysSection = document.getElementById("schedule-days-section");
+  const monthlySection = document.getElementById("schedule-monthly-section");
+  const yearlySection = document.getElementById("schedule-yearly-section");
+  
+  // Hide all first
+  if (daysSection) daysSection.style.display = "none";
+  if (monthlySection) monthlySection.style.display = "none";
+  if (yearlySection) yearlySection.style.display = "none";
+  
+  // Show based on repeat type
+  switch (repeatType) {
+    case "daily":
+    case "weekly":
+      if (daysSection) daysSection.style.display = "block";
+      break;
+    case "monthly":
+      if (monthlySection) monthlySection.style.display = "block";
+      break;
+    case "yearly":
+      if (yearlySection) yearlySection.style.display = "block";
+      break;
+  }
+  
+  // Update visual styling for selected repeat type option
+  document.querySelectorAll('.repeat-type-option').forEach((label) => {
+    const radio = label.querySelector('input[type="radio"]');
+    if (radio && radio.checked) {
+      label.style.borderColor = "#ab47bc";
+      label.style.background = "#f3e5f5";
+    } else {
+      label.style.borderColor = "transparent";
+      label.style.background = "white";
+    }
+  });
+};
+
 // Save schedule
 async function handleSaveSchedule() {
   const messageSelect = document.getElementById("schedule-message-select");
@@ -11683,15 +12034,34 @@ async function handleSaveSchedule() {
     return;
   }
 
-  // Get selected days
+  // Get repeat type
+  const repeatType = document.querySelector('input[name="schedule-repeat-type"]:checked')?.value || "daily";
+
+  // Get selected days (for daily/weekly)
   const days = [];
   document.querySelectorAll(".schedule-day:checked").forEach((cb) => {
     days.push(cb.value);
   });
 
-  if (days.length === 0) {
+  // Validate based on repeat type
+  if ((repeatType === "daily" || repeatType === "weekly") && days.length === 0) {
     alert("يرجى اختيار يوم واحد على الأقل");
     return;
+  }
+
+  // Get day of month (for monthly/yearly)
+  const dayOfMonthEl = document.getElementById("schedule-day-of-month");
+  const yearlyDayEl = document.getElementById("schedule-yearly-day");
+  const yearlyMonthEl = document.getElementById("schedule-yearly-month");
+  
+  let dayOfMonth = 15;
+  let month = 1;
+  
+  if (repeatType === "monthly") {
+    dayOfMonth = parseInt(dayOfMonthEl?.value) || 15;
+  } else if (repeatType === "yearly") {
+    dayOfMonth = parseInt(yearlyDayEl?.value) || 15;
+    month = parseInt(yearlyMonthEl?.value) || 1;
   }
 
   // Get selected groups
@@ -11758,8 +12128,10 @@ async function handleSaveSchedule() {
         messageId,
         name: nameInput?.value?.trim() || "",
         schedule: {
-          type: "daily",
+          repeatType,
           days,
+          dayOfMonth,
+          month,
           startTime: startTime?.value || "09:00",
           endTime: endTime?.value || "17:00",
         },
@@ -11860,10 +12232,34 @@ window.editSchedule = async function (id) {
     if (delay) delay.value = schedule.settings?.delaySeconds || 60;
     if (privateClients) privateClients.checked = schedule.recipients?.privateClients || false;
 
-    // Set day checkboxes
+    // Set repeat type
+    const repeatType = schedule.schedule?.repeatType || "daily";
+    const repeatRadio = document.querySelector(`input[name="schedule-repeat-type"][value="${repeatType}"]`);
+    if (repeatRadio) {
+      repeatRadio.checked = true;
+      toggleRepeatTypeUI();
+    }
+
+    // Set day checkboxes (for daily/weekly)
     document.querySelectorAll(".schedule-day").forEach((cb) => {
       cb.checked = (schedule.schedule?.days || []).includes(cb.value);
     });
+
+    // Set monthly settings
+    const dayOfMonthEl = document.getElementById("schedule-day-of-month");
+    if (dayOfMonthEl && schedule.schedule?.dayOfMonth) {
+      dayOfMonthEl.value = schedule.schedule.dayOfMonth;
+    }
+
+    // Set yearly settings
+    const yearlyDayEl = document.getElementById("schedule-yearly-day");
+    const yearlyMonthEl = document.getElementById("schedule-yearly-month");
+    if (yearlyDayEl && schedule.schedule?.dayOfMonth) {
+      yearlyDayEl.value = schedule.schedule.dayOfMonth;
+    }
+    if (yearlyMonthEl && schedule.schedule?.month) {
+      yearlyMonthEl.value = schedule.schedule.month;
+    }
   }, 200);
 };
 

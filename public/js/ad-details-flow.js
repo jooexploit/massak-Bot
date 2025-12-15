@@ -1114,6 +1114,16 @@ async function openWpPreviewModal(adId, extractedData, mode) {
     const targetWebsite = ed.targetWebsite || "masaak"; // Default to masaak
     targetWebsiteSelect.value = targetWebsite;
     console.log(`🌐 Target website set to: ${targetWebsite}`);
+    
+    // Toggle category containers based on website
+    if (typeof toggleCategoryContainersByWebsite === "function") {
+      toggleCategoryContainersByWebsite(targetWebsite);
+    }
+    
+    // Initialize Hasak dropdown if it's Hasak website
+    if (targetWebsite === "hasak" && typeof initializeHasakCategoryFromArc === "function") {
+      initializeHasakCategoryFromArc();
+    }
   }
 
   // Offer Details
@@ -1242,50 +1252,84 @@ function getEditedWpDataFromWpModal() {
 
   const targetWebsite = getVal("wp-preview-target-website") || "masaak";
 
+  // Get arc_category and category_id based on target website
+  let arcCategory = "";
+  let arcSubcategory = "";
+  let categoryId = null;
+  
+  if (targetWebsite === "hasak") {
+    // For Hasak, get from the Hasak dropdown
+    const hasakCategorySelect = document.getElementById("wp-preview-hasak-category");
+    const hasakSubcategoryInput = document.getElementById("wp-preview-hasak-subcategory");
+    
+    if (hasakCategorySelect) {
+      arcCategory = hasakCategorySelect.value;
+      const selectedOption = hasakCategorySelect.options[hasakCategorySelect.selectedIndex];
+      if (selectedOption && selectedOption.dataset.id) {
+        categoryId = parseInt(selectedOption.dataset.id, 10);
+      }
+    }
+    
+    if (hasakSubcategoryInput) {
+      arcSubcategory = hasakSubcategoryInput.value.trim();
+    }
+  } else {
+    // For Masaak, get from the arc_category input (synced from parent_catt)
+    arcCategory = getVal("wp-preview-arc-category");
+    arcSubcategory = getVal("wp-preview-arc-subcategory");
+  }
+
+  const metaData = {
+    // Price & Space
+    price: getVal("wp-preview-price"),
+    price_amount: getVal("wp-preview-price-amount"),
+    price_method: getVal("wp-preview-price-method"),
+    arc_space: getVal("wp-preview-arc-space"),
+    order_space: getVal("wp-preview-order-space"),
+
+    // Location
+    location: getVal("wp-preview-location"),
+    before_City: getVal("wp-preview-before-city"),
+    City: getVal("wp-preview-city"),
+    google_location: getVal("wp-preview-google-location"),
+
+    // Categories
+    parent_catt: getVal("wp-preview-parent-catt"),
+    sub_catt: getVal("wp-preview-sub-catt"),
+    arc_category: arcCategory,
+    arc_subcategory: arcSubcategory,
+
+    // Contact & Owner
+    owner_name: getVal("wp-preview-owner-name"),
+    phone_number: getVal("wp-preview-phone"),
+
+    // Order Details
+    order_status: getVal("wp-preview-order-status"),
+    order_owner: getVal("wp-preview-order-owner"),
+    order_type: getVal("wp-preview-order-type"),
+
+    // Offer Details
+    offer_status: getVal("wp-preview-offer-status"),
+    offer_owner: getVal("wp-preview-offer-owner"),
+    offer_type: getVal("wp-preview-offer-type"),
+
+    // Additional Fields
+    main_ad: getVal("wp-preview-main-ad"),
+    payment_method: getVal("wp-preview-payment-method"),
+    youtube_link: getVal("wp-preview-youtube-link"),
+    tags: getVal("wp-preview-tags"),
+  };
+  
+  // Add category_id if we got it from Hasak dropdown
+  if (categoryId !== null) {
+    metaData.category_id = categoryId;
+  }
+
   return {
     title: getVal("wp-preview-title"),
     content: getVal("wp-preview-content"),
     targetWebsite: targetWebsite, // Include target website
-    meta: {
-      // Price & Space
-      price: getVal("wp-preview-price"),
-      price_amount: getVal("wp-preview-price-amount"),
-      price_method: getVal("wp-preview-price-method"),
-      arc_space: getVal("wp-preview-arc-space"),
-      order_space: getVal("wp-preview-order-space"),
-
-      // Location
-      location: getVal("wp-preview-location"),
-      before_City: getVal("wp-preview-before-city"),
-      City: getVal("wp-preview-city"),
-      google_location: getVal("wp-preview-google-location"),
-
-      // Categories
-      parent_catt: getVal("wp-preview-parent-catt"),
-      sub_catt: getVal("wp-preview-sub-catt"),
-      arc_category: getVal("wp-preview-arc-category"),
-      arc_subcategory: getVal("wp-preview-arc-subcategory"),
-
-      // Contact & Owner
-      owner_name: getVal("wp-preview-owner-name"),
-      phone_number: getVal("wp-preview-phone"),
-
-      // Order Details
-      order_status: getVal("wp-preview-order-status"),
-      order_owner: getVal("wp-preview-order-owner"),
-      order_type: getVal("wp-preview-order-type"),
-
-      // Offer Details
-      offer_status: getVal("wp-preview-offer-status"),
-      offer_owner: getVal("wp-preview-offer-owner"),
-      offer_type: getVal("wp-preview-offer-type"),
-
-      // Additional Fields
-      main_ad: getVal("wp-preview-main-ad"),
-      payment_method: getVal("wp-preview-payment-method"),
-      youtube_link: getVal("wp-preview-youtube-link"),
-      tags: getVal("wp-preview-tags"),
-    },
+    meta: metaData,
   };
 }
 

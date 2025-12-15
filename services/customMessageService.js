@@ -558,6 +558,7 @@ function validateMessage(content) {
 
 /**
  * Calculate next run time for a schedule
+ * Supports: daily, weekly, monthly, yearly repeat types
  */
 function calculateNextRun(scheduleConfig) {
   if (!scheduleConfig) return null;
@@ -572,6 +573,8 @@ function calculateNextRun(scheduleConfig) {
     .split(":")
     .map(Number);
 
+  const repeatType = scheduleConfig.repeatType || "daily";
+
   // Get day names mapping
   const dayNames = [
     "sunday",
@@ -582,28 +585,86 @@ function calculateNextRun(scheduleConfig) {
     "friday",
     "saturday",
   ];
-  const allowedDays = scheduleConfig.days || dayNames.slice(0, 5); // Default: Sun-Thu
 
-  // Find next valid run time
-  for (let i = 0; i < 7; i++) {
-    const checkDate = new Date(ksaNow);
-    checkDate.setDate(checkDate.getDate() + i);
-    const dayName = dayNames[checkDate.getDay()];
-
-    if (allowedDays.includes(dayName)) {
-      const runTime = new Date(checkDate);
-      runTime.setHours(startHour, startMinute, 0, 0);
-
-      // If it's today but already passed the start time, continue to next day
-      if (i === 0 && runTime <= ksaNow) {
-        continue;
+  // Handle different repeat types
+  switch (repeatType) {
+    case "monthly": {
+      // Monthly: run on specific day of month
+      const dayOfMonth = scheduleConfig.dayOfMonth || 1;
+      
+      // Check up to 13 months ahead
+      for (let monthOffset = 0; monthOffset <= 13; monthOffset++) {
+        const checkDate = new Date(ksaNow);
+        checkDate.setMonth(checkDate.getMonth() + monthOffset);
+        checkDate.setDate(dayOfMonth);
+        checkDate.setHours(startHour, startMinute, 0, 0);
+        
+        // Handle months with fewer days (e.g., Feb 30 -> Feb 28)
+        if (checkDate.getDate() !== dayOfMonth) {
+          // Day doesn't exist in this month, try next month
+          continue;
+        }
+        
+        if (checkDate > ksaNow) {
+          return checkDate.toISOString();
+        }
       }
+      return null;
+    }
+    
+    case "yearly": {
+      // Yearly: run on specific day and month
+      const dayOfMonth = scheduleConfig.dayOfMonth || 1;
+      const month = (scheduleConfig.month || 1) - 1; // JS months are 0-indexed
+      
+      // Check this year and next few years
+      for (let yearOffset = 0; yearOffset <= 5; yearOffset++) {
+        const checkDate = new Date(ksaNow);
+        checkDate.setFullYear(checkDate.getFullYear() + yearOffset);
+        checkDate.setMonth(month);
+        checkDate.setDate(dayOfMonth);
+        checkDate.setHours(startHour, startMinute, 0, 0);
+        
+        // Validate date (handle Feb 29 on non-leap years)
+        if (checkDate.getMonth() !== month || checkDate.getDate() !== dayOfMonth) {
+          continue;
+        }
+        
+        if (checkDate > ksaNow) {
+          return checkDate.toISOString();
+        }
+      }
+      return null;
+    }
+    
+    case "weekly":
+    case "daily":
+    default: {
+      // Daily/Weekly: run on specific days of week
+      const allowedDays = scheduleConfig.days || dayNames.slice(0, 5); // Default: Sun-Thu
+      
+      // Look ahead up to 14 days to ensure we find the next occurrence
+      // (14 days ensures we cover 2 full weeks for any day selection)
+      for (let i = 0; i < 14; i++) {
+        const checkDate = new Date(ksaNow);
+        checkDate.setDate(checkDate.getDate() + i);
+        const dayName = dayNames[checkDate.getDay()];
 
-      return runTime.toISOString();
+        if (allowedDays.includes(dayName)) {
+          const runTime = new Date(checkDate);
+          runTime.setHours(startHour, startMinute, 0, 0);
+
+          // If it's today but already passed the start time, continue to next day
+          if (i === 0 && runTime <= ksaNow) {
+            continue;
+          }
+
+          return runTime.toISOString();
+        }
+      }
+      return null;
     }
   }
-
-  return null;
 }
 
 // ========================================
