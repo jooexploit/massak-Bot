@@ -8065,7 +8065,7 @@ function editClientDetails(client) {
         </div>
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-phone"></i> Phone Number</div>
-          <div class="detail-item-value">${escapeHtml(client.phoneNumber)}</div>
+          <input type="text" id="edit-phone" class="edit-input" value="${escapeHtml(client.phoneNumber)}" placeholder="Phone Number (e.g., 966501234567)">
         </div>
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-user-tag"></i> Role</div>
@@ -8137,10 +8137,12 @@ function editClientDetails(client) {
   // Save button handler
   const saveBtn = document.getElementById("save-client-btn");
   saveBtn.onclick = async () => {
+    const newPhoneValue = document.getElementById("edit-phone").value.trim();
     const updatedData = {
       name: document.getElementById("edit-name").value.trim(),
       role: document.getElementById("edit-role").value,
       state: document.getElementById("edit-state").value,
+      newPhoneNumber: newPhoneValue !== client.phoneNumber ? newPhoneValue : undefined,
     };
 
     // Get requirements from individual fields if role is باحث

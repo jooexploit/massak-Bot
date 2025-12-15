@@ -3,6 +3,7 @@ const session = require("express-session");
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const path = require("path");
+const fs = require("fs");
 require("dotenv").config();
 
 const authRoutes = require("./routes/auth");
@@ -31,8 +32,8 @@ process.on("uncaughtException", (error) => {
 });
 
 // Middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 app.use(
   session({
@@ -49,6 +50,53 @@ app.use(
 // Serve static files
 app.use(express.static(path.join(__dirname, "public")));
 
+// ============================================
+// 📊 DATA EDITOR ROUTES
+// ============================================
+const DATA_EDIT_DIR = path.join(__dirname, "data_edit");
+const CLIENTS_FILE = path.join(DATA_EDIT_DIR, "clients.json");
+
+// Serve data editor UI
+app.use("/data", express.static(DATA_EDIT_DIR));
+
+// API: Get clients data
+app.get("/api/data/clients", (req, res) => {
+  try {
+    if (!fs.existsSync(CLIENTS_FILE)) {
+      return res.status(404).json({ error: "Clients file not found" });
+    }
+    const data = fs.readFileSync(CLIENTS_FILE, "utf8");
+    res.json(JSON.parse(data));
+  } catch (error) {
+    console.error("Error reading clients:", error);
+    res.status(500).json({ error: "Failed to read clients data" });
+  }
+});
+
+// API: Save clients data
+app.post("/api/data/clients", (req, res) => {
+  try {
+    const data = req.body;
+    if (!data || typeof data !== "object") {
+      return res.status(400).json({ error: "Invalid data format" });
+    }
+    
+    // Create backup before saving
+    if (fs.existsSync(CLIENTS_FILE)) {
+      const backupPath = CLIENTS_FILE.replace(".json", `_backup_${Date.now()}.json`);
+      fs.copyFileSync(CLIENTS_FILE, backupPath);
+      console.log(`📦 Backup created: ${backupPath}`);
+    }
+    
+    fs.writeFileSync(CLIENTS_FILE, JSON.stringify(data, null, 2), "utf8");
+    console.log("✅ Clients data saved successfully");
+    res.json({ success: true, message: "Data saved successfully" });
+  } catch (error) {
+    console.error("Error saving clients:", error);
+    res.status(500).json({ error: "Failed to save clients data" });
+  }
+});
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/bot", botRoutes);
@@ -58,6 +106,7 @@ app.use("/api/webhook", webhookRoutes);
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
+
 
 // Initialize WhatsApp Bot once (singleton guard)
 if (!app.get("botInitialized")) {

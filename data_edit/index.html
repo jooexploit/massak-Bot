@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>محرر بيانات العملاء</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --primary-light: #818cf8;
+      --success: #10b981;
+      --success-dark: #059669;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg-dark: #0f172a;
+      --bg-card: #1e293b;
+      --bg-input: #334155;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --border: #475569;
+      --shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      --glass: rgba(255, 255, 255, 0.05);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1a2e 50%, #16213e 100%);
+      min-height: 100vh;
+      color: var(--text-primary);
+      padding: 0;
+    }
+
+    /* Header */
+    .header {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .header-title h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary-light), var(--success));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header-title .icon {
+      font-size: 1.75rem;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    /* Stats */
+    .stats {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    .stat-badge {
+      background: var(--bg-input);
+      padding: 0.375rem 0.75rem;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .stat-badge.unsaved {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--warning);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.6;
+      }
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 0.625rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--success), var(--success-dark));
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-success:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+    }
+
+    .btn-success:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .btn-outline:hover {
+      background: var(--glass);
+      border-color: var(--primary);
+      color: var(--primary-light);
+    }
+
+    /* Search */
+    .search-container {
+      padding: 1rem 1.5rem;
+      background: var(--glass);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .search-wrapper {
+      position: relative;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 0.875rem 1rem 0.875rem 3rem;
+      font-size: 1rem;
+      font-family: inherit;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      color: var(--text-primary);
+      transition: all 0.2s ease;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-icon {
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 1.25rem;
+    }
+
+    /* Main content */
+    .main {
+      padding: 1.5rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Cards grid */
+    .clients-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 480px) {
+      .clients-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Client card */
+    .client-card {
+      background: var(--bg-card);
+      border-radius: 1rem;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .client-card:hover {
+      border-color: var(--primary);
+      box-shadow: var(--shadow);
+      transform: translateY(-4px);
+    }
+
+    .client-card.modified {
+      border-color: var(--warning);
+    }
+
+    .client-card.modified::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 0 24px 24px 0;
+      border-color: transparent var(--warning) transparent transparent;
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(16, 185, 129, 0.1));
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .client-name {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .client-name span {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .client-phone {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      direction: ltr;
+      font-family: monospace;
+    }
+
+    .status-badge {
+      padding: 0.25rem 0.625rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .status-active {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--success);
+    }
+
+    .status-inactive {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--danger);
+    }
+
+    /* Card body */
+    .card-body {
+      padding: 1rem 1.25rem;
+    }
+
+    .field-group {
+      margin-bottom: 0.875rem;
+    }
+
+    .field-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .field-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 0.375rem;
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .field-input {
+      width: 100%;
+      padding: 0.625rem 0.875rem;
+      font-size: 0.875rem;
+      font-family: inherit;
+      background: var(--bg-input);
+      border: 1px solid transparent;
+      border-radius: 0.5rem;
+      color: var(--text-primary);
+      transition: all 0.2s ease;
+    }
+
+    .field-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: var(--bg-dark);
+    }
+
+    .field-input:hover:not(:focus) {
+      background: rgba(51, 65, 85, 0.8);
+    }
+
+    .field-input.modified {
+      border-color: var(--warning);
+      background: rgba(245, 158, 11, 0.1);
+    }
+
+    textarea.field-input {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    /* Collapsible sections */
+    .collapse-toggle {
+      width: 100%;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 0.625rem 0.875rem;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+      transition: all 0.2s ease;
+    }
+
+    .collapse-toggle:hover {
+      background: var(--bg-input);
+      border-color: var(--primary);
+    }
+
+    .collapse-toggle .arrow {
+      transition: transform 0.2s ease;
+    }
+
+    .collapse-toggle.open .arrow {
+      transform: rotate(180deg);
+    }
+
+    .collapse-content {
+      display: none;
+      padding: 0.75rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .collapse-content.open {
+      display: block;
+    }
+
+    /* Card actions */
+    .card-actions {
+      padding: 0.75rem 1.25rem;
+      background: var(--glass);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+    }
+
+    .btn-sm {
+      padding: 0.5rem 0.875rem;
+      font-size: 0.8rem;
+    }
+
+    /* Loading */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      gap: 1.5rem;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loading-text {
+      color: var(--text-secondary);
+      font-size: 1.125rem;
+    }
+
+    /* Toast notifications */
+    .toast-container {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      border-radius: 1rem;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      animation: slideUp 0.3s ease;
+      pointer-events: auto;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .toast.success {
+      border-color: var(--success);
+    }
+
+    .toast.error {
+      border-color: var(--danger);
+    }
+
+    .toast.warning {
+      border-color: var(--warning);
+    }
+
+    .toast-icon {
+      font-size: 1.5rem;
+    }
+
+    .toast-message {
+      font-size: 0.9rem;
+      color: var(--text-primary);
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+    }
+
+    .empty-state .icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+    /* Mobile optimizations */
+    @media (max-width: 768px) {
+      .header {
+        padding: 0.75rem 1rem;
+      }
+
+      .header-title h1 {
+        font-size: 1.25rem;
+      }
+
+      .header-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .btn {
+        padding: 0.5rem 0.875rem;
+        font-size: 0.8rem;
+      }
+
+      .main {
+        padding: 1rem;
+      }
+
+      .stats {
+        display: none;
+      }
+
+      .search-container {
+        padding: 0.75rem 1rem;
+      }
+    }
+
+    /* Save button fixed on mobile */
+    @media (max-width: 768px) {
+      .save-fab {
+        position: fixed;
+        bottom: 1.5rem;
+        left: 1.5rem;
+        z-index: 100;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        padding: 0;
+        justify-content: center;
+        font-size: 1.5rem;
+        box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5);
+      }
+
+      .save-fab span:last-child {
+        display: none;
+      }
+
+      .save-fab span:first-child {
+        display: inline;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-title">
+      <span class="icon">👥</span>
+      <h1>محرر بيانات العملاء</h1>
+    </div>
+    <div class="stats" id="stats">
+      <span class="stat-badge" id="totalClients">
+        <span>👤</span>
+        <span id="clientCount">0</span> عميل
+      </span>
+      <span class="stat-badge" id="unsavedBadge" style="display:none;">
+        <span>⚠️</span>
+        <span id="unsavedCount">0</span> تغييرات غير محفوظة
+      </span>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-outline" id="reloadBtn" title="إعادة تحميل البيانات">
+        <span>🔄</span>
+        <span>تحديث</span>
+      </button>
+      <button class="btn btn-success save-fab" id="saveBtn" disabled>
+        <span>💾</span>
+        <span>حفظ التغييرات</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Search -->
+  <div class="search-container">
+    <div class="search-wrapper">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-input" id="searchInput" placeholder="بحث بالاسم أو رقم الهاتف أو نوع العقار...">
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <main class="main" id="main">
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p class="loading-text">جاري تحميل بيانات العملاء...</p>
+    </div>
+    <div class="clients-grid" id="clientsGrid" style="display:none;"></div>
+  </main>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    // ===== State Management =====
+    let originalData = {};
+    let currentData = {};
+    let modifiedClients = new Set();
+    let filteredKeys = [];
+
+    // ===== API Functions =====
+    async function loadClients() {
+      try {
+        const response = await fetch('/api/data/clients');
+        if (!response.ok) throw new Error('Failed to load clients');
+        originalData = await response.json();
+        currentData = JSON.parse(JSON.stringify(originalData));
+        return currentData;
+      } catch (error) {
+        console.error('Error loading clients:', error);
+        showToast('فشل في تحميل بيانات العملاء', 'error');
+        throw error;
+      }
+    }
+
+    async function saveClients() {
+      const saveBtn = document.getElementById('saveBtn');
+      const originalText = saveBtn.innerHTML;
+      saveBtn.innerHTML = '<span>⏳</span><span>جاري الحفظ...</span>';
+      saveBtn.disabled = true;
+
+      try {
+        const response = await fetch('/api/data/clients', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(currentData),
+        });
+
+        if (!response.ok) throw new Error('Failed to save clients');
+
+        const result = await response.json();
+
+        // Reset modified state
+        originalData = JSON.parse(JSON.stringify(currentData));
+        modifiedClients.clear();
+        updateModifiedState();
+        showToast('✅ تم حفظ البيانات بنجاح!', 'success');
+      } catch (error) {
+        console.error('Error saving clients:', error);
+        showToast('فشل في حفظ البيانات', 'error');
+        saveBtn.disabled = false;
+      } finally {
+        saveBtn.innerHTML = originalText;
+      }
+    }
+
+
+    // ===== UI Functions =====
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+
+      const icons = { success: '✅', error: '❌', warning: '⚠️' };
+      toast.innerHTML = `
+    <span class="toast-icon">${icons[type]}</span>
+    <span class="toast-message">${message}</span>
+  `;
+
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    function updateModifiedState() {
+      const saveBtn = document.getElementById('saveBtn');
+      const unsavedBadge = document.getElementById('unsavedBadge');
+      const unsavedCount = document.getElementById('unsavedCount');
+
+      const hasChanges = modifiedClients.size > 0;
+      saveBtn.disabled = !hasChanges;
+      unsavedBadge.style.display = hasChanges ? 'flex' : 'none';
+      unsavedCount.textContent = modifiedClients.size;
+
+      // Update card visual state
+      document.querySelectorAll('.client-card').forEach(card => {
+        const key = card.dataset.key;
+        card.classList.toggle('modified', modifiedClients.has(key));
+      });
+    }
+
+    function isModified(key) {
+      return JSON.stringify(currentData[key]) !== JSON.stringify(originalData[key]);
+    }
+
+    function updateClientField(key, path, value) {
+      // Navigate to the nested property
+      const parts = path.split('.');
+      let obj = currentData[key];
+      for (let i = 0; i < parts.length - 1; i++) {
+        obj = obj[parts[i]];
+      }
+
+      // Parse value appropriately
+      const lastPart = parts[parts.length - 1];
+      let parsedValue = value;
+
+      // Check if it should be a number
+      if (['priceMin', 'priceMax', 'areaMin', 'areaMax'].includes(lastPart)) {
+        parsedValue = value === '' ? null : Number(value);
+      } else if (lastPart === 'neighborhoods') {
+        try {
+          parsedValue = JSON.parse(value);
+        } catch {
+          parsedValue = value.split(',').map(s => s.trim()).filter(s => s);
+        }
+      } else if (value === '') {
+        parsedValue = null;
+      }
+
+      obj[lastPart] = parsedValue;
+
+      // Check if client is modified
+      if (isModified(key)) {
+        modifiedClients.add(key);
+      } else {
+        modifiedClients.delete(key);
+      }
+
+      updateModifiedState();
+    }
+
+    function renderClientCard(key, client) {
+      const requirements = client.requirements || {};
+      const isActive = client.requestStatus === 'active';
+
+      return `
+    <div class="client-card" data-key="${key}">
+      <div class="card-header">
+        <div class="client-name">
+          <span>👤</span>
+          <span>${client.name || 'بدون اسم'}</span>
+        </div>
+        <span class="status-badge ${isActive ? 'status-active' : 'status-inactive'}">
+          ${isActive ? 'نشط' : 'غير نشط'}
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="field-group">
+          <label class="field-label">📱 رقم الهاتف</label>
+          <input type="text" class="field-input" value="${client.phoneNumber || ''}" 
+            data-key="${key}" data-path="phoneNumber" dir="ltr">
+        </div>
+        
+        <div class="field-group">
+          <label class="field-label">👤 اسم العميل</label>
+          <input type="text" class="field-input" value="${client.name || ''}"
+            data-key="${key}" data-path="name">
+        </div>
+        
+        <div class="field-group">
+          <label class="field-label">🏷️ الدور</label>
+          <input type="text" class="field-input" value="${client.role || ''}"
+            data-key="${key}" data-path="role">
+        </div>
+        
+        <div class="field-group">
+          <label class="field-label">📊 حالة الطلب</label>
+          <input type="text" class="field-input" value="${client.requestStatus || ''}"
+            data-key="${key}" data-path="requestStatus">
+        </div>
+        
+        <!-- Requirements Section -->
+        <button class="collapse-toggle" onclick="toggleCollapse(this)">
+          <span>📋 متطلبات العقار</span>
+          <span class="arrow">▼</span>
+        </button>
+        <div class="collapse-content">
+          <div class="field-group">
+            <label class="field-label">🏠 نوع العقار</label>
+            <input type="text" class="field-input" value="${requirements.propertyType || ''}"
+              data-key="${key}" data-path="requirements.propertyType">
+          </div>
+          
+          <div class="field-group">
+            <label class="field-label">🎯 الغرض</label>
+            <input type="text" class="field-input" value="${requirements.purpose || ''}"
+              data-key="${key}" data-path="requirements.purpose">
+          </div>
+          
+          <div class="field-group">
+            <label class="field-label">💰 الحد الأدنى للسعر</label>
+            <input type="number" class="field-input" value="${requirements.priceMin ?? ''}"
+              data-key="${key}" data-path="requirements.priceMin">
+          </div>
+          
+          <div class="field-group">
+            <label class="field-label">💰 الحد الأقصى للسعر</label>
+            <input type="number" class="field-input" value="${requirements.priceMax ?? ''}"
+              data-key="${key}" data-path="requirements.priceMax">
+          </div>
+          
+          <div class="field-group">
+            <label class="field-label">📐 الحد الأدنى للمساحة</label>
+            <input type="number" class="field-input" value="${requirements.areaMin ?? ''}"
+              data-key="${key}" data-path="requirements.areaMin">
+          </div>
+          
+          <div class="field-group">
+            <label class="field-label">📐 الحد الأقصى للمساحة</label>
+            <input type="number" class="field-input" value="${requirements.areaMax ?? ''}"
+              data-key="${key}" data-path="requirements.areaMax">
+          </div>
+          
+          <div class="field-group">
+            <label class="field-label">📍 الأحياء المفضلة (مفصولة بفاصلة)</label>
+            <textarea class="field-input" data-key="${key}" data-path="requirements.neighborhoods"
+              >${Array.isArray(requirements.neighborhoods) ? requirements.neighborhoods.join(', ') : ''}</textarea>
+          </div>
+          
+          <div class="field-group">
+            <label class="field-label">📝 مواصفات إضافية</label>
+            <textarea class="field-input" data-key="${key}" data-path="requirements.additionalSpecs"
+              rows="3">${requirements.additionalSpecs || ''}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+    }
+
+    function toggleCollapse(btn) {
+      btn.classList.toggle('open');
+      const content = btn.nextElementSibling;
+      content.classList.toggle('open');
+    }
+
+    function renderClients(keys = null) {
+      const grid = document.getElementById('clientsGrid');
+      const keysToRender = keys || Object.keys(currentData);
+      filteredKeys = keysToRender;
+
+      if (keysToRender.length === 0) {
+        grid.innerHTML = `
+      <div class="empty-state" style="grid-column: 1/-1;">
+        <div class="icon">🔍</div>
+        <p>لم يتم العثور على عملاء</p>
+      </div>
+    `;
+      } else {
+        grid.innerHTML = keysToRender.map(key => renderClientCard(key, currentData[key])).join('');
+      }
+
+      // Update client count
+      document.getElementById('clientCount').textContent = Object.keys(currentData).length;
+
+      // Add input listeners
+      grid.querySelectorAll('.field-input').forEach(input => {
+        input.addEventListener('input', (e) => {
+          const key = e.target.dataset.key;
+          const path = e.target.dataset.path;
+          updateClientField(key, path, e.target.value);
+          e.target.classList.add('modified');
+        });
+      });
+
+      updateModifiedState();
+    }
+
+    function filterClients(query) {
+      const q = query.toLowerCase().trim();
+      if (!q) {
+        renderClients();
+        return;
+      }
+
+      const matchedKeys = Object.keys(currentData).filter(key => {
+        const client = currentData[key];
+        const requirements = client.requirements || {};
+
+        return (
+          (client.name && client.name.toLowerCase().includes(q)) ||
+          (client.phoneNumber && client.phoneNumber.includes(q)) ||
+          (requirements.propertyType && requirements.propertyType.toLowerCase().includes(q)) ||
+          (requirements.neighborhoods && requirements.neighborhoods.some(n => n.toLowerCase().includes(q)))
+        );
+      });
+
+      renderClients(matchedKeys);
+    }
+
+    // ===== Unsaved Changes Protection =====
+    window.addEventListener('beforeunload', (e) => {
+      if (modifiedClients.size > 0) {
+        e.preventDefault();
+        e.returnValue = 'لديك تغييرات غير محفوظة. هل أنت متأكد من المغادرة؟';
+        return e.returnValue;
+      }
+    });
+
+    // ===== Event Listeners =====
+    document.getElementById('saveBtn').addEventListener('click', saveClients);
+
+    document.getElementById('reloadBtn').addEventListener('click', async () => {
+      if (modifiedClients.size > 0) {
+        if (!confirm('لديك تغييرات غير محفوظة. هل تريد تجاهلها وإعادة التحميل؟')) {
+          return;
+        }
+      }
+
+      document.getElementById('loading').style.display = 'flex';
+      document.getElementById('clientsGrid').style.display = 'none';
+
+      try {
+        await loadClients();
+        modifiedClients.clear();
+        renderClients();
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('clientsGrid').style.display = 'grid';
+        showToast('تم تحديث البيانات بنجاح', 'success');
+      } catch (error) {
+        document.getElementById('loading').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">❌</div>
+        <p>فشل في تحميل البيانات</p>
+      </div>
+    `;
+      }
+    });
+
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      filterClients(e.target.value);
+    });
+
+    // ===== Initialize =====
+    (async function init() {
+      try {
+        await loadClients();
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('clientsGrid').style.display = 'grid';
+        renderClients();
+      } catch (error) {
+        document.getElementById('loading').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">❌</div>
+        <p>فشل في تحميل البيانات</p>
+        <button class="btn btn-primary" onclick="location.reload()">إعادة المحاولة</button>
+      </div>
+    `;
+      }
+    })();
+  </script>
+
+</body>
+
+</html>

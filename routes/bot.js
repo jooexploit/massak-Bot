@@ -3015,12 +3015,35 @@ router.put(
   (req, res) => {
     try {
       const { phoneNumber } = req.params;
-      const { name, role, state, requirements, propertyOffer } = req.body;
+      const { name, role, state, requirements, propertyOffer, newPhoneNumber } = req.body;
 
       // Get existing client
       const existingClient = privateClient.getClient(phoneNumber);
       if (!existingClient) {
         return res.status(404).json({ error: "Client not found" });
+      }
+
+      let targetPhone = phoneNumber;
+
+      // Handle phone number change
+      if (newPhoneNumber && newPhoneNumber !== phoneNumber) {
+        // Normalize the new phone number (remove non-digits except leading +)
+        const normalizedNewPhone = newPhoneNumber.replace(/[^\d]/g, "");
+        
+        if (!normalizedNewPhone || normalizedNewPhone.length < 10) {
+          return res.status(400).json({ error: "Invalid phone number format" });
+        }
+
+        const result = privateClient.changeClientPhone(phoneNumber, normalizedNewPhone);
+        if (!result) {
+          // Check if it's because new phone exists
+          const existingNew = privateClient.getClient(normalizedNewPhone);
+          if (existingNew && existingNew.createdAt) {
+            return res.status(400).json({ error: "Phone number already exists for another client" });
+          }
+          return res.status(400).json({ error: "Failed to change phone number" });
+        }
+        targetPhone = normalizedNewPhone;
       }
 
       // Build update object
@@ -3035,12 +3058,16 @@ router.put(
       if (propertyOffer !== undefined) updateData.propertyOffer = propertyOffer;
 
       // Update client
-      privateClient.updateClient(phoneNumber, updateData);
+      privateClient.updateClient(targetPhone, updateData);
 
       res.json({
         success: true,
-        message: "Client updated successfully",
-        client: privateClient.getClient(phoneNumber),
+        message: newPhoneNumber && newPhoneNumber !== phoneNumber 
+          ? "Client updated and phone number changed successfully" 
+          : "Client updated successfully",
+        client: privateClient.getClient(targetPhone),
+        phoneChanged: newPhoneNumber && newPhoneNumber !== phoneNumber,
+        newPhoneNumber: targetPhone,
       });
     } catch (error) {
       console.error("Error updating client:", error);

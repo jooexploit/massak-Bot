@@ -180,6 +180,41 @@ function deleteClient(phoneNumber) {
   return false;
 }
 
+/**
+ * Change client's phone number (move data to new phone key)
+ * @param {string} oldPhoneNumber - Current phone number
+ * @param {string} newPhoneNumber - New phone number
+ * @returns {object|null} Updated client data or null if old phone not found or new phone exists
+ */
+function changeClientPhone(oldPhoneNumber, newPhoneNumber) {
+  // Check if old phone exists
+  if (!clients[oldPhoneNumber]) {
+    console.log(`❌ Client not found: ${oldPhoneNumber}`);
+    return null;
+  }
+
+  // Check if new phone already exists
+  if (clients[newPhoneNumber]) {
+    console.log(`❌ Phone number already exists: ${newPhoneNumber}`);
+    return null;
+  }
+
+  // Move data to new phone number
+  const clientData = { ...clients[oldPhoneNumber] };
+  clientData.phoneNumber = newPhoneNumber;
+  clientData.updatedAt = Date.now();
+  clientData.lastMessageAt = Date.now();
+
+  // Create new entry and delete old
+  clients[newPhoneNumber] = clientData;
+  delete clients[oldPhoneNumber];
+
+  saveClients();
+  console.log(`📱 Changed client phone: ${oldPhoneNumber} → ${newPhoneNumber}`);
+
+  return clients[newPhoneNumber];
+}
+
 // Initialize
 loadClients();
 
@@ -195,4 +230,5 @@ module.exports = {
   getAllClients,
   cleanInactiveClients,
   deleteClient,
+  changeClientPhone,
 };
