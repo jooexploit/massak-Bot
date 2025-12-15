@@ -8,6 +8,9 @@ let currentAdDetails = null;
 // Copy Ad Content to Clipboard
 // -------------------------
 async function copyAdContentToClipboard(adId, type = 'enhanced') {
+  // Declare textToCopy outside try block so it's accessible in catch block for fallback
+  let textToCopy = '';
+  
   try {
     // Try to get content from the ad details modal first
     let contentElement = document.getElementById(`ad-content-${type}-${adId}`);
@@ -18,7 +21,6 @@ async function copyAdContentToClipboard(adId, type = 'enhanced') {
     }
     
     // If still not found, try to get from currentAdDetails
-    let textToCopy = '';
     if (contentElement) {
       textToCopy = contentElement.textContent || contentElement.innerText;
     } else if (currentAdDetails) {
@@ -32,8 +34,13 @@ async function copyAdContentToClipboard(adId, type = 'enhanced') {
       return;
     }
     
-    // Copy to clipboard
-    await navigator.clipboard.writeText(textToCopy.trim());
+    // Check if clipboard API is available (requires HTTPS or localhost)
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(textToCopy.trim());
+    } else {
+      // Clipboard API not available, use fallback immediately
+      throw new Error('Clipboard API not available');
+    }
     
     // Find the button that was clicked and show success feedback
     const buttons = document.querySelectorAll(`button[onclick*="copyAdContentToClipboard('${adId}'"]`);
@@ -51,16 +58,22 @@ async function copyAdContentToClipboard(adId, type = 'enhanced') {
     console.log('✅ Ad content copied to clipboard');
   } catch (err) {
     console.error('Failed to copy to clipboard:', err);
-    // Fallback for older browsers
+    // Fallback for older browsers or non-HTTPS contexts
     try {
       const textArea = document.createElement('textarea');
-      textArea.value = textToCopy;
+      textArea.value = textToCopy.trim();
       textArea.style.position = 'fixed';
       textArea.style.left = '-999999px';
+      textArea.style.top = '0';
       document.body.appendChild(textArea);
+      textArea.focus();
       textArea.select();
-      document.execCommand('copy');
+      const successful = document.execCommand('copy');
       document.body.removeChild(textArea);
+      
+      if (!successful) {
+        throw new Error('execCommand copy failed');
+      }
       
       // Show success
       const buttons = document.querySelectorAll(`button[onclick*="copyAdContentToClipboard('${adId}'"]`);
@@ -74,6 +87,8 @@ async function copyAdContentToClipboard(adId, type = 'enhanced') {
           button.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
         }, 2000);
       });
+      
+      console.log('✅ Ad content copied to clipboard (using fallback)');
     } catch (fallbackErr) {
       console.error('Fallback copy also failed:', fallbackErr);
       alert('Failed to copy to clipboard. Please copy manually.');
