@@ -3015,7 +3015,7 @@ router.put(
   (req, res) => {
     try {
       const { phoneNumber } = req.params;
-      const { name, role, state, requirements, propertyOffer, newPhoneNumber } = req.body;
+      const { name, role, state, requirements, propertyOffer, newPhoneNumber, requests } = req.body;
 
       // Get existing client
       const existingClient = privateClient.getClient(phoneNumber);
@@ -3056,6 +3056,12 @@ router.put(
       if (state !== undefined) updateData.state = state;
       if (requirements !== undefined) updateData.requirements = requirements;
       if (propertyOffer !== undefined) updateData.propertyOffer = propertyOffer;
+      
+      // NEW: Support for multiple requests array
+      if (requests !== undefined && Array.isArray(requests)) {
+        updateData.requests = requests;
+        console.log(`📋 Updating ${requests.length} requests for client ${targetPhone}`);
+      }
 
       // Update client
       privateClient.updateClient(targetPhone, updateData);

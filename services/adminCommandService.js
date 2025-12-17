@@ -248,6 +248,107 @@ async function loadAdminsFromFile() {
 }
 
 /**
+ * Save LID mapping to admins file
+ * @param {string} lid - The LID (without @lid suffix)
+ * @param {string} phoneNumber - The admin phone number to map to
+ */
+async function saveLidMapping(lid, phoneNumber) {
+  try {
+    // Add to in-memory mapping
+    lidMapping[lid] = phoneNumber;
+    
+    // Load current file content
+    let parsed = { admins: ADMIN_NUMBERS, lid_mapping: {} };
+    try {
+      const adminData = await fs.readFile(ADMINS_FILE, "utf8");
+      parsed = JSON.parse(adminData);
+    } catch (e) {
+      // File doesn't exist, use defaults
+    }
+    
+    // Update lid_mapping
+    parsed.lid_mapping = lidMapping;
+    
+    // Save back to file
+    await fs.writeFile(ADMINS_FILE, JSON.stringify(parsed, null, 2), "utf8");
+    console.log(`✅ Saved LID mapping: ${lid} -> ${phoneNumber}`);
+    return true;
+  } catch (err) {
+    console.error("❌ Error saving LID mapping:", err);
+    return false;
+  }
+}
+
+/**
+ * Check if message is an LID registration command
+ * Format: "انا 201090952790" or "انا +201090952790"
+ * This allows admins to register their LID when first connecting from a new device
+ * @param {string} message - The message text
+ * @param {string} senderJid - The sender's JID (may be @lid format)
+ * @returns {Object|null} { success: boolean, adminPhone: string, message: string }
+ */
+async function handleLidRegistration(message, senderJid) {
+  // Check if message starts with "انا" (I am)
+  const trimmed = message.trim();
+  if (!trimmed.startsWith("انا ") && !trimmed.startsWith("أنا ")) {
+    return null; // Not a registration command
+  }
+  
+  // Check if sender is using LID format
+  if (!senderJid.endsWith("@lid")) {
+    return null; // Not a LID, no need to register
+  }
+  
+  // Extract the phone number from the message
+  const parts = trimmed.split(/\s+/);
+  if (parts.length < 2) {
+    return { success: false, message: "❌ الرجاء إرسال رقمك بعد 'انا'\n\nمثال: انا 201090952790" };
+  }
+  
+  // Get the phone number and normalize it
+  const phoneRaw = parts.slice(1).join("").replace(/[\s\-\(\)\+]/g, "");
+  const normalizedPhone = normalizePhoneNumber(phoneRaw);
+  
+  // Check if this phone number is in the admin list
+  if (!ADMIN_NUMBERS.includes(normalizedPhone)) {
+    console.log(`🚫 LID registration rejected: ${normalizedPhone} is not an admin`);
+    return { 
+      success: false, 
+      message: `❌ الرقم ${normalizedPhone} غير مسجل كمسؤول.\n\nإذا كنت أدمن، تأكد من إضافة رقمك لقائمة الأدمنز أولاً.` 
+    };
+  }
+  
+  // Extract the LID
+  const lid = senderJid.replace("@lid", "");
+  
+  // Check if already mapped
+  if (lidMapping[lid] === normalizedPhone) {
+    return { 
+      success: true, 
+      adminPhone: normalizedPhone,
+      message: `✅ أنت مسجل بالفعل كـ ${normalizedPhone}` 
+    };
+  }
+  
+  // Save the mapping
+  const saved = await saveLidMapping(lid, normalizedPhone);
+  
+  if (saved) {
+    console.log(`✅ LID auto-registered: ${lid} -> ${normalizedPhone}`);
+    return { 
+      success: true, 
+      adminPhone: normalizedPhone,
+      message: `✅ *تم تسجيلك بنجاح!*\n\n📱 رقمك: ${normalizedPhone}\n🔗 LID: ${lid}\n\nالآن يمكنك استخدام جميع أوامر الأدمن.` 
+    };
+  } else {
+    return { 
+      success: false, 
+      message: "❌ حدث خطأ أثناء الحفظ. حاول مرة أخرى." 
+    };
+  }
+}
+
+/**
  * Save admins to file
  */
 async function saveAdminsToFile() {
@@ -1339,7 +1440,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           ? clientPhone
           : `966${clientPhone.replace(/^0+/, "")}`;
 
-        // Save client FIRST before searching (so data is saved even if search fails)
+        // Save client using the new multi-request system
         const privateClient = require("../models/privateClient");
         const client = privateClient.getClient(normalizedPhone);
 
@@ -1347,14 +1448,20 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         const clientName =
           requirements.clientName || client.name || "عميل جديد";
 
+        // Add the full text to requirements for reference
+        const fullRequirements = {
+          ...requirements,
+          additionalSpecs: text,
+        };
+
+        // Use new multi-request function to add or update based on property type
+        const requestResult = privateClient.addOrUpdateClientRequest(normalizedPhone, fullRequirements);
+        
+        // Also update client basic info
         privateClient.updateClient(normalizedPhone, {
           name: clientName,
           role: "باحث",
           state: "completed",
-          requirements: {
-            ...requirements,
-            additionalSpecs: text,
-          },
           propertyOffer: null,
           requestStatus: "active",
           matchHistory: client.matchHistory || [],
@@ -1364,9 +1471,21 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           adminPhone: phoneNumber,
         });
 
-        console.log(
-          `✅ Client ${normalizedPhone} saved to private_clients.json`
-        );
+        // Log what happened
+        if (requestResult.isUpdate) {
+          console.log(`🔄 Updated existing request for ${normalizedPhone} (${requirements.propertyType})`);
+        } else if (requestResult.totalRequests > 1) {
+          console.log(`➕ Added new request for ${normalizedPhone}. Total requests: ${requestResult.totalRequests}`);
+        } else {
+          console.log(`✅ Client ${normalizedPhone} saved with first request`);
+        }
+
+        // Store multi-request info for admin message
+        const multiRequestInfo = {
+          isUpdate: requestResult.isUpdate,
+          totalRequests: requestResult.totalRequests,
+          message: requestResult.message,
+        };
 
         // Perform deep search immediately
         console.log("🔍 Starting deep search...");
@@ -1390,12 +1509,27 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           );
         } catch (searchError) {
           console.error("❌ Deep search failed:", searchError.message);
-          return `✅ *تم حفظ الطلب بنجاح*\n\n❌ فشل البحث: ${searchError.message}\n\n📱 رقم العميل: +${normalizedPhone}\n🔔 سيتم إرسال التنبيهات التلقائية عند توفر عقارات جديدة`;
+          // Include multi-request info in error response
+          let errorMsg = "";
+          if (multiRequestInfo.isUpdate) {
+            errorMsg += `🔄 *تم تحديث الطلب الحالي* (${requirements.propertyType})\n\n`;
+          } else if (multiRequestInfo.totalRequests > 1) {
+            errorMsg += `➕ *طلب جديد - العميل لديه الآن ${multiRequestInfo.totalRequests} طلبات*\n\n`;
+          }
+          errorMsg += `✅ *تم حفظ الطلب بنجاح*\n\n❌ فشل البحث: ${searchError.message}\n\n📱 رقم العميل: +${normalizedPhone}\n🔔 سيتم إرسال التنبيهات التلقائية عند توفر عقارات جديدة`;
+          return errorMsg;
         }
 
         // Build response with results
         if (results.length === 0) {
-          return `✅ *تم حفظ الطلب بنجاح*\n\n⚠️ *لم يتم العثور على عقارات مطابقة حالياً*\n\n📋 *تفاصيل الطلب:*\n• نوع العقار: ${
+          // Include multi-request info in no results response
+          let noResultsMsg = "";
+          if (multiRequestInfo.isUpdate) {
+            noResultsMsg += `🔄 *تم تحديث الطلب الحالي* (${requirements.propertyType})\n\n`;
+          } else if (multiRequestInfo.totalRequests > 1) {
+            noResultsMsg += `➕ *طلب جديد - العميل لديه الآن ${multiRequestInfo.totalRequests} طلبات*\n\n`;
+          }
+          noResultsMsg += `✅ *تم حفظ الطلب بنجاح*\n\n⚠️ *لم يتم العثور على عقارات مطابقة حالياً*\n\n📋 *تفاصيل الطلب:*\n• نوع العقار: ${
             requirements.propertyType || "غير محدد"
           }\n• الغرض: ${
             requirements.purpose || "غير محدد"
@@ -1404,13 +1538,29 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           } - ${requirements.areaMax} م²\n• الأحياء: ${
             requirements.neighborhoods?.join("، ") || "غير محدد"
           }\n\n📱 رقم العميل: +${normalizedPhone}\n🔔 سيتم إرسال التنبيهات التلقائية للعميل`;
+          return noResultsMsg;
         }
 
         // Send results to admin for review
-        let adminMsg = `✅ *تم حفظ الطلب وإيجاد ${results.length} عقار مطابق*\n\n`;
+        let adminMsg = "";
+        
+        // Show multi-request status at the top
+        if (multiRequestInfo.isUpdate) {
+          adminMsg += `🔄 *تم تحديث الطلب الحالي* (نوع العقار: ${requirements.propertyType})\n\n`;
+        } else if (multiRequestInfo.totalRequests > 1) {
+          adminMsg += `➕ *طلب جديد - العميل لديه الآن ${multiRequestInfo.totalRequests} طلبات*\n\n`;
+        }
+        
+        adminMsg += `✅ *تم حفظ الطلب وإيجاد ${results.length} عقار مطابق*\n\n`;
         adminMsg += `👤 *اسم العميل:* ${clientName}\n`;
-        adminMsg += `📱 *رقم العميل:* +${normalizedPhone}\n\n`;
-        adminMsg += `📋 *تفاصيل الطلب:*\n`;
+        adminMsg += `📱 *رقم العميل:* +${normalizedPhone}\n`;
+        
+        // Show total requests if more than one
+        if (multiRequestInfo.totalRequests > 1) {
+          adminMsg += `📋 *عدد الطلبات:* ${multiRequestInfo.totalRequests} طلب\n`;
+        }
+        
+        adminMsg += `\n📋 *تفاصيل الطلب الحالي:*\n`;
         adminMsg += `• نوع العقار: ${
           requirements.propertyType || "غير محدد"
         }\n`;
@@ -2563,6 +2713,7 @@ loadReminders();
 module.exports = {
   isAdmin,
   handleAdminCommand,
+  handleLidRegistration, // New: auto-register LID when admin sends "انا [phone]"
   getPendingReminders,
   markReminderSent,
   getAdminHelpMessage,

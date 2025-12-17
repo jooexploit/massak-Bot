@@ -79,6 +79,80 @@ function releaseInitLock() {
   } catch {}
 }
 
+// ============================================
+// 🧹 CENTRALIZED CLEANUP & SOCKET UPDATE
+// These functions ensure all services get proper cleanup/updates
+// when the connection changes state
+// ============================================
+
+/**
+ * Clean up all schedulers and intervals when connection closes.
+ * This prevents stale socket references from causing zombie connections.
+ */
+function cleanupAllSchedulers() {
+  console.log("🧹 Cleaning up all schedulers and intervals...");
+  
+  // Stop reminder scheduler
+  try {
+    reminderScheduler.stopScheduler();
+    console.log("  ✅ Reminder scheduler stopped");
+  } catch (e) {
+    console.warn("  ⚠️ Error stopping reminder scheduler:", e.message);
+  }
+  
+  // Stop message scheduler
+  try {
+    const messageSchedulerService = require("../services/messageSchedulerService");
+    messageSchedulerService.stopScheduler();
+    console.log("  ✅ Message scheduler stopped");
+  } catch (e) {
+    console.warn("  ⚠️ Error stopping message scheduler:", e.message);
+  }
+  
+  // Clear keepalive ping interval
+  if (keepalivePingInterval) {
+    clearInterval(keepalivePingInterval);
+    keepalivePingInterval = null;
+    console.log("  ✅ Keepalive ping interval cleared");
+  }
+  
+  // Clear health check interval
+  if (messageHandlerHealthCheckInterval) {
+    clearInterval(messageHandlerHealthCheckInterval);
+    messageHandlerHealthCheckInterval = null;
+    console.log("  ✅ Health check interval cleared");
+  }
+  
+  console.log("✅ All schedulers and intervals cleaned up");
+}
+
+/**
+ * Update socket reference in all services after successful reconnection.
+ * This ensures all services use the new live socket.
+ */
+function updateAllServicesSocket(newSock) {
+  console.log("🔄 Updating socket in all services...");
+  
+  // Update reminder scheduler
+  try {
+    reminderScheduler.updateSocket(newSock);
+    console.log("  ✅ Reminder scheduler socket updated");
+  } catch (e) {
+    console.warn("  ⚠️ Error updating reminder scheduler socket:", e.message);
+  }
+  
+  // Update message scheduler
+  try {
+    const messageSchedulerService = require("../services/messageSchedulerService");
+    messageSchedulerService.updateSocket(newSock, sendMessage, sendImage);
+    console.log("  ✅ Message scheduler socket updated");
+  } catch (e) {
+    console.warn("  ⚠️ Error updating message scheduler socket:", e.message);
+  }
+  
+  console.log("✅ All services updated with new socket");
+}
+
 // Ads storage (simple JSON file)
 const ADS_FILE = path.join(__dirname, "..", "data", "ads.json");
 const COLLECTIONS_FILE = path.join(__dirname, "..", "data", "collections.json");
@@ -1250,6 +1324,10 @@ async function initializeBot() {
       }
 
       if (connection === "close") {
+        // CRITICAL: Clean up all schedulers immediately when connection closes
+        // This prevents stale socket references from causing zombie connections
+        cleanupAllSchedulers();
+        
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const errorMessage = lastDisconnect?.error?.message || "Unknown error";
 
@@ -1443,6 +1521,10 @@ async function initializeBot() {
           clearTimeout(reconnectTimeout);
           reconnectTimeout = null;
         }
+
+        // CRITICAL: Update all services with new socket reference first
+        // This ensures all services have the current live socket before initialization
+        updateAllServicesSocket(sock);
 
         // Initialize reminder scheduler
         reminderScheduler.initScheduler(sock);
@@ -1725,17 +1807,45 @@ async function initializeBot() {
             console.log(`📱 Extracted phone number: ${phoneNumber}`);
 
             // ============================================
+            // 🔗 LID AUTO-REGISTRATION - Allow admins to register their LID
+            // ============================================
+            // If message starts with "انا" and sender uses LID format,
+            // allow them to register their LID to their admin phone number
+            if (messageText && isLid) {
+              const lidResult = await adminCommandService.handleLidRegistration(messageText, from);
+              if (lidResult) {
+                // This is a LID registration attempt
+                console.log(`🔗 LID registration attempt from ${from}`);
+                await sock.sendMessage(from, { text: lidResult.message });
+                
+                // If registration was successful, continue processing (they're now an admin)
+                if (!lidResult.success) {
+                  return; // Failed registration, stop here
+                }
+                // Successfully registered, now they can use admin commands
+                // Re-check admin status after registration
+              }
+            }
+
+            // ============================================
             // 🔒 ADMIN-ONLY MODE - Only respond to admins
             // ============================================
             // NOTE: The bot cannot see messages sent from its own WhatsApp account
             // So we use admin numbers from adminCommandService instead
             const isAdmin = adminCommandService.isAdmin(from);
 
-            // ✋ If not an admin, ignore the message completely
+            // ✋ If not an admin, check if they need to register their LID
             if (!isAdmin) {
-              console.log(
-                `🚫 Message ignored - sender is not an admin: ${senderName} (${senderPhone})`
-              );
+              // If using LID format, give them a hint on how to register
+              if (isLid) {
+                console.log(`🔗 Unregistered LID detected: ${from}`);
+                const hintMessage = `🔗 *رقمك غير مسجل*\n\nإذا كنت أدمن، أرسل:\nانا [رقمك]\n\nمثال:\nانا 201090952790`;
+                await sock.sendMessage(from, { text: hintMessage });
+              } else {
+                console.log(
+                  `🚫 Message ignored - sender is not an admin: ${senderName} (${senderPhone})`
+                );
+              }
               return; // Don't respond to non-admins
             }
 
@@ -3288,10 +3398,13 @@ module.exports = {
   initializeBot,
   getQRCode,
   getConnectionStatus,
-  getMessageHandlerHealth, // NEW: Health monitoring
+  getMessageHandlerHealth, // Health monitoring
   disconnectBot,
   sendMessage,
   sendImage,
+  // Connection stability functions
+  cleanupAllSchedulers,
+  updateAllServicesSocket,
   // ads API
   getFetchedAds,
   reloadAds,

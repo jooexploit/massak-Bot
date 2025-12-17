@@ -111,6 +111,24 @@ function getRandomTimeInRange(startTime, endTime) {
  * Send message to all recipients with delay
  */
 async function sendToRecipients(schedule, processedMessage) {
+  // CRITICAL: Validate connection is actually connected before sending
+  // This prevents sending on stale socket references after reconnection
+  try {
+    const { getConnectionStatus } = require("../whatsapp/bot");
+    const connectionStatus = getConnectionStatus();
+    if (connectionStatus !== "connected") {
+      console.log(`⚠️ Connection status is "${connectionStatus}", skipping scheduled message send`);
+      return { sent: 0, failed: 0, failedRecipients: [], skipped: true };
+    }
+  } catch (e) {
+    console.warn("⚠️ Could not check connection status:", e.message);
+  }
+
+  if (!sock && !sendMessageFunc) {
+    console.log("⚠️ No socket or sendMessage function available, skipping scheduled message");
+    return { sent: 0, failed: 0, failedRecipients: [], skipped: true };
+  }
+
   const { recipients, settings } = schedule;
   const delayMs = (settings.delaySeconds || 60) * 1000;
 

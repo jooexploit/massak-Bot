@@ -7739,90 +7739,56 @@ function createClientRow(client) {
     ? formatRelativeTime(client.lastActivity)
     : "Never";
 
-  // Format requirements/offer preview
+  // Format requirements/offer preview - now supports multiple requests
   let requirementsPreview = "";
-  const dataToShow = client.propertyOffer || client.requirements;
-
-  if (dataToShow) {
-    const label = client.propertyOffer ? "Property Offer" : "Requirements";
-    const icon = client.propertyOffer ? "fas fa-home" : "fas fa-clipboard-list";
-
-    let displayHTML = "";
-
-    if (typeof dataToShow === "object" && !Array.isArray(dataToShow)) {
-      // Format requirements object nicely
-      displayHTML =
-        "<div style='display: flex; flex-direction: column; gap: 8px;'>";
-
-      if (dataToShow.propertyType) {
-        displayHTML += `<div><strong>🏠 Type:</strong> ${escapeHtml(
-          dataToShow.propertyType
-        )}</div>`;
-      }
-      if (dataToShow.purpose) {
-        displayHTML += `<div><strong>📋 Purpose:</strong> ${escapeHtml(
-          dataToShow.purpose
-        )}</div>`;
-      }
-
-      // Handle price range (priceMin/priceMax or priceRange)
-      if (dataToShow.priceMin != null && dataToShow.priceMax != null) {
-        const priceMin = dataToShow.priceMin.toLocaleString();
-        const priceMax = dataToShow.priceMax.toLocaleString();
-        displayHTML += `<div><strong>💰 Price:</strong> ${priceMin} - ${priceMax} ريال</div>`;
-      } else if (dataToShow.priceMax != null) {
-        const priceMax = dataToShow.priceMax.toLocaleString();
-        displayHTML += `<div><strong>💰 Price:</strong> حتى ${priceMax} ريال</div>`;
-      } else if (dataToShow.priceMin != null) {
-        const priceMin = dataToShow.priceMin.toLocaleString();
-        displayHTML += `<div><strong>💰 Price:</strong> من ${priceMin} ريال</div>`;
-      } else if (dataToShow.priceRange) {
-        displayHTML += `<div><strong>💰 Price:</strong> ${escapeHtml(
-          dataToShow.priceRange
-        )}</div>`;
-      }
-
-      // Handle area range (areaMin/areaMax or area)
-      if (dataToShow.areaMin != null && dataToShow.areaMax != null) {
-        displayHTML += `<div><strong>📏 Area:</strong> ${dataToShow.areaMin} - ${dataToShow.areaMax} م²</div>`;
-      } else if (dataToShow.areaMax != null) {
-        displayHTML += `<div><strong>📏 Area:</strong> حتى ${dataToShow.areaMax} م²</div>`;
-      } else if (dataToShow.areaMin != null) {
-        displayHTML += `<div><strong>📏 Area:</strong> من ${dataToShow.areaMin} م²</div>`;
-      } else if (dataToShow.area) {
-        displayHTML += `<div><strong>📏 Area:</strong> ${escapeHtml(
-          dataToShow.area
-        )} متر</div>`;
-      }
-
-      if (dataToShow.neighborhoods && dataToShow.neighborhoods.length > 0) {
-        displayHTML += `<div><strong>📍 Neighborhoods:</strong> ${escapeHtml(
-          dataToShow.neighborhoods.join(", ")
-        )}</div>`;
-      }
-      if (dataToShow.contactNumber) {
-        displayHTML += `<div><strong>📞 Contact:</strong> ${escapeHtml(
-          dataToShow.contactNumber
-        )}</div>`;
-      }
-
-      displayHTML += "</div>";
-    } else if (typeof dataToShow === "string") {
-      // Display string as-is
-      displayHTML = `<pre class="detail-content">${escapeHtml(
-        dataToShow
-      )}</pre>`;
-    } else {
-      // Fallback to JSON
-      displayHTML = `<pre class="detail-content">${escapeHtml(
-        JSON.stringify(dataToShow, null, 2)
-      )}</pre>`;
-    }
-
+  
+  // Check if client has multiple requests (new format) or single requirements (legacy)
+  const requests = client.requests && Array.isArray(client.requests) && client.requests.length > 0
+    ? client.requests
+    : (client.requirements && client.requirements.propertyType ? [client.requirements] : []);
+  
+  if (client.propertyOffer) {
+    // Property offer (for مالك)
+    const offerText = typeof client.propertyOffer === "string" 
+      ? client.propertyOffer 
+      : JSON.stringify(client.propertyOffer, null, 2);
     requirementsPreview = `
       <div class="detail-section">
-        <strong><i class="${icon}"></i> ${label}:</strong>
-        ${displayHTML}
+        <strong><i class="fas fa-home"></i> Property Offer:</strong>
+        <pre class="detail-content">${escapeHtml(offerText)}</pre>
+      </div>
+    `;
+  } else if (requests.length > 0) {
+    // Multiple requests for باحث
+    requirementsPreview = `
+      <div class="detail-section">
+        <strong><i class="fas fa-clipboard-list"></i> الطلبات (${requests.length}):</strong>
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+    `;
+    
+    requests.forEach((req, index) => {
+      const statusBadge = req.status === 'active' 
+        ? '<span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px;">نشط</span>'
+        : '<span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px;">غير نشط</span>';
+      
+      requirementsPreview += `
+        <div style="background: #f8f9fa; border-radius: 8px; padding: 12px; border-right: 4px solid ${index === 0 ? '#667eea' : '#28a745'};">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong style="color: #333;">📋 طلب ${index + 1}: ${escapeHtml(req.propertyType || 'غير محدد')}</strong>
+            ${statusBadge}
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; font-size: 13px;">
+            ${req.purpose ? `<div>📋 <strong>الغرض:</strong> ${escapeHtml(req.purpose)}</div>` : ''}
+            ${req.priceMin != null || req.priceMax != null ? `<div>💰 <strong>السعر:</strong> ${req.priceMin ? req.priceMin.toLocaleString() : '0'} - ${req.priceMax ? req.priceMax.toLocaleString() : '∞'} ريال</div>` : ''}
+            ${req.areaMin != null || req.areaMax != null ? `<div>📏 <strong>المساحة:</strong> ${req.areaMin || 0} - ${req.areaMax || '∞'} م²</div>` : ''}
+            ${req.neighborhoods && req.neighborhoods.length > 0 ? `<div style="grid-column: 1 / -1;">📍 <strong>الأحياء:</strong> ${escapeHtml(req.neighborhoods.join('، '))}</div>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    
+    requirementsPreview += `
+        </div>
       </div>
     `;
   }
@@ -7958,83 +7924,94 @@ function editClientDetails(client) {
   const modal = document.getElementById("client-details-modal");
   const modalContent = document.getElementById("client-details-content");
 
-  // Build editable form
+  // Build editable form - now supports multiple requests
   let requirementsHTML = "";
-  if (client.role === "باحث" && client.requirements) {
-    const req =
-      typeof client.requirements === "string"
-        ? JSON.parse(client.requirements)
-        : client.requirements;
-
-    // Format requirements in a nice structured way
+  
+  // Get all requests (from requests array or legacy requirements)
+  const requests = client.requests && Array.isArray(client.requests) && client.requests.length > 0
+    ? client.requests
+    : (client.requirements && client.requirements.propertyType ? [client.requirements] : []);
+  
+  if (client.role === "باحث" && requests.length > 0) {
+    // Multiple requests editor
     requirementsHTML = `
       <div class="client-detail-section">
-        <h3><i class="fas fa-clipboard-list"></i> Client Requirements</h3>
-        <div class="requirements-edit-grid">
-          <div class="req-field">
-            <label><i class="fas fa-home"></i> Property Type:</label>
-            <input type="text" id="edit-req-propertyType" class="edit-input" value="${escapeHtml(
-              req.propertyType || ""
-            )}" placeholder="دبلكس، فيلا، شقة...">
-          </div>
-          <div class="req-field">
-            <label><i class="fas fa-tag"></i> Purpose:</label>
-            <select id="edit-req-purpose" class="edit-select">
-              <option value="">-- اختر --</option>
-              <option value="شراء" ${
-                req.purpose === "شراء" ? "selected" : ""
-              }>شراء</option>
-              <option value="بيع" ${
-                req.purpose === "بيع" ? "selected" : ""
-              }>بيع</option>
-              <option value="إيجار" ${
-                req.purpose === "إيجار" ? "selected" : ""
-              }>إيجار</option>
-            </select>
-          </div>
-          <div class="req-field">
-            <label><i class="fas fa-money-bill-wave"></i> Min Price (ريال):</label>
-            <input type="number" id="edit-req-priceMin" class="edit-input" value="${
-              req.priceMin || 0
-            }" placeholder="0">
-          </div>
-          <div class="req-field">
-            <label><i class="fas fa-money-bill-wave"></i> Max Price (ريال):</label>
-            <input type="number" id="edit-req-priceMax" class="edit-input" value="${
-              req.priceMax || ""
-            }" placeholder="1000000">
-          </div>
-          <div class="req-field">
-            <label><i class="fas fa-ruler-combined"></i> Min Area (م²):</label>
-            <input type="number" id="edit-req-areaMin" class="edit-input" value="${
-              req.areaMin || 0
-            }" placeholder="0">
-          </div>
-          <div class="req-field">
-            <label><i class="fas fa-ruler-combined"></i> Max Area (م²):</label>
-            <input type="number" id="edit-req-areaMax" class="edit-input" value="${
-              req.areaMax || ""
-            }" placeholder="500">
-          </div>
-          <div class="req-field full-width">
-            <label><i class="fas fa-map-marker-alt"></i> Neighborhoods:</label>
-            <input type="text" id="edit-req-neighborhoods" class="edit-input" value="${escapeHtml(
-              (req.neighborhoods || []).join(", ")
-            )}" placeholder="النزهة، الخالدية، العزيزية...">
-          </div>
-          <div class="req-field full-width">
-            <label><i class="fas fa-phone"></i> Contact Number:</label>
-            <input type="text" id="edit-req-contactNumber" class="edit-input" value="${escapeHtml(
-              req.contactNumber || ""
-            )}" placeholder="+966508007053">
-          </div>
-          <div class="req-field full-width">
-            <label><i class="fas fa-info-circle"></i> Additional Specs:</label>
-            <textarea id="edit-req-additionalSpecs" class="edit-textarea" rows="3" placeholder="مواصفات إضافية...">${escapeHtml(
-              req.additionalSpecs || ""
-            )}</textarea>
-          </div>
+        <h3><i class="fas fa-clipboard-list"></i> Client Requests (${requests.length})</h3>
+        <div id="requests-tabs" style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;">
+          ${requests.map((req, i) => `
+            <button type="button" class="request-tab ${i === 0 ? 'active' : ''}" data-index="${i}" 
+              style="padding: 8px 16px; border: 2px solid ${i === 0 ? '#667eea' : '#ddd'}; 
+              border-radius: 20px; background: ${i === 0 ? '#667eea' : 'white'}; 
+              color: ${i === 0 ? 'white' : '#333'}; cursor: pointer; font-weight: 500;">
+              📋 ${escapeHtml(req.propertyType || 'طلب ' + (i+1))}
+            </button>
+          `).join('')}
+          <button type="button" id="add-request-btn" 
+            style="padding: 8px 16px; border: 2px dashed #28a745; border-radius: 20px; 
+            background: white; color: #28a745; cursor: pointer; font-weight: bold;">
+            + إضافة طلب
+          </button>
         </div>
+        
+        ${requests.map((req, i) => `
+          <div class="request-panel" data-index="${i}" style="display: ${i === 0 ? 'block' : 'none'};">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <span style="font-size: 12px; color: #888;">ID: ${req.id || 'N/A'}</span>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 5px; font-size: 13px;">
+                  <input type="checkbox" id="edit-req-status-${i}" ${req.status === 'active' ? 'checked' : ''}> 
+                  نشط
+                </label>
+                ${requests.length > 1 ? `
+                  <button type="button" class="delete-request-btn" data-index="${i}" 
+                    style="padding: 5px 10px; background: #dc3545; color: white; border: none; 
+                    border-radius: 5px; cursor: pointer; font-size: 12px;">
+                    <i class="fas fa-trash"></i> حذف
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+            <div class="requirements-edit-grid">
+              <div class="req-field">
+                <label><i class="fas fa-home"></i> Property Type:</label>
+                <input type="text" id="edit-req-propertyType-${i}" class="edit-input" value="${escapeHtml(req.propertyType || '')}" placeholder="دبلكس، فيلا، شقة...">
+              </div>
+              <div class="req-field">
+                <label><i class="fas fa-tag"></i> Purpose:</label>
+                <select id="edit-req-purpose-${i}" class="edit-select">
+                  <option value="">-- اختر --</option>
+                  <option value="شراء" ${req.purpose === "شراء" ? "selected" : ""}>شراء</option>
+                  <option value="بيع" ${req.purpose === "بيع" ? "selected" : ""}>بيع</option>
+                  <option value="إيجار" ${req.purpose === "إيجار" ? "selected" : ""}>إيجار</option>
+                </select>
+              </div>
+              <div class="req-field">
+                <label><i class="fas fa-money-bill-wave"></i> Min Price (ريال):</label>
+                <input type="number" id="edit-req-priceMin-${i}" class="edit-input" value="${req.priceMin || 0}" placeholder="0">
+              </div>
+              <div class="req-field">
+                <label><i class="fas fa-money-bill-wave"></i> Max Price (ريال):</label>
+                <input type="number" id="edit-req-priceMax-${i}" class="edit-input" value="${req.priceMax || ''}" placeholder="1000000">
+              </div>
+              <div class="req-field">
+                <label><i class="fas fa-ruler-combined"></i> Min Area (م²):</label>
+                <input type="number" id="edit-req-areaMin-${i}" class="edit-input" value="${req.areaMin || 0}" placeholder="0">
+              </div>
+              <div class="req-field">
+                <label><i class="fas fa-ruler-combined"></i> Max Area (م²):</label>
+                <input type="number" id="edit-req-areaMax-${i}" class="edit-input" value="${req.areaMax || ''}" placeholder="500">
+              </div>
+              <div class="req-field full-width">
+                <label><i class="fas fa-map-marker-alt"></i> Neighborhoods:</label>
+                <input type="text" id="edit-req-neighborhoods-${i}" class="edit-input" value="${escapeHtml((req.neighborhoods || []).join(', '))}" placeholder="النزهة، الخالدية، العزيزية...">
+              </div>
+              <div class="req-field full-width">
+                <label><i class="fas fa-phone"></i> Contact Number:</label>
+                <input type="text" id="edit-req-contactNumber-${i}" class="edit-input" value="${escapeHtml(req.contactNumber || '')}" placeholder="+966508007053">
+              </div>
+            </div>
+          </div>
+        `).join('')}
       </div>
     `;
   } else if (client.role === "مالك" && client.propertyOffer) {
@@ -8134,6 +8111,52 @@ function editClientDetails(client) {
   // Show the modal
   modal.style.display = "flex";
 
+  // Tab switching for multiple requests
+  document.querySelectorAll('.request-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const index = tab.dataset.index;
+      
+      // Update tab styles
+      document.querySelectorAll('.request-tab').forEach(t => {
+        t.style.background = 'white';
+        t.style.color = '#333';
+        t.style.borderColor = '#ddd';
+      });
+      tab.style.background = '#667eea';
+      tab.style.color = 'white';
+      tab.style.borderColor = '#667eea';
+      
+      // Show corresponding panel
+      document.querySelectorAll('.request-panel').forEach(p => {
+        p.style.display = 'none';
+      });
+      const panel = document.querySelector(`.request-panel[data-index="${index}"]`);
+      if (panel) panel.style.display = 'block';
+    });
+  });
+
+  // Delete request buttons
+  document.querySelectorAll('.delete-request-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const index = parseInt(btn.dataset.index);
+      if (confirm('هل أنت متأكد من حذف هذا الطلب؟')) {
+        // Mark for deletion by hiding and adding a class
+        const panel = document.querySelector(`.request-panel[data-index="${index}"]`);
+        const tab = document.querySelector(`.request-tab[data-index="${index}"]`);
+        if (panel) {
+          panel.classList.add('deleted');
+          panel.style.display = 'none';
+        }
+        if (tab) {
+          tab.style.display = 'none';
+        }
+        // Switch to first visible tab
+        const firstVisibleTab = document.querySelector('.request-tab:not([style*="display: none"])');
+        if (firstVisibleTab) firstVisibleTab.click();
+      }
+    });
+  });
+
   // Save button handler
   const saveBtn = document.getElementById("save-client-btn");
   saveBtn.onclick = async () => {
@@ -8145,42 +8168,57 @@ function editClientDetails(client) {
       newPhoneNumber: newPhoneValue !== client.phoneNumber ? newPhoneValue : undefined,
     };
 
-    // Get requirements from individual fields if role is باحث
+    // Get all requests from indexed fields if role is باحث
     if (updatedData.role === "باحث") {
-      const propertyTypeEl = document.getElementById("edit-req-propertyType");
-      const purposeEl = document.getElementById("edit-req-purpose");
-      const priceMinEl = document.getElementById("edit-req-priceMin");
-      const priceMaxEl = document.getElementById("edit-req-priceMax");
-      const areaMinEl = document.getElementById("edit-req-areaMin");
-      const areaMaxEl = document.getElementById("edit-req-areaMax");
-      const neighborhoodsEl = document.getElementById("edit-req-neighborhoods");
-      const contactNumberEl = document.getElementById("edit-req-contactNumber");
-      const additionalSpecsEl = document.getElementById(
-        "edit-req-additionalSpecs"
-      );
-
-      if (propertyTypeEl) {
-        // Build requirements object from individual fields
-        const neighborhoodsText = neighborhoodsEl.value.trim();
-        const neighborhoodsArray = neighborhoodsText
-          ? neighborhoodsText
-              .split(/[،,]/)
-              .map((n) => n.trim())
-              .filter((n) => n)
-          : [];
-
-        updatedData.requirements = {
-          clientName: updatedData.name,
-          propertyType: propertyTypeEl.value.trim() || null,
-          purpose: purposeEl.value || null,
-          priceMin: priceMinEl.value ? parseInt(priceMinEl.value) : null,
-          priceMax: priceMaxEl.value ? parseInt(priceMaxEl.value) : null,
-          areaMin: areaMinEl.value ? parseInt(areaMinEl.value) : null,
-          areaMax: areaMaxEl.value ? parseInt(areaMaxEl.value) : null,
-          neighborhoods: neighborhoodsArray,
-          contactNumber: contactNumberEl.value.trim() || null,
-          additionalSpecs: additionalSpecsEl.value.trim() || null,
-        };
+      const requestPanels = document.querySelectorAll('.request-panel:not(.deleted)');
+      const updatedRequests = [];
+      
+      requestPanels.forEach((panel) => {
+        const index = panel.dataset.index;
+        const propertyTypeEl = document.getElementById(`edit-req-propertyType-${index}`);
+        const purposeEl = document.getElementById(`edit-req-purpose-${index}`);
+        const priceMinEl = document.getElementById(`edit-req-priceMin-${index}`);
+        const priceMaxEl = document.getElementById(`edit-req-priceMax-${index}`);
+        const areaMinEl = document.getElementById(`edit-req-areaMin-${index}`);
+        const areaMaxEl = document.getElementById(`edit-req-areaMax-${index}`);
+        const neighborhoodsEl = document.getElementById(`edit-req-neighborhoods-${index}`);
+        const contactNumberEl = document.getElementById(`edit-req-contactNumber-${index}`);
+        const statusEl = document.getElementById(`edit-req-status-${index}`);
+        
+        if (propertyTypeEl) {
+          const neighborhoodsText = neighborhoodsEl?.value?.trim() || '';
+          const neighborhoodsArray = neighborhoodsText
+            ? neighborhoodsText.split(/[،,]/).map(n => n.trim()).filter(n => n)
+            : [];
+          
+          // Get existing request info to preserve id
+          const existingReq = requests[parseInt(index)] || {};
+          
+          updatedRequests.push({
+            id: existingReq.id || `req_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            clientName: updatedData.name,
+            propertyType: propertyTypeEl.value.trim() || null,
+            purpose: purposeEl?.value || null,
+            priceMin: priceMinEl?.value ? parseInt(priceMinEl.value) : null,
+            priceMax: priceMaxEl?.value ? parseInt(priceMaxEl.value) : null,
+            areaMin: areaMinEl?.value ? parseInt(areaMinEl.value) : null,
+            areaMax: areaMaxEl?.value ? parseInt(areaMaxEl.value) : null,
+            neighborhoods: neighborhoodsArray,
+            contactNumber: contactNumberEl?.value?.trim() || null,
+            status: statusEl?.checked ? 'active' : 'inactive',
+            createdAt: existingReq.createdAt || Date.now(),
+            updatedAt: Date.now(),
+          });
+        }
+      });
+      
+      // Save as requests array
+      updatedData.requests = updatedRequests;
+      
+      // Also update legacy requirements field with first active request
+      const activeRequest = updatedRequests.find(r => r.status === 'active') || updatedRequests[0];
+      if (activeRequest) {
+        updatedData.requirements = activeRequest;
       }
     }
 

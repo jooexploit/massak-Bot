@@ -221,6 +221,184 @@ loadClients();
 // Clean inactive clients daily
 setInterval(cleanInactiveClients, 24 * 60 * 60 * 1000);
 
+/**
+ * Normalize property type for comparison
+ * Groups synonyms together (e.g., بيت = منزل = فيلا = دور)
+ * @param {string} propertyType - Property type to normalize
+ * @returns {string} Normalized property type
+ */
+function normalizePropertyType(propertyType) {
+  if (!propertyType) return "";
+  
+  const type = propertyType.toLowerCase().trim();
+  
+  // Define synonym groups - items in same group are considered same type
+  const synonymGroups = [
+    ["بيت", "منزل", "فيلا", "دور"],
+    ["شقة", "شقة سكنية"],
+    ["دبلكس", "شقة دبلكسية", "شقة دبلكس"],
+    ["أرض", "ارض"],
+    ["عمارة", "بناية"],
+    ["استراحة", "شاليه"],
+    ["محل", "محل تجاري"],
+    ["مزرعة"],
+  ];
+  
+  for (const group of synonymGroups) {
+    if (group.some(s => type.includes(s) || s.includes(type))) {
+      return group[0]; // Return first item as canonical name
+    }
+  }
+  
+  return type; // Return as-is if not found in any group
+}
+
+/**
+ * Get all requests for a client
+ * Handles migration from old single-request format to new multi-request format
+ * @param {string} phoneNumber - Client's phone number
+ * @returns {Array} Array of requests
+ */
+function getClientRequests(phoneNumber) {
+  const client = getClient(phoneNumber);
+  
+  // If client has new `requests` array, use it
+  if (client.requests && Array.isArray(client.requests)) {
+    return client.requests;
+  }
+  
+  // Migration: if client has old `requirements` object with propertyType, convert it
+  if (client.requirements && client.requirements.propertyType) {
+    const legacyRequest = {
+      id: `req_legacy_${phoneNumber}`,
+      ...client.requirements,
+      createdAt: client.createdAt || Date.now(),
+      updatedAt: client.updatedAt || Date.now(),
+      status: client.requestStatus || "active",
+    };
+    return [legacyRequest];
+  }
+  
+  return [];
+}
+
+/**
+ * Add or update a client request based on property type
+ * - If same property type exists: UPDATE the existing request
+ * - If different property type: ADD as new request
+ * @param {string} phoneNumber - Client's phone number
+ * @param {Object} requirements - New requirements object
+ * @returns {Object} { isUpdate: boolean, request: Object, totalRequests: number, message: string }
+ */
+function addOrUpdateClientRequest(phoneNumber, requirements) {
+  const client = getClient(phoneNumber);
+  
+  // Get existing requests (handles migration)
+  let existingRequests = getClientRequests(phoneNumber);
+  
+  // Normalize the new property type for comparison
+  const newPropertyTypeNormalized = normalizePropertyType(requirements.propertyType);
+  
+  // Check if same property type exists
+  const existingIndex = existingRequests.findIndex(
+    req => normalizePropertyType(req.propertyType) === newPropertyTypeNormalized
+  );
+  
+  let isUpdate = false;
+  let request;
+  let message;
+  
+  if (existingIndex >= 0) {
+    // UPDATE existing request with same property type
+    isUpdate = true;
+    request = {
+      ...existingRequests[existingIndex],
+      ...requirements,
+      updatedAt: Date.now(),
+    };
+    existingRequests[existingIndex] = request;
+    message = `تم تحديث الطلب الحالي (${requirements.propertyType})`;
+  } else {
+    // ADD new request (different property type)
+    request = {
+      id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      ...requirements,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      status: "active",
+    };
+    existingRequests.push(request);
+    
+    if (existingRequests.length > 1) {
+      message = `تم إضافة طلب جديد. العميل لديه الآن ${existingRequests.length} طلبات`;
+    } else {
+      message = `تم تسجيل الطلب بنجاح`;
+    }
+  }
+  
+  // Save all requests
+  updateClient(phoneNumber, {
+    requests: existingRequests,
+    // Keep requirements for backward compatibility (first active request)
+    requirements: existingRequests[0],
+  });
+  
+  return {
+    isUpdate,
+    request,
+    totalRequests: existingRequests.length,
+    allRequests: existingRequests,
+    message,
+  };
+}
+
+/**
+ * Get all active requests across all clients
+ * Used by property matching service
+ * @returns {Array} Array of { phoneNumber, name, request, requestId }
+ */
+function getAllActiveRequests() {
+  const allClients = getAllClients();
+  const activeRequests = [];
+  
+  for (const [phoneNumber, client] of Object.entries(allClients)) {
+    // Only include باحث (searchers) with completed state
+    if (client.role !== "باحث" || client.state !== "completed") {
+      continue;
+    }
+    
+    // Get all requests for this client
+    const clientRequests = client.requests && Array.isArray(client.requests) 
+      ? client.requests 
+      : (client.requirements?.propertyType ? [client.requirements] : []);
+    
+    for (const request of clientRequests) {
+      // Skip inactive requests or requests without property type
+      if (!request.propertyType || request.status === "inactive") {
+        continue;
+      }
+      
+      // Check overall client request status
+      if (client.requestStatus === "inactive") {
+        continue;
+      }
+      
+      activeRequests.push({
+        phoneNumber,
+        name: client.name,
+        request,
+        requestId: request.id || `legacy_${phoneNumber}`,
+        createdAt: request.createdAt || client.createdAt,
+        updatedAt: request.updatedAt || client.updatedAt,
+        matchHistory: client.matchHistory || [],
+        lastNotificationAt: client.lastNotificationAt || null,
+      });
+    }
+  }
+  
+  return activeRequests;
+}
+
 module.exports = {
   getClient,
   updateClient,
@@ -231,4 +409,9 @@ module.exports = {
   cleanInactiveClients,
   deleteClient,
   changeClientPhone,
+  // New multi-request functions
+  normalizePropertyType,
+  getClientRequests,
+  addOrUpdateClientRequest,
+  getAllActiveRequests,
 };

@@ -12,38 +12,26 @@ const {
 
 /**
  * Get all active requests (طلب) from users with role "باحث"
+ * Now supports multiple requests per client
  * @returns {Array<Object>} Array of active requests with user info
  */
 function getActiveRequests() {
-  const allClients = privateClient.getAllClients();
-  const activeRequests = [];
+  // Use the new getAllActiveRequests function which handles multi-request properly
+  const allActiveRequests = privateClient.getAllActiveRequests();
+  
+  // Transform to expected format (for compatibility with existing code)
+  const activeRequests = allActiveRequests.map(item => ({
+    phoneNumber: item.phoneNumber,
+    name: item.name,
+    requirements: item.request, // The individual request object
+    requestId: item.requestId,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    matchHistory: item.matchHistory || [],
+    lastNotificationAt: item.lastNotificationAt || null,
+  }));
 
-  for (const [phoneNumber, client] of Object.entries(allClients)) {
-    // Only include "باحث" (searchers) who have completed requirements
-    if (
-      client.role === "باحث" &&
-      client.state === "completed" &&
-      client.requirements &&
-      client.requirements.propertyType
-    ) {
-      // Check if request is still active (not marked inactive)
-      const isActive = client.requestStatus !== "inactive";
-
-      if (isActive) {
-        activeRequests.push({
-          phoneNumber,
-          name: client.name,
-          requirements: client.requirements,
-          createdAt: client.createdAt,
-          updatedAt: client.updatedAt,
-          matchHistory: client.matchHistory || [],
-          lastNotificationAt: client.lastNotificationAt || null,
-        });
-      }
-    }
-  }
-
-  console.log(`📋 Found ${activeRequests.length} active property requests`);
+  console.log(`📋 Found ${activeRequests.length} active property requests (from ${new Set(activeRequests.map(r => r.phoneNumber)).size} clients)`);
   return activeRequests;
 }
 

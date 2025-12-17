@@ -56,6 +56,19 @@ async function sendReminderWithRetry(reminder, maxRetries = 3) {
     return false;
   }
 
+  // CRITICAL: Validate connection is actually connected before attempting to send
+  // This prevents sending on stale socket references after reconnection
+  try {
+    const { getConnectionStatus } = require("../whatsapp/bot");
+    const connectionStatus = getConnectionStatus();
+    if (connectionStatus !== "connected") {
+      console.log(`⚠️ Connection status is "${connectionStatus}" for reminder ${reminder.id}, will retry later`);
+      return false;
+    }
+  } catch (e) {
+    console.warn(`⚠️ Could not check connection status for reminder ${reminder.id}:`, e.message);
+  }
+
   const targetJid = `${reminder.targetNumber}@s.whatsapp.net`;
 
   // Format date in KSA timezone
