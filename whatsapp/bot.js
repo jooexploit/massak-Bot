@@ -1834,13 +1834,10 @@ async function initializeBot() {
             // So we use admin numbers from adminCommandService instead
             const isAdmin = adminCommandService.isAdmin(from);
 
-            // ✋ If not an admin, check if they need to register their LID
+            // ✋ If not an admin, ignore silently (don't respond to non-admins)
             if (!isAdmin) {
-              // If using LID format, give them a hint on how to register
               if (isLid) {
-                console.log(`🔗 Unregistered LID detected: ${from}`);
-                const hintMessage = `🔗 *رقمك غير مسجل*\n\nإذا كنت أدمن، أرسل:\nانا [رقمك]\n\nمثال:\nانا 201090952790`;
-                await sock.sendMessage(from, { text: hintMessage });
+                console.log(`🔗 Unregistered LID message ignored: ${from}`);
               } else {
                 console.log(
                   `🚫 Message ignored - sender is not an admin: ${senderName} (${senderPhone})`
