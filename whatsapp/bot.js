@@ -1806,26 +1806,6 @@ async function initializeBot() {
             const phoneNumber = privateChatService.extractPhoneNumber(from);
             console.log(`📱 Extracted phone number: ${phoneNumber}`);
 
-            // ============================================
-            // 🔗 LID AUTO-REGISTRATION - Allow admins to register their LID
-            // ============================================
-            // If message starts with "انا" and sender uses LID format,
-            // allow them to register their LID to their admin phone number
-            if (messageText && isLid) {
-              const lidResult = await adminCommandService.handleLidRegistration(messageText, from);
-              if (lidResult) {
-                // This is a LID registration attempt
-                console.log(`🔗 LID registration attempt from ${from}`);
-                await sock.sendMessage(from, { text: lidResult.message });
-                
-                // If registration was successful, continue processing (they're now an admin)
-                if (!lidResult.success) {
-                  return; // Failed registration, stop here
-                }
-                // Successfully registered, now they can use admin commands
-                // Re-check admin status after registration
-              }
-            }
 
             // ============================================
             // 🔒 ADMIN-ONLY MODE - Only respond to admins

@@ -279,74 +279,6 @@ async function saveLidMapping(lid, phoneNumber) {
   }
 }
 
-/**
- * Check if message is an LID registration command
- * Format: "انا 201090952790" or "انا +201090952790"
- * This allows admins to register their LID when first connecting from a new device
- * @param {string} message - The message text
- * @param {string} senderJid - The sender's JID (may be @lid format)
- * @returns {Object|null} { success: boolean, adminPhone: string, message: string }
- */
-async function handleLidRegistration(message, senderJid) {
-  // Check if message starts with "انا" (I am)
-  const trimmed = message.trim();
-  if (!trimmed.startsWith("انا ") && !trimmed.startsWith("أنا ")) {
-    return null; // Not a registration command
-  }
-  
-  // Check if sender is using LID format
-  if (!senderJid.endsWith("@lid")) {
-    return null; // Not a LID, no need to register
-  }
-  
-  // Extract the phone number from the message
-  const parts = trimmed.split(/\s+/);
-  if (parts.length < 2) {
-    return { success: false, message: "❌ الرجاء إرسال رقمك بعد 'انا'\n\nمثال: انا 201090952790" };
-  }
-  
-  // Get the phone number and normalize it
-  const phoneRaw = parts.slice(1).join("").replace(/[\s\-\(\)\+]/g, "");
-  const normalizedPhone = normalizePhoneNumber(phoneRaw);
-  
-  // Check if this phone number is in the admin list
-  if (!ADMIN_NUMBERS.includes(normalizedPhone)) {
-    console.log(`🚫 LID registration rejected: ${normalizedPhone} is not an admin`);
-    return { 
-      success: false, 
-      message: `❌ الرقم ${normalizedPhone} غير مسجل كمسؤول.\n\nإذا كنت أدمن، تأكد من إضافة رقمك لقائمة الأدمنز أولاً.` 
-    };
-  }
-  
-  // Extract the LID
-  const lid = senderJid.replace("@lid", "");
-  
-  // Check if already mapped
-  if (lidMapping[lid] === normalizedPhone) {
-    return { 
-      success: true, 
-      adminPhone: normalizedPhone,
-      message: `✅ أنت مسجل بالفعل كـ ${normalizedPhone}` 
-    };
-  }
-  
-  // Save the mapping
-  const saved = await saveLidMapping(lid, normalizedPhone);
-  
-  if (saved) {
-    console.log(`✅ LID auto-registered: ${lid} -> ${normalizedPhone}`);
-    return { 
-      success: true, 
-      adminPhone: normalizedPhone,
-      message: `✅ *تم تسجيلك بنجاح!*\n\n📱 رقمك: ${normalizedPhone}\n🔗 LID: ${lid}\n\nالآن يمكنك استخدام جميع أوامر الأدمن.` 
-    };
-  } else {
-    return { 
-      success: false, 
-      message: "❌ حدث خطأ أثناء الحفظ. حاول مرة أخرى." 
-    };
-  }
-}
 
 /**
  * Save admins to file
@@ -2713,7 +2645,6 @@ loadReminders();
 module.exports = {
   isAdmin,
   handleAdminCommand,
-  handleLidRegistration, // New: auto-register LID when admin sends "انا [phone]"
   getPendingReminders,
   markReminderSent,
   getAdminHelpMessage,
