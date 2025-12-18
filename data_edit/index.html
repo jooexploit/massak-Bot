@@ -305,6 +305,19 @@
       font-family: monospace;
     }
 
+    .client-number {
+      background: var(--primary);
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.125rem 0.5rem;
+      border-radius: 0.5rem;
+      margin-left: 0.5rem;
+      min-width: 1.5rem;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
     .status-badge {
       padding: 0.25rem 0.625rem;
       border-radius: 9999px;
@@ -779,7 +792,7 @@
       updateModifiedState();
     }
 
-    function renderClientCard(key, client) {
+    function renderClientCard(key, client, index) {
       const requirements = client.requirements || {};
       const isActive = client.requestStatus === 'active';
 
@@ -787,7 +800,7 @@
     <div class="client-card" data-key="${key}">
       <div class="card-header">
         <div class="client-name">
-          <span>👤</span>
+          <span class="client-number">#${index + 1}</span>
           <span>${client.name || 'بدون اسم'}</span>
         </div>
         <span class="status-badge ${isActive ? 'status-active' : 'status-inactive'}">
@@ -897,7 +910,7 @@
       </div>
     `;
       } else {
-        grid.innerHTML = keysToRender.map(key => renderClientCard(key, currentData[key])).join('');
+        grid.innerHTML = keysToRender.map((key, index) => renderClientCard(key, currentData[key], index)).join('');
       }
 
       // Update client count
