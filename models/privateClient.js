@@ -399,6 +399,126 @@ function getAllActiveRequests() {
   return activeRequests;
 }
 
+/**
+ * Record user interaction with a matched offer
+ * Used for adaptive learning / learning-to-rank
+ * @param {string} phoneNumber - Client's phone number
+ * @param {string} offerId - The offer ID
+ * @param {string} interactionType - Type: 'opened', 'clicked', 'contacted', 'rejected', 'ignored'
+ * @returns {boolean} Success status
+ */
+function recordUserInteraction(phoneNumber, offerId, interactionType) {
+  const client = getClient(phoneNumber);
+  
+  if (!client.matchHistory || !Array.isArray(client.matchHistory)) {
+    console.log(`⚠️ No match history found for ${phoneNumber}`);
+    return false;
+  }
+  
+  // Find the match in history
+  const matchIndex = client.matchHistory.findIndex(m => m.offerId === offerId);
+  
+  if (matchIndex === -1) {
+    console.log(`⚠️ Offer ${offerId} not found in match history for ${phoneNumber}`);
+    return false;
+  }
+  
+  // Update interaction
+  const match = client.matchHistory[matchIndex];
+  match.userResponse = interactionType;
+  match.interactionAt = Date.now();
+  
+  // Track specific interactions
+  switch (interactionType) {
+    case 'opened':
+      match.opened = true;
+      break;
+    case 'clicked':
+      match.clicked = true;
+      break;
+    case 'contacted':
+      match.contacted = true;
+      break;
+    case 'rejected':
+      match.rejected = true;
+      break;
+    case 'ignored':
+      // No specific flag, just record timestamp
+      break;
+  }
+  
+  client.matchHistory[matchIndex] = match;
+  saveClients();
+  
+  console.log(`📊 Recorded interaction: ${interactionType} for offer ${offerId} by ${phoneNumber}`);
+  return true;
+}
+
+/**
+ * Get interaction statistics for adaptive learning
+ * @returns {Object} Statistics about user interactions with matches
+ */
+function getInteractionStats() {
+  const allClients = getAllClients();
+  
+  const stats = {
+    totalMatches: 0,
+    opened: 0,
+    clicked: 0,
+    contacted: 0,
+    rejected: 0,
+    ignored: 0,
+    avgScoreOpened: 0,
+    avgScoreContacted: 0,
+    avgScoreRejected: 0,
+  };
+  
+  const openedScores = [];
+  const contactedScores = [];
+  const rejectedScores = [];
+  
+  for (const client of Object.values(allClients)) {
+    if (!client.matchHistory || !Array.isArray(client.matchHistory)) continue;
+    
+    for (const match of client.matchHistory) {
+      stats.totalMatches++;
+      
+      if (match.opened) stats.opened++;
+      if (match.clicked) stats.clicked++;
+      if (match.contacted) {
+        stats.contacted++;
+        if (match.similarityScore) contactedScores.push(match.similarityScore);
+      }
+      if (match.rejected) {
+        stats.rejected++;
+        if (match.similarityScore) rejectedScores.push(match.similarityScore);
+      }
+      if (!match.userResponse && match.sentAt) {
+        // Sent but no response after 24 hours = ignored
+        const hoursSinceSent = (Date.now() - match.sentAt) / (1000 * 60 * 60);
+        if (hoursSinceSent > 24) stats.ignored++;
+      }
+      
+      if (match.opened && match.similarityScore) {
+        openedScores.push(match.similarityScore);
+      }
+    }
+  }
+  
+  // Calculate averages
+  if (openedScores.length > 0) {
+    stats.avgScoreOpened = Math.round(openedScores.reduce((a, b) => a + b, 0) / openedScores.length);
+  }
+  if (contactedScores.length > 0) {
+    stats.avgScoreContacted = Math.round(contactedScores.reduce((a, b) => a + b, 0) / contactedScores.length);
+  }
+  if (rejectedScores.length > 0) {
+    stats.avgScoreRejected = Math.round(rejectedScores.reduce((a, b) => a + b, 0) / rejectedScores.length);
+  }
+  
+  return stats;
+}
+
 module.exports = {
   getClient,
   updateClient,
@@ -414,4 +534,7 @@ module.exports = {
   getClientRequests,
   addOrUpdateClientRequest,
   getAllActiveRequests,
+  // Feedback tracking functions
+  recordUserInteraction,
+  getInteractionStats,
 };

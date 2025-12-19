@@ -2428,27 +2428,11 @@ router.post(
               `📨 Found ${matches.length} matching client(s)! Sending notifications...`
             );
 
-            // Send notifications to matched clients
-            for (const match of matches) {
-              try {
-                // Match object structure: { phoneNumber, name, requirements, offer, similarity }
-                await propertyMatchingService.sendMatchNotification(
-                  sock,
-                  match.phoneNumber,
-                  match,
-                  match.name || "عزيزي العميل"
-                );
-                console.log(`  ✅ Notification sent to ${match.phoneNumber}`);
-              } catch (notifyError) {
-                console.error(
-                  `  ❌ Failed to notify ${match.phoneNumber}:`,
-                  notifyError.message
-                );
-              }
-            }
+            // Send notifications to matched clients (Background with 300s delay)
+            propertyMatchingService.processMatchesInBackground(sock, matches);
 
             console.log(
-              `✅ Matching complete: ${matches.length} notification(s) sent`
+              `✅ Matching complete: ${matches.length} notification(s) queued for background delivery`
             );
           } else {
             console.log("ℹ️  No matching clients found for this offer");

@@ -1,7 +1,13 @@
 /**
  * Property Matching Service
  * Automatically matches new property offers (عرض) against active user requests (طلب)
- * and sends notifications to users when good matches are found (≥80% similarity)
+ * and sends notifications to users when good matches are found.
+ * 
+ * Enhanced with intelligent matching engine for:
+ * - Weighted scoring (Property Type 30%, Purpose 20%, Location 25%, Area 10%, Price 10%, Features 5%)
+ * - Graceful handling of missing fields
+ * - Geo-distance location fallback
+ * - Explainable match reasons
  */
 
 const privateClient = require("../models/privateClient");
@@ -9,6 +15,11 @@ const {
   calculateSimilarityScore,
   findMatchingOffers,
 } = require("./similarityScoreService");
+const {
+  calculateIntelligentMatch,
+  findIntelligentMatches,
+  getMinScoreThreshold,
+} = require("./intelligentMatchingService");
 
 /**
  * Get all active requests (طلب) from users with role "باحث"
@@ -63,8 +74,12 @@ function checkOfferAgainstRequests(offer) {
   console.log(`   Area: ${offer.meta?.arc_space || "N/A"} m²`);
   console.log(`${"=".repeat(70)}\n`);
 
+  // Get configurable threshold (default: 70)
+  const minThreshold = getMinScoreThreshold();
+
   for (const request of activeRequests) {
-    const similarity = calculateSimilarityScore(request.requirements, offer);
+    // Use new intelligent matching engine
+    const similarity = calculateIntelligentMatch(request.requirements, offer);
 
     console.log(
       `👤 ${request.name} (${request.phoneNumber}): ${similarity.score}% ${
@@ -72,15 +87,16 @@ function checkOfferAgainstRequests(offer) {
       }`
     );
 
-    // Log detailed breakdown
+    // Log detailed breakdown from intelligent matcher
     if (similarity.breakdown) {
       console.log(
-        `   📊 Breakdown: Price=${similarity.breakdown.price}% (40% weight), Area=${similarity.breakdown.area}% (30% weight), Location=${similarity.breakdown.location}% (30% weight)`
+        `   📊 Breakdown: Type=${similarity.breakdown.propertyType?.score}% | Purpose=${similarity.breakdown.purpose?.score}% | Location=${similarity.breakdown.location?.score}% | Area=${similarity.breakdown.area?.score}% | Price=${similarity.breakdown.price?.score}%`
       );
+      console.log(`   💬 ${similarity.explanation}`);
     }
 
-    // Only include matches with ≥70% similarity (lowered for better flexibility)
-    if (similarity.score >= 70) {
+    // Only include matches above threshold
+    if (similarity.score >= minThreshold) {
       // Check if this offer was already sent to this user
       const alreadySent = request.matchHistory?.some(
         (match) => match.offerId === offer.id
@@ -151,10 +167,12 @@ function recordMatchSent(phoneNumber, offer, similarity) {
     userResponse: null, // Will be filled when user responds
   });
 
-  // Update last notification timestamp
+  // Update last notification timestamp and state
   privateClient.updateClient(phoneNumber, {
     matchHistory: client.matchHistory,
     lastNotificationAt: Date.now(),
+    awaitingStillLookingResponse: true,
+    lastMatchSentAt: Date.now(),
   });
 
   console.log(
@@ -195,6 +213,7 @@ function reactivateRequest(phoneNumber) {
 
 /**
  * Format match notification message for WhatsApp
+ * Enhanced to use intelligent matcher explanations
  * @param {Object} match - Match object with offer and similarity
  * @param {string} userName - User's name
  * @returns {string} Formatted message
@@ -230,21 +249,43 @@ function formatMatchNotification(match, userName) {
 
   message += `📍 *الموقع:* ${location}\n\n`;
 
-  // Show why it matches
+  // Show match score and explanation from intelligent matcher
   message += `✨ *نسبة التطابق:* ${similarity.score}%\n`;
 
-  if (similarity.breakdown) {
+  // Use the intelligent matcher's explanation if available
+  if (similarity.explanation) {
+    message += `📝 *السبب:* ${similarity.explanation}\n\n`;
+  } else if (similarity.breakdown) {
+    // Fallback to building explanation from breakdown
     const details = [];
-    if (similarity.breakdown.price >= 90) details.push("السعر مناسب جداً");
-    else if (similarity.breakdown.price >= 70)
-      details.push("السعر قريب من ميزانيتك");
-
-    if (similarity.breakdown.area >= 90) details.push("المساحة مثالية");
-    else if (similarity.breakdown.area >= 70) details.push("المساحة مناسبة");
-
-    if (similarity.breakdown.location >= 90) details.push("في حيك المفضل");
-    else if (similarity.breakdown.location >= 70)
-      details.push("في منطقة قريبة");
+    
+    // Check new breakdown structure (intelligent matcher)
+    if (similarity.breakdown.propertyType?.score >= 90) {
+      details.push("نوع العقار متطابق");
+    }
+    if (similarity.breakdown.location?.score >= 75) {
+      details.push("الموقع مناسب");
+    } else if (similarity.breakdown.location?.score >= 50) {
+      details.push("الموقع قريب");
+    }
+    if (similarity.breakdown.area?.score >= 80) {
+      details.push("المساحة مناسبة");
+    }
+    if (similarity.breakdown.price?.score >= 80) {
+      details.push("السعر ضمن الميزانية");
+    }
+    
+    // Fallback to old breakdown structure
+    if (details.length === 0) {
+      if (similarity.breakdown.price >= 90) details.push("السعر مناسب جداً");
+      else if (similarity.breakdown.price >= 70) details.push("السعر قريب من ميزانيتك");
+      
+      if (similarity.breakdown.area >= 90) details.push("المساحة مثالية");
+      else if (similarity.breakdown.area >= 70) details.push("المساحة مناسبة");
+      
+      if (similarity.breakdown.location >= 90) details.push("في حيك المفضل");
+      else if (similarity.breakdown.location >= 70) details.push("في منطقة قريبة");
+    }
 
     if (details.length > 0) {
       message += `   • ${details.join("\n   • ")}\n\n`;
@@ -340,6 +381,55 @@ function getMatchingStats() {
   };
 }
 
+/**
+ * Process active matches in the background with a delay between each notification
+ * @param {Object} sock - WhatsApp socket connection
+ * @param {Array<Object>} matches - Array of match objects
+ */
+async function processMatchesInBackground(sock, matches) {
+  if (!matches || matches.length === 0) return;
+
+  console.log(
+    `🚀 Starting background notification process for ${matches.length} matches...`
+  );
+
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    try {
+      console.log(
+        `📨 [Background] Sending notification to ${match.phoneNumber} (${
+          i + 1
+        }/${matches.length})...`
+      );
+
+      await sendMatchNotification(
+        sock,
+        match.phoneNumber,
+        match,
+        match.name || "عزيزي العميل"
+      );
+
+      // If there are more matches, wait for 300 seconds (5 minutes)
+      if (i < matches.length - 1) {
+        const delayMs = 300 * 1000;
+        console.log(
+          `⏳ [Background] Waiting ${
+            delayMs / 1000
+          } seconds before next notification...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    } catch (error) {
+      console.error(
+        `❌ [Background] Failed to notify ${match.phoneNumber}:`,
+        error.message
+      );
+    }
+  }
+
+  console.log(`✅ Background notification process completed`);
+}
+
 module.exports = {
   getActiveRequests,
   checkOfferAgainstRequests,
@@ -349,4 +439,5 @@ module.exports = {
   formatMatchNotification,
   sendMatchNotification,
   getMatchingStats,
+  processMatchesInBackground,
 };

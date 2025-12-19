@@ -794,7 +794,7 @@
 
     function renderClientCard(key, client, index) {
       const requirements = client.requirements || {};
-      const isActive = client.requestStatus === 'active';
+      const isActive = client.requestStatus !== 'inactive';
 
       return `
     <div class="client-card" data-key="${key}">
@@ -828,8 +828,10 @@
         
         <div class="field-group">
           <label class="field-label">📊 حالة الطلب</label>
-          <input type="text" class="field-input" value="${client.requestStatus || ''}"
-            data-key="${key}" data-path="requestStatus">
+          <select class="field-input" data-key="${key}" data-path="requestStatus">
+            <option value="active" ${(client.requestStatus || 'active') === 'active' ? 'selected' : ''}>نشط</option>
+            <option value="inactive" ${client.requestStatus === 'inactive' ? 'selected' : ''}>غير نشط</option>
+          </select>
         </div>
         
         <!-- Requirements Section -->
@@ -916,9 +918,19 @@
       // Update client count
       document.getElementById('clientCount').textContent = Object.keys(currentData).length;
 
-      // Add input listeners
-      grid.querySelectorAll('.field-input').forEach(input => {
+      // Add input listeners for text inputs
+      grid.querySelectorAll('.field-input:not(select)').forEach(input => {
         input.addEventListener('input', (e) => {
+          const key = e.target.dataset.key;
+          const path = e.target.dataset.path;
+          updateClientField(key, path, e.target.value);
+          e.target.classList.add('modified');
+        });
+      });
+
+      // Add change listeners for select dropdowns
+      grid.querySelectorAll('select.field-input').forEach(select => {
+        select.addEventListener('change', (e) => {
           const key = e.target.dataset.key;
           const path = e.target.dataset.path;
           updateClientField(key, path, e.target.value);

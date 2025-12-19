@@ -7767,7 +7767,9 @@ function createClientRow(client) {
     `;
     
     requests.forEach((req, index) => {
-      const statusBadge = req.status === 'active' 
+      // Treat undefined/missing status as active (only explicitly inactive is filtered)
+      const isReqActive = req.status !== 'inactive';
+      const statusBadge = isReqActive 
         ? '<span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px;">نشط</span>'
         : '<span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px;">غير نشط</span>';
       
@@ -7959,7 +7961,7 @@ function editClientDetails(client) {
               <span style="font-size: 12px; color: #888;">ID: ${req.id || 'N/A'}</span>
               <div style="display: flex; gap: 10px; align-items: center;">
                 <label style="display: flex; align-items: center; gap: 5px; font-size: 13px;">
-                  <input type="checkbox" id="edit-req-status-${i}" ${req.status === 'active' ? 'checked' : ''}> 
+                  <input type="checkbox" id="edit-req-status-${i}" ${req.status !== 'inactive' ? 'checked' : ''}> 
                   نشط
                 </label>
                 ${requests.length > 1 ? `
@@ -8215,8 +8217,8 @@ function editClientDetails(client) {
       // Save as requests array
       updatedData.requests = updatedRequests;
       
-      // Also update legacy requirements field with first active request
-      const activeRequest = updatedRequests.find(r => r.status === 'active') || updatedRequests[0];
+      // Also update legacy requirements field with first active request (treat undefined as active)
+      const activeRequest = updatedRequests.find(r => r.status !== 'inactive') || updatedRequests[0];
       if (activeRequest) {
         updatedData.requirements = activeRequest;
       }

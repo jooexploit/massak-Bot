@@ -187,7 +187,8 @@ async function sendToRecipients(schedule, processedMessage) {
       const clients = privateClientModule.getAllClients();
 
       Object.entries(clients).forEach(([phone, client]) => {
-        if (client.requestStatus === "active") {
+        // Treat undefined/missing requestStatus as active (only explicitly inactive is filtered)
+        if (client.requestStatus !== "inactive") {
           allRecipients.push({
             type: "private",
             id: phone,

@@ -102,56 +102,19 @@ router.post("/new-ad", async (req, res) => {
     let successCount = 0;
     let failCount = 0;
 
-    for (const match of matches) {
-      try {
-        const jid = `${match.phoneNumber}@s.whatsapp.net`;
-        const message = propertyMatchingService.formatMatchNotification(
-          match,
-          match.name
-        );
-
-        await sock.sendMessage(jid, { text: message });
-
-        // Record that this match was sent
-        propertyMatchingService.recordMatchSent(
-          match.phoneNumber,
-          formattedOffer,
-          match.similarity
-        );
-
-        // Mark that we're awaiting "still looking?" response
-        const privateClient = require("../models/privateClient");
-        privateClient.updateClient(match.phoneNumber, {
-          awaitingStillLookingResponse: true,
-          lastMatchSentAt: Date.now(),
-        });
-
-        successCount++;
-        console.log(`   ✅ Sent to ${match.name} (${match.phoneNumber})`);
-
-        // Add small delay between messages to avoid rate limiting
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      } catch (error) {
-        failCount++;
-        console.error(
-          `   ❌ Failed to send to ${match.phoneNumber}:`,
-          error.message
-        );
-      }
-    }
+    // Send notifications to matched users (Background with 300s delay)
+    propertyMatchingService.processMatchesInBackground(sock, matches);
 
     console.log(`\n${"=".repeat(70)}`);
     console.log(
-      `✅ WEBHOOK PROCESSED: ${successCount} sent, ${failCount} failed`
+      `✅ WEBHOOK PROCESSED: ${matches.length} matches queued for background delivery`
     );
     console.log(`${"=".repeat(70)}\n`);
 
     res.json({
       success: true,
       matchCount: matches.length,
-      successCount,
-      failCount,
-      message: `Notifications sent to ${successCount} user(s)`,
+      message: `Matching complete: ${matches.length} notification(s) will be sent in the background with 300s delay`,
     });
   } catch (error) {
     console.error("❌ Error processing webhook:", error);
