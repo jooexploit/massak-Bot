@@ -1252,11 +1252,18 @@ router.get(
       ads = ads.filter((ad) => {
         const hasWhatsApp = ad.whatsappMessage && ad.whatsappMessage.trim();
         
+        // Check if message was sent using any of the three indicators
+        // This matches the client-side logic in app.js
+        const wasSent = 
+          ad.postedToGroups || 
+          ad.sentToGroups || 
+          (ad.selectedGroups && ad.selectedGroups.length > 0);
+        
         // For status filter - default to 'pending' (not sent)
         if (status === 'sent') {
-          return ad.status === 'accepted' && hasWhatsApp && ad.sentToGroups && ad.sentToGroups.length > 0;
+          return ad.status === 'accepted' && hasWhatsApp && wasSent;
         } else if (status === 'pending') {
-          return ad.status === 'accepted' && hasWhatsApp && (!ad.sentToGroups || ad.sentToGroups.length === 0);
+          return ad.status === 'accepted' && hasWhatsApp && !wasSent;
         } else {
           // 'all' - any accepted with whatsapp message
           return ad.status === 'accepted' && hasWhatsApp;

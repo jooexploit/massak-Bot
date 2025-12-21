@@ -6311,7 +6311,7 @@ let whatsappMessagesState = {
   filterWebsite: "all",
   filterCategory: "all",
   filterGroup: "all",
-  filterStatus: "pending", // Default to showing pending messages only
+  filterStatus: "all", // Default to showing all messages
   searchQuery: "",
 };
 
