@@ -10,6 +10,76 @@ const P = require("pino");
 const QRCode = require("qrcode");
 const fs = require("fs");
 const path = require("path");
+
+// ============================================
+// 🛠️ SESSION REPAIR SYSTEM
+// Detects "Bad MAC" errors in real-time and triggers recovery
+// This is critical for handling WhatsApp's LID (Link ID) migration
+// ============================================
+let badMacDetectionCount = 0;
+let lastBadMacAt = 0;
+let sessionResetScheduled = false;
+
+const createDiagnosticLogger = (level = "silent") => {
+  const baseLogger = P({ level });
+  
+  // Create a wrapper that scans logs for the "Bad MAC" error string
+  const wrapper = {
+    level: baseLogger.level,
+    silent: (...args) => baseLogger.silent(...args),
+    trace: (...args) => baseLogger.trace(...args),
+    debug: (...args) => baseLogger.debug(...args),
+    info: (...args) => baseLogger.info(...args),
+    warn: (...args) => baseLogger.warn(...args),
+    error: (...args) => {
+      const msg = args[0];
+      const errorStr = typeof msg === 'string' ? msg : (msg?.msg || JSON.stringify(msg));
+      
+      if (errorStr && (errorStr.includes("Bad MAC") || errorStr.includes("Failed to decrypt"))) {
+        badMacDetectionCount++;
+        lastBadMacAt = Date.now();
+        console.error(`🚨 [SESSION ISSUE] Decryption error detected! Count: ${badMacDetectionCount}`);
+        
+        // If we see too many Bad MACs, schedule a session reset
+        if (badMacDetectionCount >= 5 && !sessionResetScheduled) {
+          sessionResetScheduled = true;
+          console.error("🚨 [SESSION ISSUE] Persistent decryption errors. Session corrupted by WhatsApp LID migration.");
+          console.error("🔄 [SESSION ISSUE] Will auto-reset session on next health check...");
+        }
+      }
+      return baseLogger.error(...args);
+    },
+    fatal: (...args) => baseLogger.fatal(...args),
+    child: (...args) => baseLogger.child(...args),
+  };
+  
+  return wrapper;
+};
+
+// ============================================
+// 📦 SIMPLE MESSAGE CACHE FOR RETRY HANDLING
+// Used for E2E encryption retry operations
+// ============================================
+const MESSAGE_CACHE_MAX_SIZE = 500;
+const messageCache = new Map();
+const STORE_FILE = path.join(__dirname, "..", "data", "baileys_store.json");
+
+function cacheMessage(key, message) {
+  const cacheKey = `${key.remoteJid}:${key.id}`;
+  messageCache.set(cacheKey, message);
+  
+  // Prune cache if too large
+  if (messageCache.size > MESSAGE_CACHE_MAX_SIZE) {
+    const keysToDelete = Array.from(messageCache.keys()).slice(0, 100);
+    keysToDelete.forEach(k => messageCache.delete(k));
+  }
+}
+
+function getCachedMessage(key) {
+  const cacheKey = `${key.remoteJid}:${key.id}`;
+  return messageCache.get(cacheKey);
+}
+
 const { processMessage } = require("../services/aiService");
 const messageQueue = require("../services/messageQueue");
 const privateChatService = require("../services/privateChatService");
@@ -1155,7 +1225,7 @@ async function initializeBot() {
 
     sock = makeWASocket({
       version,
-      logger: P({ level: "silent" }),
+      logger: createDiagnosticLogger("silent"),
       auth: state,
       printQRInTerminal: false, // We handle QR display via web dashboard
       defaultQueryTimeoutMs: 60000,
@@ -1180,10 +1250,11 @@ async function initializeBot() {
         }
         return false;
       },
-      // Provide getMessage for message retry operations
+      // Provide getMessage for message retry operations (CRITICAL for E2E decryption)
+      // This helps resolve "Bad MAC" errors by providing message data for retries
       getMessage: async (key) => {
-        // Return undefined - we don't maintain a message store
-        return undefined;
+        const cached = getCachedMessage(key);
+        return cached?.message || undefined;
       },
     });
 
@@ -1608,22 +1679,68 @@ async function initializeBot() {
             minutesSinceConnectionStart >= 20 &&
             (Date.now() - connectionStartTime) > NEVER_RECEIVED_THRESHOLD_MS;
           
-          const shouldAutoReconnect = scenarioA_StaleAfterWorking || scenarioB_NeverReceivedAny;
+          const scenarioC_PersistentBadMac = badMacDetectionCount >= 5;
+          
+          const shouldAutoReconnect = scenarioA_StaleAfterWorking || scenarioB_NeverReceivedAny || scenarioC_PersistentBadMac;
           
           if (shouldAutoReconnect) {
             console.warn(`\n🚨 ============================================`);
-            console.warn(`🚨 STALE CONNECTION DETECTED - AUTO-RECONNECTING`);
+            console.warn(`🚨 STALE/BROKEN CONNECTION DETECTED - AUTO-RECONNECTING`);
+            if (scenarioC_PersistentBadMac) {
+              console.warn(`🚨 Reason: PERSISTENT BAD MAC (Decryption Failed)`);
+            } else {
+              console.warn(`🚨 Reason: ${scenarioA_StaleAfterWorking ? 'Stale (No activity)' : 'No initial messages'}`);
+            }
             console.warn(`🚨 Last message: ${minutesSinceLastMessage} minutes ago`);
-            console.warn(`🚨 Total processed before stale: ${totalMessagesProcessed}`);
+            console.warn(`🚨 Total processed: ${totalMessagesProcessed}`);
             console.warn(`🚨 ============================================\n`);
             
             // Notify admin about auto-reconnect
             try {
+              let alertMsg = `🔄 *إعادة اتصال تلقائية*\n\n`;
+              if (scenarioC_PersistentBadMac) {
+                alertMsg += `⚠️ البوت يواجه مشاكل في فك تشفير الرسائل (Bad MAC)\n🛠 جاري محاولة الإصلاح...\n`;
+              } else {
+                alertMsg += `⚠️ البوت لم يستقبل رسائل لمدة ${minutesSinceLastMessage} دقيقة\n`;
+              }
+              alertMsg += `📊 إجمالي الرسائل: ${totalMessagesProcessed}\n\n🔄 جاري إعادة الاتصال تلقائياً...`;
+
               await sock.sendMessage(ADMIN_NOTIFICATION_JID, {
-                text: `🔄 *إعادة اتصال تلقائية*\n\n⚠️ البوت لم يستقبل رسائل لمدة ${minutesSinceLastMessage} دقيقة\n📊 إجمالي الرسائل قبل التوقف: ${totalMessagesProcessed}\n\n🔄 جاري إعادة الاتصال تلقائياً...`
+                text: alertMsg
               });
             } catch (e) {
               console.error("Failed to notify admin about auto-reconnect:", e.message);
+            }
+            
+            // Reset Bad MAC counter
+            badMacDetectionCount = 0;
+            sessionResetScheduled = false;
+            
+            // ============================================
+            // 🔄 SESSION RESET FOR BAD MAC (LID Migration Fix)
+            // Clear corrupted session and force fresh QR login
+            // ============================================
+            if (scenarioC_PersistentBadMac) {
+              console.log("🗑️ Clearing corrupted session due to persistent Bad MAC errors...");
+              console.log("📋 This is likely caused by WhatsApp's LID (Link ID) migration.");
+              
+              try {
+                // Clear the entire auth folder to force fresh session
+                const authPath = path.join(__dirname, "..", "auth_info_baileys");
+                if (fs.existsSync(authPath)) {
+                  fs.rmSync(authPath, { recursive: true, force: true });
+                  console.log("✅ Session files cleared successfully");
+                  console.log("📱 You will need to scan a new QR code");
+                }
+                
+                // Also clear the store file
+                if (fs.existsSync(STORE_FILE)) {
+                  fs.rmSync(STORE_FILE, { force: true });
+                  console.log("✅ Message store cleared");
+                }
+              } catch (clearError) {
+                console.error("❌ Error clearing session:", clearError.message);
+              }
             }
             
             // Clear the interval to prevent multiple reconnect attempts
@@ -1704,6 +1821,15 @@ async function initializeBot() {
       );
 
       // ============================================
+      // 📦 CACHE MESSAGES FOR RETRY HANDLING
+      // ============================================
+      for (const msg of messages) {
+        if (msg.key && msg.message) {
+          cacheMessage(msg.key, msg);
+        }
+      }
+
+      // ============================================
       // 🛡️ CONNECTION VALIDATION - Check before processing
       // ============================================
       if (connectionStatus !== "connected") {
@@ -1731,7 +1857,7 @@ async function initializeBot() {
         // Skip messages without content
         if (!msg.message) {
           console.log(`⏩ Skipping message - no message content`);
-          return;
+          continue;
         }
 
         const messageText =
@@ -1769,7 +1895,7 @@ async function initializeBot() {
         }
 
         // Accept messages from groups (@g.us) and communities (@broadcast)
-        if (!from) return;
+        if (!from) continue;
 
         const isGroup = from.endsWith("@g.us");
         const isCommunity = from.includes("@broadcast");
@@ -1784,14 +1910,14 @@ async function initializeBot() {
         // Filter out status@broadcast (WhatsApp statuses)
         if (from === "status@broadcast" || from.startsWith("status@")) {
           console.log(`⏭️ Ignoring status broadcast message`);
-          return; // Completely ignore WhatsApp status messages
+          continue; // Completely ignore WhatsApp status messages
         }
 
         // Filter out ALL broadcast channels except groups and private chats
         // You can whitelist specific broadcast channels here if needed
         if (isCommunity && !isGroup && !isPrivate) {
           console.log(`⏭️ Ignoring broadcast channel: ${from}`);
-          return; // Ignore all broadcast channels (communities) - only process groups and private chats
+          continue; // Ignore all broadcast channels (communities) - only process groups and private chats
         }
 
         // ============================================
@@ -1823,7 +1949,7 @@ async function initializeBot() {
                   `🚫 Message ignored - sender is not an admin: ${senderName} (${senderPhone})`
                 );
               }
-              return; // Don't respond to non-admins
+              continue; // Don't respond to non-admins
             }
 
             console.log(
@@ -2295,7 +2421,7 @@ async function initializeBot() {
             );
 
             console.log(`✅ Private chat response sent to ${senderName}`);
-            return; // Don't process as regular message
+            continue; // Don't process through regular private chat system
           } catch (error) {
             console.error("❌ Private chat system error:", error);
             await sendMessage(
@@ -2308,7 +2434,7 @@ async function initializeBot() {
         // ============================================
         // ORIGINAL AD PROCESSING - Only for groups
         // ============================================
-        if (!isGroup) return; // Only process groups (@g.us) for ads, ignore everything else
+        if (!isGroup) continue; // Only process groups (@g.us) for ads, ignore everything else
 
         // ============================================
         // CHECK EXCLUDED GROUPS - Skip if excluded
@@ -2332,7 +2458,7 @@ async function initializeBot() {
           } catch (e) {
             // ignore
           }
-          return; // Don't process messages from this group
+          continue; // Don't process messages from this group
         }
 
         // Save ALL groups/communities for receiving messages
