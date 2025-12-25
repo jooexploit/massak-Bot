@@ -10,6 +10,141 @@ let savedCustomNumbers = []; // Saved custom phone numbers with names
 let selectedCustomNumbers = []; // Currently selected custom numbers for sending
 let initialDataLoaded = false; // Track if initial data has been loaded
 
+// ==================== SMART SEARCH UTILITY ====================
+/**
+ * Smart search utility for Arabic and English text
+ * Features:
+ * - Arabic text normalization (handles ا/أ/إ/آ, ه/ة, ي/ى variations)
+ * - Multi-word search (matches if all words are found)
+ * - Partial matching
+ * - Case insensitive
+ */
+const SmartSearch = {
+  // Normalize Arabic text for consistent matching
+  normalizeArabic: function(text) {
+    if (!text || typeof text !== 'string') return '';
+    return text
+      // Normalize Alef variations
+      .replace(/[أإآا]/g, 'ا')
+      // Normalize Taa Marbuta to Haa
+      .replace(/ة/g, 'ه')
+      // Normalize Yaa variations
+      .replace(/ى/g, 'ي')
+      // Remove diacritics (tashkeel)
+      .replace(/[\u064B-\u065F]/g, '')
+      // Normalize spaces
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  },
+
+  // Extract all searchable text from an ad object
+  extractAdSearchableText: function(ad) {
+    if (!ad) return '';
+    
+    const fields = [
+      // Basic fields
+      ad.text,
+      ad.enhancedText,
+      ad.whatsappMessage,
+      ad.category,
+      ad.fromGroup,
+      ad.fromGroupName,
+      ad.status,
+      ad.targetWebsite,
+      ad.rejectionReason,
+      ad.aiReason,
+      
+      // WordPress data
+      ad.wpData?.title,
+      ad.wpData?.title?.rendered,
+      ad.wpData?.content,
+      ad.wpData?.targetWebsite,
+      
+      // Meta fields (WordPress)
+      ad.wpData?.meta?.parent_catt,
+      ad.wpData?.meta?.sub_catt,
+      ad.wpData?.meta?.arc_category,
+      ad.wpData?.meta?.arc_subcategory,
+      ad.wpData?.meta?.City,
+      ad.wpData?.meta?.location,
+      ad.wpData?.meta?.Price,
+      ad.wpData?.meta?.price,
+      ad.wpData?.meta?.phone,
+      ad.wpData?.meta?.Phone,
+      ad.wpData?.meta?.mobile,
+      ad.wpData?.meta?.owner_phone,
+      ad.wpData?.meta?.PropertyType,
+      ad.wpData?.meta?.property_type,
+      ad.wpData?.meta?.Neighborhood,
+      ad.wpData?.meta?.neighborhood,
+      ad.wpData?.meta?.Area,
+      ad.wpData?.meta?.area,
+      ad.wpData?.meta?.Rooms,
+      ad.wpData?.meta?.rooms,
+      
+      // Ad ID
+      ad.id,
+    ];
+    
+    // Filter out null/undefined and join
+    return fields
+      .filter(f => f != null && f !== '')
+      .map(f => String(f))
+      .join(' ');
+  },
+
+  // Check if text matches the search query (smart matching)
+  matches: function(searchableText, query) {
+    if (!query || !query.trim()) return true;
+    if (!searchableText) return false;
+    
+    const normalizedText = this.normalizeArabic(searchableText);
+    const normalizedQuery = this.normalizeArabic(query);
+    
+    // Split query into words for multi-word search
+    const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length > 0);
+    
+    if (queryWords.length === 0) return true;
+    
+    // Check if ALL words are found in the text (AND logic)
+    return queryWords.every(word => normalizedText.includes(word));
+  },
+
+  // Search through ads array
+  searchAds: function(ads, query) {
+    if (!query || !query.trim()) return ads;
+    
+    return ads.filter(ad => {
+      const searchableText = this.extractAdSearchableText(ad);
+      return this.matches(searchableText, query);
+    });
+  },
+
+  // Highlight search terms in text (for display)
+  highlightMatches: function(text, query) {
+    if (!text || !query || !query.trim()) return text;
+    
+    const normalizedQuery = this.normalizeArabic(query);
+    const words = normalizedQuery.split(/\s+/).filter(w => w.length > 0);
+    
+    if (words.length === 0) return text;
+    
+    // Create regex pattern for highlighting
+    const pattern = words.map(w => {
+      // Escape special regex characters
+      return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }).join('|');
+    
+    try {
+      const regex = new RegExp(`(${pattern})`, 'gi');
+      return text.replace(regex, '<mark style="background: #fff3cd; padding: 0 2px; border-radius: 2px;">$1</mark>');
+    } catch (e) {
+      return text;
+    }
+  }
+};
+
 // Predefined website categories
 const masaakCategories = [
   "أدوات صحية", "أرض", "استراحة", "اعلانات مسعاك المميزة", "بدون محلات",
@@ -1311,10 +1446,13 @@ function toggleAdsPage() {
   }
 }
 
-// Live search function
+// Live search function - Enhanced with SmartSearch for full-content search
+// Stores ads data for smart searching
+let cachedAdsForSearch = [];
+
 function performLiveSearch(searchTerm) {
   const cards = adsList.querySelectorAll(".card[data-ad-id]");
-  const term = searchTerm.toLowerCase().trim();
+  const term = searchTerm.trim();
 
   if (!term) {
     // Show all ads if search is empty
@@ -1322,19 +1460,37 @@ function performLiveSearch(searchTerm) {
     return;
   }
 
+  // Use SmartSearch for intelligent matching
   cards.forEach((card) => {
     const adId = card.getAttribute("data-ad-id");
     const adIndex = card.getAttribute("data-ad-index");
-    const cardText = card.textContent.toLowerCase();
-
-    // Search in: ad number, ID, all text content (includes title, category, location, price, etc.)
-    const matchesSearch =
-      adIndex.includes(term) ||
-      adId.toLowerCase().includes(term) ||
-      cardText.includes(term);
+    
+    // Get the cached ad data for full-content search
+    const adData = cachedAdsForSearch.find(ad => ad.id === adId);
+    
+    let matchesSearch = false;
+    
+    if (adData) {
+      // Use SmartSearch for full-content search with Arabic normalization
+      const searchableText = SmartSearch.extractAdSearchableText(adData);
+      matchesSearch = SmartSearch.matches(searchableText, term);
+    } else {
+      // Fallback to card text content if ad data not cached
+      const cardText = card.textContent;
+      matchesSearch = SmartSearch.matches(cardText, term);
+    }
+    
+    // Also match on ad index/number
+    if (!matchesSearch && adIndex) {
+      matchesSearch = SmartSearch.matches(adIndex, term);
+    }
 
     card.style.display = matchesSearch ? "block" : "none";
   });
+  
+  // Show search result count
+  const visibleCount = Array.from(cards).filter(c => c.style.display !== 'none').length;
+  console.log(`🔍 Smart Search: "${term}" - Found ${visibleCount}/${cards.length} ads`);
 }
 
 // Focus on specific ad and expand it
@@ -1431,6 +1587,13 @@ async function fetchAndRenderAds(reset = true) {
 
     // Populate group filter dropdown with unique groups from ads
     populateAdsGroupFilter(data.allGroups || []);
+
+    // Cache ads data for smart search
+    if (reset) {
+      cachedAdsForSearch = list;
+    } else {
+      cachedAdsForSearch = [...cachedAdsForSearch, ...list];
+    }
 
     renderAds(list, reset, pagination);
 
@@ -6307,7 +6470,7 @@ let whatsappMessagesState = {
   allMessages: [],
   currentPage: 1,
   itemsPerPage: 12, // Show 12 items per page
-  sortBy: "time-desc",
+  sortBy: "accepted-desc", // Default: newest accepted first
   filterWebsite: "all",
   filterCategory: "all",
   filterGroup: "all",
@@ -6449,24 +6612,11 @@ async function loadWhatsAppMessagesView(append = false) {
       }
     }
 
-    // Apply local search if any (filters are server-side now)
+    // Apply local search if any using SmartSearch (filters are server-side now)
     let messagesToRender = ads;
     if (whatsappMessagesState.searchQuery && whatsappMessagesState.searchQuery.trim()) {
-      const query = whatsappMessagesState.searchQuery.toLowerCase().trim();
-      messagesToRender = ads.filter((ad) => {
-        const searchableText = [
-          ad.text,
-          ad.enhancedText,
-          ad.whatsappMessage,
-          ad.fromGroupName,
-          ad.category,
-          ad.wpData?.title?.rendered,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return searchableText.includes(query);
-      });
+      const query = whatsappMessagesState.searchQuery.trim();
+      messagesToRender = SmartSearch.searchAds(ads, query);
     }
 
     renderWhatsAppMessageCards(messagesToRender, listContainer);
@@ -6601,26 +6751,18 @@ function populateWhatsAppGroupFilter(ads) {
 function applyWhatsAppFilters(messages) {
   let filtered = [...messages];
 
-  // Filter by search query
+  // Filter by search query using SmartSearch for full-content search
   if (
     whatsappMessagesState.searchQuery &&
     whatsappMessagesState.searchQuery.trim()
   ) {
-    const query = whatsappMessagesState.searchQuery.toLowerCase().trim();
+    const query = whatsappMessagesState.searchQuery.trim();
     filtered = filtered.filter((ad) => {
-      const category = (ad.category || "").toLowerCase();
-      const groupName = (ad.fromGroupName || ad.fromGroup || "").toLowerCase();
-      const messageText = (ad.whatsappMessage || "").toLowerCase();
-      const meta = ad.wpData?.meta || {};
-      const location = (meta.location || meta.City || "").toLowerCase();
-
-      return (
-        category.includes(query) ||
-        groupName.includes(query) ||
-        messageText.includes(query) ||
-        location.includes(query)
-      );
+      // Use SmartSearch for intelligent full-content search with Arabic normalization
+      const searchableText = SmartSearch.extractAdSearchableText(ad);
+      return SmartSearch.matches(searchableText, query);
     });
+    console.log(`🔍 Smart Search (WhatsApp): "${query}" - Found ${filtered.length}/${messages.length} messages`);
   }
 
   // Filter by status (sent vs pending)
@@ -6679,16 +6821,33 @@ function applyWhatsAppFilters(messages) {
   // Sort messages
   filtered.sort((a, b) => {
     switch (whatsappMessagesState.sortBy) {
+      case "accepted-desc": {
+        // Sort by accepted/posted time (newest first)
+        const aAccepted = a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
+        const bAccepted = b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
+        return new Date(bAccepted) - new Date(aAccepted);
+      }
+      case "accepted-asc": {
+        // Sort by accepted/posted time (oldest first)
+        const aAccepted = a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
+        const bAccepted = b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
+        return new Date(aAccepted) - new Date(bAccepted);
+      }
       case "time-desc":
-        return b.timestamp - a.timestamp;
+        // Sort by collected time (newest first)
+        return new Date(b.timestamp) - new Date(a.timestamp);
       case "time-asc":
-        return a.timestamp - b.timestamp;
+        // Sort by collected time (oldest first)
+        return new Date(a.timestamp) - new Date(b.timestamp);
       case "confidence-desc":
         return (b.aiConfidence || 0) - (a.aiConfidence || 0);
       case "confidence-asc":
         return (a.aiConfidence || 0) - (b.aiConfidence || 0);
       default:
-        return b.timestamp - a.timestamp;
+        // Default to accepted time (newest first)
+        const aDefault = a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
+        const bDefault = b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
+        return new Date(bDefault) - new Date(aDefault);
     }
   });
 
@@ -7448,49 +7607,34 @@ function renderInterestGroups(groups) {
   }
   
   container.innerHTML = groups.map(group => `
-    <div class="interest-group-card" style="
-      background: white;
-      border-radius: 12px;
-      padding: 15px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      border-right: 4px solid #667eea;
-    ">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div>
-          <span style="
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
-          ">${group.id}</span>
-        </div>
-        <div style="display: flex; gap: 5px;">
-          <button onclick="toggleGroupMembers('${group.id}')" class="btn btn-sm btn-secondary" title="عرض الأعضاء">
+    <div class="interest-group-card" data-group-id="${group.id}">
+      <div class="client-card-header">
+        <span class="group-tag">${group.id}</span>
+        <div style="display: flex; gap: 8px;">
+          <button onclick="toggleGroupMembers('${group.id}')" class="btn btn-sm btn-secondary" title="عرض الأعضاء" style="border-radius: 8px;">
             <i class="fas fa-users"></i>
           </button>
-          <button onclick="deleteInterestGroup('${group.id}')" class="btn btn-sm btn-danger" title="حذف">
+          <button onclick="deleteInterestGroup('${group.id}')" class="btn btn-sm btn-danger" title="حذف" style="border-radius: 8px; background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2;">
             <i class="fas fa-trash"></i>
           </button>
         </div>
       </div>
       
-      <div style="font-size: 1.1rem; font-weight: 600; color: #333; margin-bottom: 8px;">
+      <div class="group-title">
         📌 ${escapeHtml(group.interest)}
       </div>
       
-      <div style="display: flex; gap: 15px; font-size: 0.85rem; color: #666;">
+      <div class="group-stats">
         <span><i class="fas fa-users" style="color: #667eea;"></i> ${group.members.length} عضو</span>
-        <span><i class="fas fa-calendar" style="color: #667eea;"></i> ${new Date(group.createdAt).toLocaleDateString('en-GB')}</span>
+        <span><i class="fas fa-calendar-alt" style="color: #667eea;"></i> ${new Date(group.createdAt).toLocaleDateString('en-GB')}</span>
       </div>
       
-      <div id="members-${group.id}" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee;">
+      <div id="members-${group.id}" class="group-members-list" style="display: none;">
         ${group.members.map((m, i) => `
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f0;">
-            <span>${i + 1}. ${escapeHtml(m.name || 'غير محدد')}</span>
-            <a href="https://wa.me/${m.phone}" target="_blank" style="color: #25D366; text-decoration: none;">
-              <i class="fab fa-whatsapp"></i> +${m.phone}
+          <div class="group-member-item">
+            <span style="font-weight: 500;">${i + 1}. ${escapeHtml(m.name || 'غير محدد')}</span>
+            <a href="https://wa.me/${m.phone}" target="_blank" style="color: #25D366; text-decoration: none; font-size: 0.85rem;">
+               <i class="fab fa-whatsapp"></i> +${m.phone}
             </a>
           </div>
         `).join('')}
@@ -7671,24 +7815,10 @@ function renderPrivateClients(clients) {
     return;
   }
 
-  // Create table HTML
+  // Create grid HTML
   container.innerHTML = `
-    <div class="clients-table-wrapper">
-      <table class="clients-table">
-        <thead>
-          <tr>
-            <th class="col-expand"></th>
-            <th class="col-name">Name</th>
-            <th class="col-phone">Phone</th>
-            <th class="col-role">Role</th>
-            <th class="col-status">Status</th>
-            <th class="col-actions">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${clients.map((client) => createClientRow(client)).join("")}
-        </tbody>
-      </table>
+    <div class="clients-grid">
+      ${clients.map((client) => createClientCard(client)).join("")}
     </div>
   `;
 
@@ -7729,11 +7859,20 @@ function renderPrivateClients(clients) {
   });
 }
 
-function createClientRow(client) {
+function createClientCard(client) {
   const roleClass = getRoleClass(client.role);
   const roleIcon = getRoleIcon(client.role);
   const stateClass = getStateClass(client.state);
   const stateText = getStateText(client.state);
+  
+  // Map Arabic roles to English slugs for CSS classes
+  const roleSlugMap = {
+    "باحث": "seeker",
+    "مالك": "owner",
+    "مستثمر": "investor",
+    "وسيط": "broker"
+  };
+  const roleSlug = roleSlugMap[client.role] || "other";
 
   const lastActivity = client.lastActivity
     ? formatRelativeTime(client.lastActivity)
@@ -7753,37 +7892,36 @@ function createClientRow(client) {
       ? client.propertyOffer 
       : JSON.stringify(client.propertyOffer, null, 2);
     requirementsPreview = `
-      <div class="detail-section">
-        <strong><i class="fas fa-home"></i> Property Offer:</strong>
-        <pre class="detail-content">${escapeHtml(offerText)}</pre>
+      <div class="detail-section" style="margin-top: 10px;">
+        <strong style="display: block; margin-bottom: 5px;"><i class="fas fa-home"></i> Property Offer:</strong>
+        <pre class="detail-content" style="background: #f1f5f9; padding: 10px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; margin: 0;">${escapeHtml(offerText)}</pre>
       </div>
     `;
   } else if (requests.length > 0) {
     // Multiple requests for باحث
     requirementsPreview = `
-      <div class="detail-section">
+      <div class="detail-section" style="margin-top: 10px;">
         <strong><i class="fas fa-clipboard-list"></i> الطلبات (${requests.length}):</strong>
-        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
     `;
     
     requests.forEach((req, index) => {
-      // Treat undefined/missing status as active (only explicitly inactive is filtered)
       const isReqActive = req.status !== 'inactive';
       const statusBadge = isReqActive 
         ? '<span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px;">نشط</span>'
         : '<span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px;">غير نشط</span>';
       
       requirementsPreview += `
-        <div style="background: #f8f9fa; border-radius: 8px; padding: 12px; border-right: 4px solid ${index === 0 ? '#667eea' : '#28a745'};">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <strong style="color: #333;">📋 طلب ${index + 1}: ${escapeHtml(req.propertyType || 'غير محدد')}</strong>
+        <div style="background: #ffffff; border-radius: 8px; padding: 10px; border: 1px solid #e2e8f0; border-right: 4px solid ${index === 0 ? '#667eea' : '#28a745'};">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <strong style="color: #333; font-size: 13px;">📋 طلب ${index + 1}: ${escapeHtml(req.propertyType || 'غير محدد')}</strong>
             ${statusBadge}
           </div>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; font-size: 13px;">
+          <div style="display: grid; grid-template-columns: 1fr; gap: 4px; font-size: 12px; color: #4a5568;">
             ${req.purpose ? `<div>📋 <strong>الغرض:</strong> ${escapeHtml(req.purpose)}</div>` : ''}
             ${req.priceMin != null || req.priceMax != null ? `<div>💰 <strong>السعر:</strong> ${req.priceMin ? req.priceMin.toLocaleString() : '0'} - ${req.priceMax ? req.priceMax.toLocaleString() : '∞'} ريال</div>` : ''}
             ${req.areaMin != null || req.areaMax != null ? `<div>📏 <strong>المساحة:</strong> ${req.areaMin || 0} - ${req.areaMax || '∞'} م²</div>` : ''}
-            ${req.neighborhoods && req.neighborhoods.length > 0 ? `<div style="grid-column: 1 / -1;">📍 <strong>الأحياء:</strong> ${escapeHtml(req.neighborhoods.join('، '))}</div>` : ''}
+            ${req.neighborhoods && req.neighborhoods.length > 0 ? `<div style="margin-top: 2px;">📍 <strong>الأحياء:</strong> ${escapeHtml(req.neighborhoods.join('، '))}</div>` : ''}
           </div>
         </div>
       `;
@@ -7796,73 +7934,63 @@ function createClientRow(client) {
   }
 
   return `
-    <tr class="client-row" data-phone="${client.phoneNumber}">
-      <td class="col-expand">
-        <button id="pc-expand-${
-          client.phoneNumber
-        }" class="btn-expand" title="Show Details">
-          <i class="fas fa-plus"></i>
-        </button>
-      </td>
-      <td class="col-name" data-label="Name">${escapeHtml(
-        client.name || "Unknown"
-      )}</td>
-      <td class="col-phone" data-label="Phone">${client.phoneNumber}</td>
-      <td class="col-role" data-label="Role">
-        <span class="role-badge ${roleClass}">
+    <div class="client-card role-${roleSlug}" data-phone="${client.phoneNumber}">
+      <div class="client-card-header">
+        <div class="client-main-info">
+          <h3 class="client-card-name">${escapeHtml(client.name || "Unknown")}</h3>
+          <div class="client-card-phone">
+            <i class="fas fa-phone-alt"></i> ${client.phoneNumber}
+          </div>
+        </div>
+        <span class="role-badge ${roleClass}" style="padding: 6px 12px; border-radius: 15px;">
           <i class="${roleIcon}"></i> ${escapeHtml(client.role || "Unknown")}
         </span>
-      </td>
-      <td class="col-status" data-label="Status">
-        <span class="state-badge ${stateClass}">${stateText}</span>
-      </td>
-      <td class="col-actions">
-        <div class="action-buttons">
-          <button id="pc-whatsapp-${
-            client.phoneNumber
-          }" class="btn-action btn-whatsapp" title="Chat on WhatsApp">
-            <i class="fab fa-whatsapp"></i>
-          </button>
-          <button id="pc-view-${
-            client.phoneNumber
-          }" class="btn-action btn-edit" title="Edit Client">
+      </div>
+      
+      <div class="client-card-badges">
+        <span class="state-badge ${stateClass}" style="border-radius: 15px;">${stateText}</span>
+        <span style="font-size: 0.8rem; color: #718096; display: flex; align-items: center; gap: 4px; margin-left: 10px;">
+           <i class="fas fa-clock"></i> نشط ${lastActivity}
+        </span>
+      </div>
+
+      <div class="client-card-body">
+        <div id="pc-details-${client.phoneNumber}" class="client-card-details" style="display: none;">
+          ${requirementsPreview}
+        </div>
+      </div>
+
+      <div class="client-card-footer">
+        <button id="pc-expand-${client.phoneNumber}" class="btn btn-secondary btn-expand" title="Show Details">
+          <i class="fas fa-plus"></i> التفاصيل
+        </button>
+        <button id="pc-whatsapp-${client.phoneNumber}" class="btn btn-primary btn-whatsapp" title="Chat on WhatsApp" style="background: #25D366; border: none; color: white;">
+          <i class="fab fa-whatsapp"></i> واتساب
+        </button>
+        <div style="display: flex; gap: 5px;">
+          <button id="pc-view-${client.phoneNumber}" class="btn btn-secondary btn-edit" title="Edit Client" style="min-width: 40px; padding: 0;">
             <i class="fas fa-edit"></i>
           </button>
-          <button id="pc-delete-${
-            client.phoneNumber
-          }" class="btn-action btn-delete" title="Delete">
+          <button id="pc-delete-${client.phoneNumber}" class="btn btn-danger btn-delete" title="Delete" style="min-width: 40px; padding: 0; background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2;">
             <i class="fas fa-trash"></i>
           </button>
         </div>
-      </td>
-    </tr>
-    <tr class="client-details-row" id="pc-details-${
-      client.phoneNumber
-    }" style="display: none;">
-      <td colspan="6">
-        <div class="client-details-content">
-          <div class="detail-section">
-            <strong><i class="fas fa-clock"></i> Last Active:</strong>
-            <span>${lastActivity}</span>
-          </div>
-          ${requirementsPreview}
-        </div>
-      </td>
-    </tr>
+      </div>
+    </div>
   `;
 }
 
 function toggleClientDetails(phoneNumber) {
-  const detailsRow = document.getElementById(`pc-details-${phoneNumber}`);
+  const detailsArea = document.getElementById(`pc-details-${phoneNumber}`);
   const expandBtn = document.getElementById(`pc-expand-${phoneNumber}`);
 
-  if (detailsRow.style.display === "none") {
-    detailsRow.style.display = "table-row";
-    expandBtn.innerHTML = '<i class="fas fa-minus"></i>';
+  if (detailsArea.style.display === "none") {
+    detailsArea.style.display = "block";
+    expandBtn.innerHTML = '<i class="fas fa-minus"></i> إخفاء';
     expandBtn.classList.add("expanded");
   } else {
-    detailsRow.style.display = "none";
-    expandBtn.innerHTML = '<i class="fas fa-plus"></i>';
+    detailsArea.style.display = "none";
+    expandBtn.innerHTML = '<i class="fas fa-plus"></i> التفاصيل';
     expandBtn.classList.remove("expanded");
   }
 }
@@ -10886,14 +11014,8 @@ function switchCustomMessagesTab(tabName) {
   document.querySelectorAll(".custom-msg-tab").forEach((tab) => {
     if (tab.dataset.tab === tabName) {
       tab.classList.add("active");
-      tab.style.fontWeight = "bold";
-      tab.style.color = "#333";
-      tab.style.borderBottom = "3px solid #667eea";
     } else {
       tab.classList.remove("active");
-      tab.style.fontWeight = "normal";
-      tab.style.color = "#666";
-      tab.style.borderBottom = "none";
     }
   });
 
@@ -10999,70 +11121,42 @@ function createMessageCard(message) {
   const dynamicWordsCount = Object.keys(message.dynamicWords || {}).length;
 
   return `
-    <div class="custom-message-card" style="
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      border-left: 4px solid #667eea;
-      transition: all 0.2s ease;
-    " onmouseenter="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'; this.style.transform='translateY(-2px)';"
-       onmouseleave="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'; this.style.transform='translateY(0)';">
-      
+    <div class="custom-message-card">
       <!-- Header -->
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h3 style="margin: 0; color: #333; font-size: 1.1rem;">
+      <div class="card-header-flex">
+        <h3 class="card-title">
           <i class="fas fa-envelope" style="color: #667eea; margin-left: 8px;"></i>
           ${escapeHtml(message.name)}
         </h3>
-        <span style="font-size: 0.8rem; color: #999;">${createdDate}</span>
+        <span class="card-date">${createdDate}</span>
       </div>
       
       <!-- Content Preview -->
-      <div style="
-        background: #f8f9fa;
-        padding: 12px;
-        border-radius: 8px;
-        font-size: 0.9rem;
-        color: #555;
-        direction: rtl;
-        max-height: 80px;
-        overflow: hidden;
-        margin-bottom: 15px;
-        white-space: pre-wrap;
-      ">${escapeHtml(message.content.substring(0, 200))}${message.content.length > 200 ? "..." : ""}</div>
+      <div class="card-content-preview">${escapeHtml(message.content.substring(0, 200))}${message.content.length > 200 ? "..." : ""}</div>
       
       <!-- Stats -->
-      <div style="display: flex; gap: 15px; margin-bottom: 15px; font-size: 0.85rem; color: #666; flex-wrap: wrap;">
+      <div class="card-stats">
         ${message.imagePath ? `<span style="color: #1565c0;"><i class="fas fa-image" style="color: #42a5f5;"></i> صورة مرفقة</span>` : ""}
         ${variablesCount > 0 ? `<span><i class="fas fa-code" style="color: #3498db;"></i> ${variablesCount} متغير</span>` : ""}
-        ${dynamicWordsCount > 0 ? `<span><i class="fas fa-random" style="color: #9b59b6;"></i> ${dynamicWordsCount} كلمة ديناميكية</span>` : ""}
+        ${dynamicWordsCount > 0 ? `<span><i class="fas fa-random" style="color: #9b59b6;"></i> ${dynamicWordsCount} كلمة</span>` : ""}
       </div>
       
       <!-- Actions -->
-      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <button onclick="window.editCustomMessage('${message.id}')" 
-          style="flex: 1; min-width: 80px; display: flex; align-items: center; justify-content: center; gap: 6px; background: #eef2ff; color: #4f46e5; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;"
-          onmouseenter="this.style.background='#e0e7ff'"
-          onmouseleave="this.style.background='#eef2ff'">
+      <div class="card-actions">
+        <button onclick="window.editCustomMessage('${message.id}')" class="btn btn-secondary" style="background: #eef2ff; color: #4f46e5;">
           <i class="fas fa-edit"></i> تعديل
         </button>
-        <button onclick="window.createScheduleForMessage('${message.id}')" 
-          style="flex: 1; min-width: 80px; display: flex; align-items: center; justify-content: center; gap: 6px; background: #ecfdf5; color: #059669; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;"
-          onmouseenter="this.style.background='#d1fae5'"
-          onmouseleave="this.style.background='#ecfdf5'">
+        <button onclick="window.createScheduleForMessage('${message.id}')" class="btn btn-success" style="background: #ecfdf5; color: #059669;">
           <i class="fas fa-calendar-plus"></i> جدولة
         </button>
-        <button onclick="window.deleteCustomMessage('${message.id}')" 
-          style="display: flex; align-items: center; justify-content: center; gap: 6px; background: #fef2f2; color: #ef4444; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;"
-          onmouseenter="this.style.background='#fee2e2'"
-          onmouseleave="this.style.background='#fef2f2'">
+        <button onclick="window.deleteCustomMessage('${message.id}')" class="btn btn-danger" style="flex: 0 0 auto; min-width: auto; background: #fef2f2; color: #ef4444;">
           <i class="fas fa-trash"></i>
         </button>
       </div>
     </div>
   `;
 }
+
 
 // Render schedules list
 function renderSchedules() {
@@ -11098,6 +11192,7 @@ function createScheduleCard(schedule) {
   // Get repeat type info
   const repeatType = schedule.schedule?.repeatType || "daily";
   const repeatTypeLabels = {
+    once: { label: "🎯 مرة واحدة", color: "#e91e63" },
     daily: { label: "📅 يومي", color: "#1565c0" },
     weekly: { label: "📆 أسبوعي", color: "#2e7d32" },
     monthly: { label: "🗓️ شهري", color: "#7b1fa2" },
@@ -11110,6 +11205,9 @@ function createScheduleCard(schedule) {
   const monthNames = ["", "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
   
   switch (repeatType) {
+    case "once":
+      scheduleDetails = `<div style="margin-bottom: 8px;"><strong>🎯 النوع:</strong> مرة واحدة فقط</div>`;
+      break;
     case "monthly":
       const dayOfMonth = schedule.schedule?.dayOfMonth || 1;
       scheduleDetails = `<div style="margin-bottom: 8px;"><strong>📅 التكرار:</strong> يوم ${dayOfMonth} من كل شهر</div>`;
@@ -11122,23 +11220,15 @@ function createScheduleCard(schedule) {
     case "weekly":
     case "daily":
     default:
-      scheduleDetails = `<div style="margin-bottom: 8px;"><strong>📅 الأيام:</strong> ${selectedDays || "لا يوجد"}</div>`;
+      scheduleDetails = `<div style="margin-bottom: 8px;"><strong>📅 الأيام:</strong> ${selectedDays || "كل يوم"}</div>`;
       break;
   }
 
   return `
-    <div class="schedule-card" style="
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      border-left: 4px solid ${schedule.enabled ? "#10b981" : "#9ca3af"};
-      transition: all 0.2s ease;
-      opacity: ${schedule.enabled ? "1" : "0.7"};
-    ">
+    <div class="schedule-card ${schedule.enabled ? "" : "disabled"}">
       <!-- Header -->
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h3 style="margin: 0; color: #333; font-size: 1.1rem;">
+      <div class="card-header-flex">
+        <h3 class="card-title">
           <i class="fas fa-calendar-alt" style="color: ${schedule.enabled ? "#10b981" : "#9ca3af"}; margin-left: 8px;"></i>
           ${escapeHtml(schedule.name || messageName)}
         </h3>
@@ -11155,7 +11245,7 @@ function createScheduleCard(schedule) {
       </div>
       
       <!-- Details -->
-      <div style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
+      <div style="font-size: 0.9rem; color: #666; margin-bottom: 15px; line-height: 1.5;">
         <div style="margin-bottom: 8px;"><strong>📝 الرسالة:</strong> ${escapeHtml(messageName)}</div>
         ${scheduleDetails}
         <div style="margin-bottom: 8px;"><strong>⏰ الوقت:</strong> ${schedule.schedule?.startTime || "09:00"} - ${schedule.schedule?.endTime || "17:00"}</div>
@@ -11163,29 +11253,27 @@ function createScheduleCard(schedule) {
       </div>
       
       <!-- Run Info -->
-      <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 15px;">
-        <div><strong>التشغيل التالي:</strong> ${nextRun}</div>
-        <div style="margin-top: 5px;"><strong>آخر تشغيل:</strong> ${lastRun}</div>
+      <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 15px; border: 1px solid #efefef;">
+        ${schedule.enabled && nextRun ? `<div><strong>التشغيل التالي:</strong> ${nextRun}</div>` : ""}
+        <div style="${schedule.enabled && nextRun ? "margin-top: 5px;" : ""}"><strong>آخر تشغيل:</strong> ${lastRun}</div>
       </div>
       
       <!-- Actions -->
-      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <button onclick="window.runScheduleNow('${schedule.id}')" 
-          style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
-          <i class="fas fa-play"></i> تشغيل الآن
+      <div class="card-actions">
+        <button onclick="window.runScheduleNow('${schedule.id}')" class="btn btn-primary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+          <i class="fas fa-play"></i> تشغيل
         </button>
-        <button onclick="window.editSchedule('${schedule.id}')" 
-          style="display: flex; align-items: center; justify-content: center; gap: 6px; background: #eef2ff; color: #4f46e5; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+        <button onclick="window.editSchedule('${schedule.id}')" class="btn btn-secondary" style="background: #eef2ff; color: #4f46e5;">
           <i class="fas fa-edit"></i>
         </button>
-        <button onclick="window.deleteSchedule('${schedule.id}')" 
-          style="display: flex; align-items: center; justify-content: center; gap: 6px; background: #fef2f2; color: #ef4444; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+        <button onclick="window.deleteSchedule('${schedule.id}')" class="btn btn-danger" style="flex: 0 0 auto; min-width: auto; background: #fef2f2; color: #ef4444;">
           <i class="fas fa-trash"></i>
         </button>
       </div>
     </div>
   `;
 }
+
 
 
 // Open create message modal
@@ -12036,9 +12124,23 @@ window.toggleRepeatTypeUI = function() {
   
   // Show based on repeat type
   switch (repeatType) {
+    case "once":
+      // For once, show days section to pick which day
+      if (daysSection) {
+        daysSection.style.display = "block";
+        // Update the label to indicate single selection
+        const label = daysSection.querySelector("label");
+        if (label) label.innerHTML = `<i class="fas fa-calendar-check" style="color: #1565c0;"></i> 📅 اختر اليوم المحدد للإرسال:`;
+      }
+      break;
     case "daily":
     case "weekly":
-      if (daysSection) daysSection.style.display = "block";
+      if (daysSection) {
+        daysSection.style.display = "block";
+        // Reset label for daily/weekly
+        const label = daysSection.querySelector("label");
+        if (label) label.innerHTML = `<i class="fas fa-calendar-check" style="color: #1565c0;"></i> 📅 أيام الإرسال:`;
+      }
       break;
     case "monthly":
       if (monthlySection) monthlySection.style.display = "block";
@@ -12059,6 +12161,19 @@ window.toggleRepeatTypeUI = function() {
       label.style.background = "white";
     }
   });
+  
+  // Update description based on selected type
+  const descriptionEl = document.getElementById("repeat-type-description");
+  if (descriptionEl) {
+    const descriptions = {
+      once: `💡 <strong>مرة واحدة:</strong> يرسل فقط مرة واحدة في اليوم المحدد ثم <span style="color: #e91e63;">يتعطل تلقائياً</span>. مثالي للتذكيرات أو الإعلانات المؤقتة.`,
+      daily: `💡 <strong>يومي:</strong> يرسل كل يوم في الأيام المختارة ويتكرر للأبد. إذا اخترت كل الأيام = إرسال يومي.`,
+      weekly: `💡 <strong>أسبوعي:</strong> يرسل مرة واحدة أسبوعياً في الأيام المحددة. مثالي للتقارير الأسبوعية.`,
+      monthly: `💡 <strong>شهري:</strong> يرسل مرة واحدة في الشهر في اليوم المحدد. مثالي للفواتير والتذكيرات الشهرية.`,
+      yearly: `💡 <strong>سنوي:</strong> يرسل مرة واحدة في السنة في التاريخ المحدد. مثالي لأعياد الميلاد والمناسبات السنوية.`
+    };
+    descriptionEl.innerHTML = descriptions[repeatType] || descriptions.daily;
+  }
 };
 
 // Save schedule
@@ -12079,7 +12194,7 @@ async function handleSaveSchedule() {
   // Get repeat type
   const repeatType = document.querySelector('input[name="schedule-repeat-type"]:checked')?.value || "daily";
 
-  // Get selected days (for daily/weekly)
+  // Get selected days (for daily/weekly/once)
   const days = [];
   document.querySelectorAll(".schedule-day:checked").forEach((cb) => {
     days.push(cb.value);
@@ -12088,6 +12203,12 @@ async function handleSaveSchedule() {
   // Validate based on repeat type
   if ((repeatType === "daily" || repeatType === "weekly") && days.length === 0) {
     alert("يرجى اختيار يوم واحد على الأقل");
+    return;
+  }
+  
+  // For 'once', at least one day must be selected
+  if (repeatType === "once" && days.length === 0) {
+    alert("يرجى اختيار اليوم الذي تريد الإرسال فيه");
     return;
   }
 

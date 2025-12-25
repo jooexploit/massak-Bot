@@ -19,6 +19,186 @@ const path = require("path");
 let badMacDetectionCount = 0;
 let lastBadMacAt = 0;
 let sessionResetScheduled = false;
+let softRepairAttempted = false; // Track if we've already tried a soft repair
+
+// ============================================
+// 🔌 ZOMBIE CONNECTION DETECTION SYSTEM
+// Tracks WebSocket state and detects mismatches between
+// connectionStatus and actual WebSocket state
+// ============================================
+const PENDING_NOTIFICATIONS_FILE = path.join(__dirname, "..", "data", "pending_notifications.json");
+let lastWebSocketState = null;
+let webSocketCloseCode = null;
+let webSocketCloseReason = null;
+let lastWebSocketError = null;
+let zombieDetectionCount = 0;
+let lastZombieCheckAt = 0;
+
+// Connection state machine
+const ConnectionState = {
+  DISCONNECTED: 'disconnected',
+  CONNECTING: 'connecting',
+  QR_PENDING: 'qr_pending',
+  CONNECTED: 'connected',
+  RECONNECTING: 'reconnecting',
+  ZOMBIE: 'zombie' // Connected status but dead socket
+};
+
+/**
+ * Get human-readable WebSocket state
+ * @returns {string} WebSocket state name
+ */
+function getWebSocketState() {
+  if (!sock || !sock.ws) return 'NO_SOCKET';
+  const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
+  return states[sock.ws.readyState] || 'UNKNOWN';
+}
+
+/**
+ * Get WebSocket readyState number
+ * @returns {number} WebSocket readyState (0-3) or -1 if no socket/ws not accessible
+ */
+function getWebSocketReadyState() {
+  if (!sock) return -1;
+  // Some Baileys versions don't expose sock.ws directly
+  if (!sock.ws) return -1;
+  return sock.ws.readyState;
+}
+
+/**
+ * Check if the connection is in a zombie state
+ * (connectionStatus says connected but WebSocket is ACTUALLY dead)
+ * 
+ * NOTE: Only triggers if we can CONFIRM the WebSocket is dead (state 2 or 3).
+ * If sock.ws is not accessible (returns -1), we can't determine zombie state
+ * and should NOT trigger false positives.
+ * 
+ * @returns {boolean}
+ */
+function isZombieConnection() {
+  if (connectionStatus !== 'connected') return false;
+  
+  const wsState = getWebSocketReadyState();
+  
+  // WebSocket states: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
+  // -1 means sock.ws is not accessible (not a zombie, just Baileys internal structure)
+  
+  // DON'T trigger zombie if we can't access the WebSocket
+  if (wsState === -1) {
+    return false; // Can't determine state - NOT a zombie indicator
+  }
+  
+  // Only trigger zombie if WebSocket is CLOSING (2) or CLOSED (3)
+  const isZombie = wsState >= 2;
+  
+  if (isZombie) {
+    zombieDetectionCount++;
+    console.error(`🧟 [ZOMBIE] Detected! connectionStatus='connected' but WS state=${getWebSocketState()} (${wsState})`);
+  }
+  
+  return isZombie;
+}
+
+/**
+ * Queue an admin notification for delivery after reconnection
+ * This ensures notifications aren't lost when the connection dies
+ * @param {string} message - The notification message
+ * @param {string} jid - Target JID (defaults to ADMIN_NOTIFICATION_JID)
+ */
+function queueAdminNotification(message, jid = null) {
+  try {
+    let pending = [];
+    if (fs.existsSync(PENDING_NOTIFICATIONS_FILE)) {
+      try {
+        pending = JSON.parse(fs.readFileSync(PENDING_NOTIFICATIONS_FILE, 'utf8') || '[]');
+      } catch (e) {
+        pending = [];
+      }
+    }
+    
+    pending.push({
+      id: `notif_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+      message,
+      jid: jid || ADMIN_NOTIFICATION_JID,
+      queuedAt: Date.now(),
+      queuedAtISO: new Date().toISOString()
+    });
+    
+    // Keep only last 20 notifications
+    if (pending.length > 20) {
+      pending = pending.slice(-20);
+    }
+    
+    fs.writeFileSync(PENDING_NOTIFICATIONS_FILE, JSON.stringify(pending, null, 2));
+    console.log(`📝 [QUEUE] Admin notification queued for delivery after reconnection`);
+  } catch (e) {
+    console.error(`❌ [QUEUE] Failed to queue notification: ${e.message}`);
+  }
+}
+
+/**
+ * Deliver all pending notifications after successful reconnection
+ */
+async function deliverPendingNotifications() {
+  try {
+    if (!fs.existsSync(PENDING_NOTIFICATIONS_FILE)) return;
+    
+    const pending = JSON.parse(fs.readFileSync(PENDING_NOTIFICATIONS_FILE, 'utf8') || '[]');
+    if (pending.length === 0) return;
+    
+    console.log(`📬 [QUEUE] Delivering ${pending.length} pending notification(s)...`);
+    
+    for (const notification of pending) {
+      try {
+        // Add prefix to show it was queued
+        const prefixedMessage = `📬 *[إشعار معلق]*\n⏰ ${new Date(notification.queuedAt).toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' })}\n\n${notification.message}`;
+        await sendMessage(notification.jid, prefixedMessage);
+        console.log(`  ✅ Delivered notification ${notification.id}`);
+        
+        // Small delay between notifications
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (e) {
+        console.error(`  ❌ Failed to deliver notification ${notification.id}: ${e.message}`);
+      }
+    }
+    
+    // Clear the queue
+    fs.writeFileSync(PENDING_NOTIFICATIONS_FILE, '[]');
+    console.log(`✅ [QUEUE] All pending notifications delivered`);
+  } catch (e) {
+    console.error(`❌ [QUEUE] Error delivering pending notifications: ${e.message}`);
+  }
+}
+
+/**
+ * Log connection state with full details for debugging
+ * @param {string} event - Event name
+ * @param {object} details - Additional details
+ */
+function logConnectionState(event, details = {}) {
+  const timestamp = new Date().toISOString();
+  const wsState = getWebSocketState();
+  const wsReadyState = getWebSocketReadyState();
+  
+  console.log(`\n╔═══════════════════════════════════════════════════════════╗`);
+  console.log(`║ 🔌 CONNECTION STATE LOG                                   ║`);
+  console.log(`╠═══════════════════════════════════════════════════════════╣`);
+  console.log(`║ Time: ${timestamp}`);
+  console.log(`║ Event: ${event}`);
+  console.log(`║ Status: ${connectionStatus}`);
+  console.log(`║ WebSocket: ${wsState} (readyState=${wsReadyState})`);
+  console.log(`║ Reconnect Attempts: ${reconnectAttempts}/${maxReconnectAttempts}`);
+  console.log(`║ Is Reconnecting: ${isReconnecting}`);
+  console.log(`║ Init In Progress: ${initInProgress}`);
+  console.log(`║ Messages Processed: ${totalMessagesProcessed}`);
+  console.log(`║ Ping Failures: ${consecutivePingFailures}/${MAX_PING_FAILURES}`);
+  
+  if (details && Object.keys(details).length > 0) {
+    console.log(`║ Details: ${JSON.stringify(details)}`);
+  }
+  
+  console.log(`╚═══════════════════════════════════════════════════════════╝\n`);
+}
 
 const createDiagnosticLogger = (level = "silent") => {
   const baseLogger = P({ level });
@@ -40,11 +220,11 @@ const createDiagnosticLogger = (level = "silent") => {
         lastBadMacAt = Date.now();
         console.error(`🚨 [SESSION ISSUE] Decryption error detected! Count: ${badMacDetectionCount}`);
         
-        // If we see too many Bad MACs, schedule a session reset
+        // If we see too many Bad MACs, schedule a session repair/reset
         if (badMacDetectionCount >= 5 && !sessionResetScheduled) {
           sessionResetScheduled = true;
-          console.error("🚨 [SESSION ISSUE] Persistent decryption errors. Session corrupted by WhatsApp LID migration.");
-          console.error("🔄 [SESSION ISSUE] Will auto-reset session on next health check...");
+          console.error("🚨 [SESSION ISSUE] Persistent decryption errors detected.");
+          console.error(`🔄 [SESSION ISSUE] Will auto-${softRepairAttempted ? 'RESET' : 'REPAIR'} session on next health check...`);
         }
       }
       return baseLogger.error(...args);
@@ -57,24 +237,35 @@ const createDiagnosticLogger = (level = "silent") => {
 };
 
 // ============================================
-// 📦 SIMPLE MESSAGE CACHE FOR RETRY HANDLING
-// Used for E2E encryption retry operations
+// 📦 MESSAGE CACHE FOR RETRY HANDLING
+// Simple in-memory cache for message retry operations
 // ============================================
-const MESSAGE_CACHE_MAX_SIZE = 500;
+const MESSAGE_CACHE_MAX_SIZE = 1000;
 const messageCache = new Map();
+// Store file path (used for clearing corrupted data during session repair)
 const STORE_FILE = path.join(__dirname, "..", "data", "baileys_store.json");
 
+/**
+ * Cache a message for potential retry operations
+ * @param {object} key - Message key with remoteJid and id
+ * @param {object} message - The message object
+ */
 function cacheMessage(key, message) {
   const cacheKey = `${key.remoteJid}:${key.id}`;
   messageCache.set(cacheKey, message);
   
-  // Prune cache if too large
+  // Limit cache size
   if (messageCache.size > MESSAGE_CACHE_MAX_SIZE) {
     const keysToDelete = Array.from(messageCache.keys()).slice(0, 100);
     keysToDelete.forEach(k => messageCache.delete(k));
   }
 }
 
+/**
+ * Get a cached message for retry operations
+ * @param {object} key - Message key with remoteJid and id
+ * @returns {object|undefined} The cached message or undefined
+ */
 function getCachedMessage(key) {
   const cacheKey = `${key.remoteJid}:${key.id}`;
   return messageCache.get(cacheKey);
@@ -196,10 +387,6 @@ function cleanupAllSchedulers() {
   console.log("✅ All schedulers and intervals cleaned up");
 }
 
-/**
- * Update socket reference in all services after successful reconnection.
- * This ensures all services use the new live socket.
- */
 function updateAllServicesSocket(newSock) {
   console.log("🔄 Updating socket in all services...");
   
@@ -220,7 +407,55 @@ function updateAllServicesSocket(newSock) {
     console.warn("  ⚠️ Error updating message scheduler socket:", e.message);
   }
   
+  // Update scheduled WhatsApp messages service
+  try {
+    const scheduledWhatsappService = require("../services/scheduledWhatsappService");
+    scheduledWhatsappService.updateSocket(newSock, sendMessage, sendImage);
+    console.log("  ✅ Scheduled WhatsApp messages service socket updated");
+  } catch (e) {
+    console.warn("  ⚠️ Error updating scheduled WhatsApp service socket:", e.message);
+  }
+  
   console.log("✅ All services updated with new socket");
+}
+
+/**
+ * Perform a "Soft Repair" of sessions.
+ * Deletes individual session and sender-key files but preserves creds.json.
+ * This fixes most decryption errors without losing the login (QR scan).
+ */
+function softRepairSessions() {
+  console.log("🛠️ [SOFT REPAIR] Attempting to repair corrupted sessions...");
+  try {
+    const authPath = path.join(__dirname, "..", "auth_info_baileys");
+    if (!fs.existsSync(authPath)) return;
+
+    const files = fs.readdirSync(authPath);
+    let deletedCount = 0;
+
+    for (const file of files) {
+      // Delete session files and sender key files
+      // Preserving creds.json, app-state-sync tags, and pre-keys
+      if (file.startsWith("session-") || file.startsWith("sender-key-")) {
+        fs.rmSync(path.join(authPath, file), { force: true });
+        deletedCount++;
+      }
+    }
+
+    // Also clear the store file as it might contain corrupted message data
+    if (fs.existsSync(STORE_FILE)) {
+      fs.rmSync(STORE_FILE, { force: true });
+      console.log("  ✅ Message store cleared");
+    }
+
+    console.log(`✅ [SOFT REPAIR] Deleted ${deletedCount} corrupted session/key files.`);
+    console.log("📋 Primary credentials preserved. No QR scan should be required.");
+    softRepairAttempted = true;
+    return true;
+  } catch (error) {
+    console.error("❌ [SOFT REPAIR] Failed:", error.message);
+    return false;
+  }
 }
 
 // Ads storage (simple JSON file)
@@ -929,6 +1164,7 @@ async function processMessageFromQueue(messageData) {
       senderName: senderName, // WhatsApp sender name (pushName)
       senderPhone: senderPhone, // WhatsApp sender ID (for reference)
       imageUrl: imageUrl, // Image data if present
+      messageKey: msg.key, // Store message key for full image download
       timestamp: Date.now(),
       status: "new", // new | accepted | rejected | posted
       category: aiResult.category || null, // AI-detected category
@@ -1064,6 +1300,7 @@ async function processMessageFromQueue(messageData) {
           senderName: senderName,
           senderPhone: senderPhone,
           imageUrl: imageUrl,
+          messageKey: msg.key,
           timestamp: Date.now(),
           status: "pending_retry", // Special status for retry
           category: null,
@@ -1111,6 +1348,7 @@ async function processMessageFromQueue(messageData) {
         senderName: senderName,
         senderPhone: senderPhone,
         imageUrl: imageUrl,
+        messageKey: msg.key,
         timestamp: Date.now(),
         status: "new",
         category: null,
@@ -1251,8 +1489,9 @@ async function initializeBot() {
         return false;
       },
       // Provide getMessage for message retry operations (CRITICAL for E2E decryption)
-      // This helps resolve "Bad MAC" errors by providing message data for retries
+      // This is the "healing" mechanism for "Bad MAC" errors
       getMessage: async (key) => {
+        // Use in-memory cache for message retry
         const cached = getCachedMessage(key);
         return cached?.message || undefined;
       },
@@ -1296,38 +1535,89 @@ async function initializeBot() {
     // ============================================
     // 🏓 WEBSOCKET KEEPALIVE PING
     // Actively validates connection with timeout and failure tracking
+    // Enhanced with WebSocket state validation and zombie detection
     // ============================================
     const startKeepalivePing = () => {
       if (keepalivePingInterval) clearInterval(keepalivePingInterval);
       consecutivePingFailures = 0;
       lastSuccessfulPing = Date.now();
       
+      console.log(`🏓 [KEEPALIVE] Starting ping monitor (interval: 90s, timeout: 5s)`);
+      
       keepalivePingInterval = setInterval(async () => {
         if (connectionStatus === "connected" && sock) {
+          // ============================================
+          // 🔍 STEP 1: Check WebSocket state BEFORE pinging
+          // Only if sock.ws is accessible
+          // ============================================
+          const wsState = getWebSocketReadyState();
+          const wsStateName = getWebSocketState();
+          
+          // ONLY trigger zombie if WebSocket is DEFINITELY dead (CLOSING=2 or CLOSED=3)
+          // If wsState is -1, sock.ws is not accessible - we can't determine state
+          // If wsState is 0 or 1, connection is fine (CONNECTING or OPEN)
+          if (wsState >= 2) {  // CLOSING or CLOSED
+            console.error(`🧟 [KEEPALIVE] ZOMBIE DETECTED! WS state: ${wsStateName} (${wsState}) but status: ${connectionStatus}`);
+            logConnectionState('ZOMBIE_DETECTED_PRE_PING', { wsState: wsStateName, wsReadyState: wsState });
+            
+            // Queue notification for after reconnection
+            queueAdminNotification(
+              `🧟 *اتصال ميت (Zombie)*\n\n` +
+              `⚠️ حالة WebSocket: ${wsStateName}\n` +
+              `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n` +
+              `🔄 جاري إعادة الاتصال تلقائياً...`
+            );
+            
+            // Clear interval and trigger reconnection
+            if (keepalivePingInterval) {
+              clearInterval(keepalivePingInterval);
+              keepalivePingInterval = null;
+            }
+            
+            // Force reconnection
+            await forceReconnect('ZOMBIE_WS_STATE');
+            return;
+          }
+          
+          // ============================================
+          // 🔍 STEP 2: Active ping with short timeout
+          // ============================================
           try {
             const pingStart = Date.now();
-            // Use presenceSubscribe with timeout - requires actual server response
+            
+            // Use presenceSubscribe with SHORT timeout (5 seconds)
             await Promise.race([
               sock.presenceSubscribe(sock.user?.id),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Ping timeout')), 15000))
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Ping timeout (5s)')), 5000))
             ]);
+            
             const pingLatency = Date.now() - pingStart;
-            console.log(`🏓 [KEEPALIVE] Ping successful (${pingLatency}ms)`);
+            console.log(`🏓 [KEEPALIVE] Ping OK (${pingLatency}ms) | WS: ${wsStateName} | Messages: ${totalMessagesProcessed}`);
             lastSuccessfulPing = Date.now();
             consecutivePingFailures = 0;
+            
           } catch (pingError) {
             consecutivePingFailures++;
-            console.warn(`⚠️ [KEEPALIVE] Ping failed (${consecutivePingFailures}/${MAX_PING_FAILURES}): ${pingError.message}`);
+            const wsStateAfterFail = getWebSocketState();
+            
+            console.warn(`⚠️ [KEEPALIVE] Ping FAILED (${consecutivePingFailures}/${MAX_PING_FAILURES}): ${pingError.message} | WS: ${wsStateAfterFail}`);
+            logConnectionState('PING_FAILED', { 
+              error: pingError.message, 
+              consecutiveFailures: consecutivePingFailures,
+              wsStateAfterFail 
+            });
             
             if (consecutivePingFailures >= MAX_PING_FAILURES) {
-              console.error(`🚨 [KEEPALIVE] ${MAX_PING_FAILURES} consecutive ping failures - ZOMBIE CONNECTION DETECTED!`);
+              console.error(`🚨 [KEEPALIVE] ${MAX_PING_FAILURES} consecutive ping failures - TRIGGERING RECONNECT!`);
               
-              // Notify admin
-              try {
-                await sock.sendMessage(ADMIN_NOTIFICATION_JID, {
-                  text: `🚨 *اتصال ميت (Zombie)*\n\n⚠️ فشل الـ Ping ${MAX_PING_FAILURES} مرات متتالية\n🔄 جاري إعادة الاتصال...`
-                });
-              } catch (e) { /* ignore */ }
+              // Queue notification for after reconnection (don't try to send now - might be dead)
+              queueAdminNotification(
+                `🚨 *فشل الـ Ping (${MAX_PING_FAILURES}x)*\n\n` +
+                `⚠️ فشل التحقق من الاتصال ${MAX_PING_FAILURES} مرات\n` +
+                `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n` +
+                `🔌 حالة WebSocket: ${wsStateAfterFail}\n` +
+                `🔄 تم إعادة الاتصال تلقائياً`
+              );
               
               // Clear interval
               if (keepalivePingInterval) {
@@ -1336,44 +1626,62 @@ async function initializeBot() {
               }
               
               // Force reconnection
-              console.log("🔌 Forcing socket close due to ping failures...");
-              try {
-                if (sock) {
-                  sock.ev.removeAllListeners();
-                  if (sock.ws && sock.ws.readyState === sock.ws.OPEN) {
-                    sock.ws.close();
-                  }
-                  sock = null;
-                }
-              } catch (closeError) {
-                console.warn("Socket cleanup error:", closeError.message);
-              }
-              
-              // CRITICAL: Release locks BEFORE setTimeout
-              releaseInitLock();
-              initInProgress = false;
-              isReconnecting = false;
-              reconnectAttempts = 0;
-              connectionStatus = "reconnecting";
-              totalMessagesProcessed = 0;
-              lastMessageReceivedAt = Date.now();
-              consecutivePingFailures = 0;
-              
-              // Wait then reinitialize
-              setTimeout(async () => {
-                console.log("🚀 Reinitializing after ping failure...");
-                try {
-                  await initializeBot();
-                  console.log("✅ Ping-failure reconnect completed!");
-                } catch (reinitError) {
-                  console.error("❌ Ping-failure reconnect failed:", reinitError.message);
-                }
-              }, 3000);
+              await forceReconnect('PING_FAILURES');
             }
           }
         }
-      }, 2 * 60 * 1000); // Ping every 2 minutes (was 5)
+      }, 90 * 1000); // Ping every 90 seconds (more frequent than before)
     };
+    
+    // ============================================
+    // 🔄 FORCE RECONNECT FUNCTION
+    // Centralizes reconnection logic for consistent handling
+    // ============================================
+    async function forceReconnect(reason = 'UNKNOWN') {
+      console.log(`\n🔌 [FORCE_RECONNECT] Initiating forced reconnection...`);
+      console.log(`   Reason: ${reason}`);
+      logConnectionState('FORCE_RECONNECT_START', { reason });
+      
+      // Clean up socket
+      try {
+        if (sock) {
+          sock.ev.removeAllListeners();
+          if (sock.ws && sock.ws.readyState === sock.ws.OPEN) {
+            sock.ws.close();
+          }
+          sock = null;
+        }
+      } catch (closeError) {
+        console.warn(`   ⚠️ Socket cleanup warning: ${closeError.message}`);
+      }
+      
+      // Clean up all schedulers
+      cleanupAllSchedulers();
+      
+      // Release locks
+      releaseInitLock();
+      initInProgress = false;
+      isReconnecting = false;
+      reconnectAttempts = 0;
+      connectionStatus = "reconnecting";
+      totalMessagesProcessed = 0;
+      lastMessageReceivedAt = Date.now();
+      consecutivePingFailures = 0;
+      
+      // Wait then reinitialize
+      console.log(`   ⏳ Waiting 3 seconds before reinitializing...`);
+      setTimeout(async () => {
+        console.log(`🚀 [FORCE_RECONNECT] Reinitializing bot...`);
+        try {
+          await initializeBot();
+          console.log(`✅ [FORCE_RECONNECT] Reconnection completed!`);
+        } catch (reinitError) {
+          console.error(`❌ [FORCE_RECONNECT] Reconnection failed: ${reinitError.message}`);
+          // Try again after 10 seconds
+          setTimeout(() => forceReconnect('RETRY_AFTER_FAILURE'), 10000);
+        }
+      }, 3000);
+    }
 
     // CRITICAL: Register creds.update BEFORE connection.update
     // This ensures credentials are saved immediately when they change
@@ -1381,6 +1689,16 @@ async function initializeBot() {
 
     sock.ev.on("connection.update", async (update) => {
       const { connection, lastDisconnect, qr } = update;
+      
+      // ============================================
+      // 📊 LOG ALL CONNECTION UPDATES
+      // ============================================
+      logConnectionState('connection.update', { 
+        connection, 
+        hasQR: !!qr,
+        lastDisconnectCode: lastDisconnect?.error?.output?.statusCode,
+        lastDisconnectMsg: lastDisconnect?.error?.message?.substring(0, 50)
+      });
 
       if (qr) {
         currentQR = qr;
@@ -1388,23 +1706,32 @@ async function initializeBot() {
         try {
           qrCodeData = await QRCode.toDataURL(qr);
           connectionStatus = "qr";
-          console.log("QR Code generated");
+          console.log("📱 QR Code generated - Scan with WhatsApp");
         } catch (err) {
           console.error("Error generating QR code:", err);
         }
       }
 
       if (connection === "close") {
+        // ============================================
+        // 🔌 CONNECTION CLOSED - DETAILED LOGGING
+        // ============================================
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const errorMessage = lastDisconnect?.error?.message || "Unknown error";
+        
         // CRITICAL: Clean up all schedulers immediately when connection closes
         // This prevents stale socket references from causing zombie connections
         cleanupAllSchedulers();
         
-        const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const errorMessage = lastDisconnect?.error?.message || "Unknown error";
-
-        console.log("🔌 Connection closed");
-        console.log("📊 Status Code:", statusCode);
-        console.log("❌ Error:", errorMessage);
+        console.log(`\n${"=".repeat(60)}`);
+        console.log(`🔌 CONNECTION CLOSED`);
+        console.log(`${"=".repeat(60)}`);
+        console.log(`   📊 Status Code: ${statusCode}`);
+        console.log(`   ❌ Error: ${errorMessage}`);
+        console.log(`   🔌 WebSocket State: ${getWebSocketState()}`);
+        console.log(`   📨 Messages Processed: ${totalMessagesProcessed}`);
+        console.log(`   🔄 Reconnect Attempts: ${reconnectAttempts}/${maxReconnectAttempts}`);
+        console.log(`${"=".repeat(60)}\n`);
         console.log("🔍 Reconnect attempts:", reconnectAttempts);
 
         // Clear any pending reconnect timeout
@@ -1420,12 +1747,11 @@ async function initializeBot() {
 
         // Check if session is corrupted and needs clearing
         // 405 = Connection Failure, 408 = Timeout, 440 = Connection Lost
+        // RELAXED: Don't clear on transient errors like 440 or 515
         const sessionCorrupted =
           statusCode === DisconnectReason.badSession ||
-          statusCode === 440 || // connection lost
           statusCode === 428 || // reconnect required
-          statusCode === 401 || // unauthorized
-          (statusCode === 515 && reconnectAttempts >= 1); // stream errored after initial attempt
+          statusCode === 401; // unauthorized (will be handled by isConflict/logout too)
 
         // Determine if we should reconnect
         const shouldReconnect =
@@ -1580,7 +1906,19 @@ async function initializeBot() {
           reconnectAttempts = 0;
         }
       } else if (connection === "open") {
-        console.log("WhatsApp connection opened successfully!");
+        // ============================================
+        // ✅ CONNECTION OPENED SUCCESSFULLY
+        // ============================================
+        console.log(`\n${"=".repeat(60)}`);
+        console.log(`✅ WHATSAPP CONNECTION OPENED SUCCESSFULLY!`);
+        console.log(`${"=".repeat(60)}`);
+        console.log(`   🔌 WebSocket State: ${getWebSocketState()}`);
+        console.log(`   📱 User: ${sock?.user?.id || 'unknown'}`);
+        console.log(`   🔄 Previous Reconnect Attempts: ${reconnectAttempts}`);
+        console.log(`${"=".repeat(60)}\n`);
+        
+        logConnectionState('CONNECTION_OPEN', { userId: sock?.user?.id });
+        
         connectionStatus = "connected";
         qrCodeData = null;
         currentQR = null;
@@ -1588,9 +1926,56 @@ async function initializeBot() {
         // Reset reconnection tracking on successful connection
         reconnectAttempts = 0;
         isReconnecting = false;
+        zombieDetectionCount = 0;
         if (reconnectTimeout) {
           clearTimeout(reconnectTimeout);
           reconnectTimeout = null;
+        }
+
+        // ============================================
+        // 🔌 WEBSOCKET EVENT MONITORING
+        // Monitor raw WebSocket events for early zombie detection
+        // ============================================
+        if (sock && sock.ws) {
+          console.log(`🔌 [WS] Setting up WebSocket event monitors...`);
+          
+          // Monitor WebSocket close event
+          sock.ws.on('close', (code, reason) => {
+            const reasonStr = reason?.toString() || 'unknown';
+            webSocketCloseCode = code;
+            webSocketCloseReason = reasonStr;
+            console.error(`\n🔌 [WS] ⚠️ WebSocket CLOSED!`);
+            console.error(`   Code: ${code}`);
+            console.error(`   Reason: ${reasonStr}`);
+            console.error(`   Connection Status: ${connectionStatus}`);
+            
+            // If we still think we're connected, this is a zombie situation
+            if (connectionStatus === 'connected') {
+              console.error(`   🧟 ZOMBIE CONDITION: Status='connected' but WS closed!`);
+              // Queue notification about unexpected close
+              queueAdminNotification(
+                `🔌 *WebSocket مغلق بشكل غير متوقع*\n\n` +
+                `📊 Code: ${code}\n` +
+                `📝 السبب: ${reasonStr}\n` +
+                `📨 الرسائل المعالجة: ${totalMessagesProcessed}`
+              );
+            }
+          });
+          
+          // Monitor WebSocket error event
+          sock.ws.on('error', (error) => {
+            lastWebSocketError = error.message;
+            console.error(`\n🔌 [WS] ⚠️ WebSocket ERROR!`);
+            console.error(`   Error: ${error.message}`);
+            console.error(`   Connection Status: ${connectionStatus}`);
+          });
+          
+          // Monitor WebSocket pong (response to ping)
+          sock.ws.on('pong', () => {
+            console.log(`🏓 [WS] Pong received from server`);
+          });
+          
+          console.log(`✅ [WS] WebSocket event monitors active`);
         }
 
         // CRITICAL: Update all services with new socket reference first
@@ -1605,6 +1990,11 @@ async function initializeBot() {
         messageSchedulerService.initScheduler(sock, sendMessage, sendImage);
         console.log("✅ Custom message scheduler initialized");
 
+        // Initialize scheduled WhatsApp messages service
+        const scheduledWhatsappService = require("../services/scheduledWhatsappService");
+        scheduledWhatsappService.initScheduledMessages(sock, sendMessage, sendImage);
+        console.log("✅ Scheduled WhatsApp messages service initialized");
+
         // Start message queue processor for reliable delivery
         const adminCommandService = require("../services/adminCommandService");
         adminCommandService.startQueueProcessor();
@@ -1613,6 +2003,18 @@ async function initializeBot() {
         // Start keepalive ping to prevent WebSocket from going stale
         startKeepalivePing();
         console.log("✅ WebSocket keepalive ping started");
+        
+        // ============================================
+        // 📬 DELIVER PENDING NOTIFICATIONS
+        // Send any notifications that were queued during disconnection
+        // ============================================
+        setTimeout(async () => {
+          try {
+            await deliverPendingNotifications();
+          } catch (e) {
+            console.error("❌ Error delivering pending notifications:", e.message);
+          }
+        }, 5000); // Wait 5 seconds for connection to stabilize
 
         // Fetch all groups when connected
         setTimeout(async () => {
@@ -1639,6 +2041,7 @@ async function initializeBot() {
         // 🔄 AUTO-RECONNECT FOR STALE CONNECTIONS
         // Automatically reconnects when message handler stops receiving events
         // This fixes the "zombie connection" issue in Baileys
+        // ENHANCED: Now also checks WebSocket state directly
         // ============================================
         if (messageHandlerHealthCheckInterval) {
           clearInterval(messageHandlerHealthCheckInterval);
@@ -1654,9 +2057,41 @@ async function initializeBot() {
           const timeSinceLastMessage = Date.now() - lastMessageReceivedAt;
           const minutesSinceLastMessage = Math.floor(timeSinceLastMessage / 60000);
           const minutesSinceConnectionStart = Math.floor((Date.now() - connectionStartTime) / 60000);
+          const wsState = getWebSocketState();
+          const wsReadyState = getWebSocketReadyState();
           
-          // Log health status every check
-          console.log(`📊 [HEALTH CHECK] Minutes since last message: ${minutesSinceLastMessage}, Total processed: ${totalMessagesProcessed}, Connection age: ${minutesSinceConnectionStart}min`);
+          // Log health status every check (enhanced with WS state)
+          console.log(`📊 [HEALTH CHECK] Last msg: ${minutesSinceLastMessage}min ago | Processed: ${totalMessagesProcessed} | Age: ${minutesSinceConnectionStart}min | WS: ${wsState}`);
+          
+          // ============================================
+          // 🔍 ZOMBIE DETECTION: Check WebSocket state
+          // Only trigger if WebSocket is DEFINITELY dead (CLOSING=2 or CLOSED=3)
+          // wsReadyState -1 means sock.ws not accessible - NOT a zombie indicator
+          // ============================================
+          if (wsReadyState >= 2) {  // CLOSING or CLOSED
+            console.error(`🧟 [HEALTH CHECK] ZOMBIE DETECTED! WS: ${wsState} (${wsReadyState}) but status: ${connectionStatus}`);
+            logConnectionState('HEALTH_CHECK_ZOMBIE', { wsState, wsReadyState });
+            
+            // Queue notification for after reconnection
+            queueAdminNotification(
+              `🧟 *اتصال ميت (Zombie)*\n\n` +
+              `⚠️ فحص الصحة كشف مشكلة\n` +
+              `🔌 WebSocket: ${wsState}\n` +
+              `📊 الرسائل: ${totalMessagesProcessed}\n` +
+              `⏱️ عمر الاتصال: ${minutesSinceConnectionStart} دقيقة\n` +
+              `🔄 جاري إعادة الاتصال...`
+            );
+            
+            // Clear interval
+            if (messageHandlerHealthCheckInterval) {
+              clearInterval(messageHandlerHealthCheckInterval);
+              messageHandlerHealthCheckInterval = null;
+            }
+            
+            // Force reconnect
+            await forceReconnect('HEALTH_CHECK_ZOMBIE');
+            return;
+          }
           
           // Update flag if we received any messages
           if (totalMessagesProcessed > 0) {
@@ -1664,10 +2099,10 @@ async function initializeBot() {
           }
           
           // AUTO-RECONNECT TRIGGER CONDITIONS:
-          // Scenario A: We received messages before but stopped receiving (10 min)
-          // Scenario B: We never received ANY messages for 20 minutes (fresh start failure)
-          const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes (was 15)
-          const NEVER_RECEIVED_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes (was 30)
+          // Scenario A: We received messages before but stopped receiving (8 min)
+          // Scenario B: We never received ANY messages for 15 minutes (fresh start failure)
+          const STALE_THRESHOLD_MS = 8 * 60 * 1000; // 8 minutes (was 10)
+          const NEVER_RECEIVED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes (was 20)
           
           const scenarioA_StaleAfterWorking = 
             hasReceivedFirstMessage && 
@@ -1676,7 +2111,7 @@ async function initializeBot() {
           const scenarioB_NeverReceivedAny = 
             !hasReceivedFirstMessage && 
             totalMessagesProcessed === 0 && 
-            minutesSinceConnectionStart >= 20 &&
+            minutesSinceConnectionStart >= 15 &&
             (Date.now() - connectionStartTime) > NEVER_RECEIVED_THRESHOLD_MS;
           
           const scenarioC_PersistentBadMac = badMacDetectionCount >= 5;
@@ -1684,62 +2119,69 @@ async function initializeBot() {
           const shouldAutoReconnect = scenarioA_StaleAfterWorking || scenarioB_NeverReceivedAny || scenarioC_PersistentBadMac;
           
           if (shouldAutoReconnect) {
+            let reason = 'UNKNOWN';
+            if (scenarioC_PersistentBadMac) reason = 'BAD_MAC';
+            else if (scenarioA_StaleAfterWorking) reason = 'STALE_CONNECTION';
+            else if (scenarioB_NeverReceivedAny) reason = 'NO_MESSAGES_RECEIVED';
+            
             console.warn(`\n🚨 ============================================`);
-            console.warn(`🚨 STALE/BROKEN CONNECTION DETECTED - AUTO-RECONNECTING`);
-            if (scenarioC_PersistentBadMac) {
-              console.warn(`🚨 Reason: PERSISTENT BAD MAC (Decryption Failed)`);
-            } else {
-              console.warn(`🚨 Reason: ${scenarioA_StaleAfterWorking ? 'Stale (No activity)' : 'No initial messages'}`);
-            }
+            console.warn(`🚨 STALE/BROKEN CONNECTION DETECTED`);
+            console.warn(`🚨 Reason: ${reason}`);
             console.warn(`🚨 Last message: ${minutesSinceLastMessage} minutes ago`);
             console.warn(`🚨 Total processed: ${totalMessagesProcessed}`);
+            console.warn(`🚨 WebSocket: ${wsState}`);
             console.warn(`🚨 ============================================\n`);
             
-            // Notify admin about auto-reconnect
-            try {
-              let alertMsg = `🔄 *إعادة اتصال تلقائية*\n\n`;
-              if (scenarioC_PersistentBadMac) {
-                alertMsg += `⚠️ البوت يواجه مشاكل في فك تشفير الرسائل (Bad MAC)\n🛠 جاري محاولة الإصلاح...\n`;
-              } else {
-                alertMsg += `⚠️ البوت لم يستقبل رسائل لمدة ${minutesSinceLastMessage} دقيقة\n`;
-              }
-              alertMsg += `📊 إجمالي الرسائل: ${totalMessagesProcessed}\n\n🔄 جاري إعادة الاتصال تلقائياً...`;
-
-              await sock.sendMessage(ADMIN_NOTIFICATION_JID, {
-                text: alertMsg
-              });
-            } catch (e) {
-              console.error("Failed to notify admin about auto-reconnect:", e.message);
+            logConnectionState('AUTO_RECONNECT_TRIGGERED', { reason, minutesSinceLastMessage, wsState });
+            
+            // Queue notification for after reconnection (don't try to send now)
+            let alertMsg = `🔄 *إعادة اتصال تلقائية*\n\n`;
+            if (scenarioC_PersistentBadMac) {
+              alertMsg += `⚠️ مشاكل في فك تشفير الرسائل (Bad MAC)\n`;
+            } else if (scenarioA_StaleAfterWorking) {
+              alertMsg += `⚠️ لم يتم استقبال رسائل لمدة ${minutesSinceLastMessage} دقيقة\n`;
+            } else {
+              alertMsg += `⚠️ لم يتم استقبال أي رسائل منذ بدء الاتصال\n`;
             }
+            alertMsg += `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n`;
+            alertMsg += `🔌 WebSocket: ${wsState}\n`;
+            alertMsg += `🔄 تم إعادة الاتصال تلقائياً`;
+            
+            queueAdminNotification(alertMsg);
             
             // Reset Bad MAC counter
             badMacDetectionCount = 0;
             sessionResetScheduled = false;
             
             // ============================================
-            // 🔄 SESSION RESET FOR BAD MAC (LID Migration Fix)
-            // Clear corrupted session and force fresh QR login
+            // 🔄 SESSION REPAIR/RESET (LID Migration Fix)
+            // Fixes corrupted sessions using soft repair or full reset
             // ============================================
             if (scenarioC_PersistentBadMac) {
-              console.log("🗑️ Clearing corrupted session due to persistent Bad MAC errors...");
-              console.log("📋 This is likely caused by WhatsApp's LID (Link ID) migration.");
-              
-              try {
-                // Clear the entire auth folder to force fresh session
-                const authPath = path.join(__dirname, "..", "auth_info_baileys");
-                if (fs.existsSync(authPath)) {
-                  fs.rmSync(authPath, { recursive: true, force: true });
-                  console.log("✅ Session files cleared successfully");
-                  console.log("📱 You will need to scan a new QR code");
+              if (!softRepairAttempted) {
+                // FIRST ATTEMPT: Soft Repair (preserves QR)
+                softRepairSessions();
+              } else {
+                // SECOND ATTEMPT: Full Reset (requires QR)
+                console.log("🗑️ [FULL RESET] Soft repair failed to fix errors. Clearing everything...");
+                try {
+                  const authPath = path.join(__dirname, "..", "auth_info_baileys");
+                  if (fs.existsSync(authPath)) {
+                    fs.rmSync(authPath, { recursive: true, force: true });
+                    console.log("✅ Session files cleared successfully");
+                    console.log("📱 You will need to scan a new QR code");
+                  }
+                  
+                  if (fs.existsSync(STORE_FILE)) {
+                    fs.rmSync(STORE_FILE, { force: true });
+                    console.log("✅ Message store cleared");
+                  }
+                  
+                  // Reset repair flag for future
+                  softRepairAttempted = false;
+                } catch (clearError) {
+                  console.error("❌ Error during full reset:", clearError.message);
                 }
-                
-                // Also clear the store file
-                if (fs.existsSync(STORE_FILE)) {
-                  fs.rmSync(STORE_FILE, { force: true });
-                  console.log("✅ Message store cleared");
-                }
-              } catch (clearError) {
-                console.error("❌ Error clearing session:", clearError.message);
               }
             }
             
@@ -1749,61 +2191,18 @@ async function initializeBot() {
               messageHandlerHealthCheckInterval = null;
             }
             
-            // Also clear keepalive ping interval
-            if (keepalivePingInterval) {
-              clearInterval(keepalivePingInterval);
-              keepalivePingInterval = null;
-            }
-            
-            // Reset counters for fresh start
-            totalMessagesProcessed = 0;
-            messageHandlerErrors = 0;
-            lastMessageReceivedAt = Date.now();
-            consecutivePingFailures = 0;
-            
-            // FORCE RECONNECTION
-            console.log("🔌 Forcing socket close...");
-            try {
-              if (sock) {
-                sock.ev.removeAllListeners();
-                if (sock.ws && sock.ws.readyState === sock.ws.OPEN) {
-                  sock.ws.close();
-                }
-                sock = null;
-              }
-            } catch (closeError) {
-              console.error("Error closing socket:", closeError.message);
-            }
-            
-            // CRITICAL FIX: Release locks BEFORE setTimeout, not inside it
-            releaseInitLock();
-            initInProgress = false;
-            isReconnecting = false;
-            reconnectAttempts = 0;
-            connectionStatus = "reconnecting";
-            
-            // Wait a moment then reinitialize
-            console.log("⏳ Waiting 3 seconds before reinitializing...");
-            setTimeout(async () => {
-              console.log("🚀 Reinitializing bot connection...");
-              try {
-                await initializeBot();
-                console.log("✅ Auto-reconnect completed!");
-              } catch (reinitError) {
-                console.error("❌ Auto-reconnect failed:", reinitError.message);
-              }
-            }, 3000);
-            
+            // Use centralized forceReconnect function
+            await forceReconnect(reason);
             return; // Exit this interval callback
           }
           
-          // Warning at 7 minutes (before auto-reconnect at 10 min)
-          if (timeSinceLastMessage > 7 * 60 * 1000 && hasReceivedFirstMessage) {
-            console.warn(`⚠️ [WARNING] No messages in ${minutesSinceLastMessage} minutes. Auto-reconnect will trigger at 10 minutes.`);
+          // Warning at 5 minutes (before auto-reconnect at 8 min)
+          if (timeSinceLastMessage > 5 * 60 * 1000 && hasReceivedFirstMessage) {
+            console.warn(`⚠️ [WARNING] No messages in ${minutesSinceLastMessage} minutes. Auto-reconnect at 8 minutes.`);
           }
-        }, 2 * 60 * 1000); // Check every 2 minutes (was 3)
+        }, 2 * 60 * 1000); // Check every 2 minutes
 
-        console.log("✅ Auto-reconnect health monitor initialized (triggers at 10min stale / 20min no messages)");
+        console.log("✅ Auto-reconnect health monitor initialized (triggers at 8min stale / 15min no messages)");
       }
     });
 
@@ -2256,6 +2655,7 @@ async function initializeBot() {
                 senderName: senderName,
                 senderPhone: senderPhone,
                 imageUrl: imageUrl,
+                messageKey: msg.key,
                 timestamp: Date.now(),
                 status: "new",
                 category: aiResult.category || null,
@@ -2557,26 +2957,34 @@ function getConnectionStatus() {
 
 /**
  * Get message handler health status
- * @returns {Object} Health status including last message time, total processed, errors
+ * @returns {Object} Health status including last message time, total processed, errors, WebSocket state
  */
 function getMessageHandlerHealth() {
   const timeSinceLastMessage = Date.now() - lastMessageReceivedAt;
   const minutesSinceLastMessage = Math.floor(timeSinceLastMessage / 60000);
   
-  // Auto-reconnect timing info (thresholds: 15 min stale, 30 min no messages)
+  // WebSocket state info
+  const wsState = getWebSocketState();
+  const wsReadyState = getWebSocketReadyState();
+  const isZombie = isZombieConnection();
+  
+  // Auto-reconnect timing info (thresholds: 8 min stale, 15 min no messages)
   const hasReceivedAnyMessages = totalMessagesProcessed > 0;
   let autoReconnectStatus;
   let minutesUntilAutoReconnect;
   
-  if (hasReceivedAnyMessages) {
-    // Scenario A: Stale after working - triggers at 15 min
-    minutesUntilAutoReconnect = Math.max(0, 15 - minutesSinceLastMessage);
+  if (isZombie) {
+    autoReconnectStatus = "🧟 ZOMBIE CONNECTION - Reconnection pending!";
+    minutesUntilAutoReconnect = 0;
+  } else if (hasReceivedAnyMessages) {
+    // Scenario A: Stale after working - triggers at 8 min
+    minutesUntilAutoReconnect = Math.max(0, 8 - minutesSinceLastMessage);
     autoReconnectStatus = minutesUntilAutoReconnect > 0 
-      ? `${minutesUntilAutoReconnect} min until auto-reconnect (stale threshold: 15 min)`
+      ? `${minutesUntilAutoReconnect} min until auto-reconnect (stale threshold: 8 min)`
       : "🚨 Auto-reconnect should trigger soon!";
   } else {
-    // Scenario B: Never received - triggers at 30 min of connection
-    autoReconnectStatus = "Waiting for first message (auto-reconnect at 30 min if no messages)";
+    // Scenario B: Never received - triggers at 15 min of connection
+    autoReconnectStatus = "Waiting for first message (auto-reconnect at 15 min if no messages)";
     minutesUntilAutoReconnect = null;
   }
   
@@ -2588,9 +2996,27 @@ function getMessageHandlerHealth() {
     hasReceivedAnyMessages: hasReceivedAnyMessages,
     autoReconnectStatus: autoReconnectStatus,
     minutesUntilAutoReconnect: minutesUntilAutoReconnect,
-    isHealthy: (hasReceivedAnyMessages && minutesSinceLastMessage < 15) || !hasReceivedAnyMessages,
+    // Enhanced health check with WS state
+    isHealthy: !isZombie && wsReadyState === 1 && ((hasReceivedAnyMessages && minutesSinceLastMessage < 8) || !hasReceivedAnyMessages),
     connectionStatus: connectionStatus,
-    socketActive: !!sock
+    socketActive: !!sock,
+    // NEW: WebSocket state info
+    webSocket: {
+      state: wsState,
+      readyState: wsReadyState,
+      isZombie: isZombie,
+      zombieDetectionCount: zombieDetectionCount,
+      lastCloseCode: webSocketCloseCode,
+      lastCloseReason: webSocketCloseReason,
+      lastError: lastWebSocketError
+    },
+    // Ping info
+    ping: {
+      consecutiveFailures: consecutivePingFailures,
+      maxFailures: MAX_PING_FAILURES,
+      lastSuccessfulPing: lastSuccessfulPing,
+      secondsSinceLastPing: Math.floor((Date.now() - lastSuccessfulPing) / 1000)
+    }
   };
 }
 
@@ -3422,6 +3848,7 @@ function restoreFromRecycleBin(id) {
     targetWebsite: item.targetWebsite || null,
     // Image data
     imageUrl: item.imageUrl || null,
+    messageKey: item.messageKey || null,
   };
 
   // Add to ads

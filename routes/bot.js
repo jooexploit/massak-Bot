@@ -43,6 +43,7 @@ const {
   getApiKeysStatus,
 } = require("../services/aiService");
 const messageQueue = require("../services/messageQueue");
+const scheduledWhatsappService = require("../services/scheduledWhatsappService");
 const axios = require("axios");
 const multer = require("multer");
 const path = require("path");
@@ -1420,17 +1421,38 @@ router.get(
 
       console.log(`🖼️ Downloading full-quality image for ad: ${id}`);
 
-      // Download full image from WhatsApp
+      // Baileys requires a key for reuploadRequest to work
+      const messageKey = ad.messageKey || { 
+        id: id.includes("_") ? id.split("_")[1] : id, 
+        remoteJid: ad.fromGroup, 
+        fromMe: false 
+      };
+
       const { downloadMediaMessage } = require("@whiskeysockets/baileys");
-      const imageBuffer = await downloadMediaMessage(
-        { message: { imageMessage: ad.imageUrl } },
-        "buffer",
-        {},
-        {
-          logger: console,
-          reuploadRequest: sock.updateMediaMessage,
-        }
-      );
+      
+      let imageBuffer;
+      try {
+        imageBuffer = await downloadMediaMessage(
+          { 
+            key: messageKey,
+            message: { imageMessage: ad.imageUrl } 
+          },
+          "buffer",
+          {},
+          {
+            logger: console,
+            reuploadRequest: sock.updateMediaMessage,
+          }
+        );
+      } catch (downloadErr) {
+        console.warn("⚠️ Full image download failed, trying without reupload request...");
+        imageBuffer = await downloadMediaMessage(
+          { message: { imageMessage: ad.imageUrl } },
+          "buffer",
+          {},
+          { logger: console }
+        );
+      }
 
       const contentType = ad.imageUrl.mimetype || "image/jpeg";
       const extension = contentType.includes("png") ? "png" : "jpg";
@@ -1453,8 +1475,8 @@ router.get(
         res.set("Content-Disposition", `inline; filename="ad-${req.params.id}-thumbnail.jpg"`);
         return res.send(thumbnailBuffer);
       }
-      
-      res.status(500).json({ error: "Failed to get ad image" });
+      console.log("⚠️ Falling back to placeholder image");
+      res.sendFile(path.join(__dirname, "../public/images/no-image-placeholder.png"));
     }
   }
 );
@@ -4402,6 +4424,164 @@ router.get(
     } catch (error) {
       console.error("Error fetching schedule history:", error);
       res.status(500).json({ error: "Failed to fetch schedule history" });
+    }
+  }
+);
+
+// ========================================================
+// SCHEDULED WHATSAPP MESSAGES ENDPOINTS
+// Schedule messages for specific date/time
+// ========================================================
+
+// Get all scheduled WhatsApp messages
+router.get(
+  "/scheduled-whatsapp",
+  authenticateToken,
+  authorizeRole(["admin", "author"]),
+  (req, res) => {
+    try {
+      const messages = scheduledWhatsappService.getAllScheduledMessages();
+      const status = scheduledWhatsappService.getServiceStatus();
+      
+      res.json({
+        success: true,
+        messages,
+        status,
+      });
+    } catch (error) {
+      console.error("Error getting scheduled messages:", error);
+      res.status(500).json({ error: "Failed to get scheduled messages" });
+    }
+  }
+);
+
+// Get pending scheduled WhatsApp messages only
+router.get(
+  "/scheduled-whatsapp/pending",
+  authenticateToken,
+  authorizeRole(["admin", "author"]),
+  (req, res) => {
+    try {
+      const messages = scheduledWhatsappService.getPendingScheduledMessages();
+      
+      res.json({
+        success: true,
+        messages,
+      });
+    } catch (error) {
+      console.error("Error getting pending scheduled messages:", error);
+      res.status(500).json({ error: "Failed to get pending scheduled messages" });
+    }
+  }
+);
+
+// Get a single scheduled WhatsApp message by ID
+router.get(
+  "/scheduled-whatsapp/:id",
+  authenticateToken,
+  authorizeRole(["admin", "author"]),
+  (req, res) => {
+    try {
+      const { id } = req.params;
+      const message = scheduledWhatsappService.getScheduledMessageById(id);
+      
+      if (!message) {
+        return res.status(404).json({ error: "Scheduled message not found" });
+      }
+      
+      res.json({
+        success: true,
+        message,
+      });
+    } catch (error) {
+      console.error("Error getting scheduled message:", error);
+      res.status(500).json({ error: "Failed to get scheduled message" });
+    }
+  }
+);
+
+// Create a new scheduled WhatsApp message
+router.post(
+  "/scheduled-whatsapp",
+  authenticateToken,
+  authorizeRole(["admin", "author"]),
+  (req, res) => {
+    try {
+      const { adId, message, groups, customNumbers, scheduledDate, delaySeconds } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ error: "Message content is required" });
+      }
+      
+      if (!scheduledDate) {
+        return res.status(400).json({ error: "Scheduled date is required" });
+      }
+      
+      if ((!groups || groups.length === 0) && (!customNumbers || customNumbers.length === 0)) {
+        return res.status(400).json({ error: "At least one recipient is required" });
+      }
+      
+      const scheduledMessage = scheduledWhatsappService.createScheduledMessage({
+        adId,
+        message,
+        groups: groups || [],
+        customNumbers: customNumbers || [],
+        scheduledDate,
+        delaySeconds: delaySeconds || 3,
+        createdBy: req.user?.username || "unknown",
+      });
+      
+      res.json({
+        success: true,
+        message: "Message scheduled successfully",
+        scheduledMessage,
+      });
+    } catch (error) {
+      console.error("Error creating scheduled message:", error);
+      res.status(400).json({ error: error.message || "Failed to schedule message" });
+    }
+  }
+);
+
+// Cancel a scheduled WhatsApp message
+router.post(
+  "/scheduled-whatsapp/:id/cancel",
+  authenticateToken,
+  authorizeRole(["admin", "author"]),
+  (req, res) => {
+    try {
+      const { id } = req.params;
+      const message = scheduledWhatsappService.cancelScheduledMessage(id);
+      
+      res.json({
+        success: true,
+        message: "Scheduled message cancelled",
+        scheduledMessage: message,
+      });
+    } catch (error) {
+      console.error("Error cancelling scheduled message:", error);
+      res.status(400).json({ error: error.message || "Failed to cancel scheduled message" });
+    }
+  }
+);
+
+// Delete a scheduled WhatsApp message
+router.delete(
+  "/scheduled-whatsapp/:id",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { id } = req.params;
+      scheduledWhatsappService.deleteScheduledMessage(id);
+      
+      res.json({
+        success: true,
+        message: "Scheduled message deleted",
+      });
+    } catch (error) {
+      console.error("Error deleting scheduled message:", error);
+      res.status(400).json({ error: error.message || "Failed to delete scheduled message" });
     }
   }
 );

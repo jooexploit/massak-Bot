@@ -293,9 +293,12 @@ async function updateSchedule(id, data) {
       ...existingSchedule.settings,
       ...(data.settings || {}),
     },
-    nextRun: calculateNextRun(data.schedule || existingSchedule.schedule),
     updatedAt: new Date().toISOString(),
   };
+
+  scheduledMessages[index].nextRun = scheduledMessages[index].enabled
+    ? calculateNextRun(scheduledMessages[index].schedule)
+    : null;
 
   await saveScheduledMessages();
   console.log(`✅ Updated schedule: ${id}`);
@@ -332,6 +335,8 @@ async function toggleSchedule(id) {
 
   if (schedule.enabled) {
     schedule.nextRun = calculateNextRun(schedule.schedule);
+  } else {
+    schedule.nextRun = null;
   }
 
   await saveScheduledMessages();
@@ -365,7 +370,7 @@ async function recordScheduleRun(id, result) {
   }
 
   schedule.lastRun = runRecord.timestamp;
-  schedule.nextRun = calculateNextRun(schedule.schedule);
+  schedule.nextRun = schedule.enabled ? calculateNextRun(schedule.schedule) : null;
 
   await saveScheduledMessages();
 }

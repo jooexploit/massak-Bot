@@ -452,6 +452,19 @@ async function openGroupsPreviewModal(adId, message) {
     closeGroupsPreviewModal;
   document.getElementById("close-groups-preview-modal").onclick =
     closeGroupsPreviewModal;
+  
+  // Wire schedule button
+  const scheduleBtn = document.getElementById("groups-preview-schedule");
+  if (scheduleBtn) {
+    scheduleBtn.onclick = handleGroupsPreviewSchedule;
+  }
+  
+  // Reset schedule toggle to off when opening modal
+  const scheduleToggle = document.getElementById("schedule-toggle");
+  if (scheduleToggle) {
+    scheduleToggle.checked = false;
+    toggleScheduleOptions();
+  }
 
   // Wire refresh groups button
   const refreshBtn = document.getElementById("refresh-groups-modal-btn");
@@ -2078,3 +2091,268 @@ function getSelectedInterestGroupMembers() {
   
   return allMembers;
 }
+
+// ========================================================================================
+// SCHEDULE MESSAGE FUNCTIONALITY
+// ========================================================================================
+
+/**
+ * Toggle schedule options visibility and button states
+ */
+function toggleScheduleOptions() {
+  const toggle = document.getElementById("schedule-toggle");
+  const optionsContainer = document.getElementById("schedule-options-container");
+  const sendNowBtn = document.getElementById("groups-preview-send");
+  const scheduleBtn = document.getElementById("groups-preview-schedule");
+  const slider = toggle?.parentElement?.querySelector(".slider");
+  
+  if (!toggle || !optionsContainer) return;
+  
+  const isScheduling = toggle.checked;
+  
+  // Show/hide options
+  optionsContainer.style.display = isScheduling ? "block" : "none";
+  
+  // Update slider color
+  if (slider) {
+    slider.style.backgroundColor = isScheduling ? "#ff9800" : "#ccc";
+  }
+  
+  // Toggle buttons
+  if (sendNowBtn) {
+    sendNowBtn.style.display = isScheduling ? "none" : "flex";
+  }
+  if (scheduleBtn) {
+    scheduleBtn.style.display = isScheduling ? "flex" : "none";
+  }
+  
+  // Set minimum datetime to now if scheduling
+  if (isScheduling) {
+    const datetimeInput = document.getElementById("schedule-datetime");
+    if (datetimeInput) {
+      // Set minimum to current time
+      const now = new Date();
+      // Add 5 minutes buffer
+      now.setMinutes(now.getMinutes() + 5);
+      const formattedNow = now.toISOString().slice(0, 16);
+      datetimeInput.min = formattedNow;
+      
+      // Set default to 1 hour from now
+      const defaultTime = new Date();
+      defaultTime.setHours(defaultTime.getHours() + 1);
+      datetimeInput.value = defaultTime.toISOString().slice(0, 16);
+    }
+  }
+}
+
+/**
+ * Handle scheduling a message
+ */
+async function handleGroupsPreviewSchedule() {
+  const modal = document.getElementById("groups-preview-modal");
+  const adId = modal?.dataset.adId;
+  const message = document.getElementById("groups-preview-message")?.value;
+  const scheduleDatetime = document.getElementById("schedule-datetime")?.value;
+  
+  if (!message) {
+    alert("⚠️ Please enter a message to schedule");
+    return;
+  }
+  
+  if (!scheduleDatetime) {
+    alert("⚠️ Please select a date and time for the scheduled message");
+    return;
+  }
+  
+  // Validate datetime is in the future
+  const scheduledDate = new Date(scheduleDatetime);
+  const now = new Date();
+  if (scheduledDate <= now) {
+    alert("⚠️ Please select a future date and time");
+    return;
+  }
+  
+  // Get selected groups
+  const selectedGroups = [];
+  document.querySelectorAll("#groups-preview-list input.group-checkbox:checked")
+    .forEach((cb) => {
+      selectedGroups.push(cb.value);
+    });
+  
+  // Get all custom numbers (from various sources)
+  const selectedCustomNumbersFromSaved = [];
+  document.querySelectorAll("#groups-preview-list input.custom-number-checkbox:checked")
+    .forEach((cb) => {
+      selectedCustomNumbersFromSaved.push({
+        name: cb.dataset.name,
+        phone: cb.value,
+      });
+    });
+  
+  const selectedCustomNumbersFromManual = [];
+  document.querySelectorAll("#groups-preview-custom-numbers-list input.custom-number-checkbox:checked")
+    .forEach((cb) => {
+      selectedCustomNumbersFromManual.push({
+        name: cb.dataset.name,
+        phone: cb.value,
+      });
+    });
+  
+  const selectedPrivateClients = getSelectedPrivateClients();
+  const selectedInterestGroupMembers = getSelectedInterestGroupMembers();
+  
+  // Combine all custom numbers
+  const allCustomNumbers = [
+    ...selectedCustomNumbersFromSaved,
+    ...selectedCustomNumbersFromManual,
+    ...selectedPrivateClients.map(c => ({ name: c.name, phone: c.phone })),
+    ...selectedInterestGroupMembers.map(m => ({ name: m.name, phone: m.phone })),
+  ];
+  
+  // Remove duplicates
+  const customNumbers = allCustomNumbers.filter(
+    (num, index, self) => index === self.findIndex((n) => n.phone === num.phone)
+  );
+  
+  if (selectedGroups.length === 0 && customNumbers.length === 0) {
+    alert("⚠️ Please select at least one group or recipient");
+    return;
+  }
+  
+  const delayInput = document.getElementById("send-delay");
+  const delaySeconds = delayInput ? parseInt(delayInput.value) || 3 : 3;
+  
+  const totalRecipients = selectedGroups.length + customNumbers.length;
+  
+  // Confirm scheduling
+  const scheduledTimeStr = scheduledDate.toLocaleString("ar-SA", {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: "Asia/Riyadh"
+  });
+  
+  if (!confirm(`📅 Schedule message for:\n\n🕐 ${scheduledTimeStr}\n📊 ${totalRecipients} recipient(s)\n\nContinue?`)) {
+    return;
+  }
+  
+  showLoadingOverlay("📅 Scheduling message...");
+  
+  try {
+    const response = await fetch("/api/bot/scheduled-whatsapp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        adId: adId || null,
+        message,
+        groups: selectedGroups,
+        customNumbers,
+        scheduledDate: scheduledDate.toISOString(),
+        delaySeconds,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    console.log("✅ Message scheduled:", result);
+    
+    hideLoadingOverlay();
+    
+    const successMessage = `✅ تم جدولة الرسالة بنجاح!
+
+📅 الموعد: ${scheduledTimeStr}
+📊 المستلمين: ${totalRecipients}
+📢 المجموعات: ${selectedGroups.length}
+📱 الأرقام: ${customNumbers.length}
+
+سيتم إرسال الرسالة تلقائياً في الموعد المحدد
+📲 ستصلك إشعار على واتساب عند الإرسال`;
+    
+    showSuccessStatus(successMessage);
+    closeGroupsPreviewModal();
+    
+    // Reset the schedule toggle
+    const scheduleToggle = document.getElementById("schedule-toggle");
+    if (scheduleToggle) {
+      scheduleToggle.checked = false;
+      toggleScheduleOptions();
+    }
+    
+  } catch (err) {
+    hideLoadingOverlay();
+    console.error("Error scheduling message:", err);
+    alert("❌ Failed to schedule message: " + err.message);
+  }
+}
+
+// Add CSS for toggle switch (inject into page)
+(function addScheduleToggleStyles() {
+  const styleId = "schedule-toggle-styles";
+  if (document.getElementById(styleId)) return;
+  
+  const style = document.createElement("style");
+  style.id = styleId;
+  style.textContent = `
+    /* Toggle Switch Styles */
+    #schedule-toggle {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    #schedule-message-section .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 26px;
+    }
+    
+    #schedule-message-section .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    
+    #schedule-toggle:checked + .slider {
+      background-color: #ff9800;
+    }
+    
+    #schedule-toggle:checked + .slider:before {
+      transform: translateX(24px);
+    }
+    
+    /* Schedule button styling */
+    #groups-preview-schedule {
+      background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+    
+    #groups-preview-schedule:hover {
+      background: linear-gradient(135deg, #f57c00 0%, #e65100 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
+    }
+  `;
+  document.head.appendChild(style);
+})();

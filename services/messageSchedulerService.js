@@ -266,6 +266,11 @@ async function sendToRecipients(schedule, processedMessage) {
 
   // Send to each recipient
   for (let i = 0; i < allRecipients.length; i++) {
+    // Check if schedule was disabled while sending
+    if (!schedule.enabled) {
+      console.log(`⏹️ Schedule ${schedule.id} was disabled during execution, stopping...`);
+      break;
+    }
     const recipient = allRecipients[i];
 
     try {
@@ -437,7 +442,7 @@ async function executeScheduleNow(scheduleId) {
 
 /**
  * Schedule a message using node-cron
- * Supports: daily, weekly, monthly, yearly repeat types
+ * Supports: once, daily, weekly, monthly, yearly repeat types
  */
 function scheduleMessage(schedule) {
   if (!schedule || !schedule.enabled) {
@@ -447,7 +452,7 @@ function scheduleMessage(schedule) {
   // Cancel any existing job
   cancelScheduledMessage(schedule.id);
 
-  const { startTime, endTime, days, repeatType, dayOfMonth, month } = schedule.schedule;
+  const { startTime, endTime, days, repeatType, dayOfMonth, month, specificDate } = schedule.schedule;
 
   // For all schedules, pick a random time within the range
   const randomTime = getRandomTimeInRange(startTime, endTime);
@@ -469,6 +474,79 @@ function scheduleMessage(schedule) {
   const scheduleRepeatType = repeatType || "daily";
 
   switch (scheduleRepeatType) {
+    case "once": {
+      // ONE-TIME: Run only once on a specific date, then disable
+      // Use setTimeout instead of cron for precision
+      let targetDate;
+      
+      if (specificDate) {
+        // If a specific date is provided, use it
+        targetDate = new Date(specificDate);
+      } else if (dayOfMonth && month) {
+        // Use dayOfMonth and month
+        const now = getKSANow();
+        targetDate = new Date(now.getFullYear(), month - 1, dayOfMonth, randomTime.hour, randomTime.minute);
+        // If date has passed this year, schedule for next year
+        if (targetDate < now) {
+          targetDate.setFullYear(targetDate.getFullYear() + 1);
+        }
+      } else if (days && days.length > 0) {
+        // Use the first selected day of this week
+        const now = getKSANow();
+        const targetDayNum = dayNumbers[days[0]];
+        const currentDayNum = now.getDay();
+        let daysUntil = targetDayNum - currentDayNum;
+        if (daysUntil < 0) daysUntil += 7;
+        if (daysUntil === 0) {
+          // Same day - check if time has passed
+          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+          const targetMinutes = randomTime.hour * 60 + randomTime.minute;
+          if (nowMinutes >= targetMinutes) {
+            daysUntil = 7; // Next week
+          }
+        }
+        targetDate = new Date(now);
+        targetDate.setDate(targetDate.getDate() + daysUntil);
+        targetDate.setHours(randomTime.hour, randomTime.minute, 0, 0);
+      } else {
+        console.error(`❌ No date specified for one-time schedule ${schedule.id}`);
+        return;
+      }
+
+      // Set the time
+      targetDate.setHours(randomTime.hour, randomTime.minute, 0, 0);
+      
+      const timeUntilMs = targetDate.getTime() - Date.now();
+      
+      if (timeUntilMs <= 0) {
+        console.log(`⚠️ One-time schedule ${schedule.id} date has passed, executing now and disabling...`);
+        executeSchedule(schedule.id).then(() => {
+          // Auto-disable after execution
+          customMessageService.updateSchedule(schedule.id, { enabled: false });
+          console.log(`✅ One-time schedule ${schedule.id} completed and disabled`);
+        });
+        return;
+      }
+
+      scheduleDescription = `One-time on ${formatKSADate(targetDate.getTime())}`;
+      
+      console.log(`📅 Scheduling ONE-TIME ${schedule.id}: ${scheduleDescription} (in ${Math.round(timeUntilMs / 60000)} minutes)`);
+      
+      const timeoutId = setTimeout(async () => {
+        console.log(`⏰ One-time schedule ${schedule.id} triggered!`);
+        await executeSchedule(schedule.id);
+        
+        // Auto-disable after execution
+        customMessageService.updateSchedule(schedule.id, { enabled: false });
+        console.log(`✅ One-time schedule ${schedule.id} completed and auto-disabled`);
+        scheduledJobs.delete(schedule.id);
+      }, timeUntilMs);
+      
+      scheduledJobs.set(schedule.id, { type: "timeout", id: timeoutId });
+      console.log(`✅ One-time schedule ${schedule.id} registered (timeout)`);
+      return; // Exit early - don't use cron for one-time
+    }
+
     case "monthly": {
       // Monthly: run on specific day of month
       // Cron: minute hour dayOfMonth * *
@@ -493,7 +571,14 @@ function scheduleMessage(schedule) {
     case "daily":
     default: {
       // Daily/Weekly: run on specific days of week
-      const allowedDayNumbers = (days || []).map((d) => dayNumbers[d]).join(",");
+      let allowedDayNumbers;
+      
+      if (scheduleRepeatType === "daily" && (!days || days.length === 0)) {
+        // Daily with no days specified = run every day
+        allowedDayNumbers = "0,1,2,3,4,5,6";
+      } else {
+        allowedDayNumbers = (days || []).map((d) => dayNumbers[d]).join(",");
+      }
       
       if (!allowedDayNumbers) {
         console.error(`❌ No days specified for schedule ${schedule.id}`);
@@ -502,7 +587,7 @@ function scheduleMessage(schedule) {
 
       // Cron: minute hour * * dayOfWeek
       cronExpression = `${randomTime.minute} ${randomTime.hour} * * ${allowedDayNumbers}`;
-      scheduleDescription = `${scheduleRepeatType === "weekly" ? "Weekly" : "Daily"} at ${randomTime.hour}:${String(randomTime.minute).padStart(2, "0")} on ${(days || []).join(", ")}`;
+      scheduleDescription = `${scheduleRepeatType === "weekly" ? "Weekly" : "Daily"} at ${randomTime.hour}:${String(randomTime.minute).padStart(2, "0")} on ${(days || ["every day"]).join(", ")}`;
       break;
     }
   }
@@ -552,12 +637,25 @@ function cancelScheduledMessage(scheduleId) {
  */
 function scheduleAllEnabled() {
   const schedules = customMessageService.getAllSchedules();
-  const enabledSchedules = schedules.filter((s) => s.enabled);
+  
+  // 1. Stop any jobs that are no longer enabled
+  const enabledIds = new Set(schedules.filter(s => s.enabled).map(s => s.id));
+  for (const scheduleId of scheduledJobs.keys()) {
+    if (!enabledIds.has(scheduleId)) {
+      console.log(`📋 Schedule ${scheduleId} is no longer enabled, cancelling...`);
+      cancelScheduledMessage(scheduleId);
+    }
+  }
 
+  // 2. Schedule enabled ones if not already scheduled (or if they need update)
+  const enabledSchedules = schedules.filter((s) => s.enabled);
   console.log(`📋 Found ${enabledSchedules.length} enabled schedules`);
 
   for (const schedule of enabledSchedules) {
-    scheduleMessage(schedule);
+    // Only schedule if not already in the jobs map
+    if (!scheduledJobs.has(schedule.id)) {
+      scheduleMessage(schedule);
+    }
   }
 }
 
