@@ -2,6 +2,9 @@
  * Reminder Scheduler Service
  * Smart cron-based scheduling for reminders
  * Timezone: Asia/Riyadh (KSA Time - UTC+3)
+ *
+ * CRITICAL FIX: Uses socketManager.getSocket() at execution time
+ * to prevent zombie connections from stale socket closures.
  */
 
 const cron = require("node-cron");
@@ -11,14 +14,14 @@ const {
   getAllReminders,
 } = require("./adminCommandService");
 
+// CRITICAL: Import socket manager for live socket access
+const socketManager = require("../whatsapp/socketManager");
+
 // KSA Timezone
 const KSA_TIMEZONE = "Asia/Riyadh";
 
 // Store scheduled cron jobs by reminder ID
 const scheduledJobs = new Map();
-
-// WhatsApp socket instance
-let sock = null;
 
 // Backup check interval
 let backupCheckInterval = null;
@@ -49,24 +52,26 @@ function getKSADateFromTimestamp(timestamp) {
  * @param {object} reminder - The reminder to send
  * @param {number} maxRetries - Maximum number of retry attempts
  * @returns {boolean} - Whether the send was successful
+ *
+ * CRITICAL FIX: Gets socket from socketManager at execution time
  */
 async function sendReminderWithRetry(reminder, maxRetries = 3) {
+  // CRITICAL: Get LIVE socket from manager, not stale closure reference
+  const sock = socketManager.getSocket();
+
   if (!sock) {
     console.log(`⚠️ No WhatsApp socket available for reminder ${reminder.id}`);
     return false;
   }
 
   // CRITICAL: Validate connection is actually connected before attempting to send
-  // This prevents sending on stale socket references after reconnection
-  try {
-    const { getConnectionStatus } = require("../whatsapp/bot");
-    const connectionStatus = getConnectionStatus();
-    if (connectionStatus !== "connected") {
-      console.log(`⚠️ Connection status is "${connectionStatus}" for reminder ${reminder.id}, will retry later`);
-      return false;
-    }
-  } catch (e) {
-    console.warn(`⚠️ Could not check connection status for reminder ${reminder.id}:`, e.message);
+  if (!socketManager.isConnected()) {
+    console.log(
+      `⚠️ Connection status is "${socketManager.getConnectionStatus()}" for reminder ${
+        reminder.id
+      }, will retry later`
+    );
+    return false;
   }
 
   const targetJid = `${reminder.targetNumber}@s.whatsapp.net`;
@@ -148,6 +153,8 @@ async function sendReminderWithRetry(reminder, maxRetries = 3) {
 /**
  * Schedule a reminder using node-cron
  * @param {object} reminder - The reminder to schedule
+ *
+ * CRITICAL FIX: Registers jobs with socketManager for proper cleanup
  */
 function scheduleReminder(reminder) {
   if (!reminder || reminder.status !== "pending") {
@@ -183,12 +190,24 @@ function scheduleReminder(reminder) {
   // For reminders less than 1 hour away, use setTimeout for precision
   if (timeUntil < 60 * 60 * 1000) {
     const timeoutId = setTimeout(async () => {
+      // CRITICAL: Check connection BEFORE executing
+      if (!socketManager.isConnected()) {
+        console.log(
+          `⏸️ Reminder ${reminder.id} triggered but not connected, skipping`
+        );
+        scheduledJobs.delete(reminder.id);
+        socketManager.unregisterTimeout(`reminder_${reminder.id}`);
+        return;
+      }
       console.log(`⏰ Reminder ${reminder.id} triggered via setTimeout`);
       await sendReminderWithRetry(reminder);
       scheduledJobs.delete(reminder.id);
+      socketManager.unregisterTimeout(`reminder_${reminder.id}`);
     }, timeUntil);
 
     scheduledJobs.set(reminder.id, { type: "timeout", id: timeoutId });
+    // CRITICAL: Register with socket manager for cleanup on disconnect
+    socketManager.registerTimeout(`reminder_${reminder.id}`, timeoutId);
   } else {
     // For reminders more than 1 hour away, use cron for efficiency
     // Create cron expression from KSA date
@@ -204,6 +223,13 @@ function scheduleReminder(reminder) {
       const task = cron.schedule(
         cronExpression,
         async () => {
+          // CRITICAL: Check connection BEFORE executing
+          if (!socketManager.isConnected()) {
+            console.log(
+              `⏸️ Reminder ${reminder.id} triggered but not connected, skipping`
+            );
+            return;
+          }
           console.log(`⏰ Reminder ${reminder.id} triggered via cron job`);
           await sendReminderWithRetry(reminder);
           cancelScheduledReminder(reminder.id);
@@ -215,6 +241,8 @@ function scheduleReminder(reminder) {
       );
 
       scheduledJobs.set(reminder.id, { type: "cron", task });
+      // CRITICAL: Register with socket manager for cleanup on disconnect
+      socketManager.registerCronJob(`reminder_${reminder.id}`, task);
     } catch (error) {
       console.error(
         `❌ Error scheduling cron for reminder ${reminder.id}:`,
@@ -222,14 +250,25 @@ function scheduleReminder(reminder) {
       );
       // Fall back to setTimeout
       const timeoutId = setTimeout(async () => {
+        // CRITICAL: Check connection BEFORE executing
+        if (!socketManager.isConnected()) {
+          console.log(
+            `⏸️ Reminder ${reminder.id} triggered but not connected, skipping`
+          );
+          scheduledJobs.delete(reminder.id);
+          socketManager.unregisterTimeout(`reminder_${reminder.id}`);
+          return;
+        }
         console.log(
           `⏰ Reminder ${reminder.id} triggered via fallback setTimeout`
         );
         await sendReminderWithRetry(reminder);
         scheduledJobs.delete(reminder.id);
+        socketManager.unregisterTimeout(`reminder_${reminder.id}`);
       }, timeUntil);
 
       scheduledJobs.set(reminder.id, { type: "timeout", id: timeoutId });
+      socketManager.registerTimeout(`reminder_${reminder.id}`, timeoutId);
     }
   }
 }
@@ -243,8 +282,10 @@ function cancelScheduledReminder(reminderId) {
   if (job) {
     if (job.type === "timeout") {
       clearTimeout(job.id);
+      socketManager.unregisterTimeout(`reminder_${reminderId}`);
     } else if (job.type === "cron" && job.task) {
       job.task.stop();
+      socketManager.unregisterCronJob(`reminder_${reminderId}`);
     }
     scheduledJobs.delete(reminderId);
     console.log(`🗑️ Cancelled scheduled job for reminder ${reminderId}`);
@@ -256,7 +297,8 @@ function cancelScheduledReminder(reminderId) {
  * This catches any reminders that might have been missed
  */
 async function checkMissedReminders() {
-  if (!sock) return;
+  // CRITICAL: Check connection via socket manager, not stale reference
+  if (!socketManager.isConnected()) return;
 
   try {
     const allReminders = getAllReminders();
@@ -300,12 +342,16 @@ function scheduleAllPendingReminders() {
 
 /**
  * Initialize reminder scheduler
- * @param {object} sockInstance - WhatsApp socket instance
+ * @param {object} sockInstance - WhatsApp socket instance (kept for backward compat, not stored)
+ *
+ * CRITICAL FIX: Socket instance is NOT stored - we use socketManager.getSocket() at execution time
  */
 function initScheduler(sockInstance) {
-  sock = sockInstance;
-
-  console.log("✅ Initializing smart reminder scheduler...");
+  // NOTE: We no longer store sockInstance - this was the root cause of zombie connections
+  // The sockInstance parameter is kept for backward compatibility but ignored
+  console.log(
+    "✅ Initializing smart reminder scheduler (using socketManager)..."
+  );
 
   // Schedule all existing pending reminders
   scheduleAllPendingReminders();
@@ -314,7 +360,12 @@ function initScheduler(sockInstance) {
   checkMissedReminders();
 
   // Backup check every 5 minutes to catch any missed reminders
+  if (backupCheckInterval) {
+    clearInterval(backupCheckInterval);
+  }
   backupCheckInterval = setInterval(checkMissedReminders, 5 * 60 * 1000);
+  // Register with socket manager for cleanup
+  socketManager.registerInterval("reminder_backup_check", backupCheckInterval);
 
   const ksaTimeDisplay = new Date().toLocaleString("ar-SA", {
     timeZone: KSA_TIMEZONE,
@@ -326,14 +377,17 @@ function initScheduler(sockInstance) {
 
 /**
  * Stop the scheduler
+ * CRITICAL FIX: Also unregisters from socket manager
  */
 function stopScheduler() {
   // Clear all scheduled jobs
   for (const [reminderId, job] of scheduledJobs) {
     if (job.type === "timeout") {
       clearTimeout(job.id);
+      socketManager.unregisterTimeout(`reminder_${reminderId}`);
     } else if (job.type === "cron" && job.task) {
       job.task.stop();
+      socketManager.unregisterCronJob(`reminder_${reminderId}`);
     }
   }
   scheduledJobs.clear();
@@ -341,6 +395,7 @@ function stopScheduler() {
   // Clear backup check interval
   if (backupCheckInterval) {
     clearInterval(backupCheckInterval);
+    socketManager.unregisterInterval("reminder_backup_check");
     backupCheckInterval = null;
   }
 
@@ -350,10 +405,15 @@ function stopScheduler() {
 /**
  * Update socket instance (call when reconnecting)
  * @param {object} sockInstance - New WhatsApp socket instance
+ *
+ * DEPRECATED: This function is kept for backward compatibility but does nothing.
+ * The socket is now always fetched fresh from socketManager.getSocket()
  */
 function updateSocket(sockInstance) {
-  sock = sockInstance;
-  console.log("🔄 Reminder scheduler socket updated");
+  // INTENTIONALLY EMPTY - socket is fetched from socketManager at execution time
+  console.log(
+    "🔄 Reminder scheduler: updateSocket called (using socketManager, no action needed)"
+  );
 }
 
 /**
@@ -365,7 +425,7 @@ function getSchedulerStatus() {
   });
 
   return {
-    running: sock !== null,
+    running: socketManager.isConnected(),
     activeJobs: scheduledJobs.size,
     currentKSATime: ksaTimeDisplay,
     scheduledReminders: Array.from(scheduledJobs.keys()),

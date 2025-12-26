@@ -12,6 +12,13 @@ const fs = require("fs");
 const path = require("path");
 
 // ============================================
+// 🔌 CENTRALIZED SOCKET MANAGER
+// Single source of truth for socket state
+// Fixes zombie connections caused by stale references
+// ============================================
+const socketManager = require("./socketManager");
+
+// ============================================
 // 🛠️ SESSION REPAIR SYSTEM
 // Detects "Bad MAC" errors in real-time and triggers recovery
 // This is critical for handling WhatsApp's LID (Link ID) migration
@@ -26,7 +33,12 @@ let softRepairAttempted = false; // Track if we've already tried a soft repair
 // Tracks WebSocket state and detects mismatches between
 // connectionStatus and actual WebSocket state
 // ============================================
-const PENDING_NOTIFICATIONS_FILE = path.join(__dirname, "..", "data", "pending_notifications.json");
+const PENDING_NOTIFICATIONS_FILE = path.join(
+  __dirname,
+  "..",
+  "data",
+  "pending_notifications.json"
+);
 let lastWebSocketState = null;
 let webSocketCloseCode = null;
 let webSocketCloseReason = null;
@@ -36,12 +48,12 @@ let lastZombieCheckAt = 0;
 
 // Connection state machine
 const ConnectionState = {
-  DISCONNECTED: 'disconnected',
-  CONNECTING: 'connecting',
-  QR_PENDING: 'qr_pending',
-  CONNECTED: 'connected',
-  RECONNECTING: 'reconnecting',
-  ZOMBIE: 'zombie' // Connected status but dead socket
+  DISCONNECTED: "disconnected",
+  CONNECTING: "connecting",
+  QR_PENDING: "qr_pending",
+  CONNECTED: "connected",
+  RECONNECTING: "reconnecting",
+  ZOMBIE: "zombie", // Connected status but dead socket
 };
 
 /**
@@ -49,9 +61,9 @@ const ConnectionState = {
  * @returns {string} WebSocket state name
  */
 function getWebSocketState() {
-  if (!sock || !sock.ws) return 'NO_SOCKET';
-  const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
-  return states[sock.ws.readyState] || 'UNKNOWN';
+  if (!sock || !sock.ws) return "NO_SOCKET";
+  const states = ["CONNECTING", "OPEN", "CLOSING", "CLOSED"];
+  return states[sock.ws.readyState] || "UNKNOWN";
 }
 
 /**
@@ -68,34 +80,36 @@ function getWebSocketReadyState() {
 /**
  * Check if the connection is in a zombie state
  * (connectionStatus says connected but WebSocket is ACTUALLY dead)
- * 
+ *
  * NOTE: Only triggers if we can CONFIRM the WebSocket is dead (state 2 or 3).
  * If sock.ws is not accessible (returns -1), we can't determine zombie state
  * and should NOT trigger false positives.
- * 
+ *
  * @returns {boolean}
  */
 function isZombieConnection() {
-  if (connectionStatus !== 'connected') return false;
-  
+  if (connectionStatus !== "connected") return false;
+
   const wsState = getWebSocketReadyState();
-  
+
   // WebSocket states: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
   // -1 means sock.ws is not accessible (not a zombie, just Baileys internal structure)
-  
+
   // DON'T trigger zombie if we can't access the WebSocket
   if (wsState === -1) {
     return false; // Can't determine state - NOT a zombie indicator
   }
-  
+
   // Only trigger zombie if WebSocket is CLOSING (2) or CLOSED (3)
   const isZombie = wsState >= 2;
-  
+
   if (isZombie) {
     zombieDetectionCount++;
-    console.error(`🧟 [ZOMBIE] Detected! connectionStatus='connected' but WS state=${getWebSocketState()} (${wsState})`);
+    console.error(
+      `🧟 [ZOMBIE] Detected! connectionStatus='connected' but WS state=${getWebSocketState()} (${wsState})`
+    );
   }
-  
+
   return isZombie;
 }
 
@@ -110,27 +124,34 @@ function queueAdminNotification(message, jid = null) {
     let pending = [];
     if (fs.existsSync(PENDING_NOTIFICATIONS_FILE)) {
       try {
-        pending = JSON.parse(fs.readFileSync(PENDING_NOTIFICATIONS_FILE, 'utf8') || '[]');
+        pending = JSON.parse(
+          fs.readFileSync(PENDING_NOTIFICATIONS_FILE, "utf8") || "[]"
+        );
       } catch (e) {
         pending = [];
       }
     }
-    
+
     pending.push({
       id: `notif_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
       message,
       jid: jid || ADMIN_NOTIFICATION_JID,
       queuedAt: Date.now(),
-      queuedAtISO: new Date().toISOString()
+      queuedAtISO: new Date().toISOString(),
     });
-    
+
     // Keep only last 20 notifications
     if (pending.length > 20) {
       pending = pending.slice(-20);
     }
-    
-    fs.writeFileSync(PENDING_NOTIFICATIONS_FILE, JSON.stringify(pending, null, 2));
-    console.log(`📝 [QUEUE] Admin notification queued for delivery after reconnection`);
+
+    fs.writeFileSync(
+      PENDING_NOTIFICATIONS_FILE,
+      JSON.stringify(pending, null, 2)
+    );
+    console.log(
+      `📝 [QUEUE] Admin notification queued for delivery after reconnection`
+    );
   } catch (e) {
     console.error(`❌ [QUEUE] Failed to queue notification: ${e.message}`);
   }
@@ -142,31 +163,43 @@ function queueAdminNotification(message, jid = null) {
 async function deliverPendingNotifications() {
   try {
     if (!fs.existsSync(PENDING_NOTIFICATIONS_FILE)) return;
-    
-    const pending = JSON.parse(fs.readFileSync(PENDING_NOTIFICATIONS_FILE, 'utf8') || '[]');
+
+    const pending = JSON.parse(
+      fs.readFileSync(PENDING_NOTIFICATIONS_FILE, "utf8") || "[]"
+    );
     if (pending.length === 0) return;
-    
-    console.log(`📬 [QUEUE] Delivering ${pending.length} pending notification(s)...`);
-    
+
+    console.log(
+      `📬 [QUEUE] Delivering ${pending.length} pending notification(s)...`
+    );
+
     for (const notification of pending) {
       try {
         // Add prefix to show it was queued
-        const prefixedMessage = `📬 *[إشعار معلق]*\n⏰ ${new Date(notification.queuedAt).toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' })}\n\n${notification.message}`;
+        const prefixedMessage = `📬 *[إشعار معلق]*\n⏰ ${new Date(
+          notification.queuedAt
+        ).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })}\n\n${
+          notification.message
+        }`;
         await sendMessage(notification.jid, prefixedMessage);
         console.log(`  ✅ Delivered notification ${notification.id}`);
-        
+
         // Small delay between notifications
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       } catch (e) {
-        console.error(`  ❌ Failed to deliver notification ${notification.id}: ${e.message}`);
+        console.error(
+          `  ❌ Failed to deliver notification ${notification.id}: ${e.message}`
+        );
       }
     }
-    
+
     // Clear the queue
-    fs.writeFileSync(PENDING_NOTIFICATIONS_FILE, '[]');
+    fs.writeFileSync(PENDING_NOTIFICATIONS_FILE, "[]");
     console.log(`✅ [QUEUE] All pending notifications delivered`);
   } catch (e) {
-    console.error(`❌ [QUEUE] Error delivering pending notifications: ${e.message}`);
+    console.error(
+      `❌ [QUEUE] Error delivering pending notifications: ${e.message}`
+    );
   }
 }
 
@@ -179,30 +212,38 @@ function logConnectionState(event, details = {}) {
   const timestamp = new Date().toISOString();
   const wsState = getWebSocketState();
   const wsReadyState = getWebSocketReadyState();
-  
-  console.log(`\n╔═══════════════════════════════════════════════════════════╗`);
+
+  console.log(
+    `\n╔═══════════════════════════════════════════════════════════╗`
+  );
   console.log(`║ 🔌 CONNECTION STATE LOG                                   ║`);
   console.log(`╠═══════════════════════════════════════════════════════════╣`);
   console.log(`║ Time: ${timestamp}`);
   console.log(`║ Event: ${event}`);
   console.log(`║ Status: ${connectionStatus}`);
   console.log(`║ WebSocket: ${wsState} (readyState=${wsReadyState})`);
-  console.log(`║ Reconnect Attempts: ${reconnectAttempts}/${maxReconnectAttempts}`);
+  console.log(
+    `║ Reconnect Attempts: ${reconnectAttempts}/${maxReconnectAttempts}`
+  );
   console.log(`║ Is Reconnecting: ${isReconnecting}`);
   console.log(`║ Init In Progress: ${initInProgress}`);
   console.log(`║ Messages Processed: ${totalMessagesProcessed}`);
-  console.log(`║ Ping Failures: ${consecutivePingFailures}/${MAX_PING_FAILURES}`);
-  
+  console.log(
+    `║ Ping Failures: ${consecutivePingFailures}/${MAX_PING_FAILURES}`
+  );
+
   if (details && Object.keys(details).length > 0) {
     console.log(`║ Details: ${JSON.stringify(details)}`);
   }
-  
-  console.log(`╚═══════════════════════════════════════════════════════════╝\n`);
+
+  console.log(
+    `╚═══════════════════════════════════════════════════════════╝\n`
+  );
 }
 
 const createDiagnosticLogger = (level = "silent") => {
   const baseLogger = P({ level });
-  
+
   // Create a wrapper that scans logs for the "Bad MAC" error string
   const wrapper = {
     level: baseLogger.level,
@@ -213,18 +254,30 @@ const createDiagnosticLogger = (level = "silent") => {
     warn: (...args) => baseLogger.warn(...args),
     error: (...args) => {
       const msg = args[0];
-      const errorStr = typeof msg === 'string' ? msg : (msg?.msg || JSON.stringify(msg));
-      
-      if (errorStr && (errorStr.includes("Bad MAC") || errorStr.includes("Failed to decrypt"))) {
+      const errorStr =
+        typeof msg === "string" ? msg : msg?.msg || JSON.stringify(msg);
+
+      if (
+        errorStr &&
+        (errorStr.includes("Bad MAC") || errorStr.includes("Failed to decrypt"))
+      ) {
         badMacDetectionCount++;
         lastBadMacAt = Date.now();
-        console.error(`🚨 [SESSION ISSUE] Decryption error detected! Count: ${badMacDetectionCount}`);
-        
+        console.error(
+          `🚨 [SESSION ISSUE] Decryption error detected! Count: ${badMacDetectionCount}`
+        );
+
         // If we see too many Bad MACs, schedule a session repair/reset
         if (badMacDetectionCount >= 5 && !sessionResetScheduled) {
           sessionResetScheduled = true;
-          console.error("🚨 [SESSION ISSUE] Persistent decryption errors detected.");
-          console.error(`🔄 [SESSION ISSUE] Will auto-${softRepairAttempted ? 'RESET' : 'REPAIR'} session on next health check...`);
+          console.error(
+            "🚨 [SESSION ISSUE] Persistent decryption errors detected."
+          );
+          console.error(
+            `🔄 [SESSION ISSUE] Will auto-${
+              softRepairAttempted ? "RESET" : "REPAIR"
+            } session on next health check...`
+          );
         }
       }
       return baseLogger.error(...args);
@@ -232,7 +285,7 @@ const createDiagnosticLogger = (level = "silent") => {
     fatal: (...args) => baseLogger.fatal(...args),
     child: (...args) => baseLogger.child(...args),
   };
-  
+
   return wrapper;
 };
 
@@ -253,11 +306,11 @@ const STORE_FILE = path.join(__dirname, "..", "data", "baileys_store.json");
 function cacheMessage(key, message) {
   const cacheKey = `${key.remoteJid}:${key.id}`;
   messageCache.set(cacheKey, message);
-  
+
   // Limit cache size
   if (messageCache.size > MESSAGE_CACHE_MAX_SIZE) {
     const keysToDelete = Array.from(messageCache.keys()).slice(0, 100);
-    keysToDelete.forEach(k => messageCache.delete(k));
+    keysToDelete.forEach((k) => messageCache.delete(k));
   }
 }
 
@@ -349,19 +402,31 @@ function releaseInitLock() {
 /**
  * Clean up all schedulers and intervals when connection closes.
  * This prevents stale socket references from causing zombie connections.
+ *
+ * CRITICAL FIX: Now uses socketManager to cancel ALL tracked jobs
+ * including cron jobs, timeouts, and intervals across all services.
  */
 function cleanupAllSchedulers() {
   console.log("🧹 Cleaning up all schedulers and intervals...");
-  
-  // Stop reminder scheduler
+
+  // CRITICAL: Cancel ALL tracked scheduled jobs via socket manager
+  // This catches any jobs that services may have registered
+  try {
+    socketManager.cancelAllScheduledJobs();
+    console.log("  ✅ Socket manager cleared all tracked jobs");
+  } catch (e) {
+    console.warn("  ⚠️ Error in socket manager cleanup:", e.message);
+  }
+
+  // Stop reminder scheduler (also clears its internal jobs)
   try {
     reminderScheduler.stopScheduler();
     console.log("  ✅ Reminder scheduler stopped");
   } catch (e) {
     console.warn("  ⚠️ Error stopping reminder scheduler:", e.message);
   }
-  
-  // Stop message scheduler
+
+  // Stop message scheduler (also clears its internal jobs)
   try {
     const messageSchedulerService = require("../services/messageSchedulerService");
     messageSchedulerService.stopScheduler();
@@ -369,27 +434,44 @@ function cleanupAllSchedulers() {
   } catch (e) {
     console.warn("  ⚠️ Error stopping message scheduler:", e.message);
   }
-  
+
+  // Stop scheduled WhatsApp service
+  try {
+    const scheduledWhatsappService = require("../services/scheduledWhatsappService");
+    if (scheduledWhatsappService.stopScheduler) {
+      scheduledWhatsappService.stopScheduler();
+    }
+    console.log("  ✅ Scheduled WhatsApp service stopped");
+  } catch (e) {
+    console.warn("  ⚠️ Error stopping scheduled WhatsApp service:", e.message);
+  }
+
   // Clear keepalive ping interval
   if (keepalivePingInterval) {
     clearInterval(keepalivePingInterval);
     keepalivePingInterval = null;
     console.log("  ✅ Keepalive ping interval cleared");
   }
-  
+
   // Clear health check interval
   if (messageHandlerHealthCheckInterval) {
     clearInterval(messageHandlerHealthCheckInterval);
     messageHandlerHealthCheckInterval = null;
     console.log("  ✅ Health check interval cleared");
   }
-  
+
   console.log("✅ All schedulers and intervals cleaned up");
 }
 
 function updateAllServicesSocket(newSock) {
   console.log("🔄 Updating socket in all services...");
-  
+
+  // CRITICAL: Update centralized socket manager FIRST
+  socketManager.setSocket(newSock);
+  socketManager.setConnectionStatus(connectionStatus);
+  socketManager.setSendFunctions(sendMessage, sendImage);
+  console.log("  ✅ Socket manager updated with socket and send functions");
+
   // Update reminder scheduler
   try {
     reminderScheduler.updateSocket(newSock);
@@ -397,7 +479,7 @@ function updateAllServicesSocket(newSock) {
   } catch (e) {
     console.warn("  ⚠️ Error updating reminder scheduler socket:", e.message);
   }
-  
+
   // Update message scheduler
   try {
     const messageSchedulerService = require("../services/messageSchedulerService");
@@ -406,16 +488,19 @@ function updateAllServicesSocket(newSock) {
   } catch (e) {
     console.warn("  ⚠️ Error updating message scheduler socket:", e.message);
   }
-  
+
   // Update scheduled WhatsApp messages service
   try {
     const scheduledWhatsappService = require("../services/scheduledWhatsappService");
     scheduledWhatsappService.updateSocket(newSock, sendMessage, sendImage);
     console.log("  ✅ Scheduled WhatsApp messages service socket updated");
   } catch (e) {
-    console.warn("  ⚠️ Error updating scheduled WhatsApp service socket:", e.message);
+    console.warn(
+      "  ⚠️ Error updating scheduled WhatsApp service socket:",
+      e.message
+    );
   }
-  
+
   console.log("✅ All services updated with new socket");
 }
 
@@ -448,8 +533,12 @@ function softRepairSessions() {
       console.log("  ✅ Message store cleared");
     }
 
-    console.log(`✅ [SOFT REPAIR] Deleted ${deletedCount} corrupted session/key files.`);
-    console.log("📋 Primary credentials preserved. No QR scan should be required.");
+    console.log(
+      `✅ [SOFT REPAIR] Deleted ${deletedCount} corrupted session/key files.`
+    );
+    console.log(
+      "📋 Primary credentials preserved. No QR scan should be required."
+    );
     softRepairAttempted = true;
     return true;
   } catch (error) {
@@ -466,8 +555,8 @@ const RECYCLE_BIN_FILE = path.join(__dirname, "..", "data", "recycle_bin.json");
 const SETTINGS_FILE = path.join(__dirname, "..", "data", "settings.json");
 let ads = [];
 let recycleBin = []; // Messages rejected by AI
-let settings = { 
-  recycleBinDays: 7, 
+let settings = {
+  recycleBinDays: 7,
   excludedGroups: [],
   // Default WhatsApp message footers
   hasakFooter: `┈┉━🔰 *منصة 🌴حساك* 🔰━┅┄
@@ -476,7 +565,7 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
  *✅للإعلانات في منصة حساك* 
 0507667103`,
   masaakFooter: `┈┉━━🔰 *مسعاك العقارية* 🔰━━┅┄
-⭕ إبراء للذمة التواصل فقط مع مسعاك عند الشراء أو إذا عندك مشتري ✅ نتعاون مع جميع الوسطاء`
+⭕ إبراء للذمة التواصل فقط مع مسعاك عند الشراء أو إذا عندك مشتري ✅ نتعاون مع جميع الوسطاء`,
 };
 let seenGroups = new Set();
 let groupsMetadata = {}; // Store group metadata (jid -> {name, jid})
@@ -1482,7 +1571,7 @@ async function initializeBot() {
         if (jid.endsWith("@newsletter")) {
           return true;
         }
-        // Ignore broadcast/status updates 
+        // Ignore broadcast/status updates
         if (jid === "status@broadcast") {
           return true;
         }
@@ -1503,17 +1592,19 @@ async function initializeBot() {
     // 🔍 DIAGNOSTIC EVENT LISTENERS
     // Monitor all message-related events for debugging
     // ============================================
-    
+
     // Track messages.update events (message status changes)
     sock.ev.on("messages.update", (updates) => {
       console.log(`📝 [EVENT] messages.update - ${updates.length} update(s)`);
     });
-    
+
     // Track message reactions
     sock.ev.on("messages.reaction", (reactions) => {
-      console.log(`👍 [EVENT] messages.reaction - ${reactions.length} reaction(s)`);
+      console.log(
+        `👍 [EVENT] messages.reaction - ${reactions.length} reaction(s)`
+      );
     });
-    
+
     // Track presence updates (typing indicators, online status)
     sock.ev.on("presence.update", (presence) => {
       // Only log if it's from a group (reduces noise)
@@ -1524,12 +1615,16 @@ async function initializeBot() {
 
     // Track group updates
     sock.ev.on("groups.update", (updates) => {
-      console.log(`👥 [EVENT] groups.update - ${updates.length} group(s) updated`);
+      console.log(
+        `👥 [EVENT] groups.update - ${updates.length} group(s) updated`
+      );
     });
 
     // Track group participant updates
     sock.ev.on("group-participants.update", (update) => {
-      console.log(`👥 [EVENT] group-participants.update - ${update.action} in ${update.id}`);
+      console.log(
+        `👥 [EVENT] group-participants.update - ${update.action} in ${update.id}`
+      );
     });
 
     // ============================================
@@ -1541,9 +1636,11 @@ async function initializeBot() {
       if (keepalivePingInterval) clearInterval(keepalivePingInterval);
       consecutivePingFailures = 0;
       lastSuccessfulPing = Date.now();
-      
-      console.log(`🏓 [KEEPALIVE] Starting ping monitor (interval: 90s, timeout: 5s)`);
-      
+
+      console.log(
+        `🏓 [KEEPALIVE] Starting ping monitor (interval: 90s, timeout: 5s)`
+      );
+
       keepalivePingInterval = setInterval(async () => {
         if (connectionStatus === "connected" && sock) {
           // ============================================
@@ -1552,96 +1649,114 @@ async function initializeBot() {
           // ============================================
           const wsState = getWebSocketReadyState();
           const wsStateName = getWebSocketState();
-          
+
           // ONLY trigger zombie if WebSocket is DEFINITELY dead (CLOSING=2 or CLOSED=3)
           // If wsState is -1, sock.ws is not accessible - we can't determine state
           // If wsState is 0 or 1, connection is fine (CONNECTING or OPEN)
-          if (wsState >= 2) {  // CLOSING or CLOSED
-            console.error(`🧟 [KEEPALIVE] ZOMBIE DETECTED! WS state: ${wsStateName} (${wsState}) but status: ${connectionStatus}`);
-            logConnectionState('ZOMBIE_DETECTED_PRE_PING', { wsState: wsStateName, wsReadyState: wsState });
-            
+          if (wsState >= 2) {
+            // CLOSING or CLOSED
+            console.error(
+              `🧟 [KEEPALIVE] ZOMBIE DETECTED! WS state: ${wsStateName} (${wsState}) but status: ${connectionStatus}`
+            );
+            logConnectionState("ZOMBIE_DETECTED_PRE_PING", {
+              wsState: wsStateName,
+              wsReadyState: wsState,
+            });
+
             // Queue notification for after reconnection
             queueAdminNotification(
               `🧟 *اتصال ميت (Zombie)*\n\n` +
-              `⚠️ حالة WebSocket: ${wsStateName}\n` +
-              `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n` +
-              `🔄 جاري إعادة الاتصال تلقائياً...`
+                `⚠️ حالة WebSocket: ${wsStateName}\n` +
+                `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n` +
+                `🔄 جاري إعادة الاتصال تلقائياً...`
             );
-            
+
             // Clear interval and trigger reconnection
             if (keepalivePingInterval) {
               clearInterval(keepalivePingInterval);
               keepalivePingInterval = null;
             }
-            
+
             // Force reconnection
-            await forceReconnect('ZOMBIE_WS_STATE');
+            await forceReconnect("ZOMBIE_WS_STATE");
             return;
           }
-          
+
           // ============================================
           // 🔍 STEP 2: Active ping with short timeout
           // ============================================
           try {
             const pingStart = Date.now();
-            
+
             // Use presenceSubscribe with SHORT timeout (5 seconds)
             await Promise.race([
               sock.presenceSubscribe(sock.user?.id),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Ping timeout (5s)')), 5000))
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Ping timeout (5s)")), 5000)
+              ),
             ]);
-            
+
             const pingLatency = Date.now() - pingStart;
-            console.log(`🏓 [KEEPALIVE] Ping OK (${pingLatency}ms) | WS: ${wsStateName} | Messages: ${totalMessagesProcessed}`);
+            console.log(
+              `🏓 [KEEPALIVE] Ping OK (${pingLatency}ms) | WS: ${wsStateName} | Messages: ${totalMessagesProcessed}`
+            );
             lastSuccessfulPing = Date.now();
             consecutivePingFailures = 0;
-            
           } catch (pingError) {
             consecutivePingFailures++;
             const wsStateAfterFail = getWebSocketState();
-            
-            console.warn(`⚠️ [KEEPALIVE] Ping FAILED (${consecutivePingFailures}/${MAX_PING_FAILURES}): ${pingError.message} | WS: ${wsStateAfterFail}`);
-            logConnectionState('PING_FAILED', { 
-              error: pingError.message, 
+
+            console.warn(
+              `⚠️ [KEEPALIVE] Ping FAILED (${consecutivePingFailures}/${MAX_PING_FAILURES}): ${pingError.message} | WS: ${wsStateAfterFail}`
+            );
+            logConnectionState("PING_FAILED", {
+              error: pingError.message,
               consecutiveFailures: consecutivePingFailures,
-              wsStateAfterFail 
+              wsStateAfterFail,
             });
-            
+
             if (consecutivePingFailures >= MAX_PING_FAILURES) {
-              console.error(`🚨 [KEEPALIVE] ${MAX_PING_FAILURES} consecutive ping failures - TRIGGERING RECONNECT!`);
-              
+              console.error(
+                `🚨 [KEEPALIVE] ${MAX_PING_FAILURES} consecutive ping failures - TRIGGERING RECONNECT!`
+              );
+
               // Queue notification for after reconnection (don't try to send now - might be dead)
               queueAdminNotification(
                 `🚨 *فشل الـ Ping (${MAX_PING_FAILURES}x)*\n\n` +
-                `⚠️ فشل التحقق من الاتصال ${MAX_PING_FAILURES} مرات\n` +
-                `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n` +
-                `🔌 حالة WebSocket: ${wsStateAfterFail}\n` +
-                `🔄 تم إعادة الاتصال تلقائياً`
+                  `⚠️ فشل التحقق من الاتصال ${MAX_PING_FAILURES} مرات\n` +
+                  `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n` +
+                  `🔌 حالة WebSocket: ${wsStateAfterFail}\n` +
+                  `🔄 تم إعادة الاتصال تلقائياً`
               );
-              
+
               // Clear interval
               if (keepalivePingInterval) {
                 clearInterval(keepalivePingInterval);
                 keepalivePingInterval = null;
               }
-              
+
               // Force reconnection
-              await forceReconnect('PING_FAILURES');
+              await forceReconnect("PING_FAILURES");
             }
           }
         }
       }, 90 * 1000); // Ping every 90 seconds (more frequent than before)
     };
-    
+
     // ============================================
     // 🔄 FORCE RECONNECT FUNCTION
     // Centralizes reconnection logic for consistent handling
     // ============================================
-    async function forceReconnect(reason = 'UNKNOWN') {
+    async function forceReconnect(reason = "UNKNOWN") {
       console.log(`\n🔌 [FORCE_RECONNECT] Initiating forced reconnection...`);
       console.log(`   Reason: ${reason}`);
-      logConnectionState('FORCE_RECONNECT_START', { reason });
-      
+      logConnectionState("FORCE_RECONNECT_START", { reason });
+
+      // CRITICAL: Update socket manager FIRST - prevents ANY traffic
+      socketManager.setConnectionStatus("reconnecting");
+      socketManager.setSocket(null);
+      socketManager.setSendFunctions(null, null); // Clear send functions to prevent any sends
+
       // Clean up socket
       try {
         if (sock) {
@@ -1654,10 +1769,10 @@ async function initializeBot() {
       } catch (closeError) {
         console.warn(`   ⚠️ Socket cleanup warning: ${closeError.message}`);
       }
-      
-      // Clean up all schedulers
+
+      // Clean up all schedulers - this cancels all jobs with stale socket refs
       cleanupAllSchedulers();
-      
+
       // Release locks
       releaseInitLock();
       initInProgress = false;
@@ -1667,7 +1782,7 @@ async function initializeBot() {
       totalMessagesProcessed = 0;
       lastMessageReceivedAt = Date.now();
       consecutivePingFailures = 0;
-      
+
       // Wait then reinitialize
       console.log(`   ⏳ Waiting 3 seconds before reinitializing...`);
       setTimeout(async () => {
@@ -1676,9 +1791,11 @@ async function initializeBot() {
           await initializeBot();
           console.log(`✅ [FORCE_RECONNECT] Reconnection completed!`);
         } catch (reinitError) {
-          console.error(`❌ [FORCE_RECONNECT] Reconnection failed: ${reinitError.message}`);
+          console.error(
+            `❌ [FORCE_RECONNECT] Reconnection failed: ${reinitError.message}`
+          );
           // Try again after 10 seconds
-          setTimeout(() => forceReconnect('RETRY_AFTER_FAILURE'), 10000);
+          setTimeout(() => forceReconnect("RETRY_AFTER_FAILURE"), 10000);
         }
       }, 3000);
     }
@@ -1689,15 +1806,15 @@ async function initializeBot() {
 
     sock.ev.on("connection.update", async (update) => {
       const { connection, lastDisconnect, qr } = update;
-      
+
       // ============================================
       // 📊 LOG ALL CONNECTION UPDATES
       // ============================================
-      logConnectionState('connection.update', { 
-        connection, 
+      logConnectionState("connection.update", {
+        connection,
         hasQR: !!qr,
         lastDisconnectCode: lastDisconnect?.error?.output?.statusCode,
-        lastDisconnectMsg: lastDisconnect?.error?.message?.substring(0, 50)
+        lastDisconnectMsg: lastDisconnect?.error?.message?.substring(0, 50),
       });
 
       if (qr) {
@@ -1706,6 +1823,8 @@ async function initializeBot() {
         try {
           qrCodeData = await QRCode.toDataURL(qr);
           connectionStatus = "qr";
+          // Update socket manager status
+          socketManager.setConnectionStatus("qr");
           console.log("📱 QR Code generated - Scan with WhatsApp");
         } catch (err) {
           console.error("Error generating QR code:", err);
@@ -1718,11 +1837,17 @@ async function initializeBot() {
         // ============================================
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const errorMessage = lastDisconnect?.error?.message || "Unknown error";
-        
+
+        // CRITICAL: Update socket manager FIRST - mark as disconnected
+        // This MUST happen BEFORE any other operations to prevent traffic
+        socketManager.setConnectionStatus("disconnected");
+        socketManager.setSocket(null);
+        socketManager.setSendFunctions(null, null); // Clear send functions to prevent any sends
+
         // CRITICAL: Clean up all schedulers immediately when connection closes
         // This prevents stale socket references from causing zombie connections
         cleanupAllSchedulers();
-        
+
         console.log(`\n${"=".repeat(60)}`);
         console.log(`🔌 CONNECTION CLOSED`);
         console.log(`${"=".repeat(60)}`);
@@ -1730,7 +1855,9 @@ async function initializeBot() {
         console.log(`   ❌ Error: ${errorMessage}`);
         console.log(`   🔌 WebSocket State: ${getWebSocketState()}`);
         console.log(`   📨 Messages Processed: ${totalMessagesProcessed}`);
-        console.log(`   🔄 Reconnect Attempts: ${reconnectAttempts}/${maxReconnectAttempts}`);
+        console.log(
+          `   🔄 Reconnect Attempts: ${reconnectAttempts}/${maxReconnectAttempts}`
+        );
         console.log(`${"=".repeat(60)}\n`);
         console.log("🔍 Reconnect attempts:", reconnectAttempts);
 
@@ -1894,6 +2021,10 @@ async function initializeBot() {
           }, delay);
         } else {
           connectionStatus = "disconnected";
+          // CRITICAL: Update socket manager status
+          socketManager.setConnectionStatus("disconnected");
+          socketManager.setSocket(null);
+
           qrCodeData = null;
           isReconnecting = false;
 
@@ -1913,13 +2044,19 @@ async function initializeBot() {
         console.log(`✅ WHATSAPP CONNECTION OPENED SUCCESSFULLY!`);
         console.log(`${"=".repeat(60)}`);
         console.log(`   🔌 WebSocket State: ${getWebSocketState()}`);
-        console.log(`   📱 User: ${sock?.user?.id || 'unknown'}`);
+        console.log(`   📱 User: ${sock?.user?.id || "unknown"}`);
         console.log(`   🔄 Previous Reconnect Attempts: ${reconnectAttempts}`);
         console.log(`${"=".repeat(60)}\n`);
-        
-        logConnectionState('CONNECTION_OPEN', { userId: sock?.user?.id });
-        
+
+        logConnectionState("CONNECTION_OPEN", { userId: sock?.user?.id });
+
         connectionStatus = "connected";
+        // CRITICAL: Update socket manager immediately on successful connection
+        // This MUST happen BEFORE initializing schedulers so they get the fresh socket
+        socketManager.setConnectionStatus("connected");
+        socketManager.setSocket(sock);
+        socketManager.setSendFunctions(sendMessage, sendImage);
+
         qrCodeData = null;
         currentQR = null;
 
@@ -1938,43 +2075,45 @@ async function initializeBot() {
         // ============================================
         if (sock && sock.ws) {
           console.log(`🔌 [WS] Setting up WebSocket event monitors...`);
-          
+
           // Monitor WebSocket close event
-          sock.ws.on('close', (code, reason) => {
-            const reasonStr = reason?.toString() || 'unknown';
+          sock.ws.on("close", (code, reason) => {
+            const reasonStr = reason?.toString() || "unknown";
             webSocketCloseCode = code;
             webSocketCloseReason = reasonStr;
             console.error(`\n🔌 [WS] ⚠️ WebSocket CLOSED!`);
             console.error(`   Code: ${code}`);
             console.error(`   Reason: ${reasonStr}`);
             console.error(`   Connection Status: ${connectionStatus}`);
-            
+
             // If we still think we're connected, this is a zombie situation
-            if (connectionStatus === 'connected') {
-              console.error(`   🧟 ZOMBIE CONDITION: Status='connected' but WS closed!`);
+            if (connectionStatus === "connected") {
+              console.error(
+                `   🧟 ZOMBIE CONDITION: Status='connected' but WS closed!`
+              );
               // Queue notification about unexpected close
               queueAdminNotification(
                 `🔌 *WebSocket مغلق بشكل غير متوقع*\n\n` +
-                `📊 Code: ${code}\n` +
-                `📝 السبب: ${reasonStr}\n` +
-                `📨 الرسائل المعالجة: ${totalMessagesProcessed}`
+                  `📊 Code: ${code}\n` +
+                  `📝 السبب: ${reasonStr}\n` +
+                  `📨 الرسائل المعالجة: ${totalMessagesProcessed}`
               );
             }
           });
-          
+
           // Monitor WebSocket error event
-          sock.ws.on('error', (error) => {
+          sock.ws.on("error", (error) => {
             lastWebSocketError = error.message;
             console.error(`\n🔌 [WS] ⚠️ WebSocket ERROR!`);
             console.error(`   Error: ${error.message}`);
             console.error(`   Connection Status: ${connectionStatus}`);
           });
-          
+
           // Monitor WebSocket pong (response to ping)
-          sock.ws.on('pong', () => {
+          sock.ws.on("pong", () => {
             console.log(`🏓 [WS] Pong received from server`);
           });
-          
+
           console.log(`✅ [WS] WebSocket event monitors active`);
         }
 
@@ -1992,7 +2131,11 @@ async function initializeBot() {
 
         // Initialize scheduled WhatsApp messages service
         const scheduledWhatsappService = require("../services/scheduledWhatsappService");
-        scheduledWhatsappService.initScheduledMessages(sock, sendMessage, sendImage);
+        scheduledWhatsappService.initScheduledMessages(
+          sock,
+          sendMessage,
+          sendImage
+        );
         console.log("✅ Scheduled WhatsApp messages service initialized");
 
         // Start message queue processor for reliable delivery
@@ -2003,7 +2146,7 @@ async function initializeBot() {
         // Start keepalive ping to prevent WebSocket from going stale
         startKeepalivePing();
         console.log("✅ WebSocket keepalive ping started");
-        
+
         // ============================================
         // 📬 DELIVER PENDING NOTIFICATIONS
         // Send any notifications that were queued during disconnection
@@ -2012,7 +2155,10 @@ async function initializeBot() {
           try {
             await deliverPendingNotifications();
           } catch (e) {
-            console.error("❌ Error delivering pending notifications:", e.message);
+            console.error(
+              "❌ Error delivering pending notifications:",
+              e.message
+            );
           }
         }, 5000); // Wait 5 seconds for connection to stabilize
 
@@ -2046,94 +2192,116 @@ async function initializeBot() {
         if (messageHandlerHealthCheckInterval) {
           clearInterval(messageHandlerHealthCheckInterval);
         }
-        
+
         // Track that we successfully connected - used to determine if we should auto-reconnect
         const connectionStartTime = Date.now();
         let hasReceivedFirstMessage = false;
-        
+
         messageHandlerHealthCheckInterval = setInterval(async () => {
           if (connectionStatus !== "connected" || !sock) return;
-          
+
           const timeSinceLastMessage = Date.now() - lastMessageReceivedAt;
-          const minutesSinceLastMessage = Math.floor(timeSinceLastMessage / 60000);
-          const minutesSinceConnectionStart = Math.floor((Date.now() - connectionStartTime) / 60000);
+          const minutesSinceLastMessage = Math.floor(
+            timeSinceLastMessage / 60000
+          );
+          const minutesSinceConnectionStart = Math.floor(
+            (Date.now() - connectionStartTime) / 60000
+          );
           const wsState = getWebSocketState();
           const wsReadyState = getWebSocketReadyState();
-          
+
           // Log health status every check (enhanced with WS state)
-          console.log(`📊 [HEALTH CHECK] Last msg: ${minutesSinceLastMessage}min ago | Processed: ${totalMessagesProcessed} | Age: ${minutesSinceConnectionStart}min | WS: ${wsState}`);
-          
+          console.log(
+            `📊 [HEALTH CHECK] Last msg: ${minutesSinceLastMessage}min ago | Processed: ${totalMessagesProcessed} | Age: ${minutesSinceConnectionStart}min | WS: ${wsState}`
+          );
+
           // ============================================
           // 🔍 ZOMBIE DETECTION: Check WebSocket state
           // Only trigger if WebSocket is DEFINITELY dead (CLOSING=2 or CLOSED=3)
           // wsReadyState -1 means sock.ws not accessible - NOT a zombie indicator
           // ============================================
-          if (wsReadyState >= 2) {  // CLOSING or CLOSED
-            console.error(`🧟 [HEALTH CHECK] ZOMBIE DETECTED! WS: ${wsState} (${wsReadyState}) but status: ${connectionStatus}`);
-            logConnectionState('HEALTH_CHECK_ZOMBIE', { wsState, wsReadyState });
-            
+          if (wsReadyState >= 2) {
+            // CLOSING or CLOSED
+            console.error(
+              `🧟 [HEALTH CHECK] ZOMBIE DETECTED! WS: ${wsState} (${wsReadyState}) but status: ${connectionStatus}`
+            );
+            logConnectionState("HEALTH_CHECK_ZOMBIE", {
+              wsState,
+              wsReadyState,
+            });
+
             // Queue notification for after reconnection
             queueAdminNotification(
               `🧟 *اتصال ميت (Zombie)*\n\n` +
-              `⚠️ فحص الصحة كشف مشكلة\n` +
-              `🔌 WebSocket: ${wsState}\n` +
-              `📊 الرسائل: ${totalMessagesProcessed}\n` +
-              `⏱️ عمر الاتصال: ${minutesSinceConnectionStart} دقيقة\n` +
-              `🔄 جاري إعادة الاتصال...`
+                `⚠️ فحص الصحة كشف مشكلة\n` +
+                `🔌 WebSocket: ${wsState}\n` +
+                `📊 الرسائل: ${totalMessagesProcessed}\n` +
+                `⏱️ عمر الاتصال: ${minutesSinceConnectionStart} دقيقة\n` +
+                `🔄 جاري إعادة الاتصال...`
             );
-            
+
             // Clear interval
             if (messageHandlerHealthCheckInterval) {
               clearInterval(messageHandlerHealthCheckInterval);
               messageHandlerHealthCheckInterval = null;
             }
-            
+
             // Force reconnect
-            await forceReconnect('HEALTH_CHECK_ZOMBIE');
+            await forceReconnect("HEALTH_CHECK_ZOMBIE");
             return;
           }
-          
+
           // Update flag if we received any messages
           if (totalMessagesProcessed > 0) {
             hasReceivedFirstMessage = true;
           }
-          
+
           // AUTO-RECONNECT TRIGGER CONDITIONS:
           // Scenario A: We received messages before but stopped receiving (8 min)
           // Scenario B: We never received ANY messages for 15 minutes (fresh start failure)
           const STALE_THRESHOLD_MS = 8 * 60 * 1000; // 8 minutes (was 10)
           const NEVER_RECEIVED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes (was 20)
-          
-          const scenarioA_StaleAfterWorking = 
-            hasReceivedFirstMessage && 
+
+          const scenarioA_StaleAfterWorking =
+            hasReceivedFirstMessage &&
             timeSinceLastMessage > STALE_THRESHOLD_MS;
-            
-          const scenarioB_NeverReceivedAny = 
-            !hasReceivedFirstMessage && 
-            totalMessagesProcessed === 0 && 
+
+          const scenarioB_NeverReceivedAny =
+            !hasReceivedFirstMessage &&
+            totalMessagesProcessed === 0 &&
             minutesSinceConnectionStart >= 15 &&
-            (Date.now() - connectionStartTime) > NEVER_RECEIVED_THRESHOLD_MS;
-          
+            Date.now() - connectionStartTime > NEVER_RECEIVED_THRESHOLD_MS;
+
           const scenarioC_PersistentBadMac = badMacDetectionCount >= 5;
-          
-          const shouldAutoReconnect = scenarioA_StaleAfterWorking || scenarioB_NeverReceivedAny || scenarioC_PersistentBadMac;
-          
+
+          const shouldAutoReconnect =
+            scenarioA_StaleAfterWorking ||
+            scenarioB_NeverReceivedAny ||
+            scenarioC_PersistentBadMac;
+
           if (shouldAutoReconnect) {
-            let reason = 'UNKNOWN';
-            if (scenarioC_PersistentBadMac) reason = 'BAD_MAC';
-            else if (scenarioA_StaleAfterWorking) reason = 'STALE_CONNECTION';
-            else if (scenarioB_NeverReceivedAny) reason = 'NO_MESSAGES_RECEIVED';
-            
+            let reason = "UNKNOWN";
+            if (scenarioC_PersistentBadMac) reason = "BAD_MAC";
+            else if (scenarioA_StaleAfterWorking) reason = "STALE_CONNECTION";
+            else if (scenarioB_NeverReceivedAny)
+              reason = "NO_MESSAGES_RECEIVED";
+
             console.warn(`\n🚨 ============================================`);
             console.warn(`🚨 STALE/BROKEN CONNECTION DETECTED`);
             console.warn(`🚨 Reason: ${reason}`);
-            console.warn(`🚨 Last message: ${minutesSinceLastMessage} minutes ago`);
+            console.warn(
+              `🚨 Last message: ${minutesSinceLastMessage} minutes ago`
+            );
             console.warn(`🚨 Total processed: ${totalMessagesProcessed}`);
             console.warn(`🚨 WebSocket: ${wsState}`);
             console.warn(`🚨 ============================================\n`);
-            
-            logConnectionState('AUTO_RECONNECT_TRIGGERED', { reason, minutesSinceLastMessage, wsState });
-            
+
+            logConnectionState("AUTO_RECONNECT_TRIGGERED", {
+              reason,
+              minutesSinceLastMessage,
+              wsState,
+            });
+
             // Queue notification for after reconnection (don't try to send now)
             let alertMsg = `🔄 *إعادة اتصال تلقائية*\n\n`;
             if (scenarioC_PersistentBadMac) {
@@ -2146,13 +2314,13 @@ async function initializeBot() {
             alertMsg += `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n`;
             alertMsg += `🔌 WebSocket: ${wsState}\n`;
             alertMsg += `🔄 تم إعادة الاتصال تلقائياً`;
-            
+
             queueAdminNotification(alertMsg);
-            
+
             // Reset Bad MAC counter
             badMacDetectionCount = 0;
             sessionResetScheduled = false;
-            
+
             // ============================================
             // 🔄 SESSION REPAIR/RESET (LID Migration Fix)
             // Fixes corrupted sessions using soft repair or full reset
@@ -2163,46 +2331,59 @@ async function initializeBot() {
                 softRepairSessions();
               } else {
                 // SECOND ATTEMPT: Full Reset (requires QR)
-                console.log("🗑️ [FULL RESET] Soft repair failed to fix errors. Clearing everything...");
+                console.log(
+                  "🗑️ [FULL RESET] Soft repair failed to fix errors. Clearing everything..."
+                );
                 try {
-                  const authPath = path.join(__dirname, "..", "auth_info_baileys");
+                  const authPath = path.join(
+                    __dirname,
+                    "..",
+                    "auth_info_baileys"
+                  );
                   if (fs.existsSync(authPath)) {
                     fs.rmSync(authPath, { recursive: true, force: true });
                     console.log("✅ Session files cleared successfully");
                     console.log("📱 You will need to scan a new QR code");
                   }
-                  
+
                   if (fs.existsSync(STORE_FILE)) {
                     fs.rmSync(STORE_FILE, { force: true });
                     console.log("✅ Message store cleared");
                   }
-                  
+
                   // Reset repair flag for future
                   softRepairAttempted = false;
                 } catch (clearError) {
-                  console.error("❌ Error during full reset:", clearError.message);
+                  console.error(
+                    "❌ Error during full reset:",
+                    clearError.message
+                  );
                 }
               }
             }
-            
+
             // Clear the interval to prevent multiple reconnect attempts
             if (messageHandlerHealthCheckInterval) {
               clearInterval(messageHandlerHealthCheckInterval);
               messageHandlerHealthCheckInterval = null;
             }
-            
+
             // Use centralized forceReconnect function
             await forceReconnect(reason);
             return; // Exit this interval callback
           }
-          
+
           // Warning at 5 minutes (before auto-reconnect at 8 min)
           if (timeSinceLastMessage > 5 * 60 * 1000 && hasReceivedFirstMessage) {
-            console.warn(`⚠️ [WARNING] No messages in ${minutesSinceLastMessage} minutes. Auto-reconnect at 8 minutes.`);
+            console.warn(
+              `⚠️ [WARNING] No messages in ${minutesSinceLastMessage} minutes. Auto-reconnect at 8 minutes.`
+            );
           }
         }, 2 * 60 * 1000); // Check every 2 minutes
 
-        console.log("✅ Auto-reconnect health monitor initialized (triggers at 8min stale / 15min no messages)");
+        console.log(
+          "✅ Auto-reconnect health monitor initialized (triggers at 8min stale / 15min no messages)"
+        );
       }
     });
 
@@ -2216,7 +2397,9 @@ async function initializeBot() {
       totalMessagesProcessed++;
 
       console.log(
-        `🔔 [${new Date().toISOString()}] messages.upsert #${totalMessagesProcessed} - Messages count: ${messages.length}`
+        `🔔 [${new Date().toISOString()}] messages.upsert #${totalMessagesProcessed} - Messages count: ${
+          messages.length
+        }`
       );
 
       // ============================================
@@ -2232,7 +2415,9 @@ async function initializeBot() {
       // 🛡️ CONNECTION VALIDATION - Check before processing
       // ============================================
       if (connectionStatus !== "connected") {
-        console.warn(`⚠️ [HEALTH] Ignoring message - connection status: ${connectionStatus}`);
+        console.warn(
+          `⚠️ [HEALTH] Ignoring message - connection status: ${connectionStatus}`
+        );
         return;
       }
 
@@ -2244,613 +2429,651 @@ async function initializeBot() {
       // Process ALL messages, not just the first one
       // (Baileys may batch multiple messages in a single upsert event)
       for (const msg of messages) {
-      try {
-
-        // Log all incoming messages for debugging
-        console.log(
-          `📨 Message received - fromMe: ${
-            msg.key.fromMe
-          }, hasMessage: ${!!msg.message}, remoteJid: ${msg.key.remoteJid}`
-        );
-
-        // Skip messages without content
-        if (!msg.message) {
-          console.log(`⏩ Skipping message - no message content`);
-          continue;
-        }
-
-        const messageText =
-          msg.message.conversation ||
-          msg.message.extendedTextMessage?.text ||
-          msg.message?.imageMessage?.caption ||
-          msg.message?.videoMessage?.caption ||
-          null;
-
-        // Check if it's media without text (voice, image without caption, video without caption, sticker, document, etc.)
-        const isMediaOnly =
-          !messageText &&
-          (msg.message?.audioMessage ||
-            msg.message?.imageMessage ||
-            msg.message?.videoMessage ||
-            msg.message?.documentMessage ||
-            msg.message?.stickerMessage ||
-            msg.message?.contactMessage ||
-            msg.message?.locationMessage);
-
-        const from = msg.key.remoteJid;
-
-        // Extract sender name (pushName) from WhatsApp
-        const senderName = msg.pushName || msg.verifiedBisName || "Unknown";
-
-        // Extract sender phone number
-        const senderJid = msg.key.participant || msg.key.remoteJid || null;
-        // Extract actual phone number from JID (e.g., "240917902585982@lid" -> "240917902585982")
-        const senderPhone = senderJid ? senderJid.split("@")[0] : null;
-
-        // Extract image URL if present
-        let imageUrl = null;
-        if (msg.message?.imageMessage) {
-          imageUrl = msg.message.imageMessage;
-        }
-
-        // Accept messages from groups (@g.us) and communities (@broadcast)
-        if (!from) continue;
-
-        const isGroup = from.endsWith("@g.us");
-        const isCommunity = from.includes("@broadcast");
-        // Handle regular WhatsApp IDs (@s.whatsapp.net) and @lid (WhatsApp Business/linked devices)
-        const isPrivate =
-          from.endsWith("@s.whatsapp.net") || from.endsWith("@lid");
-        const isLid = from.endsWith("@lid");
-
-        // ============================================
-        // 🚫 IGNORE STATUS & UNWANTED BROADCASTS
-        // ============================================
-        // Filter out status@broadcast (WhatsApp statuses)
-        if (from === "status@broadcast" || from.startsWith("status@")) {
-          console.log(`⏭️ Ignoring status broadcast message`);
-          continue; // Completely ignore WhatsApp status messages
-        }
-
-        // Filter out ALL broadcast channels except groups and private chats
-        // You can whitelist specific broadcast channels here if needed
-        if (isCommunity && !isGroup && !isPrivate) {
-          console.log(`⏭️ Ignoring broadcast channel: ${from}`);
-          continue; // Ignore all broadcast channels (communities) - only process groups and private chats
-        }
-
-        // ============================================
-        // PRIVATE CHAT SYSTEM - Handle all private messages
-        // ============================================
-        if (isPrivate && (messageText || isMediaOnly)) {
+        try {
+          // Log all incoming messages for debugging
           console.log(
-            `💬 Private message from: ${senderName} (${senderPhone}), JID: ${from}`
+            `📨 Message received - fromMe: ${
+              msg.key.fromMe
+            }, hasMessage: ${!!msg.message}, remoteJid: ${msg.key.remoteJid}`
           );
 
-          try {
-            const phoneNumber = privateChatService.extractPhoneNumber(from);
-            console.log(`📱 Extracted phone number: ${phoneNumber}`);
+          // Skip messages without content
+          if (!msg.message) {
+            console.log(`⏩ Skipping message - no message content`);
+            continue;
+          }
 
+          const messageText =
+            msg.message.conversation ||
+            msg.message.extendedTextMessage?.text ||
+            msg.message?.imageMessage?.caption ||
+            msg.message?.videoMessage?.caption ||
+            null;
 
-            // ============================================
-            // 🔒 ADMIN-ONLY MODE - Only respond to admins
-            // ============================================
-            // NOTE: The bot cannot see messages sent from its own WhatsApp account
-            // So we use admin numbers from adminCommandService instead
-            const isAdmin = adminCommandService.isAdmin(from);
+          // Check if it's media without text (voice, image without caption, video without caption, sticker, document, etc.)
+          const isMediaOnly =
+            !messageText &&
+            (msg.message?.audioMessage ||
+              msg.message?.imageMessage ||
+              msg.message?.videoMessage ||
+              msg.message?.documentMessage ||
+              msg.message?.stickerMessage ||
+              msg.message?.contactMessage ||
+              msg.message?.locationMessage);
 
-            // ✋ If not an admin, ignore silently (don't respond to non-admins)
-            if (!isAdmin) {
-              if (isLid) {
-                console.log(`🔗 Unregistered LID message ignored: ${from}`);
-              } else {
-                console.log(
-                  `🚫 Message ignored - sender is not an admin: ${senderName} (${senderPhone})`
-                );
-              }
-              continue; // Don't respond to non-admins
-            }
+          const from = msg.key.remoteJid;
 
+          // Extract sender name (pushName) from WhatsApp
+          const senderName = msg.pushName || msg.verifiedBisName || "Unknown";
+
+          // Extract sender phone number
+          const senderJid = msg.key.participant || msg.key.remoteJid || null;
+          // Extract actual phone number from JID (e.g., "240917902585982@lid" -> "240917902585982")
+          const senderPhone = senderJid ? senderJid.split("@")[0] : null;
+
+          // Extract image URL if present
+          let imageUrl = null;
+          if (msg.message?.imageMessage) {
+            imageUrl = msg.message.imageMessage;
+          }
+
+          // Accept messages from groups (@g.us) and communities (@broadcast)
+          if (!from) continue;
+
+          const isGroup = from.endsWith("@g.us");
+          const isCommunity = from.includes("@broadcast");
+          // Handle regular WhatsApp IDs (@s.whatsapp.net) and @lid (WhatsApp Business/linked devices)
+          const isPrivate =
+            from.endsWith("@s.whatsapp.net") || from.endsWith("@lid");
+          const isLid = from.endsWith("@lid");
+
+          // ============================================
+          // 🚫 IGNORE STATUS & UNWANTED BROADCASTS
+          // ============================================
+          // Filter out status@broadcast (WhatsApp statuses)
+          if (from === "status@broadcast" || from.startsWith("status@")) {
+            console.log(`⏭️ Ignoring status broadcast message`);
+            continue; // Completely ignore WhatsApp status messages
+          }
+
+          // Filter out ALL broadcast channels except groups and private chats
+          // You can whitelist specific broadcast channels here if needed
+          if (isCommunity && !isGroup && !isPrivate) {
+            console.log(`⏭️ Ignoring broadcast channel: ${from}`);
+            continue; // Ignore all broadcast channels (communities) - only process groups and private chats
+          }
+
+          // ============================================
+          // PRIVATE CHAT SYSTEM - Handle all private messages
+          // ============================================
+          if (isPrivate && (messageText || isMediaOnly)) {
             console.log(
-              `✅ Admin message detected from: ${senderName} (${senderPhone})`
+              `💬 Private message from: ${senderName} (${senderPhone}), JID: ${from}`
             );
 
-            // Admin commands to control bot responses (with confirmation)
-            if (messageText) {
-              const command = messageText.trim();
-              const commandParts = command.split(/\s+/);
-              const rawMain = commandParts[0] || "";
-              const mainCommand = rawMain.replace(
-                /[^\u0600-\u06FFa-zA-Z]/g,
-                ""
-              );
+            try {
+              const phoneNumber = privateChatService.extractPhoneNumber(from);
+              console.log(`📱 Extracted phone number: ${phoneNumber}`);
 
-              // First check if admin is confirming or cancelling a pending action
-              const bare = command
-                .replace(/[^\u0600-\u06FFa-zA-Z]/g, "")
-                .toLowerCase();
-              const confirmWords = [
-                "تأكيد",
-                "تأكيداً",
-                "نعم",
-                "confirm",
-                "yes",
-                "موافق",
-                "ok",
-              ];
-              const cancelWords = ["الغاء", "الغاءً", "إلغاء", "لا", "cancel"];
+              // ============================================
+              // 🔒 ADMIN-ONLY MODE - Only respond to admins
+              // ============================================
+              // NOTE: The bot cannot see messages sent from its own WhatsApp account
+              // So we use admin numbers from adminCommandService instead
+              const isAdmin = adminCommandService.isAdmin(from);
 
-              if (pendingActions[from]) {
-                if (confirmWords.includes(bare)) {
-                  const action = pendingActions[from];
-                  delete pendingActions[from];
-
-                  // Perform the pending action now
-                  if (action.type === "stop") {
-                    let successCount = 0;
-                    let alreadyBlockedCount = 0;
-                    const blockedList = [];
-                    for (const targetPhone of action.phones) {
-                      const client = privateClientModel.getClient(targetPhone);
-                      if (client.botBlocked) {
-                        alreadyBlockedCount++;
-                      } else {
-                        privateClientModel.updateClient(targetPhone, {
-                          botBlocked: true,
-                          botBlockedAt: Date.now(),
-                          botBlockedBy: from,
-                        });
-                        successCount++;
-                        blockedList.push(`📱 +${targetPhone}`);
-                      }
-                    }
-                    let responseMsg = "";
-                    if (successCount > 0) {
-                      responseMsg += `✅ تم إيقاف البوت عن الرد مع ${successCount} عميل:\n\n`;
-                      responseMsg += blockedList.join("\n");
-                      responseMsg += `\n\n💬 الآن يمكنك التحدث مباشرة مع العملاء\n\nلإعادة التشغيل، أرسل: تشغيل`;
-                    }
-                    if (alreadyBlockedCount > 0) {
-                      if (responseMsg) responseMsg += "\n\n";
-                      responseMsg += `⚠️ ${alreadyBlockedCount} عميل كان موقوفاً بالفعل`;
-                    }
-                    await sendMessage(
-                      from,
-                      responseMsg || "✅ لا تغييرات مطلوبة"
-                    );
-                    return;
-                  } else if (action.type === "start") {
-                    let successCount = 0;
-                    let notBlockedCount = 0;
-                    const unblockedList = [];
-                    for (const targetPhone of action.phones) {
-                      const targetClient =
-                        privateClientModel.getClient(targetPhone);
-                      if (targetClient.botBlocked) {
-                        privateClientModel.updateClient(targetPhone, {
-                          botBlocked: false,
-                          botBlockedAt: null,
-                          botBlockedBy: null,
-                        });
-                        successCount++;
-                        unblockedList.push(
-                          `📱 +${targetPhone} (${
-                            targetClient.name || "غير محدد"
-                          })`
-                        );
-                      } else {
-                        notBlockedCount++;
-                      }
-                    }
-                    let responseMsg = "";
-                    if (successCount > 0) {
-                      responseMsg += `✅ تم تشغيل البوت مع ${successCount} عميل:\n\n`;
-                      responseMsg += unblockedList.join("\n");
-                      responseMsg += `\n\n🤖 البوت سيستأنف الردود التلقائية الآن`;
-                    }
-                    if (notBlockedCount > 0) {
-                      if (responseMsg) responseMsg += "\n\n";
-                      responseMsg += `⚠️ ${notBlockedCount} عميل لم يكن موقوفاً`;
-                    }
-                    await sendMessage(
-                      from,
-                      responseMsg || "✅ لا تغييرات مطلوبة"
-                    );
-                    return;
-                  } else if (action.type === "waseet") {
-                    let successCount = 0;
-                    let alreadyWaseetCount = 0;
-                    const waseetList = [];
-                    for (const targetPhone of action.phones) {
-                      const client = privateClientModel.getClient(targetPhone);
-                      if (client.isWaseet) {
-                        alreadyWaseetCount++;
-                      } else {
-                        privateClientModel.updateClient(targetPhone, {
-                          isWaseet: true,
-                          waseetAddedAt: Date.now(),
-                          waseetAddedBy: from,
-                        });
-                        successCount++;
-                        waseetList.push(
-                          `📱 +${targetPhone} (${client.name || "غير محدد"})`
-                        );
-                      }
-                    }
-                    let responseMsg = "";
-                    if (successCount > 0) {
-                      responseMsg += `✅ تم إضافة ${successCount} وسيط جديد:\n\n`;
-                      responseMsg += waseetList.join("\n");
-                    }
-                    if (alreadyWaseetCount > 0) {
-                      if (responseMsg) responseMsg += "\n\n";
-                      responseMsg += `⚠️ ${alreadyWaseetCount} عميل كان وسيطاً بالفعل`;
-                    }
-                    await sendMessage(
-                      from,
-                      responseMsg || "✅ لا تغييرات مطلوبة"
-                    );
-                    return;
-                  }
-                }
-
-                if (cancelWords.includes(bare)) {
-                  delete pendingActions[from];
-                  await sendMessage(from, "❌ تم إلغاء العملية.");
-                  return;
-                }
-              }
-
-              // If no pending action or not a confirmation, parse the admin command and prepare an action
-              // Extract phone numbers more flexibly (supports spaces/dashes/parentheses)
-              const targetPhones = extractAndNormalizePhoneNumbers(command);
-
-              console.log(
-                `🔍 DEBUG - Admin command: ${mainCommand}, extracted phones: ${targetPhones.join(
-                  ", "
-                )}`
-              );
-
-              if (mainCommand === "ايقاف" || mainCommand === "توقف") {
-                if (targetPhones.length === 0) {
-                  await sendMessage(
-                    from,
-                    `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتوقف +966508007053\n\nأو عدة أرقام:\nتوقف\n+966508007053\n+966508007054\n+966508007055`
-                  );
-                  return;
-                }
-
-                // Ask for confirmation before applying
-                pendingActions[from] = {
-                  type: "stop",
-                  phones: targetPhones,
-                  createdAt: Date.now(),
-                };
-                const display = targetPhones
-                  .map(formatPhoneForDisplay)
-                  .join("\n");
-                await sendMessage(
-                  from,
-                  `🛑 طلب إيقاف البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
-                );
-                return;
-              } else if (mainCommand === "تشغيل" || mainCommand === "تفعيل") {
-                if (targetPhones.length === 0) {
-                  await sendMessage(
-                    from,
-                    `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتشغيل +966508007053\n\nأو عدة أرقام:\nتشغيل\n+966508007053\n+966508007054\n+966508007055`
-                  );
-                  return;
-                }
-                pendingActions[from] = {
-                  type: "start",
-                  phones: targetPhones,
-                  createdAt: Date.now(),
-                };
-                const display = targetPhones
-                  .map(formatPhoneForDisplay)
-                  .join("\n");
-                await sendMessage(
-                  from,
-                  `✅ طلب تشغيل البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
-                );
-                return;
-              } else if (mainCommand === "وسيط" || mainCommand === "وسطاء") {
-                if (targetPhones.length === 0) {
-                  await sendMessage(
-                    from,
-                    `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nوسيط +966508007053\n\nأو عدة أرقام:\nوسيط\n+966508007053\n+966508007054\n+966508007055`
-                  );
-                  return;
-                }
-                pendingActions[from] = {
-                  type: "waseet",
-                  phones: targetPhones,
-                  createdAt: Date.now(),
-                };
-                const display = targetPhones
-                  .map(formatPhoneForDisplay)
-                  .join("\n");
-                await sendMessage(
-                  from,
-                  `🤝 طلب إضافة وسطاء للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
-                );
-                return;
-              }
-            }
-
-            // ============================================
-            // ADMIN COMMANDS - Check if other admin commands
-            // ============================================
-            const adminResponse = await adminCommandService.handleAdminCommand(
-              sock,
-              messageText,
-              from
-            );
-
-            // If it's an admin command, send response and return
-            if (adminResponse) {
-              await sendMessage(from, adminResponse);
-              console.log(`✅ Admin command executed by ${senderName}`);
-              return;
-            }
-
-            // ============================================
-            // WASEET (وسيط) DETECTION - Filter messages before dashboard
-            // ============================================
-            if (waseetDetector.isWaseet(from)) {
-              console.log(`🔍 Message from waseet: ${senderName}`);
-
-              // Skip media-only messages
-              if (isMediaOnly && !messageText) {
-                console.log(
-                  `⏭️ Ignoring media-only message from waseet ${senderName}`
-                );
-                return;
-              }
-
-              // Stage 1: Quick local check (FREE - no tokens)
-              if (!waseetDetector.isLikelyAd(messageText)) {
-                console.log(
-                  `❌ Not likely an ad from waseet ${senderName}, ignoring...`
-                );
-                return; // Don't send to dashboard or AI
-              }
-
-              // Stage 2: Only use AI if it passes basic check
-              console.log(
-                `✅ Potential ad from waseet ${senderName}, processing with AI...`
-              );
-
-              // Process through AI
-              const aiResult = await processMessage(messageText);
-
-              console.log(
-                `🔍 AI Result for waseet: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`
-              );
-
-              // If not confirmed as ad, ignore
-              if (!aiResult.isAd) {
-                console.log(
-                  `❌ AI confirmed not an ad from waseet ${senderName} (confidence: ${aiResult.confidence}%)`
-                );
-                return;
-              }
-
-              // ✅ Confirmed ad from waseet - Add to dashboard
-              console.log(
-                `✅ Confirmed ad from waseet ${senderName}, adding to dashboard...`
-              );
-
-              // Create ad object (similar to group ads)
-              const normalized = normalizeText(messageText);
-              const ad = {
-                id: `${Date.now()}_${Math.floor(Math.random() * 10000)}`,
-                text: messageText,
-                enhancedText: aiResult.enhancedText,
-                normalizedText: normalized,
-                fromGroup: from,
-                fromGroupName: `وسيط: ${senderName}`,
-                author: from,
-                senderName: senderName,
-                senderPhone: senderPhone,
-                imageUrl: imageUrl,
-                messageKey: msg.key,
-                timestamp: Date.now(),
-                status: "new",
-                category: aiResult.category || null,
-                aiConfidence: aiResult.confidence,
-                aiReason: aiResult.reason,
-                improvements: aiResult.improvements || [],
-                isEdited: false,
-                meta: aiResult.meta || {},
-                wpData: aiResult.wpData || null,
-                whatsappMessage: aiResult.whatsappMessage || null,
-                source: "waseet", // Mark as waseet ad
-              };
-
-              ads.unshift(ad);
-              if (ads.length > 1000) ads = ads.slice(0, 1000);
-              saveAds();
-
-              // Increment ad counter for this waseet
-              waseetDetector.incrementAdCount(from);
-
-              console.log(
-                `✨ Waseet ad saved successfully! ID: ${ad.id}, From: ${senderName}`
-              );
-
-              // Check if auto-approve is enabled and auto-post to WordPress
-              const settings = getSettings();
-              if (settings.autoApproveWordPress === true && ad.wpData) {
-                console.log(
-                  "🚀 Auto-approve enabled, posting waseet ad to WordPress automatically..."
-                );
-
-                // Auto-post to WordPress using the SAME function as manual posting
-                (async () => {
-                  try {
-                    // Import the WordPress posting function from routes
-                    const { postAdToWordPress } = require("../routes/bot");
-
-                    console.log(
-                      "🔵 Starting WordPress auto-post for waseet ad using manual function..."
-                    );
-                    console.log("🔵 Ad ID:", ad.id);
-
-                    // Call the same function used for manual posting
-                    const result = await postAdToWordPress(
-                      ad,
-                      sock,
-                      ad.wpData,
-                      false
-                    );
-
-                    if (result.success) {
-                      console.log(
-                        "✅ ✅ ✅ Waseet ad auto-posted to WordPress successfully! ✅ ✅ ✅"
-                      );
-                      console.log("📌 Post ID:", result.wordpressPost.id);
-                      console.log("📌 Short Link:", result.wordpressPost.link);
-
-                      // Update ad status to "accepted" (not "posted")
-                      ad.status = "accepted";
-                      ad.wordpressPostId = result.wordpressPost.id;
-                      ad.wordpressUrl = result.wordpressPost.link;
-                      ad.wordpressFullUrl = result.wordpressPost.fullLink;
-                      ad.whatsappMessage = result.whatsappMessage;
-                      ad.wpData = result.extractedData;
-
-                      // Save updated ad
-                      saveAds();
-                      console.log(
-                        "✅ Waseet ad updated with WordPress info and marked as accepted"
-                      );
-                    } else {
-                      console.error(
-                        "❌ WordPress posting returned unsuccessful result"
-                      );
-                    }
-                  } catch (error) {
-                    console.error(
-                      "❌ ❌ ❌ Error during waseet auto-post to WordPress ❌ ❌ ❌"
-                    );
-                    console.error("Error message:", error.message);
-                    console.error(
-                      "Error details:",
-                      error.response?.data || error
-                    );
-                  }
-                })();
-              }
-
-              // Send confirmation to waseet
-              await sendMessage(
-                from,
-                `✅ تم استلام إعلانك بنجاح وإضافته إلى قائمة الانتظار.\n\n📊 التصنيف: ${
-                  aiResult.category || "غير محدد"
-                }\n🎯 الدقة: ${aiResult.confidence}%\n\nشكراً لك! 🙏`
-              );
-
-              return; // Don't process through regular private chat system
-            }
-
-            // ============================================
-            // REGULAR PRIVATE CHAT - For admins only
-            // ============================================
-            const privateClientModel = require("../models/privateClient");
-
-            // Get client to check state
-            const clientData = privateClientModel.getClient(phoneNumber);
-
-            // If it's media only without text, handle based on state
-            if (isMediaOnly && !messageText) {
-              console.log(`📎 Media-only message detected from: ${senderName}`);
-
-              // Only warn if waiting for name or awaiting_requirements (when text is needed)
-              const needsTextInput =
-                clientData.state === "awaiting_name" ||
-                clientData.state === "awaiting_requirements";
-
-              if (needsTextInput) {
-                // Check if we already warned this user about media (use a flag in client object)
-                if (!clientData.mediaWarningShown) {
-                  await sendMessage(
-                    from,
-                    "عذراً، لا أستطيع معالجة الرسائل الصوتية أو الوسائط بدون نص حالياً. 📎\n\nمن فضلك اكتب رسالة نصية، أو تواصل معنا مباشرة:\n📱 *0508001475*"
-                  );
-                  // Mark that we've shown the warning
-                  privateClientModel.updateClient(phoneNumber, {
-                    mediaWarningShown: true,
-                  });
+              // ✋ If not an admin, ignore silently (don't respond to non-admins)
+              if (!isAdmin) {
+                if (isLid) {
+                  console.log(`🔗 Unregistered LID message ignored: ${from}`);
                 } else {
                   console.log(
-                    `⏭️ Already warned about media, ignoring subsequent media from ${senderName}`
+                    `🚫 Message ignored - sender is not an admin: ${senderName} (${senderPhone})`
                   );
                 }
-              } else {
-                // In other states (completed, awaiting_role, etc.), just ignore media silently
-                console.log(`⏭️ Media ignored in state: ${clientData.state}`);
+                continue; // Don't respond to non-admins
               }
-              return;
+
+              console.log(
+                `✅ Admin message detected from: ${senderName} (${senderPhone})`
+              );
+
+              // Admin commands to control bot responses (with confirmation)
+              if (messageText) {
+                const command = messageText.trim();
+                const commandParts = command.split(/\s+/);
+                const rawMain = commandParts[0] || "";
+                const mainCommand = rawMain.replace(
+                  /[^\u0600-\u06FFa-zA-Z]/g,
+                  ""
+                );
+
+                // First check if admin is confirming or cancelling a pending action
+                const bare = command
+                  .replace(/[^\u0600-\u06FFa-zA-Z]/g, "")
+                  .toLowerCase();
+                const confirmWords = [
+                  "تأكيد",
+                  "تأكيداً",
+                  "نعم",
+                  "confirm",
+                  "yes",
+                  "موافق",
+                  "ok",
+                ];
+                const cancelWords = [
+                  "الغاء",
+                  "الغاءً",
+                  "إلغاء",
+                  "لا",
+                  "cancel",
+                ];
+
+                if (pendingActions[from]) {
+                  if (confirmWords.includes(bare)) {
+                    const action = pendingActions[from];
+                    delete pendingActions[from];
+
+                    // Perform the pending action now
+                    if (action.type === "stop") {
+                      let successCount = 0;
+                      let alreadyBlockedCount = 0;
+                      const blockedList = [];
+                      for (const targetPhone of action.phones) {
+                        const client =
+                          privateClientModel.getClient(targetPhone);
+                        if (client.botBlocked) {
+                          alreadyBlockedCount++;
+                        } else {
+                          privateClientModel.updateClient(targetPhone, {
+                            botBlocked: true,
+                            botBlockedAt: Date.now(),
+                            botBlockedBy: from,
+                          });
+                          successCount++;
+                          blockedList.push(`📱 +${targetPhone}`);
+                        }
+                      }
+                      let responseMsg = "";
+                      if (successCount > 0) {
+                        responseMsg += `✅ تم إيقاف البوت عن الرد مع ${successCount} عميل:\n\n`;
+                        responseMsg += blockedList.join("\n");
+                        responseMsg += `\n\n💬 الآن يمكنك التحدث مباشرة مع العملاء\n\nلإعادة التشغيل، أرسل: تشغيل`;
+                      }
+                      if (alreadyBlockedCount > 0) {
+                        if (responseMsg) responseMsg += "\n\n";
+                        responseMsg += `⚠️ ${alreadyBlockedCount} عميل كان موقوفاً بالفعل`;
+                      }
+                      await sendMessage(
+                        from,
+                        responseMsg || "✅ لا تغييرات مطلوبة"
+                      );
+                      return;
+                    } else if (action.type === "start") {
+                      let successCount = 0;
+                      let notBlockedCount = 0;
+                      const unblockedList = [];
+                      for (const targetPhone of action.phones) {
+                        const targetClient =
+                          privateClientModel.getClient(targetPhone);
+                        if (targetClient.botBlocked) {
+                          privateClientModel.updateClient(targetPhone, {
+                            botBlocked: false,
+                            botBlockedAt: null,
+                            botBlockedBy: null,
+                          });
+                          successCount++;
+                          unblockedList.push(
+                            `📱 +${targetPhone} (${
+                              targetClient.name || "غير محدد"
+                            })`
+                          );
+                        } else {
+                          notBlockedCount++;
+                        }
+                      }
+                      let responseMsg = "";
+                      if (successCount > 0) {
+                        responseMsg += `✅ تم تشغيل البوت مع ${successCount} عميل:\n\n`;
+                        responseMsg += unblockedList.join("\n");
+                        responseMsg += `\n\n🤖 البوت سيستأنف الردود التلقائية الآن`;
+                      }
+                      if (notBlockedCount > 0) {
+                        if (responseMsg) responseMsg += "\n\n";
+                        responseMsg += `⚠️ ${notBlockedCount} عميل لم يكن موقوفاً`;
+                      }
+                      await sendMessage(
+                        from,
+                        responseMsg || "✅ لا تغييرات مطلوبة"
+                      );
+                      return;
+                    } else if (action.type === "waseet") {
+                      let successCount = 0;
+                      let alreadyWaseetCount = 0;
+                      const waseetList = [];
+                      for (const targetPhone of action.phones) {
+                        const client =
+                          privateClientModel.getClient(targetPhone);
+                        if (client.isWaseet) {
+                          alreadyWaseetCount++;
+                        } else {
+                          privateClientModel.updateClient(targetPhone, {
+                            isWaseet: true,
+                            waseetAddedAt: Date.now(),
+                            waseetAddedBy: from,
+                          });
+                          successCount++;
+                          waseetList.push(
+                            `📱 +${targetPhone} (${client.name || "غير محدد"})`
+                          );
+                        }
+                      }
+                      let responseMsg = "";
+                      if (successCount > 0) {
+                        responseMsg += `✅ تم إضافة ${successCount} وسيط جديد:\n\n`;
+                        responseMsg += waseetList.join("\n");
+                      }
+                      if (alreadyWaseetCount > 0) {
+                        if (responseMsg) responseMsg += "\n\n";
+                        responseMsg += `⚠️ ${alreadyWaseetCount} عميل كان وسيطاً بالفعل`;
+                      }
+                      await sendMessage(
+                        from,
+                        responseMsg || "✅ لا تغييرات مطلوبة"
+                      );
+                      return;
+                    }
+                  }
+
+                  if (cancelWords.includes(bare)) {
+                    delete pendingActions[from];
+                    await sendMessage(from, "❌ تم إلغاء العملية.");
+                    return;
+                  }
+                }
+
+                // If no pending action or not a confirmation, parse the admin command and prepare an action
+                // Extract phone numbers more flexibly (supports spaces/dashes/parentheses)
+                const targetPhones = extractAndNormalizePhoneNumbers(command);
+
+                console.log(
+                  `🔍 DEBUG - Admin command: ${mainCommand}, extracted phones: ${targetPhones.join(
+                    ", "
+                  )}`
+                );
+
+                if (mainCommand === "ايقاف" || mainCommand === "توقف") {
+                  if (targetPhones.length === 0) {
+                    await sendMessage(
+                      from,
+                      `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتوقف +966508007053\n\nأو عدة أرقام:\nتوقف\n+966508007053\n+966508007054\n+966508007055`
+                    );
+                    return;
+                  }
+
+                  // Ask for confirmation before applying
+                  pendingActions[from] = {
+                    type: "stop",
+                    phones: targetPhones,
+                    createdAt: Date.now(),
+                  };
+                  const display = targetPhones
+                    .map(formatPhoneForDisplay)
+                    .join("\n");
+                  await sendMessage(
+                    from,
+                    `🛑 طلب إيقاف البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
+                  );
+                  return;
+                } else if (mainCommand === "تشغيل" || mainCommand === "تفعيل") {
+                  if (targetPhones.length === 0) {
+                    await sendMessage(
+                      from,
+                      `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتشغيل +966508007053\n\nأو عدة أرقام:\nتشغيل\n+966508007053\n+966508007054\n+966508007055`
+                    );
+                    return;
+                  }
+                  pendingActions[from] = {
+                    type: "start",
+                    phones: targetPhones,
+                    createdAt: Date.now(),
+                  };
+                  const display = targetPhones
+                    .map(formatPhoneForDisplay)
+                    .join("\n");
+                  await sendMessage(
+                    from,
+                    `✅ طلب تشغيل البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
+                  );
+                  return;
+                } else if (mainCommand === "وسيط" || mainCommand === "وسطاء") {
+                  if (targetPhones.length === 0) {
+                    await sendMessage(
+                      from,
+                      `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nوسيط +966508007053\n\nأو عدة أرقام:\nوسيط\n+966508007053\n+966508007054\n+966508007055`
+                    );
+                    return;
+                  }
+                  pendingActions[from] = {
+                    type: "waseet",
+                    phones: targetPhones,
+                    createdAt: Date.now(),
+                  };
+                  const display = targetPhones
+                    .map(formatPhoneForDisplay)
+                    .join("\n");
+                  await sendMessage(
+                    from,
+                    `🤝 طلب إضافة وسطاء للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
+                  );
+                  return;
+                }
+              }
+
+              // ============================================
+              // ADMIN COMMANDS - Check if other admin commands
+              // ============================================
+              const adminResponse =
+                await adminCommandService.handleAdminCommand(
+                  sock,
+                  messageText,
+                  from
+                );
+
+              // If it's an admin command, send response and return
+              if (adminResponse) {
+                await sendMessage(from, adminResponse);
+                console.log(`✅ Admin command executed by ${senderName}`);
+                return;
+              }
+
+              // ============================================
+              // WASEET (وسيط) DETECTION - Filter messages before dashboard
+              // ============================================
+              if (waseetDetector.isWaseet(from)) {
+                console.log(`🔍 Message from waseet: ${senderName}`);
+
+                // Skip media-only messages
+                if (isMediaOnly && !messageText) {
+                  console.log(
+                    `⏭️ Ignoring media-only message from waseet ${senderName}`
+                  );
+                  return;
+                }
+
+                // Stage 1: Quick local check (FREE - no tokens)
+                if (!waseetDetector.isLikelyAd(messageText)) {
+                  console.log(
+                    `❌ Not likely an ad from waseet ${senderName}, ignoring...`
+                  );
+                  return; // Don't send to dashboard or AI
+                }
+
+                // Stage 2: Only use AI if it passes basic check
+                console.log(
+                  `✅ Potential ad from waseet ${senderName}, processing with AI...`
+                );
+
+                // Process through AI
+                const aiResult = await processMessage(messageText);
+
+                console.log(
+                  `🔍 AI Result for waseet: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`
+                );
+
+                // If not confirmed as ad, ignore
+                if (!aiResult.isAd) {
+                  console.log(
+                    `❌ AI confirmed not an ad from waseet ${senderName} (confidence: ${aiResult.confidence}%)`
+                  );
+                  return;
+                }
+
+                // ✅ Confirmed ad from waseet - Add to dashboard
+                console.log(
+                  `✅ Confirmed ad from waseet ${senderName}, adding to dashboard...`
+                );
+
+                // Create ad object (similar to group ads)
+                const normalized = normalizeText(messageText);
+                const ad = {
+                  id: `${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                  text: messageText,
+                  enhancedText: aiResult.enhancedText,
+                  normalizedText: normalized,
+                  fromGroup: from,
+                  fromGroupName: `وسيط: ${senderName}`,
+                  author: from,
+                  senderName: senderName,
+                  senderPhone: senderPhone,
+                  imageUrl: imageUrl,
+                  messageKey: msg.key,
+                  timestamp: Date.now(),
+                  status: "new",
+                  category: aiResult.category || null,
+                  aiConfidence: aiResult.confidence,
+                  aiReason: aiResult.reason,
+                  improvements: aiResult.improvements || [],
+                  isEdited: false,
+                  meta: aiResult.meta || {},
+                  wpData: aiResult.wpData || null,
+                  whatsappMessage: aiResult.whatsappMessage || null,
+                  source: "waseet", // Mark as waseet ad
+                };
+
+                ads.unshift(ad);
+                if (ads.length > 1000) ads = ads.slice(0, 1000);
+                saveAds();
+
+                // Increment ad counter for this waseet
+                waseetDetector.incrementAdCount(from);
+
+                console.log(
+                  `✨ Waseet ad saved successfully! ID: ${ad.id}, From: ${senderName}`
+                );
+
+                // Check if auto-approve is enabled and auto-post to WordPress
+                const settings = getSettings();
+                if (settings.autoApproveWordPress === true && ad.wpData) {
+                  console.log(
+                    "🚀 Auto-approve enabled, posting waseet ad to WordPress automatically..."
+                  );
+
+                  // Auto-post to WordPress using the SAME function as manual posting
+                  (async () => {
+                    try {
+                      // Import the WordPress posting function from routes
+                      const { postAdToWordPress } = require("../routes/bot");
+
+                      console.log(
+                        "🔵 Starting WordPress auto-post for waseet ad using manual function..."
+                      );
+                      console.log("🔵 Ad ID:", ad.id);
+
+                      // Call the same function used for manual posting
+                      const result = await postAdToWordPress(
+                        ad,
+                        sock,
+                        ad.wpData,
+                        false
+                      );
+
+                      if (result.success) {
+                        console.log(
+                          "✅ ✅ ✅ Waseet ad auto-posted to WordPress successfully! ✅ ✅ ✅"
+                        );
+                        console.log("📌 Post ID:", result.wordpressPost.id);
+                        console.log(
+                          "📌 Short Link:",
+                          result.wordpressPost.link
+                        );
+
+                        // Update ad status to "accepted" (not "posted")
+                        ad.status = "accepted";
+                        ad.wordpressPostId = result.wordpressPost.id;
+                        ad.wordpressUrl = result.wordpressPost.link;
+                        ad.wordpressFullUrl = result.wordpressPost.fullLink;
+                        ad.whatsappMessage = result.whatsappMessage;
+                        ad.wpData = result.extractedData;
+
+                        // Save updated ad
+                        saveAds();
+                        console.log(
+                          "✅ Waseet ad updated with WordPress info and marked as accepted"
+                        );
+                      } else {
+                        console.error(
+                          "❌ WordPress posting returned unsuccessful result"
+                        );
+                      }
+                    } catch (error) {
+                      console.error(
+                        "❌ ❌ ❌ Error during waseet auto-post to WordPress ❌ ❌ ❌"
+                      );
+                      console.error("Error message:", error.message);
+                      console.error(
+                        "Error details:",
+                        error.response?.data || error
+                      );
+                    }
+                  })();
+                }
+
+                // Send confirmation to waseet
+                await sendMessage(
+                  from,
+                  `✅ تم استلام إعلانك بنجاح وإضافته إلى قائمة الانتظار.\n\n📊 التصنيف: ${
+                    aiResult.category || "غير محدد"
+                  }\n🎯 الدقة: ${aiResult.confidence}%\n\nشكراً لك! 🙏`
+                );
+
+                return; // Don't process through regular private chat system
+              }
+
+              // ============================================
+              // REGULAR PRIVATE CHAT - For admins only
+              // ============================================
+              const privateClientModel = require("../models/privateClient");
+
+              // Get client to check state
+              const clientData = privateClientModel.getClient(phoneNumber);
+
+              // If it's media only without text, handle based on state
+              if (isMediaOnly && !messageText) {
+                console.log(
+                  `📎 Media-only message detected from: ${senderName}`
+                );
+
+                // Only warn if waiting for name or awaiting_requirements (when text is needed)
+                const needsTextInput =
+                  clientData.state === "awaiting_name" ||
+                  clientData.state === "awaiting_requirements";
+
+                if (needsTextInput) {
+                  // Check if we already warned this user about media (use a flag in client object)
+                  if (!clientData.mediaWarningShown) {
+                    await sendMessage(
+                      from,
+                      "عذراً، لا أستطيع معالجة الرسائل الصوتية أو الوسائط بدون نص حالياً. 📎\n\nمن فضلك اكتب رسالة نصية، أو تواصل معنا مباشرة:\n📱 *0508001475*"
+                    );
+                    // Mark that we've shown the warning
+                    privateClientModel.updateClient(phoneNumber, {
+                      mediaWarningShown: true,
+                    });
+                  } else {
+                    console.log(
+                      `⏭️ Already warned about media, ignoring subsequent media from ${senderName}`
+                    );
+                  }
+                } else {
+                  // In other states (completed, awaiting_role, etc.), just ignore media silently
+                  console.log(`⏭️ Media ignored in state: ${clientData.state}`);
+                }
+                return;
+              }
+
+              // Reset media warning flag when user sends text (they're following instructions now)
+              if (messageText && clientData.mediaWarningShown) {
+                privateClientModel.updateClient(phoneNumber, {
+                  mediaWarningShown: false,
+                });
+              }
+
+              // Create sendReply function that uses sendMessage
+              const sendReply = async (message) => {
+                await sendMessage(from, message);
+              };
+
+              // Create sendImageReply function that uses sendImage
+              const sendImageReply = async (imageData, caption) => {
+                await sendImage(from, imageData, caption);
+              };
+
+              // Handle the private message with the conversation system
+              await privateChatService.handlePrivateMessage(
+                phoneNumber,
+                messageText,
+                sendReply,
+                sendImageReply
+              );
+
+              console.log(`✅ Private chat response sent to ${senderName}`);
+              continue; // Don't process through regular private chat system
+            } catch (error) {
+              console.error("❌ Private chat system error:", error);
+              await sendMessage(
+                from,
+                "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى لاحقاً. 🙏"
+              );
             }
-
-            // Reset media warning flag when user sends text (they're following instructions now)
-            if (messageText && clientData.mediaWarningShown) {
-              privateClientModel.updateClient(phoneNumber, {
-                mediaWarningShown: false,
-              });
-            }
-
-            // Create sendReply function that uses sendMessage
-            const sendReply = async (message) => {
-              await sendMessage(from, message);
-            };
-
-            // Create sendImageReply function that uses sendImage
-            const sendImageReply = async (imageData, caption) => {
-              await sendImage(from, imageData, caption);
-            };
-
-            // Handle the private message with the conversation system
-            await privateChatService.handlePrivateMessage(
-              phoneNumber,
-              messageText,
-              sendReply,
-              sendImageReply
-            );
-
-            console.log(`✅ Private chat response sent to ${senderName}`);
-            continue; // Don't process through regular private chat system
-          } catch (error) {
-            console.error("❌ Private chat system error:", error);
-            await sendMessage(
-              from,
-              "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى لاحقاً. 🙏"
-            );
           }
-        }
 
-        // ============================================
-        // ORIGINAL AD PROCESSING - Only for groups
-        // ============================================
-        if (!isGroup) continue; // Only process groups (@g.us) for ads, ignore everything else
+          // ============================================
+          // ORIGINAL AD PROCESSING - Only for groups
+          // ============================================
+          if (!isGroup) continue; // Only process groups (@g.us) for ads, ignore everything else
 
-        // ============================================
-        // CHECK EXCLUDED GROUPS - Skip if excluded
-        // ============================================
-        if (settings.excludedGroups && settings.excludedGroups.includes(from)) {
-          console.log(`⏭️ Skipping excluded group: ${from}`);
-          // Still save the group metadata but don't process messages
+          // ============================================
+          // CHECK EXCLUDED GROUPS - Skip if excluded
+          // ============================================
+          if (
+            settings.excludedGroups &&
+            settings.excludedGroups.includes(from)
+          ) {
+            console.log(`⏭️ Skipping excluded group: ${from}`);
+            // Still save the group metadata but don't process messages
+            seenGroups.add(from);
+
+            // Try to get group/community subject (best-effort)
+            try {
+              const metadata = await sock.groupMetadata(from).catch(() => null);
+              if (metadata && metadata.subject) {
+                groupsMetadata[from] = {
+                  jid: from,
+                  name: metadata.subject,
+                  type: isCommunity ? "Community" : "Group",
+                  isCommunity: isCommunity,
+                };
+              }
+            } catch (e) {
+              // ignore
+            }
+            continue; // Don't process messages from this group
+          }
+
+          // Save ALL groups/communities for receiving messages
           seenGroups.add(from);
 
           // Try to get group/community subject (best-effort)
+          let groupSubject = from;
           try {
             const metadata = await sock.groupMetadata(from).catch(() => null);
             if (metadata && metadata.subject) {
+              groupSubject = metadata.subject;
+              // Cache metadata for ALL groups (even if bot can't send)
               groupsMetadata[from] = {
                 jid: from,
-                name: metadata.subject,
+                name: groupSubject,
                 type: isCommunity ? "Community" : "Group",
                 isCommunity: isCommunity,
               };
@@ -2858,73 +3081,61 @@ async function initializeBot() {
           } catch (e) {
             // ignore
           }
-          continue; // Don't process messages from this group
-        }
 
-        // Save ALL groups/communities for receiving messages
-        seenGroups.add(from);
+          if (!messageText) return;
 
-        // Try to get group/community subject (best-effort)
-        let groupSubject = from;
-        try {
-          const metadata = await sock.groupMetadata(from).catch(() => null);
-          if (metadata && metadata.subject) {
-            groupSubject = metadata.subject;
-            // Cache metadata for ALL groups (even if bot can't send)
-            groupsMetadata[from] = {
-              jid: from,
-              name: groupSubject,
-              type: isCommunity ? "Community" : "Group",
-              isCommunity: isCommunity,
-            };
-          }
-        } catch (e) {
-          // ignore
-        }
+          console.log(`📨 New message received from Group:`, groupSubject);
 
-        if (!messageText) return;
-
-        console.log(`📨 New message received from Group:`, groupSubject);
-
-        // Add message to queue for processing
-        messageQueue
-          .add(
-            {
-              messageText,
-              from,
-              groupSubject,
-              senderName,
-              senderPhone,
-              imageUrl,
-              participant: msg.key.participant,
-              remoteJid: msg.key.remoteJid,
-            },
-            processMessageFromQueue
-          )
-          .catch((error) => {
-            console.error("❌ Failed to process message from queue:", error);
-          });
-      } catch (error) {
-        messageHandlerErrors++;
-        console.error("❌ ============================================");
-        console.error(`❌ CRITICAL ERROR in message handler (error #${messageHandlerErrors})`);
-        console.error(`❌ Time: ${new Date().toISOString()}`);
-        console.error(`❌ Error:`, error.message || error);
-        console.error(`❌ Stack:`, error.stack);
-        console.error("❌ ============================================");
-
-        // Try to notify admin about critical failures (every 5th error to avoid spam)
-        if (messageHandlerErrors % 5 === 1 && sock && connectionStatus === "connected") {
-          try {
-            await sock.sendMessage(ADMIN_NOTIFICATION_JID, {
-              text: `⚠️ *تنبيه: خطأ في البوت*\n\n🕐 الوقت: ${new Date().toLocaleString("ar-EG", { timeZone: "Africa/Cairo" })}\n❌ الخطأ: ${error.message?.substring(0, 100) || "Unknown"}\n📊 إجمالي الأخطاء: ${messageHandlerErrors}\n\nيرجى مراجعة سجلات الخادم.`
+          // Add message to queue for processing
+          messageQueue
+            .add(
+              {
+                messageText,
+                from,
+                groupSubject,
+                senderName,
+                senderPhone,
+                imageUrl,
+                participant: msg.key.participant,
+                remoteJid: msg.key.remoteJid,
+              },
+              processMessageFromQueue
+            )
+            .catch((error) => {
+              console.error("❌ Failed to process message from queue:", error);
             });
-            console.log("📧 Admin notified about message handler error");
-          } catch (notifyError) {
-            console.error("❌ Failed to notify admin:", notifyError.message);
+        } catch (error) {
+          messageHandlerErrors++;
+          console.error("❌ ============================================");
+          console.error(
+            `❌ CRITICAL ERROR in message handler (error #${messageHandlerErrors})`
+          );
+          console.error(`❌ Time: ${new Date().toISOString()}`);
+          console.error(`❌ Error:`, error.message || error);
+          console.error(`❌ Stack:`, error.stack);
+          console.error("❌ ============================================");
+
+          // Try to notify admin about critical failures (every 5th error to avoid spam)
+          if (
+            messageHandlerErrors % 5 === 1 &&
+            sock &&
+            connectionStatus === "connected"
+          ) {
+            try {
+              await sock.sendMessage(ADMIN_NOTIFICATION_JID, {
+                text: `⚠️ *تنبيه: خطأ في البوت*\n\n🕐 الوقت: ${new Date().toLocaleString(
+                  "ar-EG",
+                  { timeZone: "Africa/Cairo" }
+                )}\n❌ الخطأ: ${
+                  error.message?.substring(0, 100) || "Unknown"
+                }\n📊 إجمالي الأخطاء: ${messageHandlerErrors}\n\nيرجى مراجعة سجلات الخادم.`,
+              });
+              console.log("📧 Admin notified about message handler error");
+            } catch (notifyError) {
+              console.error("❌ Failed to notify admin:", notifyError.message);
+            }
           }
         }
-      }
       } // End for loop over messages
     });
 
@@ -2962,32 +3173,34 @@ function getConnectionStatus() {
 function getMessageHandlerHealth() {
   const timeSinceLastMessage = Date.now() - lastMessageReceivedAt;
   const minutesSinceLastMessage = Math.floor(timeSinceLastMessage / 60000);
-  
+
   // WebSocket state info
   const wsState = getWebSocketState();
   const wsReadyState = getWebSocketReadyState();
   const isZombie = isZombieConnection();
-  
+
   // Auto-reconnect timing info (thresholds: 8 min stale, 15 min no messages)
   const hasReceivedAnyMessages = totalMessagesProcessed > 0;
   let autoReconnectStatus;
   let minutesUntilAutoReconnect;
-  
+
   if (isZombie) {
     autoReconnectStatus = "🧟 ZOMBIE CONNECTION - Reconnection pending!";
     minutesUntilAutoReconnect = 0;
   } else if (hasReceivedAnyMessages) {
     // Scenario A: Stale after working - triggers at 8 min
     minutesUntilAutoReconnect = Math.max(0, 8 - minutesSinceLastMessage);
-    autoReconnectStatus = minutesUntilAutoReconnect > 0 
-      ? `${minutesUntilAutoReconnect} min until auto-reconnect (stale threshold: 8 min)`
-      : "🚨 Auto-reconnect should trigger soon!";
+    autoReconnectStatus =
+      minutesUntilAutoReconnect > 0
+        ? `${minutesUntilAutoReconnect} min until auto-reconnect (stale threshold: 8 min)`
+        : "🚨 Auto-reconnect should trigger soon!";
   } else {
     // Scenario B: Never received - triggers at 15 min of connection
-    autoReconnectStatus = "Waiting for first message (auto-reconnect at 15 min if no messages)";
+    autoReconnectStatus =
+      "Waiting for first message (auto-reconnect at 15 min if no messages)";
     minutesUntilAutoReconnect = null;
   }
-  
+
   return {
     lastMessageReceivedAt: lastMessageReceivedAt,
     minutesSinceLastMessage: minutesSinceLastMessage,
@@ -2997,7 +3210,11 @@ function getMessageHandlerHealth() {
     autoReconnectStatus: autoReconnectStatus,
     minutesUntilAutoReconnect: minutesUntilAutoReconnect,
     // Enhanced health check with WS state
-    isHealthy: !isZombie && wsReadyState === 1 && ((hasReceivedAnyMessages && minutesSinceLastMessage < 8) || !hasReceivedAnyMessages),
+    isHealthy:
+      !isZombie &&
+      wsReadyState === 1 &&
+      ((hasReceivedAnyMessages && minutesSinceLastMessage < 8) ||
+        !hasReceivedAnyMessages),
     connectionStatus: connectionStatus,
     socketActive: !!sock,
     // NEW: WebSocket state info
@@ -3008,15 +3225,17 @@ function getMessageHandlerHealth() {
       zombieDetectionCount: zombieDetectionCount,
       lastCloseCode: webSocketCloseCode,
       lastCloseReason: webSocketCloseReason,
-      lastError: lastWebSocketError
+      lastError: lastWebSocketError,
     },
     // Ping info
     ping: {
       consecutiveFailures: consecutivePingFailures,
       maxFailures: MAX_PING_FAILURES,
       lastSuccessfulPing: lastSuccessfulPing,
-      secondsSinceLastPing: Math.floor((Date.now() - lastSuccessfulPing) / 1000)
-    }
+      secondsSinceLastPing: Math.floor(
+        (Date.now() - lastSuccessfulPing) / 1000
+      ),
+    },
   };
 }
 
@@ -3074,7 +3293,7 @@ async function sendMessage(numberOrJid, message) {
         return true;
       }
       console.log(`⏳ Waiting for connection... (${connectionStatus})`);
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     return connectionStatus === "connected" && sock;
   };
@@ -3082,7 +3301,7 @@ async function sendMessage(numberOrJid, message) {
   // Helper function to send with retry for Stream Errors
   const sendWithRetry = async (jid, messageContent, maxRetries = 3) => {
     let lastError = null;
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       // Check connection before each attempt
       if (connectionStatus !== "connected" || !sock) {
@@ -3099,30 +3318,36 @@ async function sendMessage(numberOrJid, message) {
       } catch (sendError) {
         lastError = sendError;
         const errorMsg = sendError.message || String(sendError);
-        
-        console.warn(`⚠️ Send attempt ${attempt}/${maxRetries} failed: ${errorMsg}`);
-        
+
+        console.warn(
+          `⚠️ Send attempt ${attempt}/${maxRetries} failed: ${errorMsg}`
+        );
+
         // Check if it's a retriable error
-        const isStreamError = errorMsg.includes("Stream Errored") || 
-                              errorMsg.includes("xml-not-well-formed");
-        const isConnectionError = errorMsg.includes("Connection") || 
-                                   errorMsg.includes("closed") ||
-                                   errorMsg.includes("Timed Out") ||
-                                   errorMsg.includes("timeout");
+        const isStreamError =
+          errorMsg.includes("Stream Errored") ||
+          errorMsg.includes("xml-not-well-formed");
+        const isConnectionError =
+          errorMsg.includes("Connection") ||
+          errorMsg.includes("closed") ||
+          errorMsg.includes("Timed Out") ||
+          errorMsg.includes("timeout");
         const isRetriableError = isStreamError || isConnectionError;
-        
+
         if (isRetriableError && attempt < maxRetries) {
           // Wait for connection to stabilize
           const delayMs = attempt * 3000; // 3s, 6s, 9s
           console.log(`⏳ Waiting ${delayMs}ms for connection to stabilize...`);
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-          
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+
           // Wait for reconnection if needed
           if (connectionStatus !== "connected") {
             console.log(`🔄 Waiting for reconnection before retry...`);
             const connected = await waitForConnection(20000);
             if (!connected) {
-              console.error(`❌ Connection not restored after ${attempt} attempts`);
+              console.error(
+                `❌ Connection not restored after ${attempt} attempts`
+              );
               continue; // Try again anyway
             }
             console.log(`✅ Connection restored, retrying...`);
@@ -3132,7 +3357,7 @@ async function sendMessage(numberOrJid, message) {
         }
       }
     }
-    
+
     throw lastError || new Error("Send failed after all retries");
   };
 
@@ -3214,7 +3439,9 @@ async function sendMessage(numberOrJid, message) {
           console.log(`✅ Message sent with link preview to ${jid}`);
           return; // Exit after successful send
         } catch (sendError) {
-          console.warn(`⚠️ Failed to send with link preview after retries: ${sendError.message}`);
+          console.warn(
+            `⚠️ Failed to send with link preview after retries: ${sendError.message}`
+          );
           console.warn(`⚠️ Falling back to plain text send...`);
           // Fall through to plain text send
         }
@@ -3276,7 +3503,11 @@ function updateAdStatus(id, status, rejectionReason = null) {
     ads[idx].rejectionReason = rejectionReason || "مرفوض من قبل المستخدم";
     ads[idx].rejectedAt = Date.now();
     saveAds();
-    console.log(`❌ Ad marked as rejected: ${id} - Reason: ${rejectionReason || 'Not specified'}`);
+    console.log(
+      `❌ Ad marked as rejected: ${id} - Reason: ${
+        rejectionReason || "Not specified"
+      }`
+    );
     return true;
   }
 
@@ -3291,7 +3522,7 @@ function moveAdToRecycleBin(id) {
   if (idx === -1) return false;
 
   const ad = ads[idx];
-  
+
   // Only allow moving rejected ads to recycle bin
   if (ad.status !== "rejected") {
     console.log(`⚠️ Cannot move non-rejected ad to recycle bin: ${id}`);
@@ -3817,7 +4048,9 @@ function restoreFromRecycleBin(id) {
 
   // Restore ALL ad data that was saved
   const ad = {
-    id: item.originalAdId || `ad_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+    id:
+      item.originalAdId ||
+      `ad_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
     // Basic info
     text: item.text,
     originalText: item.originalText || item.text,
@@ -3859,7 +4092,11 @@ function restoreFromRecycleBin(id) {
   recycleBin.splice(idx, 1);
   saveRecycleBin();
 
-  console.log(`♻️ Ad restored from recycle bin: ${ad.id} with all data (wpData: ${!!item.wpData}, imageUrl: ${!!item.imageUrl})`);
+  console.log(
+    `♻️ Ad restored from recycle bin: ${
+      ad.id
+    } with all data (wpData: ${!!item.wpData}, imageUrl: ${!!item.imageUrl})`
+  );
   return { success: true, ad };
 }
 
@@ -3912,12 +4149,12 @@ function reloadAds() {
  * @returns {boolean} - true if removed successfully
  */
 function removeAdImage(adId) {
-  const adIndex = ads.findIndex(a => a.id === adId);
+  const adIndex = ads.findIndex((a) => a.id === adId);
   if (adIndex === -1) {
     console.error(`❌ Ad not found: ${adId}`);
     return false;
   }
-  
+
   ads[adIndex].imageUrl = null;
   saveAds();
   console.log(`✅ Removed image from ad: ${adId}`);

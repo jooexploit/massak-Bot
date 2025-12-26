@@ -2,24 +2,30 @@
  * Scheduled WhatsApp Messages Service
  * Handles scheduling and execution of WhatsApp messages for specific dates/times
  * Timezone: Asia/Riyadh (KSA Time - UTC+3)
+ *
+ * CRITICAL FIX: Uses socketManager.getSocket() at execution time
+ * to prevent zombie connections from stale socket closures.
  */
 
 const fs = require("fs");
 const path = require("path");
 
+// CRITICAL: Import socket manager for live socket access
+const socketManager = require("../whatsapp/socketManager");
+
 // KSA Timezone
 const KSA_TIMEZONE = "Asia/Riyadh";
 
 // File path for scheduled messages
-const SCHEDULED_MESSAGES_FILE = path.join(__dirname, "..", "data", "scheduled_whatsapp_messages.json");
+const SCHEDULED_MESSAGES_FILE = path.join(
+  __dirname,
+  "..",
+  "data",
+  "scheduled_whatsapp_messages.json"
+);
 
 // Store scheduled timeouts by message ID
 const scheduledTimeouts = new Map();
-
-// Reference to WhatsApp socket and send functions
-let sock = null;
-let sendMessageFunc = null;
-let sendImageFunc = null;
 
 // ========================================
 // HELPER FUNCTIONS
@@ -77,7 +83,10 @@ function loadScheduledMessages() {
 function saveScheduledMessages(messages) {
   try {
     ensureDataDir();
-    fs.writeFileSync(SCHEDULED_MESSAGES_FILE, JSON.stringify(messages, null, 2));
+    fs.writeFileSync(
+      SCHEDULED_MESSAGES_FILE,
+      JSON.stringify(messages, null, 2)
+    );
     return true;
   } catch (err) {
     console.error("Error saving scheduled messages:", err.message);
@@ -250,6 +259,7 @@ function deleteScheduledMessage(id) {
 
 /**
  * Schedule execution of a message
+ * CRITICAL FIX: Registers timeout with socketManager for cleanup
  */
 function scheduleExecution(scheduledMessage) {
   const { id, scheduledTimestamp } = scheduledMessage;
@@ -262,17 +272,35 @@ function scheduleExecution(scheduledMessage) {
     return;
   }
 
-  console.log(`⏳ [SCHEDULED] Setting timer for ${id} (${Math.round(timeUntilMs / 60000)} minutes)`);
+  console.log(
+    `⏳ [SCHEDULED] Setting timer for ${id} (${Math.round(
+      timeUntilMs / 60000
+    )} minutes)`
+  );
 
   const timeoutId = setTimeout(() => {
+    // CRITICAL: Check connection BEFORE executing
+    if (!socketManager.isConnected()) {
+      console.log(
+        `⏸️ Scheduled message ${id} triggered but not connected, skipping`
+      );
+      scheduledTimeouts.delete(id);
+      socketManager.unregisterTimeout(`scheduled_wa_${id}`);
+      return;
+    }
     executeScheduledMessage(id);
+    scheduledTimeouts.delete(id);
+    socketManager.unregisterTimeout(`scheduled_wa_${id}`);
   }, timeUntilMs);
 
   scheduledTimeouts.set(id, timeoutId);
+  // CRITICAL: Register with socket manager for cleanup on disconnect
+  socketManager.registerTimeout(`scheduled_wa_${id}`, timeoutId);
 }
 
 /**
  * Execute a scheduled message
+ * CRITICAL FIX: Gets socket from socketManager at execution time
  */
 async function executeScheduledMessage(id) {
   const messages = loadScheduledMessages();
@@ -290,8 +318,14 @@ async function executeScheduledMessage(id) {
 
   console.log(`\n🚀 [SCHEDULED] Executing scheduled message ${id}`);
   console.log(`   📝 Message preview: ${message.message.substring(0, 50)}...`);
-  console.log(`   📆 Scheduled for: ${formatKSADate(message.scheduledTimestamp)}`);
+  console.log(
+    `   📆 Scheduled for: ${formatKSADate(message.scheduledTimestamp)}`
+  );
   console.log(`   🕐 Current time: ${formatKSADate(Date.now())}`);
+
+  // CRITICAL: Get LIVE socket and send functions from manager
+  const sock = socketManager.getSocket();
+  const sendMessageFunc = socketManager.getSendMessage();
 
   // Check if we have a socket
   if (!sock && !sendMessageFunc) {
@@ -303,20 +337,18 @@ async function executeScheduledMessage(id) {
     return;
   }
 
-  // Check connection status
-  try {
-    const { getConnectionStatus } = require("../whatsapp/bot");
-    const connectionStatus = getConnectionStatus();
-    if (connectionStatus !== "connected") {
-      console.error(`❌ [SCHEDULED] Connection status is "${connectionStatus}", marking as failed`);
-      message.status = "failed";
-      message.result = { error: `WhatsApp not connected (status: ${connectionStatus})` };
-      message.executedAt = new Date().toISOString();
-      saveScheduledMessages(messages);
-      return;
-    }
-  } catch (e) {
-    console.warn("⚠️ Could not check connection status:", e.message);
+  // Check connection status via socket manager
+  if (!socketManager.isConnected()) {
+    console.error(
+      `❌ [SCHEDULED] Connection status is "${socketManager.getConnectionStatus()}", marking as failed`
+    );
+    message.status = "failed";
+    message.result = {
+      error: `WhatsApp not connected (status: ${socketManager.getConnectionStatus()})`,
+    };
+    message.executedAt = new Date().toISOString();
+    saveScheduledMessages(messages);
+    return;
   }
 
   const { groups, customNumbers, delaySeconds } = message;
@@ -330,14 +362,18 @@ async function executeScheduledMessage(id) {
   for (let i = 0; i < groups.length; i++) {
     const groupId = groups[i];
     try {
-      console.log(`📢 [${i + 1}/${groups.length + customNumbers.length}] Sending to group: ${groupId}`);
-      
+      console.log(
+        `📢 [${i + 1}/${
+          groups.length + customNumbers.length
+        }] Sending to group: ${groupId}`
+      );
+
       if (sendMessageFunc) {
         await sendMessageFunc(groupId, message.message);
       } else if (sock) {
         await sock.sendMessage(groupId, { text: message.message });
       }
-      
+
       successCount++;
       console.log(`   ✅ Success`);
     } catch (err) {
@@ -355,37 +391,50 @@ async function executeScheduledMessage(id) {
   // Send to custom numbers
   for (let i = 0; i < customNumbers.length; i++) {
     const number = customNumbers[i];
-    
+
     // Normalize phone number
     let cleanPhone = (number.phone || "").replace(/\D/g, "");
-    
+
     if (cleanPhone.startsWith("0")) {
       cleanPhone = "2" + cleanPhone;
-    } else if (!cleanPhone.startsWith("2") && !cleanPhone.startsWith("966") && !cleanPhone.startsWith("971")) {
+    } else if (
+      !cleanPhone.startsWith("2") &&
+      !cleanPhone.startsWith("966") &&
+      !cleanPhone.startsWith("971")
+    ) {
       if (cleanPhone.startsWith("5")) {
         cleanPhone = "966" + cleanPhone;
       } else {
         cleanPhone = "20" + cleanPhone;
       }
     }
-    
+
     const jid = `${cleanPhone}@s.whatsapp.net`;
 
     try {
-      console.log(`📱 [${groups.length + i + 1}/${groups.length + customNumbers.length}] Sending to: ${number.name || cleanPhone}`);
-      
+      console.log(
+        `📱 [${groups.length + i + 1}/${
+          groups.length + customNumbers.length
+        }] Sending to: ${number.name || cleanPhone}`
+      );
+
       if (sendMessageFunc) {
         await sendMessageFunc(jid, message.message);
       } else if (sock) {
         await sock.sendMessage(jid, { text: message.message });
       }
-      
+
       successCount++;
       console.log(`   ✅ Success`);
     } catch (err) {
       console.error(`   ❌ Failed:`, err.message);
       failCount++;
-      failedRecipients.push({ type: "private", id: cleanPhone, name: number.name, error: err.message });
+      failedRecipients.push({
+        type: "private",
+        id: cleanPhone,
+        name: number.name,
+        error: err.message,
+      });
     }
 
     // Delay between messages (except for the last one)
@@ -395,7 +444,8 @@ async function executeScheduledMessage(id) {
   }
 
   // Update message status
-  message.status = failCount === 0 ? "completed" : (successCount === 0 ? "failed" : "completed");
+  message.status =
+    failCount === 0 ? "completed" : successCount === 0 ? "failed" : "completed";
   message.executedAt = new Date().toISOString();
   message.result = {
     totalRecipients: groups.length + customNumbers.length,
@@ -410,7 +460,9 @@ async function executeScheduledMessage(id) {
   scheduledTimeouts.delete(id);
 
   console.log(`\n✅ [SCHEDULED] Message ${id} execution completed`);
-  console.log(`   📊 Success: ${successCount}/${groups.length + customNumbers.length}`);
+  console.log(
+    `   📊 Success: ${successCount}/${groups.length + customNumbers.length}`
+  );
   console.log(`   ❌ Failed: ${failCount}`);
 
   // Notify admin
@@ -424,7 +476,9 @@ async function executeScheduledMessage(id) {
 ✅ نجح: ${successCount}
 ❌ فشل: ${failCount}
 
-${message.message.substring(0, 100)}${message.message.length > 100 ? "..." : ""}`;
+${message.message.substring(0, 100)}${
+      message.message.length > 100 ? "..." : ""
+    }`;
 
     if (sendMessageFunc) {
       await sendMessageFunc(ADMIN_PHONE, notifyText);
@@ -442,16 +496,26 @@ ${message.message.substring(0, 100)}${message.message.length > 100 ? "..." : ""}
 
 /**
  * Initialize the scheduled messages service
- * @param {Object} sockInstance - WhatsApp socket instance
+ * @param {Object} sockInstance - WhatsApp socket instance (kept for backward compat, not stored)
  * @param {Function} sendMessage - sendMessage function from bot.js
  * @param {Function} sendImage - sendImage function from bot.js (optional)
+ *
+ * CRITICAL FIX: Socket instance is NOT stored - we use socketManager.getSocket() at execution time
  */
-function initScheduledMessages(sockInstance, sendMessage = null, sendImage = null) {
-  sock = sockInstance;
-  sendMessageFunc = sendMessage;
-  sendImageFunc = sendImage;
+function initScheduledMessages(
+  sockInstance,
+  sendMessage = null,
+  sendImage = null
+) {
+  // NOTE: We no longer store sockInstance - this was the root cause of zombie connections
+  // Store send functions in socket manager for centralized access
+  if (sendMessage || sendImage) {
+    socketManager.setSendFunctions(sendMessage, sendImage);
+  }
 
-  console.log("✅ Initializing scheduled WhatsApp messages service...");
+  console.log(
+    "✅ Initializing scheduled WhatsApp messages service (using socketManager)..."
+  );
 
   // Load pending messages and set up timeouts
   const pendingMessages = getPendingScheduledMessages();
@@ -468,29 +532,37 @@ function initScheduledMessages(sockInstance, sendMessage = null, sendImage = nul
 
 /**
  * Update socket instance (call when reconnecting)
+ *
+ * DEPRECATED: This function is kept for backward compatibility but does nothing for socket.
+ * The socket is now always fetched fresh from socketManager.getSocket()
  */
 function updateSocket(sockInstance, sendMessage = null, sendImage = null) {
-  sock = sockInstance;
-  if (sendMessage) {
-    sendMessageFunc = sendMessage;
+  // INTENTIONALLY NOT storing sockInstance - it's fetched from socketManager at execution time
+  // Only update send functions if provided
+  if (sendMessage || sendImage) {
+    socketManager.setSendFunctions(sendMessage, sendImage);
   }
-  if (sendImage) {
-    sendImageFunc = sendImage;
-  }
-  console.log("🔄 Scheduled WhatsApp messages service socket updated");
+  console.log(
+    "🔄 Scheduled WhatsApp messages service: updateSocket called (using socketManager)"
+  );
 }
 
 /**
  * Stop the scheduled messages service
+ * CRITICAL FIX: Also unregisters from socket manager
  */
 function stopScheduledMessages() {
   // Clear all timeouts
   for (const [id, timeoutId] of scheduledTimeouts) {
     clearTimeout(timeoutId);
+    socketManager.unregisterTimeout(`scheduled_wa_${id}`);
   }
   scheduledTimeouts.clear();
   console.log("⏹️ Scheduled WhatsApp messages service stopped");
 }
+
+// Alias for consistency with other services
+const stopScheduler = stopScheduledMessages;
 
 /**
  * Get service status
@@ -498,7 +570,7 @@ function stopScheduledMessages() {
 function getServiceStatus() {
   const pending = getPendingScheduledMessages();
   return {
-    running: sock !== null,
+    running: socketManager.isConnected(),
     activeTimeouts: scheduledTimeouts.size,
     pendingMessages: pending.length,
     currentKSATime: formatKSADate(Date.now()),
@@ -514,6 +586,7 @@ module.exports = {
   initScheduledMessages,
   updateSocket,
   stopScheduledMessages,
+  stopScheduler, // Alias for consistency
   getServiceStatus,
 
   // Message management

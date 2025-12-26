@@ -2,11 +2,17 @@
  * Message Scheduler Service
  * Handles scheduling and execution of custom messages using node-cron
  * Timezone: Asia/Riyadh (KSA Time - UTC+3)
+ *
+ * CRITICAL FIX: Uses socketManager.getSocket() at execution time
+ * to prevent zombie connections from stale socket closures.
  */
 
 const cron = require("node-cron");
 const fs = require("fs");
 const customMessageService = require("./customMessageService");
+
+// CRITICAL: Import socket manager for live socket access
+const socketManager = require("../whatsapp/socketManager");
 
 // KSA Timezone
 const KSA_TIMEZONE = "Asia/Riyadh";
@@ -14,15 +20,8 @@ const KSA_TIMEZONE = "Asia/Riyadh";
 // Store scheduled cron jobs by schedule ID
 const scheduledJobs = new Map();
 
-// WhatsApp socket instance
-let sock = null;
-
 // Backup check interval
 let backupCheckInterval = null;
-
-// Reference to sendMessage and sendImage functions from bot.js
-let sendMessageFunc = null;
-let sendImageFunc = null;
 
 // ========================================
 // HELPER FUNCTIONS
@@ -109,23 +108,27 @@ function getRandomTimeInRange(startTime, endTime) {
 
 /**
  * Send message to all recipients with delay
+ *
+ * CRITICAL FIX: Gets socket from socketManager at execution time
  */
 async function sendToRecipients(schedule, processedMessage) {
-  // CRITICAL: Validate connection is actually connected before sending
-  // This prevents sending on stale socket references after reconnection
-  try {
-    const { getConnectionStatus } = require("../whatsapp/bot");
-    const connectionStatus = getConnectionStatus();
-    if (connectionStatus !== "connected") {
-      console.log(`⚠️ Connection status is "${connectionStatus}", skipping scheduled message send`);
-      return { sent: 0, failed: 0, failedRecipients: [], skipped: true };
-    }
-  } catch (e) {
-    console.warn("⚠️ Could not check connection status:", e.message);
+  // CRITICAL: Validate connection via socket manager, not stale references
+  if (!socketManager.isConnected()) {
+    console.log(
+      `⚠️ Connection status is "${socketManager.getConnectionStatus()}", skipping scheduled message send`
+    );
+    return { sent: 0, failed: 0, failedRecipients: [], skipped: true };
   }
 
+  // CRITICAL: Get LIVE socket and send functions from manager
+  const sock = socketManager.getSocket();
+  const sendMessageFunc = socketManager.getSendMessage();
+  const sendImageFunc = socketManager.getSendImage();
+
   if (!sock && !sendMessageFunc) {
-    console.log("⚠️ No socket or sendMessage function available, skipping scheduled message");
+    console.log(
+      "⚠️ No socket or sendMessage function available, skipping scheduled message"
+    );
     return { sent: 0, failed: 0, failedRecipients: [], skipped: true };
   }
 
@@ -170,7 +173,11 @@ async function sendToRecipients(schedule, processedMessage) {
   }
 
   // 4. Add selected private clients (now an array of selected clients)
-  if (recipients.privateClients && Array.isArray(recipients.privateClients) && recipients.privateClients.length > 0) {
+  if (
+    recipients.privateClients &&
+    Array.isArray(recipients.privateClients) &&
+    recipients.privateClients.length > 0
+  ) {
     recipients.privateClients.forEach((client) => {
       allRecipients.push({
         type: "private",
@@ -219,8 +226,8 @@ async function sendToRecipients(schedule, processedMessage) {
         const data = JSON.parse(fs.readFileSync(interestGroupsFile, "utf8"));
         // groups can be an object or an array - handle both
         const groupsData = data.groups || {};
-        const groups = Array.isArray(groupsData) 
-          ? groupsData 
+        const groups = Array.isArray(groupsData)
+          ? groupsData
           : Object.values(groupsData);
 
         recipients.interestGroups.forEach((groupId) => {
@@ -268,7 +275,9 @@ async function sendToRecipients(schedule, processedMessage) {
   for (let i = 0; i < allRecipients.length; i++) {
     // Check if schedule was disabled while sending
     if (!schedule.enabled) {
-      console.log(`⏹️ Schedule ${schedule.id} was disabled during execution, stopping...`);
+      console.log(
+        `⏹️ Schedule ${schedule.id} was disabled during execution, stopping...`
+      );
       break;
     }
     const recipient = allRecipients[i];
@@ -305,23 +314,23 @@ async function sendToRecipients(schedule, processedMessage) {
             cleanPhone = "20" + cleanPhone;
           }
         }
-         jid = `${cleanPhone}@s.whatsapp.net`;
+        jid = `${cleanPhone}@s.whatsapp.net`;
       }
 
       // Check if message has an image
       const hasImage = message.imagePath && fs.existsSync(message.imagePath);
-      
+
       // Send message with or without image
       if (hasImage) {
         // Read image buffer
         const imageBuffer = fs.readFileSync(message.imagePath);
-        
+
         if (sendImageFunc) {
           await sendImageFunc(jid, imageBuffer, personalizedMessage);
         } else if (sock) {
-          await sock.sendMessage(jid, { 
-            image: imageBuffer, 
-            caption: personalizedMessage 
+          await sock.sendMessage(jid, {
+            image: imageBuffer,
+            caption: personalizedMessage,
           });
         } else {
           throw new Error("No socket available");
@@ -345,7 +354,9 @@ async function sendToRecipients(schedule, processedMessage) {
     } catch (error) {
       result.failCount++;
       console.error(
-        `   ❌ [${i + 1}/${allRecipients.length}] Failed: ${recipient.name} - ${error.message}`
+        `   ❌ [${i + 1}/${allRecipients.length}] Failed: ${recipient.name} - ${
+          error.message
+        }`
       );
     }
 
@@ -452,7 +463,15 @@ function scheduleMessage(schedule) {
   // Cancel any existing job
   cancelScheduledMessage(schedule.id);
 
-  const { startTime, endTime, days, repeatType, dayOfMonth, month, specificDate } = schedule.schedule;
+  const {
+    startTime,
+    endTime,
+    days,
+    repeatType,
+    dayOfMonth,
+    month,
+    specificDate,
+  } = schedule.schedule;
 
   // For all schedules, pick a random time within the range
   const randomTime = getRandomTimeInRange(startTime, endTime);
@@ -478,14 +497,20 @@ function scheduleMessage(schedule) {
       // ONE-TIME: Run only once on a specific date, then disable
       // Use setTimeout instead of cron for precision
       let targetDate;
-      
+
       if (specificDate) {
         // If a specific date is provided, use it
         targetDate = new Date(specificDate);
       } else if (dayOfMonth && month) {
         // Use dayOfMonth and month
         const now = getKSANow();
-        targetDate = new Date(now.getFullYear(), month - 1, dayOfMonth, randomTime.hour, randomTime.minute);
+        targetDate = new Date(
+          now.getFullYear(),
+          month - 1,
+          dayOfMonth,
+          randomTime.hour,
+          randomTime.minute
+        );
         // If date has passed this year, schedule for next year
         if (targetDate < now) {
           targetDate.setFullYear(targetDate.getFullYear() + 1);
@@ -509,40 +534,59 @@ function scheduleMessage(schedule) {
         targetDate.setDate(targetDate.getDate() + daysUntil);
         targetDate.setHours(randomTime.hour, randomTime.minute, 0, 0);
       } else {
-        console.error(`❌ No date specified for one-time schedule ${schedule.id}`);
+        console.error(
+          `❌ No date specified for one-time schedule ${schedule.id}`
+        );
         return;
       }
 
       // Set the time
       targetDate.setHours(randomTime.hour, randomTime.minute, 0, 0);
-      
+
       const timeUntilMs = targetDate.getTime() - Date.now();
-      
+
       if (timeUntilMs <= 0) {
-        console.log(`⚠️ One-time schedule ${schedule.id} date has passed, executing now and disabling...`);
+        console.log(
+          `⚠️ One-time schedule ${schedule.id} date has passed, executing now and disabling...`
+        );
         executeSchedule(schedule.id).then(() => {
           // Auto-disable after execution
           customMessageService.updateSchedule(schedule.id, { enabled: false });
-          console.log(`✅ One-time schedule ${schedule.id} completed and disabled`);
+          console.log(
+            `✅ One-time schedule ${schedule.id} completed and disabled`
+          );
         });
         return;
       }
 
-      scheduleDescription = `One-time on ${formatKSADate(targetDate.getTime())}`;
-      
-      console.log(`📅 Scheduling ONE-TIME ${schedule.id}: ${scheduleDescription} (in ${Math.round(timeUntilMs / 60000)} minutes)`);
-      
+      scheduleDescription = `One-time on ${formatKSADate(
+        targetDate.getTime()
+      )}`;
+
+      console.log(
+        `📅 Scheduling ONE-TIME ${
+          schedule.id
+        }: ${scheduleDescription} (in ${Math.round(
+          timeUntilMs / 60000
+        )} minutes)`
+      );
+
       const timeoutId = setTimeout(async () => {
         console.log(`⏰ One-time schedule ${schedule.id} triggered!`);
         await executeSchedule(schedule.id);
-        
+
         // Auto-disable after execution
         customMessageService.updateSchedule(schedule.id, { enabled: false });
-        console.log(`✅ One-time schedule ${schedule.id} completed and auto-disabled`);
+        console.log(
+          `✅ One-time schedule ${schedule.id} completed and auto-disabled`
+        );
         scheduledJobs.delete(schedule.id);
+        socketManager.unregisterTimeout(`msgscheduler_${schedule.id}`);
       }, timeUntilMs);
-      
+
       scheduledJobs.set(schedule.id, { type: "timeout", id: timeoutId });
+      // CRITICAL: Register with socket manager for cleanup on disconnect
+      socketManager.registerTimeout(`msgscheduler_${schedule.id}`, timeoutId);
       console.log(`✅ One-time schedule ${schedule.id} registered (timeout)`);
       return; // Exit early - don't use cron for one-time
     }
@@ -552,7 +596,9 @@ function scheduleMessage(schedule) {
       // Cron: minute hour dayOfMonth * *
       const targetDay = dayOfMonth || 1;
       cronExpression = `${randomTime.minute} ${randomTime.hour} ${targetDay} * *`;
-      scheduleDescription = `Monthly on day ${targetDay} at ${randomTime.hour}:${String(randomTime.minute).padStart(2, "0")}`;
+      scheduleDescription = `Monthly on day ${targetDay} at ${
+        randomTime.hour
+      }:${String(randomTime.minute).padStart(2, "0")}`;
       break;
     }
 
@@ -562,8 +608,27 @@ function scheduleMessage(schedule) {
       const targetDay = dayOfMonth || 1;
       const targetMonth = month || 1;
       cronExpression = `${randomTime.minute} ${randomTime.hour} ${targetDay} ${targetMonth} *`;
-      const monthNames = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      scheduleDescription = `Yearly on ${monthNames[targetMonth]} ${targetDay} at ${randomTime.hour}:${String(randomTime.minute).padStart(2, "0")}`;
+      const monthNames = [
+        "",
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
+      scheduleDescription = `Yearly on ${
+        monthNames[targetMonth]
+      } ${targetDay} at ${randomTime.hour}:${String(randomTime.minute).padStart(
+        2,
+        "0"
+      )}`;
       break;
     }
 
@@ -572,14 +637,14 @@ function scheduleMessage(schedule) {
     default: {
       // Daily/Weekly: run on specific days of week
       let allowedDayNumbers;
-      
+
       if (scheduleRepeatType === "daily" && (!days || days.length === 0)) {
         // Daily with no days specified = run every day
         allowedDayNumbers = "0,1,2,3,4,5,6";
       } else {
         allowedDayNumbers = (days || []).map((d) => dayNumbers[d]).join(",");
       }
-      
+
       if (!allowedDayNumbers) {
         console.error(`❌ No days specified for schedule ${schedule.id}`);
         return;
@@ -587,7 +652,12 @@ function scheduleMessage(schedule) {
 
       // Cron: minute hour * * dayOfWeek
       cronExpression = `${randomTime.minute} ${randomTime.hour} * * ${allowedDayNumbers}`;
-      scheduleDescription = `${scheduleRepeatType === "weekly" ? "Weekly" : "Daily"} at ${randomTime.hour}:${String(randomTime.minute).padStart(2, "0")} on ${(days || ["every day"]).join(", ")}`;
+      scheduleDescription = `${
+        scheduleRepeatType === "weekly" ? "Weekly" : "Daily"
+      } at ${randomTime.hour}:${String(randomTime.minute).padStart(
+        2,
+        "0"
+      )} on ${(days || ["every day"]).join(", ")}`;
       break;
     }
   }
@@ -600,6 +670,13 @@ function scheduleMessage(schedule) {
     const task = cron.schedule(
       cronExpression,
       async () => {
+        // CRITICAL: Check connection BEFORE executing
+        if (!socketManager.isConnected()) {
+          console.log(
+            `⏸️ Schedule ${schedule.id} triggered but not connected, skipping`
+          );
+          return;
+        }
         console.log(`⏰ Cron triggered for schedule ${schedule.id}`);
         await executeSchedule(schedule.id);
       },
@@ -610,22 +687,30 @@ function scheduleMessage(schedule) {
     );
 
     scheduledJobs.set(schedule.id, { type: "cron", task });
+    // CRITICAL: Register with socket manager for cleanup on disconnect
+    socketManager.registerCronJob(`msgscheduler_${schedule.id}`, task);
     console.log(`✅ Schedule ${schedule.id} registered with cron`);
   } catch (error) {
-    console.error(`❌ Error scheduling cron for ${schedule.id}:`, error.message);
+    console.error(
+      `❌ Error scheduling cron for ${schedule.id}:`,
+      error.message
+    );
   }
 }
 
 /**
  * Cancel a scheduled message
+ * CRITICAL FIX: Also unregisters from socket manager
  */
 function cancelScheduledMessage(scheduleId) {
   const job = scheduledJobs.get(scheduleId);
   if (job) {
     if (job.type === "cron" && job.task) {
       job.task.stop();
+      socketManager.unregisterCronJob(`msgscheduler_${scheduleId}`);
     } else if (job.type === "timeout") {
       clearTimeout(job.id);
+      socketManager.unregisterTimeout(`msgscheduler_${scheduleId}`);
     }
     scheduledJobs.delete(scheduleId);
     console.log(`🗑️ Cancelled scheduled job for ${scheduleId}`);
@@ -637,12 +722,16 @@ function cancelScheduledMessage(scheduleId) {
  */
 function scheduleAllEnabled() {
   const schedules = customMessageService.getAllSchedules();
-  
+
   // 1. Stop any jobs that are no longer enabled
-  const enabledIds = new Set(schedules.filter(s => s.enabled).map(s => s.id));
+  const enabledIds = new Set(
+    schedules.filter((s) => s.enabled).map((s) => s.id)
+  );
   for (const scheduleId of scheduledJobs.keys()) {
     if (!enabledIds.has(scheduleId)) {
-      console.log(`📋 Schedule ${scheduleId} is no longer enabled, cancelling...`);
+      console.log(
+        `📋 Schedule ${scheduleId} is no longer enabled, cancelling...`
+      );
       cancelScheduledMessage(scheduleId);
     }
   }
@@ -677,25 +766,39 @@ function reschedule(scheduleId) {
 
 /**
  * Initialize the message scheduler
- * @param {object} sockInstance - WhatsApp socket instance
+ * @param {object} sockInstance - WhatsApp socket instance (kept for backward compat, not stored)
  * @param {function} sendMessage - sendMessage function from bot.js
  * @param {function} sendImage - sendImage function from bot.js (optional)
+ *
+ * CRITICAL FIX: Socket instance is NOT stored - we use socketManager.getSocket() at execution time
  */
 function initScheduler(sockInstance, sendMessage = null, sendImage = null) {
-  sock = sockInstance;
-  sendMessageFunc = sendMessage;
-  sendImageFunc = sendImage;
+  // NOTE: We no longer store sockInstance - this was the root cause of zombie connections
+  // Instead, store send functions in socket manager for centralized access
+  if (sendMessage || sendImage) {
+    socketManager.setSendFunctions(sendMessage, sendImage);
+  }
 
-  console.log("✅ Initializing custom message scheduler...");
+  console.log(
+    "✅ Initializing custom message scheduler (using socketManager)..."
+  );
 
   // Schedule all enabled schedules
   scheduleAllEnabled();
 
   // Backup check every 15 minutes
+  if (backupCheckInterval) {
+    clearInterval(backupCheckInterval);
+  }
   backupCheckInterval = setInterval(() => {
     // Re-check schedules in case they were updated
     scheduleAllEnabled();
   }, 15 * 60 * 1000);
+  // Register with socket manager for cleanup
+  socketManager.registerInterval(
+    "message_scheduler_backup",
+    backupCheckInterval
+  );
 
   const ksaTimeDisplay = formatKSADate(Date.now());
   console.log(`🕐 Current KSA time: ${ksaTimeDisplay}`);
@@ -705,14 +808,17 @@ function initScheduler(sockInstance, sendMessage = null, sendImage = null) {
 
 /**
  * Stop the scheduler
+ * CRITICAL FIX: Also unregisters from socket manager
  */
 function stopScheduler() {
   // Clear all scheduled jobs
   for (const [scheduleId, job] of scheduledJobs) {
     if (job.type === "cron" && job.task) {
       job.task.stop();
+      socketManager.unregisterCronJob(`msgscheduler_${scheduleId}`);
     } else if (job.type === "timeout") {
       clearTimeout(job.id);
+      socketManager.unregisterTimeout(`msgscheduler_${scheduleId}`);
     }
   }
   scheduledJobs.clear();
@@ -720,6 +826,7 @@ function stopScheduler() {
   // Clear backup check interval
   if (backupCheckInterval) {
     clearInterval(backupCheckInterval);
+    socketManager.unregisterInterval("message_scheduler_backup");
     backupCheckInterval = null;
   }
 
@@ -728,16 +835,19 @@ function stopScheduler() {
 
 /**
  * Update socket instance (call when reconnecting)
+ *
+ * DEPRECATED: This function is kept for backward compatibility but does nothing for socket.
+ * The socket is now always fetched fresh from socketManager.getSocket()
  */
 function updateSocket(sockInstance, sendMessage = null, sendImage = null) {
-  sock = sockInstance;
-  if (sendMessage) {
-    sendMessageFunc = sendMessage;
+  // INTENTIONALLY NOT storing sockInstance - it's fetched from socketManager at execution time
+  // Only update send functions if provided
+  if (sendMessage || sendImage) {
+    socketManager.setSendFunctions(sendMessage, sendImage);
   }
-  if (sendImage) {
-    sendImageFunc = sendImage;
-  }
-  console.log("🔄 Custom message scheduler socket updated");
+  console.log(
+    "🔄 Custom message scheduler: updateSocket called (using socketManager, send functions updated)"
+  );
 }
 
 /**
@@ -745,7 +855,7 @@ function updateSocket(sockInstance, sendMessage = null, sendImage = null) {
  */
 function getSchedulerStatus() {
   return {
-    running: sock !== null,
+    running: socketManager.isConnected(),
     activeJobs: scheduledJobs.size,
     currentKSATime: formatKSADate(Date.now()),
     scheduledItems: Array.from(scheduledJobs.keys()),
