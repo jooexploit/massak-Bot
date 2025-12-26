@@ -1253,7 +1253,7 @@ async function processMessageFromQueue(messageData) {
       senderName: senderName, // WhatsApp sender name (pushName)
       senderPhone: senderPhone, // WhatsApp sender ID (for reference)
       imageUrl: imageUrl, // Image data if present
-      messageKey: msg.key, // Store message key for full image download
+      messageKey: messageData.messageKey || null, // Store message key for full image download
       timestamp: Date.now(),
       status: "new", // new | accepted | rejected | posted
       category: aiResult.category || null, // AI-detected category
@@ -1389,7 +1389,7 @@ async function processMessageFromQueue(messageData) {
           senderName: senderName,
           senderPhone: senderPhone,
           imageUrl: imageUrl,
-          messageKey: msg.key,
+          messageKey: messageData.messageKey || null,
           timestamp: Date.now(),
           status: "pending_retry", // Special status for retry
           category: null,
@@ -1437,7 +1437,7 @@ async function processMessageFromQueue(messageData) {
         senderName: senderName,
         senderPhone: senderPhone,
         imageUrl: imageUrl,
-        messageKey: msg.key,
+        messageKey: messageData.messageKey || null,
         timestamp: Date.now(),
         status: "new",
         category: null,
@@ -3098,6 +3098,7 @@ async function initializeBot() {
                 imageUrl,
                 participant: msg.key.participant,
                 remoteJid: msg.key.remoteJid,
+                messageKey: msg.key,
               },
               processMessageFromQueue
             )
