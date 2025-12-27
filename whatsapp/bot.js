@@ -1758,13 +1758,22 @@ async function initializeBot() {
       // 🛡️ RECONNECT COOLDOWN - Prevent reconnect storms
       // ============================================
       const timeSinceLastReconnect = Date.now() - lastReconnectAttempt;
-      if (timeSinceLastReconnect < MIN_RECONNECT_INTERVAL_MS && lastReconnectAttempt > 0) {
-        const waitSeconds = Math.ceil((MIN_RECONNECT_INTERVAL_MS - timeSinceLastReconnect) / 1000);
-        console.warn(
-          `⏸️ [FORCE_RECONNECT] Cooldown active - last reconnect ${Math.floor(timeSinceLastReconnect / 1000)}s ago`
+      if (
+        timeSinceLastReconnect < MIN_RECONNECT_INTERVAL_MS &&
+        lastReconnectAttempt > 0
+      ) {
+        const waitSeconds = Math.ceil(
+          (MIN_RECONNECT_INTERVAL_MS - timeSinceLastReconnect) / 1000
         );
         console.warn(
-          `   ⏳ Must wait ${waitSeconds}s more (cooldown: ${MIN_RECONNECT_INTERVAL_MS / 1000}s)`
+          `⏸️ [FORCE_RECONNECT] Cooldown active - last reconnect ${Math.floor(
+            timeSinceLastReconnect / 1000
+          )}s ago`
+        );
+        console.warn(
+          `   ⏳ Must wait ${waitSeconds}s more (cooldown: ${
+            MIN_RECONNECT_INTERVAL_MS / 1000
+          }s)`
         );
         console.warn("   ⚠️ Skipping reconnect to prevent storm");
         return;
@@ -2074,7 +2083,7 @@ async function initializeBot() {
         socketManager.setConnectionStatus("connected");
         socketManager.setSocket(sock);
         socketManager.setSendFunctions(sendMessage, sendImage);
-        
+
         // NOW safe to set connectionStatus - socketManager is already updated
         connectionStatus = "connected";
 
@@ -3312,7 +3321,9 @@ async function sendMessage(numberOrJid, message) {
       if (socketManager.isConnected() && socketManager.getSocket()) {
         return true;
       }
-      console.log(`⏳ Waiting for connection... (${socketManager.getConnectionStatus()})`);
+      console.log(
+        `⏳ Waiting for connection... (${socketManager.getConnectionStatus()})`
+      );
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     return socketManager.isConnected() && socketManager.getSocket();
