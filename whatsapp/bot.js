@@ -45,6 +45,8 @@ let webSocketCloseReason = null;
 let lastWebSocketError = null;
 let zombieDetectionCount = 0;
 let lastZombieCheckAt = 0;
+let lastReconnectAttempt = 0; // Track last reconnect time for cooldown
+const MIN_RECONNECT_INTERVAL_MS = 120000; // 2 minutes minimum between reconnects
 
 // Connection state machine
 const ConnectionState = {
@@ -1752,6 +1754,23 @@ async function initializeBot() {
       console.log(`   Reason: ${reason}`);
       logConnectionState("FORCE_RECONNECT_START", { reason });
 
+      // ============================================
+      // 🛡️ RECONNECT COOLDOWN - Prevent reconnect storms
+      // ============================================
+      const timeSinceLastReconnect = Date.now() - lastReconnectAttempt;
+      if (timeSinceLastReconnect < MIN_RECONNECT_INTERVAL_MS && lastReconnectAttempt > 0) {
+        const waitSeconds = Math.ceil((MIN_RECONNECT_INTERVAL_MS - timeSinceLastReconnect) / 1000);
+        console.warn(
+          `⏸️ [FORCE_RECONNECT] Cooldown active - last reconnect ${Math.floor(timeSinceLastReconnect / 1000)}s ago`
+        );
+        console.warn(
+          `   ⏳ Must wait ${waitSeconds}s more (cooldown: ${MIN_RECONNECT_INTERVAL_MS / 1000}s)`
+        );
+        console.warn("   ⚠️ Skipping reconnect to prevent storm");
+        return;
+      }
+      lastReconnectAttempt = Date.now();
+
       // CRITICAL: Update socket manager FIRST - prevents ANY traffic
       socketManager.setConnectionStatus("reconnecting");
       socketManager.setSocket(null);
@@ -2050,12 +2069,14 @@ async function initializeBot() {
 
         logConnectionState("CONNECTION_OPEN", { userId: sock?.user?.id });
 
-        connectionStatus = "connected";
-        // CRITICAL: Update socket manager immediately on successful connection
-        // This MUST happen BEFORE initializing schedulers so they get the fresh socket
+        // CRITICAL: Update socket manager FIRST before setting connectionStatus
+        // This prevents race condition where jobs check connectionStatus but socketManager is stale
         socketManager.setConnectionStatus("connected");
         socketManager.setSocket(sock);
         socketManager.setSendFunctions(sendMessage, sendImage);
+        
+        // NOW safe to set connectionStatus - socketManager is already updated
+        connectionStatus = "connected";
 
         qrCodeData = null;
         currentQR = null;
@@ -2256,35 +2277,39 @@ async function initializeBot() {
             hasReceivedFirstMessage = true;
           }
 
-          // AUTO-RECONNECT TRIGGER CONDITIONS:
-          // Scenario A: We received messages before but stopped receiving (8 min)
-          // Scenario B: We never received ANY messages for 15 minutes (fresh start failure)
-          const STALE_THRESHOLD_MS = 8 * 60 * 1000; // 8 minutes (was 10)
-          const NEVER_RECEIVED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes (was 20)
+          // ============================================
+          // 🎯 PRODUCTION RECONNECT LOGIC (Multi-Signal)
+          // ============================================
+          // WhatsApp Web can be idle for HOURS - silence alone is NOT a failure signal.
+          // Only reconnect when MULTIPLE failure indicators are present:
+          //   1. Zombie WebSocket (already handled above)
+          //   2. Ping failures (handled by keepalive monitor)
+          //   3. Bad MAC storm (session corruption)
+          //   4. NEVER received messages after 30 min (initial connection failure)
+          //
+          // REMOVED: 8-minute message silence check (caused false positives)
+          // ============================================
 
-          const scenarioA_StaleAfterWorking =
-            hasReceivedFirstMessage &&
-            timeSinceLastMessage > STALE_THRESHOLD_MS;
+          const INITIAL_CONNECTION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes for first message
 
-          const scenarioB_NeverReceivedAny =
+          // Scenario A: Persistent Bad MAC errors (session corruption)
+          const scenarioA_PersistentBadMac = badMacDetectionCount >= 5;
+
+          // Scenario B: Initial connection NEVER received any messages for 30 minutes
+          // (This catches actual connection failures, not normal idle periods)
+          const scenarioB_InitialConnectionFailure =
             !hasReceivedFirstMessage &&
             totalMessagesProcessed === 0 &&
-            minutesSinceConnectionStart >= 15 &&
-            Date.now() - connectionStartTime > NEVER_RECEIVED_THRESHOLD_MS;
-
-          const scenarioC_PersistentBadMac = badMacDetectionCount >= 5;
+            Date.now() - connectionStartTime > INITIAL_CONNECTION_TIMEOUT_MS;
 
           const shouldAutoReconnect =
-            scenarioA_StaleAfterWorking ||
-            scenarioB_NeverReceivedAny ||
-            scenarioC_PersistentBadMac;
+            scenarioA_PersistentBadMac || scenarioB_InitialConnectionFailure;
 
           if (shouldAutoReconnect) {
             let reason = "UNKNOWN";
-            if (scenarioC_PersistentBadMac) reason = "BAD_MAC";
-            else if (scenarioA_StaleAfterWorking) reason = "STALE_CONNECTION";
-            else if (scenarioB_NeverReceivedAny)
-              reason = "NO_MESSAGES_RECEIVED";
+            if (scenarioA_PersistentBadMac) reason = "BAD_MAC";
+            else if (scenarioB_InitialConnectionFailure)
+              reason = "INITIAL_CONNECTION_TIMEOUT";
 
             console.warn(`\n🚨 ============================================`);
             console.warn(`🚨 STALE/BROKEN CONNECTION DETECTED`);
@@ -2304,12 +2329,10 @@ async function initializeBot() {
 
             // Queue notification for after reconnection (don't try to send now)
             let alertMsg = `🔄 *إعادة اتصال تلقائية*\n\n`;
-            if (scenarioC_PersistentBadMac) {
+            if (scenarioA_PersistentBadMac) {
               alertMsg += `⚠️ مشاكل في فك تشفير الرسائل (Bad MAC)\n`;
-            } else if (scenarioA_StaleAfterWorking) {
-              alertMsg += `⚠️ لم يتم استقبال رسائل لمدة ${minutesSinceLastMessage} دقيقة\n`;
-            } else {
-              alertMsg += `⚠️ لم يتم استقبال أي رسائل منذ بدء الاتصال\n`;
+            } else if (scenarioB_InitialConnectionFailure) {
+              alertMsg += `⚠️ فشل الاتصال الأولي (30 دقيقة بدون رسائل)\n`;
             }
             alertMsg += `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n`;
             alertMsg += `🔌 WebSocket: ${wsState}\n`;
@@ -2325,7 +2348,7 @@ async function initializeBot() {
             // 🔄 SESSION REPAIR/RESET (LID Migration Fix)
             // Fixes corrupted sessions using soft repair or full reset
             // ============================================
-            if (scenarioC_PersistentBadMac) {
+            if (scenarioA_PersistentBadMac) {
               if (!softRepairAttempted) {
                 // FIRST ATTEMPT: Soft Repair (preserves QR)
                 softRepairSessions();
@@ -2373,16 +2396,11 @@ async function initializeBot() {
             return; // Exit this interval callback
           }
 
-          // Warning at 5 minutes (before auto-reconnect at 8 min)
-          if (timeSinceLastMessage > 5 * 60 * 1000 && hasReceivedFirstMessage) {
-            console.warn(
-              `⚠️ [WARNING] No messages in ${minutesSinceLastMessage} minutes. Auto-reconnect at 8 minutes.`
-            );
-          }
+          // No warning needed - WhatsApp Web can be idle for hours in production
         }, 2 * 60 * 1000); // Check every 2 minutes
 
         console.log(
-          "✅ Auto-reconnect health monitor initialized (triggers at 8min stale / 15min no messages)"
+          "✅ Auto-reconnect health monitor initialized (triggers on: Bad MAC storm, initial connection timeout)"
         );
       }
     });
@@ -3290,13 +3308,14 @@ async function sendMessage(numberOrJid, message) {
   const waitForConnection = async (maxWaitMs = 15000) => {
     const startTime = Date.now();
     while (Date.now() - startTime < maxWaitMs) {
-      if (connectionStatus === "connected" && sock) {
+      // CRITICAL: Use socketManager to check connection, not stale variables
+      if (socketManager.isConnected() && socketManager.getSocket()) {
         return true;
       }
-      console.log(`⏳ Waiting for connection... (${connectionStatus})`);
+      console.log(`⏳ Waiting for connection... (${socketManager.getConnectionStatus()})`);
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
-    return connectionStatus === "connected" && sock;
+    return socketManager.isConnected() && socketManager.getSocket();
   };
 
   // Helper function to send with retry for Stream Errors
@@ -3304,8 +3323,8 @@ async function sendMessage(numberOrJid, message) {
     let lastError = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      // Check connection before each attempt
-      if (connectionStatus !== "connected" || !sock) {
+      // CRITICAL: Check connection via socketManager, get FRESH socket
+      if (!socketManager.isConnected()) {
         console.log(`⏸️ Not connected before attempt ${attempt}, waiting...`);
         const connected = await waitForConnection();
         if (!connected) {
@@ -3313,8 +3332,14 @@ async function sendMessage(numberOrJid, message) {
         }
       }
 
+      // CRITICAL: Get FRESH socket from manager, not stale module variable
+      const currentSock = socketManager.getSocket();
+      if (!currentSock) {
+        throw new Error("No socket available");
+      }
+
       try {
-        await sock.sendMessage(jid, messageContent);
+        await currentSock.sendMessage(jid, messageContent);
         return; // Success!
       } catch (sendError) {
         lastError = sendError;
@@ -3342,7 +3367,7 @@ async function sendMessage(numberOrJid, message) {
           await new Promise((resolve) => setTimeout(resolve, delayMs));
 
           // Wait for reconnection if needed
-          if (connectionStatus !== "connected") {
+          if (!socketManager.isConnected()) {
             console.log(`🔄 Waiting for reconnection before retry...`);
             const connected = await waitForConnection(20000);
             if (!connected) {
@@ -3362,8 +3387,8 @@ async function sendMessage(numberOrJid, message) {
     throw lastError || new Error("Send failed after all retries");
   };
 
-  // Initial connection check
-  if (connectionStatus !== "connected" || !sock) {
+  // CRITICAL: Initial connection check using socketManager, not stale variables
+  if (!socketManager.isConnected()) {
     console.log(`⏸️ Not connected, waiting up to 15s...`);
     const connected = await waitForConnection();
     if (!connected) {
@@ -3468,8 +3493,14 @@ async function sendMessage(numberOrJid, message) {
  * @param {string} caption - Image caption
  */
 async function sendImage(numberOrJid, imageData, caption = "") {
-  if (connectionStatus !== "connected" || !sock) {
+  // CRITICAL: Use socketManager to check connection and get socket
+  if (!socketManager.isConnected()) {
     throw new Error("Bot is not connected");
+  }
+
+  const currentSock = socketManager.getSocket();
+  if (!currentSock) {
+    throw new Error("No socket available");
   }
 
   let jid = numberOrJid;
@@ -3479,7 +3510,7 @@ async function sendImage(numberOrJid, imageData, caption = "") {
   }
 
   try {
-    await sock.sendMessage(jid, {
+    await currentSock.sendMessage(jid, {
       image: imageData,
       caption: caption,
     });
