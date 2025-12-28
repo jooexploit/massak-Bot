@@ -27,6 +27,10 @@ const {
   moveAdToRecycleBin,
   getSeenGroups,
   getGroupsWithMetadata,
+  loadGroupsCache,
+  saveGroupsCache,
+  getCachedGroups,
+  clearGroupsCache,
   getCollections,
   saveCollection,
   updateCollection,
@@ -50,7 +54,12 @@ const path = require("path");
 const fs = require("fs");
 
 // Configure multer for custom message images
-const customMessageImagesDir = path.join(__dirname, "..", "data", "custom_message_images");
+const customMessageImagesDir = path.join(
+  __dirname,
+  "..",
+  "data",
+  "custom_message_images"
+);
 if (!fs.existsSync(customMessageImagesDir)) {
   fs.mkdirSync(customMessageImagesDir, { recursive: true });
 }
@@ -61,22 +70,24 @@ const customMessageImageStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    const filename = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}${ext}`;
+    const filename = `msg_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 6)}${ext}`;
     cb(null, filename);
-  }
+  },
 });
 
 const uploadCustomMessageImage = multer({
   storage: customMessageImageStorage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'));
+      cb(new Error("Only image files are allowed"));
     }
-  }
+  },
 });
 
 const router = express.Router();
@@ -86,9 +97,18 @@ const router = express.Router();
  * Check if an error is retryable (network issues)
  */
 function isRetryableError(error) {
-  const retryableCodes = ["ETIMEDOUT", "ENETUNREACH", "ECONNRESET", "ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"];
-  return retryableCodes.includes(error.code) || 
-         (error.cause && retryableCodes.includes(error.cause.code));
+  const retryableCodes = [
+    "ETIMEDOUT",
+    "ENETUNREACH",
+    "ECONNRESET",
+    "ECONNREFUSED",
+    "ENOTFOUND",
+    "EAI_AGAIN",
+  ];
+  return (
+    retryableCodes.includes(error.code) ||
+    (error.cause && retryableCodes.includes(error.cause.code))
+  );
 }
 
 /**
@@ -97,24 +117,32 @@ function isRetryableError(error) {
  * @param {number} maxRetries - Maximum number of retry attempts
  * @param {string} operationName - Name of the operation for logging
  */
-async function axiosWithRetry(requestFn, maxRetries = 3, operationName = "request") {
+async function axiosWithRetry(
+  requestFn,
+  maxRetries = 3,
+  operationName = "request"
+) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await requestFn();
     } catch (error) {
       const isLastAttempt = attempt === maxRetries;
       const isRetryable = isRetryableError(error);
-      
-      console.log(`⚠️ ${operationName} attempt ${attempt}/${maxRetries} failed: ${error.code || error.message}`);
-      
+
+      console.log(
+        `⚠️ ${operationName} attempt ${attempt}/${maxRetries} failed: ${
+          error.code || error.message
+        }`
+      );
+
       if (isLastAttempt || !isRetryable) {
         throw error;
       }
-      
+
       // Exponential backoff: 1s, 2s, 4s
       const delayMs = 1000 * Math.pow(2, attempt - 1);
       console.log(`🔄 Retrying ${operationName} in ${delayMs}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 }
@@ -425,7 +453,10 @@ async function postAdToWordPress(
         console.log(`\n🎨 Applying watermark for ${targetWebsite}...`);
         imageBuffer = await processImage(imageBuffer, targetWebsite);
       } catch (watermarkError) {
-        console.error("⚠️ Watermark processing failed:", watermarkError.message);
+        console.error(
+          "⚠️ Watermark processing failed:",
+          watermarkError.message
+        );
         console.log("⚠️ Continuing with original image without watermark");
       }
     }
@@ -446,14 +477,15 @@ async function postAdToWordPress(
 
         // Use retry logic with timeout for image upload
         const uploadResponse = await axiosWithRetry(
-          () => axios.post(mediaUrl, imageBuffer, {
-            timeout: WP_AXIOS_TIMEOUT,
-            headers: {
-              Authorization: `Basic ${auth}`,
-              "Content-Type": imageContentType,
-              "Content-Disposition": `attachment; filename="${safeFilename}"`,
-            },
-          }),
+          () =>
+            axios.post(mediaUrl, imageBuffer, {
+              timeout: WP_AXIOS_TIMEOUT,
+              headers: {
+                Authorization: `Basic ${auth}`,
+                "Content-Type": imageContentType,
+                "Content-Disposition": `attachment; filename="${safeFilename}"`,
+              },
+            }),
           3,
           "WordPress image upload"
         );
@@ -564,17 +596,24 @@ async function postAdToWordPress(
     // This ensures consistency between meta.category_id and categories array
     // ============================================
     const aiDetectedCategoryId = wpData.meta?.category_id;
-    if (aiDetectedCategoryId && aiDetectedCategoryId !== 1 && typeof aiDetectedCategoryId === 'number') {
+    if (
+      aiDetectedCategoryId &&
+      aiDetectedCategoryId !== 1 &&
+      typeof aiDetectedCategoryId === "number"
+    ) {
       console.log("🔧 AI detected category_id:", aiDetectedCategoryId);
       console.log("🔧 Computed category_id:", categoryId);
-      
+
       // If computed categoryId is default (1) but AI has a valid one, use AI's
       if (categoryId === 1 || categoryId === website.categories?.default) {
         categoryId = aiDetectedCategoryId;
-        console.log("✅ Using AI-detected category_id instead of default:", categoryId);
+        console.log(
+          "✅ Using AI-detected category_id instead of default:",
+          categoryId
+        );
       }
     }
-    
+
     // Ensure meta.category_id matches the final categoryId for consistency
     wpData.meta.category_id = categoryId;
 
@@ -628,13 +667,14 @@ async function postAdToWordPress(
 
     // Use retry logic with timeout for WordPress post creation
     const response = await axiosWithRetry(
-      () => axios.post(wpApiUrl, wpPayload, {
-        timeout: WP_AXIOS_TIMEOUT,
-        headers: {
-          Authorization: `Basic ${auth}`,
-          "Content-Type": "application/json",
-        },
-      }),
+      () =>
+        axios.post(wpApiUrl, wpPayload, {
+          timeout: WP_AXIOS_TIMEOUT,
+          headers: {
+            Authorization: `Basic ${auth}`,
+            "Content-Type": "application/json",
+          },
+        }),
       3,
       "WordPress post creation"
     );
@@ -828,9 +868,9 @@ router.get("/health", authenticateToken, (req, res) => {
       messageHandler: health,
       queue: queueStats,
       serverTime: new Date().toISOString(),
-      recommendation: !health.isHealthy 
+      recommendation: !health.isHealthy
         ? "⚠️ Message handler may be stale. Consider restarting the bot."
-        : "✅ Message handler is healthy"
+        : "✅ Message handler is healthy",
     });
   } catch (error) {
     console.error("Error getting health status:", error);
@@ -945,26 +985,33 @@ router.post(
   authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
-      const { 
-        adId, 
-        message, 
-        groups = [], 
-        customNumbers = [], 
-        delaySeconds = 3 
+      const {
+        adId,
+        message,
+        groups = [],
+        customNumbers = [],
+        delaySeconds = 3,
       } = req.body;
 
       if (!message) {
         return res.status(400).json({ error: "Message is required" });
       }
 
-      const allRecipients = [...groups, ...customNumbers.map(n => ({ ...n, isPrivate: true }))];
-      
+      const allRecipients = [
+        ...groups,
+        ...customNumbers.map((n) => ({ ...n, isPrivate: true })),
+      ];
+
       if (allRecipients.length === 0) {
-        return res.status(400).json({ error: "At least one recipient is required" });
+        return res
+          .status(400)
+          .json({ error: "At least one recipient is required" });
       }
 
       // Generate a unique job ID
-      const jobId = `bulk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const jobId = `bulk-${Date.now()}-${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
 
       // Store job info
       const jobInfo = {
@@ -981,7 +1028,7 @@ router.post(
         failCount: 0,
         currentIndex: 0,
       };
-      
+
       activeBulkJobs.set(jobId, jobInfo);
 
       console.log(`🚀 [BULK SEND] Started job ${jobId}`);
@@ -999,15 +1046,16 @@ router.post(
       });
 
       // Process messages in background (async, non-blocking)
-      processBulkMessagesInBackground(jobInfo).catch(err => {
+      processBulkMessagesInBackground(jobInfo).catch((err) => {
         console.error(`❌ [BULK SEND] Job ${jobId} failed:`, err);
         jobInfo.status = "failed";
         jobInfo.error = err.message;
       });
-
     } catch (error) {
       console.error("Error starting bulk send:", error);
-      res.status(500).json({ error: error.message || "Failed to start bulk send" });
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to start bulk send" });
     }
   }
 );
@@ -1020,11 +1068,11 @@ router.get(
   (req, res) => {
     const { jobId } = req.params;
     const job = activeBulkJobs.get(jobId);
-    
+
     if (!job) {
       return res.status(404).json({ error: "Job not found" });
     }
-    
+
     res.json({ success: true, job });
   }
 );
@@ -1034,18 +1082,27 @@ router.get(
  * This function runs independently of the HTTP request
  */
 async function processBulkMessagesInBackground(jobInfo) {
-  const { id: jobId, adId, message, groups, customNumbers, delaySeconds } = jobInfo;
+  const {
+    id: jobId,
+    adId,
+    message,
+    groups,
+    customNumbers,
+    delaySeconds,
+  } = jobInfo;
   const delayMs = delaySeconds * 1000;
-  
+
   console.log(`\n📦 [BULK SEND] Processing job ${jobId}...`);
-  
+
   // First send to groups
   for (let i = 0; i < groups.length; i++) {
     const groupId = groups[i];
     jobInfo.currentIndex = i + 1;
-    
+
     try {
-      console.log(`📢 [${jobInfo.currentIndex}/${jobInfo.totalRecipients}] Sending to group: ${groupId}`);
+      console.log(
+        `📢 [${jobInfo.currentIndex}/${jobInfo.totalRecipients}] Sending to group: ${groupId}`
+      );
       await sendMessage(groupId, message);
       jobInfo.successCount++;
       console.log(`   ✅ Success`);
@@ -1053,38 +1110,48 @@ async function processBulkMessagesInBackground(jobInfo) {
       console.error(`   ❌ Failed:`, err.message);
       jobInfo.failCount++;
     }
-    
+
     // Delay between messages
     if (i < groups.length - 1 || customNumbers.length > 0) {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
-  
+
   // Then send to custom numbers (private messages)
   for (let i = 0; i < customNumbers.length; i++) {
     const number = customNumbers[i];
     jobInfo.currentIndex = groups.length + i + 1;
-    
+
     // Normalize phone number
     let cleanPhone = number.phone.replace(/\D/g, "");
-    
+
     // Handle Egyptian numbers (starting with 0)
     if (cleanPhone.startsWith("0")) {
       cleanPhone = "2" + cleanPhone;
     }
     // Handle Saudi numbers
-    else if (!cleanPhone.startsWith("2") && !cleanPhone.startsWith("966") && !cleanPhone.startsWith("971")) {
+    else if (
+      !cleanPhone.startsWith("2") &&
+      !cleanPhone.startsWith("966") &&
+      !cleanPhone.startsWith("971")
+    ) {
       if (cleanPhone.startsWith("5")) {
         cleanPhone = "966" + cleanPhone;
       } else {
         cleanPhone = "20" + cleanPhone;
       }
     }
-    
-    const whatsappNumber = cleanPhone.includes("@") ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
-    
+
+    const whatsappNumber = cleanPhone.includes("@")
+      ? cleanPhone
+      : `${cleanPhone}@s.whatsapp.net`;
+
     try {
-      console.log(`📱 [${jobInfo.currentIndex}/${jobInfo.totalRecipients}] Sending to: ${number.name || cleanPhone}`);
+      console.log(
+        `📱 [${jobInfo.currentIndex}/${jobInfo.totalRecipients}] Sending to: ${
+          number.name || cleanPhone
+        }`
+      );
       await sendMessage(whatsappNumber, message);
       jobInfo.successCount++;
       console.log(`   ✅ Success`);
@@ -1092,21 +1159,23 @@ async function processBulkMessagesInBackground(jobInfo) {
       console.error(`   ❌ Failed:`, err.message);
       jobInfo.failCount++;
     }
-    
+
     // Delay between messages (except for the last one)
     if (i < customNumbers.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
-  
+
   // Mark as completed
   jobInfo.status = "completed";
   jobInfo.completedAt = new Date().toISOString();
-  
+
   console.log(`\n✅ [BULK SEND] Job ${jobId} completed!`);
-  console.log(`   📊 Success: ${jobInfo.successCount}/${jobInfo.totalRecipients}`);
+  console.log(
+    `   📊 Success: ${jobInfo.successCount}/${jobInfo.totalRecipients}`
+  );
   console.log(`   ❌ Failed: ${jobInfo.failCount}`);
-  
+
   // Update ad status and mark as sent
   if (adId) {
     try {
@@ -1118,7 +1187,7 @@ async function processBulkMessagesInBackground(jobInfo) {
       console.error(`   ⚠️ Failed to update ad status:`, err.message);
     }
   }
-  
+
   // Send completion notification to admin
   const ADMIN_PHONE = "966508001475@s.whatsapp.net";
   const completionMessage = `✅ *إرسال جماعي مكتمل*
@@ -1128,9 +1197,15 @@ async function processBulkMessagesInBackground(jobInfo) {
 ✅ نجح: ${jobInfo.successCount}
 ❌ فشل: ${jobInfo.failCount}
 ⏱️ التأخير: ${delaySeconds} ثانية
-🕐 وقت الإنتهاء: ${new Date().toLocaleString("ar-EG", { timeZone: "Africa/Cairo" })}
+🕐 وقت الإنتهاء: ${new Date().toLocaleString("ar-EG", {
+    timeZone: "Africa/Cairo",
+  })}
 
-${jobInfo.failCount === 0 ? "🎉 تم الإرسال بنجاح للجميع!" : "⚠️ بعض الرسائل فشلت في الإرسال"}`;
+${
+  jobInfo.failCount === 0
+    ? "🎉 تم الإرسال بنجاح للجميع!"
+    : "⚠️ بعض الرسائل فشلت في الإرسال"
+}`;
 
   try {
     console.log(`📤 Sending completion notification to admin...`);
@@ -1139,7 +1214,7 @@ ${jobInfo.failCount === 0 ? "🎉 تم الإرسال بنجاح للجميع!" 
   } catch (err) {
     console.error(`   ❌ Failed to notify admin:`, err.message);
   }
-  
+
   // Clean up old jobs after 1 hour
   setTimeout(() => {
     activeBulkJobs.delete(jobId);
@@ -1156,7 +1231,14 @@ router.get(
   authorizeRole(["admin", "author"]),
   (req, res) => {
     try {
-      const { page = 1, limit = 20, status, category, website, group } = req.query;
+      const {
+        page = 1,
+        limit = 20,
+        status,
+        category,
+        website,
+        group,
+      } = req.query;
 
       let fetched = getFetchedAds();
 
@@ -1164,7 +1246,10 @@ router.get(
       const groupsMap = new Map();
       getFetchedAds().forEach((ad) => {
         if (ad.fromGroupName && ad.fromGroup) {
-          groupsMap.set(ad.fromGroup, { id: ad.fromGroup, name: ad.fromGroupName });
+          groupsMap.set(ad.fromGroup, {
+            id: ad.fromGroup,
+            name: ad.fromGroupName,
+          });
         }
       });
       const allGroups = Array.from(groupsMap.values());
@@ -1241,7 +1326,14 @@ router.get(
   authorizeRole(["admin", "author"]),
   (req, res) => {
     try {
-      const { page = 1, limit = 12, website, group, category, status } = req.query;
+      const {
+        page = 1,
+        limit = 12,
+        website,
+        group,
+        category,
+        status,
+      } = req.query;
 
       let ads = getFetchedAds();
 
@@ -1252,32 +1344,36 @@ router.get(
       // Pre-filter: only accepted ads with whatsappMessage
       ads = ads.filter((ad) => {
         const hasWhatsApp = ad.whatsappMessage && ad.whatsappMessage.trim();
-        
+
         // Check if message was sent using any of the three indicators
         // This matches the client-side logic in app.js
-        const wasSent = 
-          ad.postedToGroups || 
-          ad.sentToGroups || 
+        const wasSent =
+          ad.postedToGroups ||
+          ad.sentToGroups ||
           (ad.selectedGroups && ad.selectedGroups.length > 0);
-        
+
         // For status filter - default to 'pending' (not sent)
-        if (status === 'sent') {
-          return ad.status === 'accepted' && hasWhatsApp && wasSent;
-        } else if (status === 'pending') {
-          return ad.status === 'accepted' && hasWhatsApp && !wasSent;
+        if (status === "sent") {
+          return ad.status === "accepted" && hasWhatsApp && wasSent;
+        } else if (status === "pending") {
+          return ad.status === "accepted" && hasWhatsApp && !wasSent;
         } else {
           // 'all' - any accepted with whatsapp message
-          return ad.status === 'accepted' && hasWhatsApp;
+          return ad.status === "accepted" && hasWhatsApp;
         }
       });
 
       // Collect groups and categories
       ads.forEach((ad) => {
         if (ad.fromGroupName && ad.fromGroup) {
-          groupsMap.set(ad.fromGroup, { id: ad.fromGroup, name: ad.fromGroupName });
+          groupsMap.set(ad.fromGroup, {
+            id: ad.fromGroup,
+            name: ad.fromGroupName,
+          });
         }
         const meta = ad.wpData && ad.wpData.meta ? ad.wpData.meta : {};
-        const effectiveCategory = meta.arc_category || meta.parent_catt || ad.category;
+        const effectiveCategory =
+          meta.arc_category || meta.parent_catt || ad.category;
         if (effectiveCategory) {
           categoriesSet.add(effectiveCategory);
         }
@@ -1290,19 +1386,23 @@ router.get(
       if (website && website !== "all") {
         ads = ads.filter((a) => {
           if (a.targetWebsite) return a.targetWebsite === website;
-          if (a.wpData && a.wpData.targetWebsite) return a.wpData.targetWebsite === website;
+          if (a.wpData && a.wpData.targetWebsite)
+            return a.wpData.targetWebsite === website;
           return false;
         });
       }
 
       if (group && group !== "all") {
-        ads = ads.filter((a) => a.fromGroup === group || a.fromGroupName === group);
+        ads = ads.filter(
+          (a) => a.fromGroup === group || a.fromGroupName === group
+        );
       }
 
       if (category && category !== "all") {
         ads = ads.filter((a) => {
           const meta = a.wpData && a.wpData.meta ? a.wpData.meta : {};
-          const effectiveCategory = meta.arc_category || meta.parent_catt || a.category;
+          const effectiveCategory =
+            meta.arc_category || meta.parent_catt || a.category;
           return effectiveCategory === category;
         });
       }
@@ -1370,16 +1470,16 @@ router.delete(
   (req, res) => {
     try {
       const { id } = req.params;
-      
+
       const result = removeAdImage(id);
-      
+
       if (!result) {
         return res.status(404).json({ error: "Ad not found" });
       }
-      
-      res.json({ 
-        success: true, 
-        message: "Image removed successfully" 
+
+      res.json({
+        success: true,
+        message: "Image removed successfully",
       });
     } catch (err) {
       console.error("Error removing ad image:", err);
@@ -1403,7 +1503,9 @@ router.get(
       }
 
       if (!ad.imageUrl || typeof ad.imageUrl !== "object") {
-        return res.status(404).json({ error: "No image available for this ad" });
+        return res
+          .status(404)
+          .json({ error: "No image available for this ad" });
       }
 
       // Get WhatsApp socket
@@ -1411,31 +1513,39 @@ router.get(
       if (!sock) {
         // Fallback to thumbnail if socket not available
         if (ad.imageUrl.jpegThumbnail) {
-          const thumbnailBuffer = Buffer.from(ad.imageUrl.jpegThumbnail, "base64");
+          const thumbnailBuffer = Buffer.from(
+            ad.imageUrl.jpegThumbnail,
+            "base64"
+          );
           res.set("Content-Type", "image/jpeg");
-          res.set("Content-Disposition", `inline; filename="ad-${id}-thumbnail.jpg"`);
+          res.set(
+            "Content-Disposition",
+            `inline; filename="ad-${id}-thumbnail.jpg"`
+          );
           return res.send(thumbnailBuffer);
         }
-        return res.status(503).json({ error: "WhatsApp connection not available" });
+        return res
+          .status(503)
+          .json({ error: "WhatsApp connection not available" });
       }
 
       console.log(`🖼️ Downloading full-quality image for ad: ${id}`);
 
       // Baileys requires a key for reuploadRequest to work
-      const messageKey = ad.messageKey || { 
-        id: id.includes("_") ? id.split("_")[1] : id, 
-        remoteJid: ad.fromGroup, 
-        fromMe: false 
+      const messageKey = ad.messageKey || {
+        id: id.includes("_") ? id.split("_")[1] : id,
+        remoteJid: ad.fromGroup,
+        fromMe: false,
       };
 
       const { downloadMediaMessage } = require("@whiskeysockets/baileys");
-      
+
       let imageBuffer;
       try {
         imageBuffer = await downloadMediaMessage(
-          { 
+          {
             key: messageKey,
-            message: { imageMessage: ad.imageUrl } 
+            message: { imageMessage: ad.imageUrl },
           },
           "buffer",
           {},
@@ -1445,7 +1555,9 @@ router.get(
           }
         );
       } catch (downloadErr) {
-        console.warn("⚠️ Full image download failed, trying without reupload request...");
+        console.warn(
+          "⚠️ Full image download failed, trying without reupload request..."
+        );
         imageBuffer = await downloadMediaMessage(
           { message: { imageMessage: ad.imageUrl } },
           "buffer",
@@ -1460,23 +1572,34 @@ router.get(
       console.log(`✅ Full image downloaded: ${imageBuffer.length} bytes`);
 
       res.set("Content-Type", contentType);
-      res.set("Content-Disposition", `inline; filename="ad-${id}.${extension}"`);
+      res.set(
+        "Content-Disposition",
+        `inline; filename="ad-${id}.${extension}"`
+      );
       res.set("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
       res.send(imageBuffer);
     } catch (err) {
       console.error("Error getting full ad image:", err);
-      
+
       // Try to fallback to thumbnail
       const ad = getAdById(req.params.id);
       if (ad && ad.imageUrl && ad.imageUrl.jpegThumbnail) {
         console.log("⚠️ Falling back to thumbnail due to error");
-        const thumbnailBuffer = Buffer.from(ad.imageUrl.jpegThumbnail, "base64");
+        const thumbnailBuffer = Buffer.from(
+          ad.imageUrl.jpegThumbnail,
+          "base64"
+        );
         res.set("Content-Type", "image/jpeg");
-        res.set("Content-Disposition", `inline; filename="ad-${req.params.id}-thumbnail.jpg"`);
+        res.set(
+          "Content-Disposition",
+          `inline; filename="ad-${req.params.id}-thumbnail.jpg"`
+        );
         return res.send(thumbnailBuffer);
       }
       console.log("⚠️ Falling back to placeholder image");
-      res.sendFile(path.join(__dirname, "../public/images/no-image-placeholder.png"));
+      res.sendFile(
+        path.join(__dirname, "../public/images/no-image-placeholder.png")
+      );
     }
   }
 );
@@ -1494,7 +1617,11 @@ router.post(
         return res.status(400).json({ error: "Invalid status" });
 
       // Pass rejection reason if status is rejected
-      const ok = updateAdStatus(id, status, status === "rejected" ? reason : null);
+      const ok = updateAdStatus(
+        id,
+        status,
+        status === "rejected" ? reason : null
+      );
       if (!ok) return res.status(404).json({ error: "Ad not found" });
 
       // Check if auto-approve is enabled and status is accepted
@@ -1671,7 +1798,12 @@ router.post(
               generateWhatsAppMessage,
             } = require("../services/aiService");
             const settings = getSettings();
-            const whatsappMessage = generateWhatsAppMessage(wpData, shortLink, 'masaak', settings);
+            const whatsappMessage = generateWhatsAppMessage(
+              wpData,
+              shortLink,
+              "masaak",
+              settings
+            );
 
             // Update ad with WordPress info - keep as "accepted" not "posted"
             ad.status = "accepted";
@@ -1763,7 +1895,8 @@ router.post(
       const { id } = req.params;
 
       const ok = moveAdToRecycleBin(id);
-      if (!ok) return res.status(404).json({ error: "Ad not found or not rejected" });
+      if (!ok)
+        return res.status(404).json({ error: "Ad not found or not rejected" });
 
       res.json({ success: true, message: "Ad moved to recycle bin" });
     } catch (err) {
@@ -1795,7 +1928,12 @@ router.post(
 
       // Generate WhatsApp message
       const settings = getSettings();
-      const whatsappMessage = generateWhatsAppMessage(wpData, null, 'masaak', settings);
+      const whatsappMessage = generateWhatsAppMessage(
+        wpData,
+        null,
+        "masaak",
+        settings
+      );
 
       // Update the ad with new WordPress data and WhatsApp message
       const ok = updateAdWordPressData(id, wpData, whatsappMessage);
@@ -1875,6 +2013,47 @@ router.post(
     } catch (err) {
       console.error("Error refreshing groups:", err);
       res.status(500).json({ error: "Failed to refresh groups" });
+    }
+  }
+);
+
+// Get groups cache status (admin/author)
+router.get(
+  "/groups/cache-status",
+  authenticateToken,
+  authorizeRole(["admin", "author"]),
+  async (req, res) => {
+    try {
+      const cachedGroups = getCachedGroups();
+      const hasCache = cachedGroups !== null && cachedGroups.length > 0;
+      res.json({
+        success: true,
+        hasCache,
+        cachedGroupsCount: cachedGroups ? cachedGroups.length : 0,
+        cacheStatus: hasCache ? "Valid" : "Empty/Stale",
+      });
+    } catch (err) {
+      console.error("Error checking cache status:", err);
+      res.status(500).json({ error: "Failed to check cache status" });
+    }
+  }
+);
+
+// Clear groups cache (admin only)
+router.post(
+  "/groups/cache-clear",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      clearGroupsCache();
+      res.json({
+        success: true,
+        message: "Groups cache cleared successfully",
+      });
+    } catch (err) {
+      console.error("Error clearing cache:", err);
+      res.status(500).json({ error: "Failed to clear cache" });
     }
   }
 );
@@ -2341,14 +2520,18 @@ router.put(
       // Validate and update footer settings
       if (hasakFooter !== undefined) {
         if (typeof hasakFooter !== "string") {
-          return res.status(400).json({ error: "hasakFooter must be a string" });
+          return res
+            .status(400)
+            .json({ error: "hasakFooter must be a string" });
         }
         updates.hasakFooter = hasakFooter;
       }
 
       if (masaakFooter !== undefined) {
         if (typeof masaakFooter !== "string") {
-          return res.status(400).json({ error: "masaakFooter must be a string" });
+          return res
+            .status(400)
+            .json({ error: "masaakFooter must be a string" });
         }
         updates.masaakFooter = masaakFooter;
       }
@@ -3028,7 +3211,15 @@ router.put(
   (req, res) => {
     try {
       const { phoneNumber } = req.params;
-      const { name, role, state, requirements, propertyOffer, newPhoneNumber, requests } = req.body;
+      const {
+        name,
+        role,
+        state,
+        requirements,
+        propertyOffer,
+        newPhoneNumber,
+        requests,
+      } = req.body;
 
       // Get existing client
       const existingClient = privateClient.getClient(phoneNumber);
@@ -3042,19 +3233,28 @@ router.put(
       if (newPhoneNumber && newPhoneNumber !== phoneNumber) {
         // Normalize the new phone number (remove non-digits except leading +)
         const normalizedNewPhone = newPhoneNumber.replace(/[^\d]/g, "");
-        
+
         if (!normalizedNewPhone || normalizedNewPhone.length < 10) {
           return res.status(400).json({ error: "Invalid phone number format" });
         }
 
-        const result = privateClient.changeClientPhone(phoneNumber, normalizedNewPhone);
+        const result = privateClient.changeClientPhone(
+          phoneNumber,
+          normalizedNewPhone
+        );
         if (!result) {
           // Check if it's because new phone exists
           const existingNew = privateClient.getClient(normalizedNewPhone);
           if (existingNew && existingNew.createdAt) {
-            return res.status(400).json({ error: "Phone number already exists for another client" });
+            return res
+              .status(400)
+              .json({
+                error: "Phone number already exists for another client",
+              });
           }
-          return res.status(400).json({ error: "Failed to change phone number" });
+          return res
+            .status(400)
+            .json({ error: "Failed to change phone number" });
         }
         targetPhone = normalizedNewPhone;
       }
@@ -3069,11 +3269,13 @@ router.put(
       if (state !== undefined) updateData.state = state;
       if (requirements !== undefined) updateData.requirements = requirements;
       if (propertyOffer !== undefined) updateData.propertyOffer = propertyOffer;
-      
+
       // NEW: Support for multiple requests array
       if (requests !== undefined && Array.isArray(requests)) {
         updateData.requests = requests;
-        console.log(`📋 Updating ${requests.length} requests for client ${targetPhone}`);
+        console.log(
+          `📋 Updating ${requests.length} requests for client ${targetPhone}`
+        );
       }
 
       // Update client
@@ -3081,9 +3283,10 @@ router.put(
 
       res.json({
         success: true,
-        message: newPhoneNumber && newPhoneNumber !== phoneNumber 
-          ? "Client updated and phone number changed successfully" 
-          : "Client updated successfully",
+        message:
+          newPhoneNumber && newPhoneNumber !== phoneNumber
+            ? "Client updated and phone number changed successfully"
+            : "Client updated successfully",
         client: privateClient.getClient(targetPhone),
         phoneChanged: newPhoneNumber && newPhoneNumber !== phoneNumber,
         newPhoneNumber: targetPhone,
@@ -3206,16 +3409,22 @@ router.get(
 // =====================================
 
 // Get available filter options for smart summary
-router.get("/daily-summaries/available-filters", authenticateToken, (req, res) => {
-  try {
-    const { getAvailableFilters } = require("../services/dailySummaryService");
-    const filters = getAvailableFilters();
-    res.json({ success: true, filters });
-  } catch (error) {
-    console.error("Error getting available filters:", error);
-    res.status(500).json({ error: "Failed to get available filters" });
+router.get(
+  "/daily-summaries/available-filters",
+  authenticateToken,
+  (req, res) => {
+    try {
+      const {
+        getAvailableFilters,
+      } = require("../services/dailySummaryService");
+      const filters = getAvailableFilters();
+      res.json({ success: true, filters });
+    } catch (error) {
+      console.error("Error getting available filters:", error);
+      res.status(500).json({ error: "Failed to get available filters" });
+    }
   }
-});
+);
 
 // Preview custom summary (get count and sample before generating)
 router.post("/daily-summaries/preview", authenticateToken, (req, res) => {
@@ -3231,57 +3440,67 @@ router.post("/daily-summaries/preview", authenticateToken, (req, res) => {
 });
 
 // Generate custom summary with advanced filters
-router.post("/daily-summaries/generate-custom", authenticateToken, async (req, res) => {
-  try {
-    const {
-      generateCustomSummary,
-      getSummaries,
-      saveSummaries,
-    } = require("../services/dailySummaryService");
+router.post(
+  "/daily-summaries/generate-custom",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const {
+        generateCustomSummary,
+        getSummaries,
+        saveSummaries,
+      } = require("../services/dailySummaryService");
 
-    const filters = req.body;
-    console.log("📊 Generating custom summary with filters:", JSON.stringify(filters, null, 2));
+      const filters = req.body;
+      console.log(
+        "📊 Generating custom summary with filters:",
+        JSON.stringify(filters, null, 2)
+      );
 
-    const result = generateCustomSummary(filters);
+      const result = generateCustomSummary(filters);
 
-    if (!result.success || !result.summary) {
-      return res.json({
+      if (!result.success || !result.summary) {
+        return res.json({
+          success: true,
+          count: 0,
+          message:
+            result.message || "No ads found matching the selected filters",
+        });
+      }
+
+      // Save the generated summary
+      const allSummaries = getSummaries();
+      allSummaries.unshift(result.summary);
+
+      // Keep only last 10 days of summaries
+      const uniqueDates = [...new Set(allSummaries.map((s) => s.date))];
+      const recentDates = uniqueDates.slice(0, 10);
+      const filtered = allSummaries.filter((s) => recentDates.includes(s.date));
+
+      saveSummaries(filtered);
+      console.log(
+        `💾 Saved custom summary. Total summaries: ${filtered.length}`
+      );
+
+      res.json({
         success: true,
-        count: 0,
-        message: result.message || "No ads found matching the selected filters",
+        count: result.count,
+        message: result.message,
+        summary: {
+          id: result.summary.id,
+          website: result.summary.website,
+          categoryName: result.summary.categoryName,
+          adsCount: result.summary.adsCount,
+          createdAt: result.summary.createdAt,
+          filters: result.summary.filters,
+        },
       });
+    } catch (error) {
+      console.error("Error generating custom summary:", error);
+      res.status(500).json({ error: "Failed to generate custom summary" });
     }
-
-    // Save the generated summary
-    const allSummaries = getSummaries();
-    allSummaries.unshift(result.summary);
-
-    // Keep only last 10 days of summaries
-    const uniqueDates = [...new Set(allSummaries.map((s) => s.date))];
-    const recentDates = uniqueDates.slice(0, 10);
-    const filtered = allSummaries.filter((s) => recentDates.includes(s.date));
-
-    saveSummaries(filtered);
-    console.log(`💾 Saved custom summary. Total summaries: ${filtered.length}`);
-
-    res.json({
-      success: true,
-      count: result.count,
-      message: result.message,
-      summary: {
-        id: result.summary.id,
-        website: result.summary.website,
-        categoryName: result.summary.categoryName,
-        adsCount: result.summary.adsCount,
-        createdAt: result.summary.createdAt,
-        filters: result.summary.filters,
-      },
-    });
-  } catch (error) {
-    console.error("Error generating custom summary:", error);
-    res.status(500).json({ error: "Failed to generate custom summary" });
   }
-});
+);
 
 // Get subcategories for selected main categories
 router.post("/daily-summaries/subcategories", authenticateToken, (req, res) => {
@@ -3291,7 +3510,10 @@ router.post("/daily-summaries/subcategories", authenticateToken, (req, res) => {
     } = require("../services/smartSummaryFilters");
 
     const { mainCategories, website } = req.body;
-    const subcategories = getSubcategoriesForCategories(mainCategories || [], website);
+    const subcategories = getSubcategoriesForCategories(
+      mainCategories || [],
+      website
+    );
 
     res.json({ success: true, subcategories });
   } catch (error) {
@@ -3595,9 +3817,15 @@ router.get(
       // Calculate stats
       const stats = {
         total: reminderService.getAllReminders().length,
-        pending: reminderService.getAllReminders().filter((r) => r.status === "pending").length,
-        sent: reminderService.getAllReminders().filter((r) => r.status === "sent").length,
-        failed: reminderService.getAllReminders().filter((r) => r.status === "failed").length,
+        pending: reminderService
+          .getAllReminders()
+          .filter((r) => r.status === "pending").length,
+        sent: reminderService
+          .getAllReminders()
+          .filter((r) => r.status === "sent").length,
+        failed: reminderService
+          .getAllReminders()
+          .filter((r) => r.status === "failed").length,
       };
 
       // Pagination
@@ -3605,7 +3833,10 @@ router.get(
       const totalPages = Math.ceil(totalItems / limit);
       const currentPage = parseInt(page);
       const startIndex = (currentPage - 1) * limit;
-      const paginatedReminders = reminders.slice(startIndex, startIndex + parseInt(limit));
+      const paginatedReminders = reminders.slice(
+        startIndex,
+        startIndex + parseInt(limit)
+      );
 
       res.json({
         success: true,
@@ -3662,7 +3893,8 @@ router.post(
 
       if (!targetNumber || !scheduledDateTime || !message) {
         return res.status(400).json({
-          error: "Missing required fields: targetNumber, scheduledDateTime, message",
+          error:
+            "Missing required fields: targetNumber, scheduledDateTime, message",
         });
       }
 
@@ -3709,7 +3941,8 @@ router.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { targetNumber, name, scheduledDateTime, message, status } = req.body;
+      const { targetNumber, name, scheduledDateTime, message, status } =
+        req.body;
 
       // Check if reminder exists
       const existing = reminderService.getReminderById(id);
@@ -3720,7 +3953,9 @@ router.put(
       // Prepare updates
       const updates = {};
       if (targetNumber) {
-        updates.targetNumber = targetNumber.replace(/^\+/, "").replace(/\s/g, "");
+        updates.targetNumber = targetNumber
+          .replace(/^\+/, "")
+          .replace(/\s/g, "");
       }
       // Handle name - allow setting to null or a value
       if (name !== undefined) {
@@ -3728,7 +3963,11 @@ router.put(
       }
       if (scheduledDateTime) {
         const scheduledTime = new Date(scheduledDateTime).getTime();
-        if (scheduledTime <= Date.now() && status !== "sent" && status !== "failed") {
+        if (
+          scheduledTime <= Date.now() &&
+          status !== "sent" &&
+          status !== "failed"
+        ) {
           return res.status(400).json({
             error: "Scheduled time must be in the future for pending reminders",
           });
@@ -3799,8 +4038,10 @@ router.post(
       }
 
       // Extract links from the reminder message
-      const mapsLinkRegex = /(https?:\/\/(maps\.app\.goo\.gl|www\.google\.com\/maps|goo\.gl\/maps|maps\.google\.com)[^\s]+)/i;
-      const websiteLinkRegex = /(https?:\/\/(www\.)?(masaak|hasak)\.com[^\s]+)/i;
+      const mapsLinkRegex =
+        /(https?:\/\/(maps\.app\.goo\.gl|www\.google\.com\/maps|goo\.gl\/maps|maps\.google\.com)[^\s]+)/i;
+      const websiteLinkRegex =
+        /(https?:\/\/(www\.)?(masaak|hasak)\.com[^\s]+)/i;
 
       const mapsMatch = reminder.message.match(mapsLinkRegex);
       const websiteMatch = reminder.message.match(websiteLinkRegex);
@@ -3810,7 +4051,7 @@ router.post(
 
       // Determine which site for footer
       const isHasak = websiteLink && websiteLink.includes("hasak.com");
-      
+
       // Client name
       const clientName = reminder.name || "العميل";
 
@@ -3857,23 +4098,27 @@ ${mapsLink}
             missingLinks,
             targetNumber: reminder.targetNumber,
             clientName,
-            warning: `⚠️ الروابط التالية غير موجودة في رسالة التذكير الأصلية: ${missingLinks.join("، ")}`,
+            warning: `⚠️ الروابط التالية غير موجودة في رسالة التذكير الأصلية: ${missingLinks.join(
+              "، "
+            )}`,
           },
         });
       }
 
       // Send the follow-up message
       const targetJid = `${reminder.targetNumber}@s.whatsapp.net`;
-      
+
       // Use custom message if provided (from the edit dialog), otherwise use generated message
       const { customMessage } = req.body;
       const messageToSend = customMessage || followUpMessage;
-      
+
       try {
         await sendMessage(targetJid, messageToSend);
 
         // Log the follow-up
-        console.log(`✅ Follow-up sent for reminder ${id} to +${reminder.targetNumber}`);
+        console.log(
+          `✅ Follow-up sent for reminder ${id} to +${reminder.targetNumber}`
+        );
 
         res.json({
           success: true,
@@ -3882,7 +4127,10 @@ ${mapsLink}
           clientName,
         });
       } catch (sendError) {
-        console.error(`❌ Failed to send follow-up for reminder ${id}:`, sendError);
+        console.error(
+          `❌ Failed to send follow-up for reminder ${id}:`,
+          sendError
+        );
         res.status(500).json({
           error: "فشل إرسال رسالة المتابعة",
           details: sendError.message,
@@ -4040,10 +4288,13 @@ router.put(
       if (req.file) {
         // New image uploaded
         imagePath = req.file.path;
-        
+
         // Delete old image if exists
         const existingMessage = customMessageService.getMessageById(id);
-        if (existingMessage?.imagePath && fs.existsSync(existingMessage.imagePath)) {
+        if (
+          existingMessage?.imagePath &&
+          fs.existsSync(existingMessage.imagePath)
+        ) {
           try {
             fs.unlinkSync(existingMessage.imagePath);
           } catch (e) {
@@ -4054,7 +4305,10 @@ router.put(
         // Remove existing image
         imagePath = null;
         const existingMessage = customMessageService.getMessageById(id);
-        if (existingMessage?.imagePath && fs.existsSync(existingMessage.imagePath)) {
+        if (
+          existingMessage?.imagePath &&
+          fs.existsSync(existingMessage.imagePath)
+        ) {
           try {
             fs.unlinkSync(existingMessage.imagePath);
           } catch (e) {
@@ -4076,7 +4330,9 @@ router.put(
       });
     } catch (error) {
       console.error("Error updating custom message:", error);
-      res.status(500).json({ error: error.message || "Failed to update custom message" });
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to update custom message" });
     }
   }
 );
@@ -4098,7 +4354,9 @@ router.delete(
       });
     } catch (error) {
       console.error("Error deleting custom message:", error);
-      res.status(500).json({ error: error.message || "Failed to delete custom message" });
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to delete custom message" });
     }
   }
 );
@@ -4110,31 +4368,31 @@ router.get(
   (req, res) => {
     try {
       const { filename } = req.params;
-      
+
       // Security: Only allow alphanumeric, underscore, dash, and dot in filename
       if (!/^[a-zA-Z0-9_\-\.]+$/.test(filename)) {
         return res.status(400).json({ error: "Invalid filename" });
       }
-      
+
       const imagePath = path.join(customMessageImagesDir, filename);
-      
+
       // Check if file exists
       if (!fs.existsSync(imagePath)) {
         return res.status(404).json({ error: "Image not found" });
       }
-      
+
       // Determine content type
       const ext = path.extname(filename).toLowerCase();
       const contentTypes = {
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.png': 'image/png',
-        '.gif': 'image/gif',
-        '.webp': 'image/webp'
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
       };
-      const contentType = contentTypes[ext] || 'application/octet-stream';
-      
-      res.setHeader('Content-Type', contentType);
+      const contentType = contentTypes[ext] || "application/octet-stream";
+
+      res.setHeader("Content-Type", contentType);
       res.sendFile(imagePath);
     } catch (error) {
       console.error("Error serving custom message image:", error);
@@ -4161,7 +4419,9 @@ router.post(
       });
     } catch (error) {
       console.error("Error previewing message:", error);
-      res.status(500).json({ error: error.message || "Failed to preview message" });
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to preview message" });
     }
   }
 );
@@ -4197,8 +4457,9 @@ router.post(
       };
 
       // Use the scheduler service to send
-      const result = await messageSchedulerService.executeScheduleNow(tempSchedule.id) || 
-        { success: true, message: "Message sending started" };
+      const result = (await messageSchedulerService.executeScheduleNow(
+        tempSchedule.id
+      )) || { success: true, message: "Message sending started" };
 
       res.json({
         success: true,
@@ -4206,7 +4467,9 @@ router.post(
       });
     } catch (error) {
       console.error("Error sending custom message:", error);
-      res.status(500).json({ error: error.message || "Failed to send custom message" });
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to send custom message" });
     }
   }
 );
@@ -4267,7 +4530,8 @@ router.post(
   authorizeRole(["admin"]),
   async (req, res) => {
     try {
-      const { messageId, name, schedule, recipients, settings, enabled } = req.body;
+      const { messageId, name, schedule, recipients, settings, enabled } =
+        req.body;
 
       if (!messageId) {
         return res.status(400).json({ error: "Message ID is required" });
@@ -4287,7 +4551,9 @@ router.post(
       });
     } catch (error) {
       console.error("Error creating schedule:", error);
-      res.status(500).json({ error: error.message || "Failed to create schedule" });
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to create schedule" });
     }
   }
 );
@@ -4300,7 +4566,8 @@ router.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { messageId, name, schedule, recipients, settings, enabled } = req.body;
+      const { messageId, name, schedule, recipients, settings, enabled } =
+        req.body;
 
       const updatedSchedule = await customMessageService.updateSchedule(id, {
         messageId,
@@ -4320,7 +4587,9 @@ router.put(
       });
     } catch (error) {
       console.error("Error updating schedule:", error);
-      res.status(500).json({ error: error.message || "Failed to update schedule" });
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to update schedule" });
     }
   }
 );
@@ -4345,7 +4614,9 @@ router.delete(
       });
     } catch (error) {
       console.error("Error deleting schedule:", error);
-      res.status(500).json({ error: error.message || "Failed to delete schedule" });
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to delete schedule" });
     }
   }
 );
@@ -4367,11 +4638,15 @@ router.post(
       res.json({
         success: true,
         schedule,
-        message: `Schedule ${schedule.enabled ? "enabled" : "disabled"} successfully`,
+        message: `Schedule ${
+          schedule.enabled ? "enabled" : "disabled"
+        } successfully`,
       });
     } catch (error) {
       console.error("Error toggling schedule:", error);
-      res.status(500).json({ error: error.message || "Failed to toggle schedule" });
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to toggle schedule" });
     }
   }
 );
@@ -4396,7 +4671,9 @@ router.post(
       });
     } catch (error) {
       console.error("Error executing schedule:", error);
-      res.status(500).json({ error: error.message || "Failed to execute schedule" });
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to execute schedule" });
     }
   }
 );
@@ -4442,7 +4719,7 @@ router.get(
     try {
       const messages = scheduledWhatsappService.getAllScheduledMessages();
       const status = scheduledWhatsappService.getServiceStatus();
-      
+
       res.json({
         success: true,
         messages,
@@ -4463,14 +4740,16 @@ router.get(
   (req, res) => {
     try {
       const messages = scheduledWhatsappService.getPendingScheduledMessages();
-      
+
       res.json({
         success: true,
         messages,
       });
     } catch (error) {
       console.error("Error getting pending scheduled messages:", error);
-      res.status(500).json({ error: "Failed to get pending scheduled messages" });
+      res
+        .status(500)
+        .json({ error: "Failed to get pending scheduled messages" });
     }
   }
 );
@@ -4484,11 +4763,11 @@ router.get(
     try {
       const { id } = req.params;
       const message = scheduledWhatsappService.getScheduledMessageById(id);
-      
+
       if (!message) {
         return res.status(404).json({ error: "Scheduled message not found" });
       }
-      
+
       res.json({
         success: true,
         message,
@@ -4507,20 +4786,32 @@ router.post(
   authorizeRole(["admin", "author"]),
   (req, res) => {
     try {
-      const { adId, message, groups, customNumbers, scheduledDate, delaySeconds } = req.body;
-      
+      const {
+        adId,
+        message,
+        groups,
+        customNumbers,
+        scheduledDate,
+        delaySeconds,
+      } = req.body;
+
       if (!message) {
         return res.status(400).json({ error: "Message content is required" });
       }
-      
+
       if (!scheduledDate) {
         return res.status(400).json({ error: "Scheduled date is required" });
       }
-      
-      if ((!groups || groups.length === 0) && (!customNumbers || customNumbers.length === 0)) {
-        return res.status(400).json({ error: "At least one recipient is required" });
+
+      if (
+        (!groups || groups.length === 0) &&
+        (!customNumbers || customNumbers.length === 0)
+      ) {
+        return res
+          .status(400)
+          .json({ error: "At least one recipient is required" });
       }
-      
+
       const scheduledMessage = scheduledWhatsappService.createScheduledMessage({
         adId,
         message,
@@ -4530,7 +4821,7 @@ router.post(
         delaySeconds: delaySeconds || 3,
         createdBy: req.user?.username || "unknown",
       });
-      
+
       res.json({
         success: true,
         message: "Message scheduled successfully",
@@ -4538,7 +4829,9 @@ router.post(
       });
     } catch (error) {
       console.error("Error creating scheduled message:", error);
-      res.status(400).json({ error: error.message || "Failed to schedule message" });
+      res
+        .status(400)
+        .json({ error: error.message || "Failed to schedule message" });
     }
   }
 );
@@ -4552,7 +4845,7 @@ router.post(
     try {
       const { id } = req.params;
       const message = scheduledWhatsappService.cancelScheduledMessage(id);
-      
+
       res.json({
         success: true,
         message: "Scheduled message cancelled",
@@ -4560,7 +4853,9 @@ router.post(
       });
     } catch (error) {
       console.error("Error cancelling scheduled message:", error);
-      res.status(400).json({ error: error.message || "Failed to cancel scheduled message" });
+      res
+        .status(400)
+        .json({ error: error.message || "Failed to cancel scheduled message" });
     }
   }
 );
@@ -4574,14 +4869,16 @@ router.delete(
     try {
       const { id } = req.params;
       scheduledWhatsappService.deleteScheduledMessage(id);
-      
+
       res.json({
         success: true,
         message: "Scheduled message deleted",
       });
     } catch (error) {
       console.error("Error deleting scheduled message:", error);
-      res.status(400).json({ error: error.message || "Failed to delete scheduled message" });
+      res
+        .status(400)
+        .json({ error: error.message || "Failed to delete scheduled message" });
     }
   }
 );

@@ -56,8 +56,10 @@ const ConnectionPhase = {
   INIT: "init", // Before any connection attempt
   CONNECTING: "connecting", // Connection in progress
   WARMING: "warming", // Connected but warming up Signal/Crypto (5-10s)
+  RECEIVING: "receiving", // 🔍 Validating inbound capability (wait for first message)
   STABLE: "stable", // Fully ready for sends
   CRYPTO_UNSTABLE: "crypto_unstable", // 🔴 Crypto error detected - NO SENDS ALLOWED
+  RECEIVE_DEAD: "receive_dead", // 🔴 Confirmed dead inbound - force reconnect
 };
 
 let currentPhase = ConnectionPhase.INIT; // Current connection phase
@@ -75,7 +77,7 @@ const CRYPTO_ERROR_THRESHOLD = 2; // 2 errors within window = UNSTABLE
 
 /**
  * Transition to new connection phase
- * INIT → CONNECTING → WARMING → STABLE
+ * INIT → CONNECTING → WARMING → RECEIVING → STABLE
  */
 function setConnectionPhase(newPhase) {
   const oldPhase = currentPhase;
@@ -89,6 +91,11 @@ function setConnectionPhase(newPhase) {
   if (newPhase === ConnectionPhase.WARMING) {
     console.log(`   ⏳ Session warmup for ${SESSION_WARMUP_DURATION_MS}ms...`);
     console.log(`   🚫 Schedulers & queue PAUSED`);
+  } else if (newPhase === ConnectionPhase.RECEIVING) {
+    console.log(
+      `   🔍 Validating inbound capability - waiting for first message...`
+    );
+    console.log(`   🚫 Queue & schedulers still PAUSED`);
   } else if (newPhase === ConnectionPhase.STABLE) {
     console.log(`   ✅ Session stable - Schedulers & queue RESUMED`);
     // Reset crypto error tracking on successful stabilization
@@ -102,6 +109,13 @@ function setConnectionPhase(newPhase) {
       cryptoErrorCount,
       prekeyBundleProcessing,
       phase: oldPhase,
+    });
+  } else if (newPhase === ConnectionPhase.RECEIVE_DEAD) {
+    console.error(`   🔴 RECEIVE DEAD - Inbound channel confirmed dead`);
+    console.error(`   🔴 Force reconnect required`);
+    sendAdminAlert("RECEIVE_DEAD", {
+      lastInboundAt: Date.now() - lastMessageReceivedAt,
+      totalMessages: totalMessagesProcessed,
     });
   }
 
@@ -189,12 +203,24 @@ function handleSuccessfulDecrypt() {
 
 /**
  * Check if system is in a sending-ready state
- * Returns true only when STABLE (not INIT, CONNECTING, WARMING, or CRYPTO_UNSTABLE)
+ * Returns true only when STABLE (not INIT, CONNECTING, WARMING, RECEIVING, or CRYPTO_UNSTABLE)
  */
 function isReadyToSend() {
   // 🔴 CRITICAL: Block ALL sends during crypto instability
   if (currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
     console.warn(`   ⛔ isReadyToSend: BLOCKED - Crypto unstable`);
+    return false;
+  }
+
+  // 🔴 CRITICAL: Block sends during receive validation
+  if (currentPhase === ConnectionPhase.RECEIVING) {
+    console.warn(`   ⛔ isReadyToSend: BLOCKED - Validating inbound`);
+    return false;
+  }
+
+  // 🔴 CRITICAL: Block sends in receive-dead state
+  if (currentPhase === ConnectionPhase.RECEIVE_DEAD) {
+    console.warn(`   ⛔ isReadyToSend: BLOCKED - Receive dead`);
     return false;
   }
 
@@ -394,6 +420,20 @@ function sendAdminAlert(event, details = {}) {
         `📬 رسائل في الطابور: ${queueStats.currentQueueSize || 0}\n` +
         `⛔ جميع عمليات الإرسال متوقفة\n` +
         `🔄 سيتم الاستئناف بعد استقرار التشفير أو إعادة الاتصال`;
+
+      queueAdminNotification(alertMessage);
+    } else if (event === "RECEIVE_DEAD") {
+      // 🔴 CRITICAL: Receive-Dead session detected
+      alertMessage =
+        `🔴 *[تنبيه حرج: قناة الاستقبال ميتة]*\n\n` +
+        `⏰ الوقت: ${timestamp}\n` +
+        `💀 السبب: Receive-Dead Session مؤكد\n` +
+        `📊 آخر رسالة منذ: ${Math.floor(
+          (details.lastInboundAt || 0) / 60000
+        )} دقيقة\n` +
+        `📨 إجمالي الرسائل: ${details.totalMessages || 0}\n` +
+        `🔄 سيتم إعادة الاتصال فوراً\n` +
+        `⚠️ هذه جلسة إرسال فقط - لا تستقبل رسائل`;
 
       queueAdminNotification(alertMessage);
     }
@@ -684,6 +724,14 @@ function releaseInitLock() {
 function cleanupAllSchedulers() {
   console.log("🧹 Cleaning up all schedulers and intervals...");
 
+  // CRITICAL: Stop inbound monitoring first
+  try {
+    stopInboundMonitoring();
+    console.log("  ✅ Inbound monitoring stopped");
+  } catch (e) {
+    console.warn("  ⚠️ Error stopping inbound monitoring:", e.message);
+  }
+
   // CRITICAL: Cancel ALL tracked scheduled jobs via socket manager
   // This catches any jobs that services may have registered
   try {
@@ -828,6 +876,110 @@ const COLLECTIONS_FILE = path.join(__dirname, "..", "data", "collections.json");
 const CATEGORIES_FILE = path.join(__dirname, "..", "data", "categories.json");
 const RECYCLE_BIN_FILE = path.join(__dirname, "..", "data", "recycle_bin.json");
 const SETTINGS_FILE = path.join(__dirname, "..", "data", "settings.json");
+
+// ============================================
+// 📦 GROUPS CACHING SYSTEM
+// Caches all groups locally to avoid repeated fetches
+// ============================================
+const GROUPS_CACHE_FILE = path.join(
+  __dirname,
+  "..",
+  "data",
+  "groups_cache.json"
+);
+let groupsCacheData = {}; // In-memory cache
+let lastGroupsCacheRefresh = 0;
+const GROUPS_CACHE_EXPIRY_MS = 6 * 60 * 60 * 1000; // 6 hours cache validity
+
+/**
+ * Load groups cache from disk
+ */
+function loadGroupsCache() {
+  try {
+    if (fs.existsSync(GROUPS_CACHE_FILE)) {
+      const raw = fs.readFileSync(GROUPS_CACHE_FILE, "utf8");
+      const data = JSON.parse(raw || "{}");
+      if (data && data.groups && Array.isArray(data.groups)) {
+        groupsCacheData = {
+          groups: data.groups,
+          lastRefreshed: data.lastRefreshed || Date.now(),
+        };
+        lastGroupsCacheRefresh = groupsCacheData.lastRefreshed;
+        console.log(
+          `📦 Groups cache loaded: ${groupsCacheData.groups.length} groups`
+        );
+        return true;
+      }
+    }
+  } catch (e) {
+    console.warn(`⚠️ Error loading groups cache: ${e.message}`);
+  }
+  return false;
+}
+
+/**
+ * Save groups cache to disk
+ */
+function saveGroupsCache(groups) {
+  try {
+    const cacheData = {
+      groups: groups || [],
+      lastRefreshed: Date.now(),
+    };
+    fs.writeFileSync(
+      GROUPS_CACHE_FILE,
+      JSON.stringify(cacheData, null, 2),
+      "utf8"
+    );
+    groupsCacheData = cacheData;
+    lastGroupsCacheRefresh = cacheData.lastRefreshed;
+    console.log(`✅ Groups cache saved: ${groups ? groups.length : 0} groups`);
+  } catch (e) {
+    console.error(`❌ Error saving groups cache: ${e.message}`);
+  }
+}
+
+/**
+ * Get cached groups (returns null if cache is stale or empty)
+ */
+function getCachedGroups() {
+  if (
+    groupsCacheData &&
+    groupsCacheData.groups &&
+    Array.isArray(groupsCacheData.groups)
+  ) {
+    const age = Date.now() - lastGroupsCacheRefresh;
+    const isStale = age > GROUPS_CACHE_EXPIRY_MS;
+    const ageHours = Math.floor(age / (60 * 60 * 1000));
+    const ageMinutes = Math.floor((age % (60 * 60 * 1000)) / (60 * 1000));
+
+    console.log(
+      `📦 Cache hit: ${
+        groupsCacheData.groups.length
+      } groups (age: ${ageHours}h ${ageMinutes}m, ${
+        isStale ? "STALE" : "valid"
+      })`
+    );
+    return groupsCacheData.groups;
+  }
+  return null;
+}
+
+/**
+ * Clear groups cache
+ */
+function clearGroupsCache() {
+  try {
+    if (fs.existsSync(GROUPS_CACHE_FILE)) {
+      fs.rmSync(GROUPS_CACHE_FILE, { force: true });
+    }
+    groupsCacheData = {};
+    lastGroupsCacheRefresh = 0;
+    console.log(`✅ Groups cache cleared`);
+  } catch (e) {
+    console.error(`❌ Error clearing groups cache: ${e.message}`);
+  }
+}
 let ads = [];
 let recycleBin = []; // Messages rejected by AI
 let settings = {
@@ -873,6 +1025,9 @@ function loadAds() {
     if (!fs.existsSync(path.join(__dirname, "..", "data"))) {
       fs.mkdirSync(path.join(__dirname, "..", "data"));
     }
+
+    // Load groups cache from disk
+    loadGroupsCache();
 
     if (!fs.existsSync(ADS_FILE)) {
       fs.writeFileSync(ADS_FILE, JSON.stringify([]));
@@ -1016,6 +1171,102 @@ function formatPhoneForDisplay(normalized) {
   }
   if (!normalized.startsWith("+")) return "+" + normalized;
   return normalized;
+}
+
+/**
+ * 🔍 LAZY LOAD GROUP METADATA
+ * Loads group metadata on-demand instead of bulk loading
+ * This prevents crypto overload during connection warmup
+ */
+async function getGroupMetadataSafe(jid) {
+  // Check cache first
+  if (groupsMetadata[jid]) {
+    return groupsMetadata[jid];
+  }
+
+  // Only load if STABLE phase
+  if (currentPhase !== ConnectionPhase.STABLE) {
+    console.log(
+      `⏸️ Skipping metadata load for ${jid} - phase: ${currentPhase}`
+    );
+    return { jid, name: jid }; // Fallback to JID as name
+  }
+
+  // Check socket availability
+  if (!sock) {
+    return { jid, name: jid };
+  }
+
+  try {
+    const metadata = await sock.groupMetadata(jid);
+    groupsMetadata[jid] = {
+      jid,
+      name: metadata.subject || jid,
+    };
+    seenGroups.add(jid);
+    return groupsMetadata[jid];
+  } catch (e) {
+    console.warn(`⚠️ Failed to load metadata for ${jid}: ${e.message}`);
+    return { jid, name: jid };
+  }
+}
+
+/**
+ * 🔄 BACKGROUND GROUP LOADING
+ * Loads all groups in background with throttling to prevent crypto overload
+ * Only starts AFTER connection is stable and validated
+ */
+async function backgroundLoadGroups() {
+  console.log(
+    "🔄 [Background] Waiting for STABLE phase before loading groups..."
+  );
+
+  // Wait for STABLE phase
+  let waitCount = 0;
+  while (currentPhase !== ConnectionPhase.STABLE && waitCount < 120) {
+    await new Promise((r) => setTimeout(r, 1000));
+    waitCount++;
+  }
+
+  if (currentPhase !== ConnectionPhase.STABLE) {
+    console.error("❌ [Background] Timeout waiting for STABLE phase");
+    return;
+  }
+
+  // Additional 30s buffer for safety
+  console.log("⏳ [Background] STABLE reached - waiting 30s buffer...");
+  await new Promise((r) => setTimeout(r, 30000));
+
+  console.log("🔄 [Background] Starting group metadata loading...");
+
+  try {
+    const groups = await sock.groupFetchAllParticipating();
+    const groupArray = Object.values(groups);
+    console.log(`📊 [Background] Found ${groupArray.length} groups`);
+
+    for (let i = 0; i < groupArray.length; i++) {
+      const group = groupArray[i];
+
+      // Store metadata
+      groupsMetadata[group.id] = {
+        jid: group.id,
+        name: group.subject || group.id,
+      };
+      seenGroups.add(group.id);
+
+      // Gentle throttling: pause every 10 groups
+      if ((i + 1) % 10 === 0) {
+        console.log(`   📊 Loaded ${i + 1}/${groupArray.length} groups...`);
+        await new Promise((r) => setTimeout(r, 2000)); // 2s break
+      }
+    }
+
+    console.log(
+      `✅ [Background] Loaded ${groupArray.length} groups successfully`
+    );
+  } catch (e) {
+    console.error(`❌ [Background] Group loading failed: ${e.message}`);
+  }
 }
 
 /**
@@ -1732,6 +1983,165 @@ async function processMessageFromQueue(messageData) {
 
     return { success: false, reason: "duplicate_after_error" };
   }
+}
+
+/**
+ * 🔍 INBOUND VALIDATION WATCHDOG
+ * Tracks inbound message patterns and detects receive-dead sessions
+ */
+let lastInboundAt = Date.now();
+let inboundMessageCount = 0;
+let longestSilenceSinceLastMsg = 0;
+let receiveValidationTimeout = null;
+let inboundWatchdogInterval = null;
+
+/**
+ * Start inbound validation - waits for first message after WARMING
+ */
+function startInboundValidation() {
+  console.log(
+    "🔍 [Validation] Starting inbound validation - waiting for first message..."
+  );
+
+  // Clear any existing timeout
+  if (receiveValidationTimeout) {
+    clearTimeout(receiveValidationTimeout);
+  }
+
+  // Set timeout for first message (60 seconds)
+  receiveValidationTimeout = setTimeout(() => {
+    if (currentPhase === ConnectionPhase.RECEIVING) {
+      console.error(
+        "🔴 [Validation] FAILED - No inbound messages received within 60s"
+      );
+      console.error(
+        "🔴 [Validation] Session may be receive-dead - forcing reconnect"
+      );
+      setConnectionPhase(ConnectionPhase.RECEIVE_DEAD);
+      forceReconnect("NO_INBOUND_VALIDATION");
+    }
+  }, 60000); // 60 seconds
+}
+
+/**
+ * Handle first inbound message - validates receive capability
+ */
+function handleFirstInboundMessage() {
+  if (currentPhase === ConnectionPhase.RECEIVING) {
+    console.log(
+      "✅ [Validation] First inbound message received - session is bidirectional"
+    );
+
+    // Clear validation timeout
+    if (receiveValidationTimeout) {
+      clearTimeout(receiveValidationTimeout);
+      receiveValidationTimeout = null;
+    }
+
+    // Transition to STABLE
+    setConnectionPhase(ConnectionPhase.STABLE);
+
+    // Start continuous watchdog
+    startInboundWatchdog();
+  }
+}
+
+/**
+ * Start continuous inbound watchdog
+ * Monitors for prolonged silence that may indicate receive-dead
+ */
+function startInboundWatchdog() {
+  console.log("👁️ [Watchdog] Starting continuous inbound monitoring...");
+
+  // Clear any existing interval
+  if (inboundWatchdogInterval) {
+    clearInterval(inboundWatchdogInterval);
+  }
+
+  inboundWatchdogInterval = setInterval(async () => {
+    if (currentPhase !== ConnectionPhase.STABLE) return;
+    if (inboundMessageCount === 0) return; // Still in initial phase
+
+    const now = Date.now();
+    const silenceDuration = now - lastInboundAt;
+    const silenceMinutes = Math.floor(silenceDuration / 60000);
+
+    // Adaptive threshold: 3x longest historical silence (min 10 minutes)
+    const suspectThreshold = Math.max(
+      longestSilenceSinceLastMsg * 3,
+      10 * 60 * 1000 // Minimum 10 minutes
+    );
+
+    console.log(
+      `👁️ [Watchdog] Silence: ${silenceMinutes}min | Threshold: ${Math.floor(
+        suspectThreshold / 60000
+      )}min | Messages: ${inboundMessageCount}`
+    );
+
+    // If silence exceeds adaptive threshold, investigate
+    if (silenceDuration > suspectThreshold) {
+      console.warn(
+        `⚠️ [Watchdog] SUSPECT RECEIVE-DEAD: ${silenceMinutes}min silence`
+      );
+      console.warn(
+        `   Historical max silence: ${Math.floor(
+          longestSilenceSinceLastMsg / 60000
+        )}min`
+      );
+      console.warn(
+        `   Performing self-test to validate bidirectional capability...`
+      );
+
+      // Send test message to self
+      const testJid = `${sock.user.id.split(":")[0]}@s.whatsapp.net`;
+      const testMsg = `[SelfTest-${Date.now()}]`;
+      const testSentAt = Date.now();
+
+      try {
+        await sock.sendMessage(testJid, { text: testMsg });
+        console.log("📤 [Watchdog] Self-test message sent");
+
+        // Wait 15 seconds for echo
+        await new Promise((r) => setTimeout(r, 15000));
+
+        // Check if we received the echo
+        const timeSinceTest = Date.now() - testSentAt;
+        const receivedAfterTest = lastInboundAt > testSentAt;
+
+        if (!receivedAfterTest && timeSinceTest > 15000) {
+          console.error(
+            "🔴 [Watchdog] CONFIRMED RECEIVE-DEAD: Self-test echo not received"
+          );
+          console.error(
+            "🔴 [Watchdog] Inbound channel is dead - forcing reconnect"
+          );
+          setConnectionPhase(ConnectionPhase.RECEIVE_DEAD);
+          await forceReconnect("RECEIVE_DEAD_CONFIRMED");
+        } else {
+          console.log("✅ [Watchdog] Self-test passed - receive is working");
+          console.log("   False alarm - silence is normal for this period");
+        }
+      } catch (e) {
+        console.error(`❌ [Watchdog] Self-test failed: ${e.message}`);
+        console.error("   Unable to validate - will retry on next check");
+      }
+    }
+  }, 5 * 60 * 1000); // Check every 5 minutes
+}
+
+/**
+ * Stop inbound monitoring
+ */
+function stopInboundMonitoring() {
+  if (receiveValidationTimeout) {
+    clearTimeout(receiveValidationTimeout);
+    receiveValidationTimeout = null;
+  }
+  if (inboundWatchdogInterval) {
+    clearInterval(inboundWatchdogInterval);
+    inboundWatchdogInterval = null;
+  }
+  console.log("🛑 [Watchdog] Inbound monitoring stopped");
 }
 
 async function initializeBot() {
@@ -2502,10 +2912,21 @@ async function initializeBot() {
         // - Queue is paused (no sends)
         // - Schedulers don't execute (waits for STABLE phase)
         // - Bad MAC errors during this period are expected and harmless
-        // After SESSION_WARMUP_DURATION_MS, phase auto-transitions to STABLE
+        // After SESSION_WARMUP_DURATION_MS, phase transitions to RECEIVING for validation
         console.log(
           `⏳ Starting ${SESSION_WARMUP_DURATION_MS}ms session warmup...`
         );
+
+        // Auto-transition to RECEIVING phase after warmup
+        setTimeout(() => {
+          if (currentPhase === ConnectionPhase.WARMING) {
+            console.log(
+              `\n✅ Warmup complete - entering RECEIVING validation phase`
+            );
+            setConnectionPhase(ConnectionPhase.RECEIVING);
+            startInboundValidation();
+          }
+        }, SESSION_WARMUP_DURATION_MS);
 
         // ============================================
         if (sock && sock.ws) {
@@ -2594,26 +3015,16 @@ async function initializeBot() {
           );
         });
 
-        // Fetch all groups when connected
-        setTimeout(async () => {
-          try {
-            const groups = await sock.groupFetchAllParticipating();
-            console.log(`Found ${Object.keys(groups).length} groups`);
+        // ❌ REMOVED: Dangerous bulk group metadata loading
+        // This was causing crypto overload during Signal ratchet warmup
+        // ✅ REPLACED WITH: Lazy loading on-demand + background loading after STABLE
 
-            Object.values(groups).forEach((group) => {
-              const jid = group.id;
-              seenGroups.add(jid);
-              groupsMetadata[jid] = {
-                jid: jid,
-                name: group.subject || jid,
-              };
-            });
-
-            console.log("All groups loaded successfully");
-          } catch (err) {
-            console.error("Failed to fetch groups:", err);
-          }
-        }, 2000);
+        // Start background group loading (waits for STABLE + 30s buffer)
+        setTimeout(() => {
+          backgroundLoadGroups().catch((e) => {
+            console.error("❌ Background group loading error:", e.message);
+          });
+        }, 60000); // Start after 60 seconds
 
         // ============================================
         // 🔄 AUTO-RECONNECT FOR STALE CONNECTIONS
@@ -3481,13 +3892,13 @@ async function initializeBot() {
             // Still save the group metadata but don't process messages
             seenGroups.add(from);
 
-            // Try to get group/community subject (best-effort)
+            // Try to get group/community subject (best-effort, lazy loaded)
             try {
-              const metadata = await sock.groupMetadata(from).catch(() => null);
-              if (metadata && metadata.subject) {
+              const metadata = await getGroupMetadataSafe(from);
+              if (metadata && metadata.name) {
                 groupsMetadata[from] = {
                   jid: from,
-                  name: metadata.subject,
+                  name: metadata.name,
                   type: isCommunity ? "Community" : "Group",
                   isCommunity: isCommunity,
                 };
@@ -3501,12 +3912,12 @@ async function initializeBot() {
           // Save ALL groups/communities for receiving messages
           seenGroups.add(from);
 
-          // Try to get group/community subject (best-effort)
+          // Try to get group/community subject (best-effort, lazy loaded)
           let groupSubject = from;
           try {
-            const metadata = await sock.groupMetadata(from).catch(() => null);
-            if (metadata && metadata.subject) {
-              groupSubject = metadata.subject;
+            const metadata = await getGroupMetadataSafe(from);
+            if (metadata && metadata.name) {
+              groupSubject = metadata.name;
               // Cache metadata for ALL groups (even if bot can't send)
               groupsMetadata[from] = {
                 jid: from,
@@ -4247,21 +4658,37 @@ function getSeenGroups() {
 
 async function getGroupsWithMetadata(forceRefresh = false) {
   // Return ALL groups with type information (Group vs Community)
-  const groupsList = [];
 
-  // If force refresh, fetch all groups directly from WhatsApp
-  if (forceRefresh && sock && connectionStatus === "connected") {
+  // STEP 1: Try to return cached groups unless forced refresh
+  if (!forceRefresh) {
+    const cachedGroups = getCachedGroups();
+    if (cachedGroups && cachedGroups.length > 0) {
+      console.log(`📦 [CACHE] Returning ${cachedGroups.length} cached groups`);
+      // Also update memory metadata from cache
+      for (const group of cachedGroups) {
+        groupsMetadata[group.jid] = group;
+        seenGroups.add(group.jid);
+      }
+      return cachedGroups;
+    }
+  }
+
+  // STEP 2: Force refresh or cache empty - fetch from WhatsApp
+  if (sock && connectionStatus === "connected") {
     try {
-      console.log("🔄 Force refreshing groups from WhatsApp...");
+      console.log(`
+🔄 [REFRESH] ${
+        forceRefresh ? "Manual refresh" : "Initial load"
+      } - fetching groups from WhatsApp...`);
 
       // Fetch all groups the bot is part of
       const groups = await sock.groupFetchAllParticipating();
+      const groupsList = [];
 
       console.log(`📊 Raw groups fetched: ${Object.keys(groups).length}`);
 
       // Clear and rebuild metadata for ALL groups (no filtering)
       groupsMetadata = {};
-      // Clear seenGroups and rebuild from fresh data
       seenGroups.clear();
 
       for (const groupId in groups) {
@@ -4273,17 +4700,16 @@ async function getGroupsWithMetadata(forceRefresh = false) {
         const groupType = isCommunity ? "Community" : "Group";
 
         // Add ALL groups to metadata (no filtering by send permission)
-        groupsMetadata[groupId] = {
+        const groupData = {
           jid: groupId,
           name: group.subject || groupId,
           type: groupType,
           isCommunity: isCommunity,
         };
 
-        // IMPORTANT: Add to seenGroups so they persist
+        groupsMetadata[groupId] = groupData;
         seenGroups.add(groupId);
-
-        groupsList.push(groupsMetadata[groupId]);
+        groupsList.push(groupData);
       }
 
       console.log(
@@ -4294,67 +4720,39 @@ async function getGroupsWithMetadata(forceRefresh = false) {
         `✅ groupsMetadata now has ${Object.keys(groupsMetadata).length} groups`
       );
 
+      // STEP 3: Save to cache for future use
+      saveGroupsCache(groupsList);
+
       return groupsList;
     } catch (err) {
       console.error("❌ Error fetching groups from WhatsApp:", err);
-      // Fall through to normal logic if refresh fails
+      // Fall through to use existing cache if available
     }
   }
 
-  // Normal logic: use cached data, return ALL groups
+  // STEP 4: Fallback - return whatever we have in memory
   console.log(
-    `📋 Normal fetch - seenGroups size: ${
+    `📋 [FALLBACK] Returning from memory - seenGroups size: ${
       seenGroups.size
     }, groupsMetadata keys: ${Object.keys(groupsMetadata).length}`
   );
 
+  const groupsList = [];
   for (const jid of seenGroups) {
     if (groupsMetadata[jid]) {
       groupsList.push(groupsMetadata[jid]);
     } else {
-      // Try to fetch metadata if not cached
-      console.log(`🔍 Fetching metadata for uncached group: ${jid}`);
-      try {
-        if (sock && connectionStatus === "connected") {
-          const metadata = await sock.groupMetadata(jid).catch(() => null);
-          if (metadata && metadata.subject) {
-            const isCommunity =
-              jid.includes("@broadcast") || metadata.isCommunity || false;
-            groupsMetadata[jid] = {
-              jid,
-              name: metadata.subject,
-              type: isCommunity ? "Community" : "Group",
-              isCommunity: isCommunity,
-            };
-            groupsList.push(groupsMetadata[jid]);
-            console.log(`✅ Fetched metadata for ${jid}: ${metadata.subject}`);
-          } else {
-            // Fallback if can't get metadata
-            console.log(`⚠️ No metadata available for ${jid}, using fallback`);
-            groupsList.push({
-              jid,
-              name: jid,
-              type: "Group",
-              isCommunity: false,
-            });
-          }
-        } else {
-          console.log(`⚠️ Bot not connected, using fallback for ${jid}`);
-          groupsList.push({
-            jid,
-            name: jid,
-            type: "Group",
-            isCommunity: false,
-          });
-        }
-      } catch (e) {
-        console.error(`❌ Error fetching metadata for ${jid}:`, e.message);
-        groupsList.push({ jid, name: jid, type: "Group", isCommunity: false });
-      }
+      // Last resort: use jid as name
+      groupsList.push({
+        jid,
+        name: jid,
+        type: "Group",
+        isCommunity: false,
+      });
     }
   }
 
-  console.log(`✅ Returning ${groupsList.length} groups from cache`);
+  console.log(`✅ Returning ${groupsList.length} groups from memory`);
   return groupsList;
 }
 
@@ -4365,13 +4763,19 @@ async function canSendInGroup(groupId, groupMetadata = null) {
       return true; // Default to true if not connected
     }
 
-    // Get full metadata if not provided
+    // Get full metadata if not provided (lazy loading)
     let metadata = groupMetadata;
     if (!metadata || !metadata.participants) {
-      metadata = await sock.groupMetadata(groupId).catch(() => null);
+      const safeMeta = await getGroupMetadataSafe(groupId);
+      // If safeMeta doesn't have participants, try direct call as fallback
+      if (safeMeta && !safeMeta.participants && sock) {
+        metadata = await sock.groupMetadata(groupId).catch(() => null);
+      } else {
+        metadata = safeMeta;
+      }
     }
 
-    if (!metadata) {
+    if (!metadata || !metadata.participants) {
       return true; // If we can't get metadata, assume we can send
     }
 
@@ -4663,6 +5067,11 @@ module.exports = {
   moveAdToRecycleBin,
   getSeenGroups,
   getGroupsWithMetadata,
+  // Groups caching
+  loadGroupsCache,
+  saveGroupsCache,
+  getCachedGroups,
+  clearGroupsCache,
   // collections API
   getCollections,
   saveCollection,
