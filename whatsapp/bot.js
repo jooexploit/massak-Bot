@@ -114,7 +114,7 @@ function setConnectionPhase(newPhase) {
  */
 function handleCryptoError(errorType, details = {}) {
   const now = Date.now();
-  
+
   // Check if within error window
   if (now - lastCryptoErrorAt < CRYPTO_ERROR_WINDOW_MS) {
     cryptoErrorCount++;
@@ -122,13 +122,15 @@ function handleCryptoError(errorType, details = {}) {
     // Outside window, reset counter
     cryptoErrorCount = 1;
   }
-  
+
   lastCryptoErrorAt = now;
-  
+
   console.error(`\n🔐 [CRYPTO ERROR] Type: ${errorType}`);
-  console.error(`   Count: ${cryptoErrorCount} within ${CRYPTO_ERROR_WINDOW_MS}ms window`);
+  console.error(
+    `   Count: ${cryptoErrorCount} within ${CRYPTO_ERROR_WINDOW_MS}ms window`
+  );
   console.error(`   Details:`, details);
-  
+
   // Threshold exceeded = CRYPTO_UNSTABLE
   if (cryptoErrorCount >= CRYPTO_ERROR_THRESHOLD) {
     console.error(`   ⚠️ THRESHOLD EXCEEDED - Entering CRYPTO_UNSTABLE phase`);
@@ -141,20 +143,27 @@ function handleCryptoError(errorType, details = {}) {
  * Temporarily blocks sends during session rotation
  */
 function handlePrekeyBundle() {
-  console.warn(`\n🔑 [PREKEY] Incoming prekey bundle - Session rotation in progress`);
+  console.warn(
+    `\n🔑 [PREKEY] Incoming prekey bundle - Session rotation in progress`
+  );
   prekeyBundleProcessing = true;
-  
+
   // Enter CRYPTO_UNSTABLE to prevent sends during rotation
   if (currentPhase === ConnectionPhase.STABLE) {
     setConnectionPhase(ConnectionPhase.CRYPTO_UNSTABLE);
   }
-  
+
   // Auto-recover after 10 seconds if no other errors
   setTimeout(() => {
-    if (currentPhase === ConnectionPhase.CRYPTO_UNSTABLE && prekeyBundleProcessing) {
-      console.log(`\n🔑 [PREKEY] Bundle processing timeout - Attempting recovery`);
+    if (
+      currentPhase === ConnectionPhase.CRYPTO_UNSTABLE &&
+      prekeyBundleProcessing
+    ) {
+      console.log(
+        `\n🔑 [PREKEY] Bundle processing timeout - Attempting recovery`
+      );
       prekeyBundleProcessing = false;
-      
+
       // Only recover if no recent crypto errors
       if (Date.now() - lastCryptoErrorAt > CRYPTO_ERROR_WINDOW_MS) {
         console.log(`   ✅ No recent crypto errors - Returning to STABLE`);
@@ -178,7 +187,6 @@ function handleSuccessfulDecrypt() {
   }
 }
 
-
 /**
  * Check if system is in a sending-ready state
  * Returns true only when STABLE (not INIT, CONNECTING, WARMING, or CRYPTO_UNSTABLE)
@@ -189,11 +197,11 @@ function isReadyToSend() {
     console.warn(`   ⛔ isReadyToSend: BLOCKED - Crypto unstable`);
     return false;
   }
-  
+
   if (currentPhase !== ConnectionPhase.STABLE) {
     return false;
   }
-  
+
   return socketManager.isConnected();
 }
 
@@ -372,13 +380,17 @@ function sendAdminAlert(event, details = {}) {
     } else if (event === "CRYPTO_UNSTABLE") {
       // 🔴 CRITICAL: Crypto instability detected
       const queueStats = messageQueue ? messageQueue.getStats() : {};
-      
+
       alertMessage =
         `🔴 *[تنبيه حرج: عدم استقرار التشفير]*\n\n` +
         `⏰ الوقت: ${timestamp}\n` +
-        `🔐 السبب: ${details.prekeyBundleProcessing ? 'PreKey Bundle Rotation' : 'Bad MAC Burst'}\n` +
+        `🔐 السبب: ${
+          details.prekeyBundleProcessing
+            ? "PreKey Bundle Rotation"
+            : "Bad MAC Burst"
+        }\n` +
         `📊 عدد أخطاء التشفير: ${details.cryptoErrorCount || 0}\n` +
-        `🌡️ الحالة السابقة: ${details.phase || 'unknown'}\n` +
+        `🌡️ الحالة السابقة: ${details.phase || "unknown"}\n` +
         `📬 رسائل في الطابور: ${queueStats.currentQueueSize || 0}\n` +
         `⛔ جميع عمليات الإرسال متوقفة\n` +
         `🔄 سيتم الاستئناف بعد استقرار التشفير أو إعادة الاتصال`;
@@ -413,7 +425,8 @@ async function deliverPendingNotifications() {
     let waitAttempts = 0;
     const maxWaitAttempts = 120; // Max 120 attempts = 60 seconds
     while (
-      (currentPhase !== ConnectionPhase.STABLE || currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) &&
+      (currentPhase !== ConnectionPhase.STABLE ||
+        currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) &&
       waitAttempts < maxWaitAttempts
     ) {
       console.log(
@@ -423,10 +436,11 @@ async function deliverPendingNotifications() {
       waitAttempts++;
     }
 
-    if (currentPhase !== ConnectionPhase.STABLE || currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
-      console.error(
-        `❌ [QUEUE] Cannot deliver - Phase: ${currentPhase}`
-      );
+    if (
+      currentPhase !== ConnectionPhase.STABLE ||
+      currentPhase === ConnectionPhase.CRYPTO_UNSTABLE
+    ) {
+      console.error(`❌ [QUEUE] Cannot deliver - Phase: ${currentPhase}`);
       return; // Don't send if not stable - try again on next reconnect
     }
 
@@ -2097,23 +2111,27 @@ async function initializeBot() {
     // ============================================
     const originalConsoleError = console.error;
     console.error = function (...args) {
-      const errorMsg = args.join(' ');
-      
+      const errorMsg = args.join(" ");
+
       // Detect Bad MAC errors
-      if (errorMsg.includes('Bad MAC')) {
-        handleCryptoError('BAD_MAC', { message: errorMsg });
+      if (errorMsg.includes("Bad MAC")) {
+        handleCryptoError("BAD_MAC", { message: errorMsg });
       }
-      
+
       // Detect prekey bundle processing
-      if (errorMsg.includes('Closing open session in favor of incoming prekey bundle')) {
+      if (
+        errorMsg.includes(
+          "Closing open session in favor of incoming prekey bundle"
+        )
+      ) {
         handlePrekeyBundle();
       }
-      
+
       // Detect decrypt failures
-      if (errorMsg.includes('Failed to decrypt message')) {
-        handleCryptoError('DECRYPT_FAIL', { message: errorMsg });
+      if (errorMsg.includes("Failed to decrypt message")) {
+        handleCryptoError("DECRYPT_FAIL", { message: errorMsg });
       }
-      
+
       // Call original console.error
       originalConsoleError.apply(console, args);
     };
@@ -3710,23 +3728,27 @@ async function sendMessage(numberOrJid, message) {
     console.warn(`❌ sendMessage: Socket not connected`);
     return null;
   }
-  
+
   if (!isReadyToSend()) {
     console.warn(`❌ sendMessage: Not ready to send (phase: ${currentPhase})`);
     return null;
   }
-  
+
   if (currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
     console.error(`🔴 sendMessage: BLOCKED - Crypto unstable`);
     return null;
   }
-  
+
   // Helper function to wait for connection to be restored
   const waitForConnection = async (maxWaitMs = 15000) => {
     const startTime = Date.now();
     while (Date.now() - startTime < maxWaitMs) {
       // CRITICAL: Use socketManager to check connection, not stale variables
-      if (socketManager.isConnected() && socketManager.getSocket() && isReadyToSend()) {
+      if (
+        socketManager.isConnected() &&
+        socketManager.getSocket() &&
+        isReadyToSend()
+      ) {
         return true;
       }
       console.log(
@@ -3734,7 +3756,11 @@ async function sendMessage(numberOrJid, message) {
       );
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
-    return socketManager.isConnected() && socketManager.getSocket() && isReadyToSend();
+    return (
+      socketManager.isConnected() &&
+      socketManager.getSocket() &&
+      isReadyToSend()
+    );
   };
 
   // Helper function to send with retry for Stream Errors
