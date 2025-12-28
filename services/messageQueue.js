@@ -10,6 +10,7 @@ class MessageQueue {
     this.maxConcurrent = 1; // Process one message at a time
     this.delayBetweenMessages = 2000; // 2 seconds delay between messages
     this.activeProcessing = 0;
+    this.isPaused = false; // New: Pause during reconnect/warmup
     this.stats = {
       totalQueued: 0,
       totalProcessed: 0,
@@ -62,6 +63,13 @@ class MessageQueue {
     console.log("🔄 Queue processor started");
 
     while (this.queue.length > 0) {
+      // 🌡️ CRITICAL: Check if queue is paused during reconnect/warmup
+      if (this.isPaused) {
+        console.log(`⏸️ Queue PAUSED - Waiting for STABLE phase...`);
+        await this.sleep(1000);
+        continue;
+      }
+
       // Check if we can process more messages
       if (this.activeProcessing >= this.maxConcurrent) {
         await this.sleep(500);
@@ -193,6 +201,28 @@ class MessageQueue {
       console.log(
         `⚙️ Delay between messages set to: ${this.delayBetweenMessages}ms`
       );
+    }
+  }
+
+  /**
+   * 🌡️ Pause queue processing during reconnect/warmup phase
+   */
+  pauseQueue() {
+    this.isPaused = true;
+    console.log(`⏸️ Queue PAUSED - ${this.queue.length} messages waiting`);
+  }
+
+  /**
+   * 🌡️ Resume queue processing after entering STABLE phase
+   */
+  resumeQueue() {
+    this.isPaused = false;
+    console.log(
+      `▶️ Queue RESUMED - Processing ${this.queue.length} pending messages`
+    );
+    // Start processing any queued messages
+    if (!this.processing && this.queue.length > 0) {
+      this.processQueue();
     }
   }
 }

@@ -48,6 +48,54 @@ let lastZombieCheckAt = 0;
 let lastReconnectAttempt = 0; // Track last reconnect time for cooldown
 const MIN_RECONNECT_INTERVAL_MS = 120000; // 2 minutes minimum between reconnects
 
+// ============================================
+// STATE MACHINE - Connection Lifecycle
+// ============================================
+const ConnectionPhase = {
+  INIT: "init", // Before any connection attempt
+  CONNECTING: "connecting", // Connection in progress
+  WARMING: "warming", // Connected but warming up Signal/Crypto (5-10s)
+  STABLE: "stable", // Fully ready for sends
+};
+
+let currentPhase = ConnectionPhase.INIT; // Current connection phase
+let phaseStartedAt = 0; // When current phase started
+const SESSION_WARMUP_DURATION_MS = 8000; // 8 seconds for Signal ratchet stabilization
+
+/**
+ * Transition to new connection phase
+ * INIT → CONNECTING → WARMING → STABLE
+ */
+function setConnectionPhase(newPhase) {
+  const oldPhase = currentPhase;
+  currentPhase = newPhase;
+  phaseStartedAt = Date.now();
+
+  console.log(
+    `\n🎭 [PHASE] ${oldPhase.toUpperCase()} → ${newPhase.toUpperCase()}`
+  );
+
+  if (newPhase === ConnectionPhase.WARMING) {
+    console.log(`   ⏳ Session warmup for ${SESSION_WARMUP_DURATION_MS}ms...`);
+    console.log(`   🚫 Schedulers & queue PAUSED`);
+  } else if (newPhase === ConnectionPhase.STABLE) {
+    console.log(`   ✅ Session stable - Schedulers & queue RESUMED`);
+  }
+
+  logConnectionState(`PHASE_${newPhase}`, { oldPhase });
+}
+
+/**
+ * Check if system is in a sending-ready state
+ * Returns true only when STABLE (not INIT, CONNECTING, or WARMING)
+ */
+function isReadyToSend() {
+  if (currentPhase !== ConnectionPhase.STABLE) {
+    return false;
+  }
+  return socketManager.isConnected();
+}
+
 // Connection state machine
 const ConnectionState = {
   DISCONNECTED: "disconnected",
@@ -160,7 +208,76 @@ function queueAdminNotification(message, jid = null) {
 }
 
 /**
+ * 🌡️ Send WhatsApp alerts to admin on critical events
+ * Events: Disconnect, Reconnect, Phase transitions, Bad MAC storms
+ */
+function sendAdminAlert(event, details = {}) {
+  try {
+    const timestamp = new Date().toLocaleString("ar-SA", {
+      timeZone: "Asia/Riyadh",
+    });
+
+    let alertMessage = "";
+
+    if (event === "DISCONNECT") {
+      // When bot disconnects - log queue status and last activity
+      const messageQueue = require("../services/messageQueue");
+      const queueStats = messageQueue ? messageQueue.getStats() : {};
+
+      alertMessage =
+        `🔌 *[تنبيه قطع الاتصال]*\n\n` +
+        `⏰ الوقت: ${timestamp}\n` +
+        `❌ الحالة: تم قطع اتصال البوت\n` +
+        `📊 السبب: ${details.reason || "غير معروف"}\n` +
+        `🔄 رقم المحاولة: ${details.attempts || 0}\n` +
+        `📨 الرسائل المعالجة: ${totalMessagesProcessed}\n` +
+        `📬 الرسائل المتبقية في الطابور: ${
+          queueStats.currentQueueSize || 0
+        }\n` +
+        `🌡️ الحالة الحالية: ${currentPhase.toUpperCase()}\n` +
+        `📝 ملاحظات: سيتم إعادة الاتصال تلقائياً`;
+
+      queueAdminNotification(alertMessage);
+    } else if (event === "RECONNECT") {
+      // When bot reconnects successfully
+      alertMessage =
+        `✅ *[تنبيه إعادة الاتصال]*\n\n` +
+        `⏰ الوقت: ${timestamp}\n` +
+        `✅ الحالة: تم إعادة الاتصال بنجاح\n` +
+        `🔢 محاولات: ${details.attempts || 0}\n` +
+        `📱 المستخدم: ${details.userId || "غير معروف"}\n` +
+        `🌡️ الحالة الحالية: ${currentPhase.toUpperCase()}\n` +
+        `📬 سيتم معالجة الرسائل المعلقة تلقائياً`;
+
+      queueAdminNotification(alertMessage);
+    } else if (event === "PHASE_WARMING") {
+      // During warmup phase - optional logging
+      console.log(
+        `🌡️ [ALERT] Entering WARMING phase for session stabilization`
+      );
+    } else if (event === "PHASE_STABLE") {
+      // When bot becomes stable and ready
+      console.log(`✅ [ALERT] Bot is now STABLE and ready to send messages`);
+    } else if (event === "BAD_MAC_STORM") {
+      // Too many Bad MAC errors - critical
+      alertMessage =
+        `⚠️ *[تنبيه عاصفة Bad MAC]*\n\n` +
+        `⏰ الوقت: ${timestamp}\n` +
+        `⚠️ تم اكتشاف ${details.count || 5} أخطاء Bad MAC متتالية\n` +
+        `🌡️ الحالة الحالية: ${currentPhase.toUpperCase()}\n` +
+        `📊 يشير هذا إلى مشكلة في تشفير الجلسة\n` +
+        `🔄 سيتم إعادة تهيئة الاتصال`;
+
+      queueAdminNotification(alertMessage);
+    }
+  } catch (e) {
+    console.error(`❌ Error sending admin alert: ${e.message}`);
+  }
+}
+
+/**
  * Deliver all pending notifications after successful reconnection
+ * 🌡️ CRITICAL: Waits for STABLE phase before sending to avoid Bad MAC errors
  */
 async function deliverPendingNotifications() {
   try {
@@ -172,7 +289,33 @@ async function deliverPendingNotifications() {
     if (pending.length === 0) return;
 
     console.log(
-      `📬 [QUEUE] Delivering ${pending.length} pending notification(s)...`
+      `📬 [QUEUE] Waiting for STABLE phase before delivering ${pending.length} notification(s)...`
+    );
+
+    // 🌡️ CRITICAL: Wait for STABLE phase before sending
+    // This prevents Bad MAC errors from Signal ratchet instability
+    let waitAttempts = 0;
+    const maxWaitAttempts = 120; // Max 120 attempts = 60 seconds
+    while (
+      currentPhase !== ConnectionPhase.STABLE &&
+      waitAttempts < maxWaitAttempts
+    ) {
+      console.log(
+        `   ⏳ Waiting for STABLE phase (current: ${currentPhase})...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      waitAttempts++;
+    }
+
+    if (currentPhase !== ConnectionPhase.STABLE) {
+      console.error(
+        `❌ [QUEUE] Timeout waiting for STABLE phase. Current phase: ${currentPhase}`
+      );
+      return; // Don't send if not stable - try again on next reconnect
+    }
+
+    console.log(
+      `✅ [QUEUE] Phase is STABLE. Delivering ${pending.length} pending notification(s)...`
     );
 
     for (const notification of pending) {
@@ -1832,6 +1975,81 @@ async function initializeBot() {
     // This ensures credentials are saved immediately when they change
     sock.ev.on("creds.update", saveCreds);
 
+    // ============================================
+    // 🌡️ CONNECTION PHASE STATE MACHINE
+    // ============================================
+    /**
+     * Transitions connection to a new phase and handles phase-specific logic
+     * Phases: INIT → CONNECTING → WARMING → STABLE
+     *
+     * INIT: No socket connection
+     * CONNECTING: Connection in progress (waiting for "open" event)
+     * WARMING: Connection open, Signal ratchet stabilizing (5-10s) - queue/schedulers paused
+     * STABLE: Ready for sends, queue/schedulers can execute
+     */
+    function setConnectionPhase(newPhase) {
+      const oldPhase = currentPhase;
+      currentPhase = newPhase;
+      phaseStartedAt = Date.now();
+
+      console.log(
+        `\n🌡️ [PHASE] ${oldPhase.toUpperCase()} → ${newPhase.toUpperCase()}`
+      );
+
+      if (newPhase === ConnectionPhase.INIT) {
+        console.log(`   └─ Clearing connection state...`);
+        // Pause queue when disconnected
+        const messageQueue = require("../services/messageQueue");
+        if (messageQueue && messageQueue.pauseQueue) {
+          messageQueue.pauseQueue();
+        }
+      } else if (newPhase === ConnectionPhase.CONNECTING) {
+        console.log(`   └─ Attempting to establish connection...`);
+        // Queue stays paused
+      } else if (newPhase === ConnectionPhase.WARMING) {
+        console.log(
+          `   └─ Signal protocol stabilizing (${SESSION_WARMUP_DURATION_MS}ms)...`
+        );
+        console.log(`   └─ Queue/Schedulers PAUSED during warmup`);
+
+        // Pause queue during warmup - Signal ratchet needs to stabilize
+        const messageQueue = require("../services/messageQueue");
+        if (messageQueue && messageQueue.pauseQueue) {
+          messageQueue.pauseQueue();
+        }
+
+        // Auto-transition to STABLE after warmup duration
+        // This is the key: give Signal ratchet time to settle
+        setTimeout(() => {
+          if (currentPhase === ConnectionPhase.WARMING) {
+            console.log(`\n✅ Session warmup complete!`);
+            setConnectionPhase(ConnectionPhase.STABLE);
+          }
+        }, SESSION_WARMUP_DURATION_MS);
+      } else if (newPhase === ConnectionPhase.STABLE) {
+        console.log(`   └─ Ready for sends. Queue/Schedulers RESUMED.`);
+
+        // Trigger any pending messages that were queued
+        const messageQueue = require("../services/messageQueue");
+        if (messageQueue && messageQueue.resumeQueue) {
+          messageQueue.resumeQueue();
+        }
+      }
+    }
+
+    /**
+     * Checks if the bot is ready to send messages
+     * Returns true ONLY when in STABLE phase AND socket is connected
+     */
+    function isReadyToSend() {
+      const isPhaseReady = currentPhase === ConnectionPhase.STABLE;
+      const isSocketReady = socketManager && socketManager.isConnected();
+      return isPhaseReady && isSocketReady;
+    }
+
+    // Initialize to INIT phase
+    setConnectionPhase(ConnectionPhase.INIT);
+
     sock.ev.on("connection.update", async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
@@ -1863,8 +2081,17 @@ async function initializeBot() {
         // ============================================
         // 🔌 CONNECTION CLOSED - DETAILED LOGGING
         // ============================================
+        setConnectionPhase(ConnectionPhase.INIT);
+
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const errorMessage = lastDisconnect?.error?.message || "Unknown error";
+
+        // 📢 Send admin alert about disconnection
+        sendAdminAlert("DISCONNECT", {
+          reason: errorMessage,
+          statusCode: statusCode,
+          attempts: reconnectAttempts,
+        });
 
         // CRITICAL: Update socket manager FIRST - mark as disconnected
         // This MUST happen BEFORE any other operations to prevent traffic
@@ -2068,12 +2295,16 @@ async function initializeBot() {
         // ============================================
         // ✅ CONNECTION OPENED SUCCESSFULLY
         // ============================================
+        // SET PHASE TO WARMING - Signal protocol needs 5-10 seconds to stabilize
+        setConnectionPhase(ConnectionPhase.WARMING);
+
         console.log(`\n${"=".repeat(60)}`);
         console.log(`✅ WHATSAPP CONNECTION OPENED SUCCESSFULLY!`);
         console.log(`${"=".repeat(60)}`);
         console.log(`   🔌 WebSocket State: ${getWebSocketState()}`);
         console.log(`   📱 User: ${sock?.user?.id || "unknown"}`);
         console.log(`   🔄 Previous Reconnect Attempts: ${reconnectAttempts}`);
+        console.log(`   🌡️ Phase: WARMING (Signal ratchet stabilizing...)`);
         console.log(`${"=".repeat(60)}\n`);
 
         logConnectionState("CONNECTION_OPEN", { userId: sock?.user?.id });
@@ -2099,9 +2330,25 @@ async function initializeBot() {
           reconnectTimeout = null;
         }
 
+        // 📢 Send admin alert about successful reconnection
+        sendAdminAlert("RECONNECT", {
+          attempts: reconnectAttempts,
+          userId: sock?.user?.id,
+        });
+
         // ============================================
-        // 🔌 WEBSOCKET EVENT MONITORING
-        // Monitor raw WebSocket events for early zombie detection
+        // 🌡️ SESSION WARMUP - Signal Ratchet Stabilization
+        // ============================================
+        // After Baileys opens the connection, the Signal protocol session ratchet
+        // needs 5-10 seconds to stabilize. During this WARMING phase:
+        // - Queue is paused (no sends)
+        // - Schedulers don't execute (waits for STABLE phase)
+        // - Bad MAC errors during this period are expected and harmless
+        // After SESSION_WARMUP_DURATION_MS, phase auto-transitions to STABLE
+        console.log(
+          `⏳ Starting ${SESSION_WARMUP_DURATION_MS}ms session warmup...`
+        );
+
         // ============================================
         if (sock && sock.ws) {
           console.log(`🔌 [WS] Setting up WebSocket event monitors...`);
@@ -2179,18 +2426,15 @@ async function initializeBot() {
 
         // ============================================
         // 📬 DELIVER PENDING NOTIFICATIONS
-        // Send any notifications that were queued during disconnection
+        // 🌡️ CRITICAL: Now waits internally for STABLE phase
+        // This prevents Bad MAC errors during Signal stabilization
         // ============================================
-        setTimeout(async () => {
-          try {
-            await deliverPendingNotifications();
-          } catch (e) {
-            console.error(
-              "❌ Error delivering pending notifications:",
-              e.message
-            );
-          }
-        }, 5000); // Wait 5 seconds for connection to stabilize
+        deliverPendingNotifications().catch((e) => {
+          console.error(
+            "❌ Error delivering pending notifications:",
+            e.message
+          );
+        });
 
         // Fetch all groups when connected
         setTimeout(async () => {
