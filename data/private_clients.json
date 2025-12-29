@@ -1,0 +1,3368 @@
+{
+  "966506932504": {
+    "phoneNumber": "966506932504",
+    "name": "بوحسن الغانم",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "بوحسن الغانم",
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 3000,
+      "neighborhoods": [
+        "البطالية وشارع الحيات",
+        "الخدود",
+        "عين باهلة"
+      ],
+      "contactNumber": "+966506932504",
+      "additionalSpecs": "طلب\nبوحسن الغانم\nنوع العقار المطلوب:  مزرعة\nالغرض: شراء\nالمساحة المطلوبة: 3000\nالأحياء المفضلة: البطالية وشارع الحيات و الخدود و عين باهلة\nرقم التواصل: +966506932504\nمواصفات إضافية:"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14920,
+        "offerTitle": "أرض للبيع &#8211; الحي الراشد بالحليلة",
+        "offerLink": "https://masaak.com/?p=14920",
+        "similarityScore": 72,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766159269788,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159269788,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765208910066,
+    "updatedAt": 1766159269788,
+    "lastMessageAt": 1766159269788,
+    "registeredByAdmin": true,
+    "adminPhone": "108864653512712@lid",
+    "lastMatchSentAt": 1766159269788
+  },
+  "966506924974": {
+    "phoneNumber": "966506924974",
+    "name": "حبيب ابوحسن",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "حبيب ابوحسن",
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 130000,
+      "areaMin": 0,
+      "areaMax": 500,
+      "neighborhoods": [],
+      "contactNumber": "+966506924974",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14912,
+        "offerTitle": "أرض للبيع في مخطط الزهراء 2 &#8211; مخطط 116 &#8211; شارع 15 شرق",
+        "offerLink": "https://masaak.com/?p=14912",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766158949109,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766158949109,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766158949109,
+    "lastMessageAt": 1766158949109,
+    "lastMatchSentAt": 1766158949109
+  },
+  "966505935612": {
+    "phoneNumber": "966505935612",
+    "name": "أيمن",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "أيمن",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 675,
+      "neighborhoods": [
+        "الروضة",
+        "منسوبي التعليم",
+        "الدانة"
+      ],
+      "contactNumber": "+966505935612",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14916,
+        "offerTitle": "🔥فرصة شرائية 🔥 أرض للبيع في حي الامراء بالهفوف بسعر مخفض",
+        "offerLink": "https://masaak.com/?p=14916",
+        "similarityScore": 80,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159089037,
+        "userResponse": null
+      },
+      {
+        "offerId": 14912,
+        "offerTitle": "أرض للبيع في مخطط الزهراء 2 &#8211; مخطط 116 &#8211; شارع 15 شرق",
+        "offerLink": "https://masaak.com/?p=14912",
+        "similarityScore": 80,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159249139,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159249139,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159249139,
+    "lastMessageAt": 1766159249139,
+    "lastMatchSentAt": 1766159249139
+  },
+  "966597240004": {
+    "phoneNumber": "966597240004",
+    "name": "غير مذكور",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "غير مذكور",
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 200000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الطرف"
+      ],
+      "contactNumber": "+966597240004",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14920,
+        "offerTitle": "أرض للبيع &#8211; الحي الراشد بالحليلة",
+        "offerLink": "https://masaak.com/?p=14920",
+        "similarityScore": 74,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766159570560,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159570560,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159570560,
+    "lastMessageAt": 1766159570560,
+    "lastMatchSentAt": 1766159570560
+  },
+  "966505938520": {
+    "phoneNumber": "966505938520",
+    "name": "سلمان بوخضر",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "سلمان بوخضر",
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": 800000,
+      "priceMax": 900000,
+      "areaMin": 0,
+      "areaMax": 800,
+      "neighborhoods": [
+        "البطالية",
+        "شارع الحيات"
+      ],
+      "contactNumber": "+966505938520",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14920,
+        "offerTitle": "أرض للبيع &#8211; الحي الراشد بالحليلة",
+        "offerLink": "https://masaak.com/?p=14920",
+        "similarityScore": 70,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766159871386,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159871386,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159871386,
+    "lastMessageAt": 1766159871386,
+    "lastMatchSentAt": 1766159871386
+  },
+  "966504797521": {
+    "phoneNumber": "966504797521",
+    "name": "احمد النجار",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "احمد النجار",
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": 500,
+      "priceMax": 750000,
+      "areaMin": 800,
+      "areaMax": 1000,
+      "neighborhoods": [
+        "اللويمي",
+        "الخدود",
+        "بني معن",
+        "الشهارين",
+        "الجبيل",
+        "الهفوف"
+      ],
+      "contactNumber": "0504797521",
+      "additionalSpecs": "طلب\nاحمد النجار \nنوع العقار المطلوب: مزرعة\nالغرض: شراء\nحدود السعر: 500 - 750 ألف حسب التفاصيل\nالمساحة المطلوبة: 800 الى 1000\nالأحياء المفضلة: اللويمي و الخدود و بني معن و الشهارين و الجبيل و الهفوف\nرقم التواصل: 0504797521\nمواصفات إضافية: مزرعة او أرض زراعية صك حر"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14916,
+        "offerTitle": "🔥فرصة شرائية 🔥 أرض للبيع في حي الامراء بالهفوف بسعر مخفض",
+        "offerLink": "https://masaak.com/?p=14916",
+        "similarityScore": 78,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159389937,
+        "userResponse": null
+      },
+      {
+        "offerId": 14920,
+        "offerTitle": "أرض للبيع &#8211; الحي الراشد بالحليلة",
+        "offerLink": "https://masaak.com/?p=14920",
+        "similarityScore": 72,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160172879,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160172879,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765803073302,
+    "updatedAt": 1766160172879,
+    "lastMessageAt": 1766160172879,
+    "registeredByAdmin": true,
+    "adminPhone": "54773818589318@lid",
+    "lastMatchSentAt": 1766160172879
+  },
+  "966544501542": {
+    "phoneNumber": "966544501542",
+    "name": "نوره محمد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "نوره محمد",
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 400000,
+      "areaMin": 0,
+      "areaMax": 500,
+      "neighborhoods": [
+        "المبرز"
+      ],
+      "contactNumber": "+966544501542",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14912,
+        "offerTitle": "أرض للبيع في مخطط الزهراء 2 &#8211; مخطط 116 &#8211; شارع 15 شرق",
+        "offerLink": "https://masaak.com/?p=14912",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766159549958,
+        "userResponse": null
+      },
+      {
+        "offerId": 14916,
+        "offerTitle": "🔥فرصة شرائية 🔥 أرض للبيع في حي الامراء بالهفوف بسعر مخفض",
+        "offerLink": "https://masaak.com/?p=14916",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766159690317,
+        "userResponse": null
+      },
+      {
+        "offerId": 14920,
+        "offerTitle": "أرض للبيع &#8211; الحي الراشد بالحليلة",
+        "offerLink": "https://masaak.com/?p=14920",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160473240,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160473240,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160473240,
+    "lastMessageAt": 1766160473240,
+    "lastMatchSentAt": 1766160473240
+  },
+  "966562263857": {
+    "phoneNumber": "966562263857",
+    "name": "بو جاسم",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "بو جاسم",
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 500,
+      "neighborhoods": [
+        "الطريفي",
+        "شارع الحيات",
+        "البطالية",
+        "المشرفة"
+      ],
+      "contactNumber": "+966562263857",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14920,
+        "offerTitle": "أرض للبيع &#8211; الحي الراشد بالحليلة",
+        "offerLink": "https://masaak.com/?p=14920",
+        "similarityScore": 74,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160774064,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160774064,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160774064,
+    "lastMessageAt": 1766160774064,
+    "lastMatchSentAt": 1766160774064
+  },
+  "966536888073": {
+    "phoneNumber": "966536888073",
+    "name": "حسين الشهابي",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "حسين الشهابي",
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 600000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الحليلة",
+        "البطالية",
+        "الشعبة"
+      ],
+      "contactNumber": "+966536888073",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14920,
+        "offerTitle": "أرض للبيع &#8211; الحي الراشد بالحليلة",
+        "offerLink": "https://masaak.com/?p=14920",
+        "similarityScore": 81,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766161074921,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161074921,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161074921,
+    "lastMessageAt": 1766161074921,
+    "lastMatchSentAt": 1766161074921
+  },
+  "966541391590": {
+    "phoneNumber": "966541391590",
+    "name": "فاطمة الماجد (أم عمر)",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "فاطمة الماجد (أم عمر)",
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 300000,
+      "areaMin": 0,
+      "areaMax": 350,
+      "neighborhoods": [],
+      "contactNumber": "+966541391590",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14912,
+        "offerTitle": "أرض للبيع في مخطط الزهراء 2 &#8211; مخطط 116 &#8211; شارع 15 شرق",
+        "offerLink": "https://masaak.com/?p=14912",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766159850733,
+        "userResponse": null
+      },
+      {
+        "offerId": 14916,
+        "offerTitle": "🔥فرصة شرائية 🔥 أرض للبيع في حي الامراء بالهفوف بسعر مخفض",
+        "offerLink": "https://masaak.com/?p=14916",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766159990696,
+        "userResponse": null
+      },
+      {
+        "offerId": 14920,
+        "offerTitle": "أرض للبيع &#8211; الحي الراشد بالحليلة",
+        "offerLink": "https://masaak.com/?p=14920",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766161375286,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161375286,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161375286,
+    "lastMessageAt": 1766161375286,
+    "lastMatchSentAt": 1766161375286
+  },
+  "966540932225": {
+    "phoneNumber": "966540932225",
+    "name": "أم فارس",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "أم فارس",
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": 400000,
+      "priceMax": 500000,
+      "areaMin": 0,
+      "areaMax": 1500,
+      "neighborhoods": [
+        "الهفوف",
+        "الجفر",
+        "المنيزلة"
+      ],
+      "contactNumber": "+966540932225",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14916,
+        "offerTitle": "🔥فرصة شرائية 🔥 أرض للبيع في حي الامراء بالهفوف بسعر مخفض",
+        "offerLink": "https://masaak.com/?p=14916",
+        "similarityScore": 79,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160291539,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160291539,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160291539,
+    "lastMessageAt": 1766160291539,
+    "lastMatchSentAt": 1766160291539
+  },
+  "966507470242": {
+    "phoneNumber": "966507470242",
+    "name": "وسيط",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "وسيط",
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": 250000,
+      "priceMax": 400000,
+      "areaMin": 0,
+      "areaMax": 250,
+      "neighborhoods": [
+        "العمران",
+        "المزاوي",
+        "الجفر"
+      ],
+      "contactNumber": "+966507470242",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14903,
+        "offerTitle": "بيت عربي دورين في العيون",
+        "offerLink": "https://masaak.com/?p=14903",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766146880231,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766146880231,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766146880231,
+    "lastMessageAt": 1766146880231
+  },
+  "966544483316": {
+    "phoneNumber": "966544483316",
+    "name": "سوسن العوض",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "سوسن العوض",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 200,
+      "neighborhoods": [
+        "البريد",
+        "الخزامى",
+        "ضاحية هجر",
+        "النور"
+      ],
+      "contactNumber": "+966544483316",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14914,
+        "offerTitle": "قطعة أرض زاوية في الحي السابع بضاحية هجر",
+        "offerLink": "https://masaak.com/?p=14914",
+        "similarityScore": 84,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766158992448,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766158992448,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766158992448,
+    "lastMessageAt": 1766158992448,
+    "lastMatchSentAt": 1766158992448
+  },
+  "966504905707": {
+    "phoneNumber": "966504905707",
+    "name": "عبدالله الغانم",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "عبدالله الغانم",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 250,
+      "neighborhoods": [
+        "الراشدية"
+      ],
+      "contactNumber": "+966504905707",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14912,
+        "offerTitle": "أرض للبيع في مخطط الزهراء 2 &#8211; مخطط 116 &#8211; شارع 15 شرق",
+        "offerLink": "https://masaak.com/?p=14912",
+        "similarityScore": 78,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160151580,
+        "userResponse": null
+      },
+      {
+        "offerId": 14916,
+        "offerTitle": "🔥فرصة شرائية 🔥 أرض للبيع في حي الامراء بالهفوف بسعر مخفض",
+        "offerLink": "https://masaak.com/?p=14916",
+        "similarityScore": 80,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160591980,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160591980,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160591980,
+    "lastMessageAt": 1766160591980,
+    "lastMatchSentAt": 1766160591980
+  },
+  "966566642807": {
+    "phoneNumber": "966566642807",
+    "name": "غير معروف",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "غير معروف",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 170000,
+      "areaMin": 0,
+      "areaMax": 900,
+      "neighborhoods": [
+        "ضاحية هجر12"
+      ],
+      "contactNumber": "+966566642807",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14908,
+        "offerTitle": "أرض بالصفا 2 &#8211; قرب الدوار &#8211; شارع 15 شمال &#8211; واجهة 23م",
+        "offerLink": "https://masaak.com/?p=14908",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766158814776,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766158814776,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766158814776,
+    "lastMessageAt": 1766158814776,
+    "lastMatchSentAt": 1766158814776
+  },
+  "966567666055": {
+    "phoneNumber": "966567666055",
+    "name": "أبو الوليد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "أبو الوليد",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 200000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "ضاحية هجر"
+      ],
+      "contactNumber": "+966567666055",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14914,
+        "offerTitle": "قطعة أرض زاوية في الحي السابع بضاحية هجر",
+        "offerLink": "https://masaak.com/?p=14914",
+        "similarityScore": 84,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159293345,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159293345,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159293345,
+    "lastMessageAt": 1766159293345,
+    "lastMatchSentAt": 1766159293345
+  },
+  "966533252839": {
+    "phoneNumber": "966533252839",
+    "name": "أم عبدالله",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "أم عبدالله",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 300,
+      "neighborhoods": [
+        "البساتين",
+        "البطالية",
+        "الجبيل",
+        "القارة"
+      ],
+      "contactNumber": "+966533252839",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14912,
+        "offerTitle": "أرض للبيع في مخطط الزهراء 2 &#8211; مخطط 116 &#8211; شارع 15 شرق",
+        "offerLink": "https://masaak.com/?p=14912",
+        "similarityScore": 80,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160452485,
+        "userResponse": null
+      },
+      {
+        "offerId": 14916,
+        "offerTitle": "🔥فرصة شرائية 🔥 أرض للبيع في حي الامراء بالهفوف بسعر مخفض",
+        "offerLink": "https://masaak.com/?p=14916",
+        "similarityScore": 74,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160892413,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160892413,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160892413,
+    "lastMessageAt": 1766160892413,
+    "lastMatchSentAt": 1766160892413
+  },
+  "966510012010": {
+    "phoneNumber": "966510012010",
+    "name": "مصطفي الحسين",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "مصطفي الحسين",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": 400000,
+      "priceMax": 900000,
+      "areaMin": 0,
+      "areaMax": 800,
+      "neighborhoods": [
+        "الملك فهد",
+        "عين نجم",
+        "الاندلس"
+      ],
+      "contactNumber": "+966510012010",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14914,
+        "offerTitle": "قطعة أرض زاوية في الحي السابع بضاحية هجر",
+        "offerLink": "https://masaak.com/?p=14914",
+        "similarityScore": 71,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766159594255,
+        "userResponse": null
+      },
+      {
+        "offerId": 14912,
+        "offerTitle": "أرض للبيع في مخطط الزهراء 2 &#8211; مخطط 116 &#8211; شارع 15 شرق",
+        "offerLink": "https://masaak.com/?p=14912",
+        "similarityScore": 76,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160752902,
+        "userResponse": null
+      },
+      {
+        "offerId": 14916,
+        "offerTitle": "🔥فرصة شرائية 🔥 أرض للبيع في حي الامراء بالهفوف بسعر مخفض",
+        "offerLink": "https://masaak.com/?p=14916",
+        "similarityScore": 84,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766161192892,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161192892,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161192892,
+    "lastMessageAt": 1766161192892,
+    "lastMatchSentAt": 1766161192892
+  },
+  "966531154999": {
+    "phoneNumber": "966531154999",
+    "name": "غير مذكور",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "غير مذكور",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الامراء"
+      ],
+      "contactNumber": "+966531154999",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14916,
+        "offerTitle": "🔥فرصة شرائية 🔥 أرض للبيع في حي الامراء بالهفوف بسعر مخفض",
+        "offerLink": "https://masaak.com/?p=14916",
+        "similarityScore": 88,
+        "matchQuality": "🟢 ممتاز",
+        "sentAt": 1766161493705,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161493705,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161493705,
+    "lastMessageAt": 1766161493705,
+    "lastMatchSentAt": 1766161493705
+  },
+  "966543673100": {
+    "phoneNumber": "966543673100",
+    "name": "محمد -اسين",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "محمد -اسين",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 600,
+      "neighborhoods": [
+        "ضاحية هجر2"
+      ],
+      "contactNumber": "+966543673100",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14914,
+        "offerTitle": "قطعة أرض زاوية في الحي السابع بضاحية هجر",
+        "offerLink": "https://masaak.com/?p=14914",
+        "similarityScore": 86,
+        "matchQuality": "🟢 ممتاز",
+        "sentAt": 1766159895108,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159895108,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159895108,
+    "lastMessageAt": 1766159895108,
+    "lastMatchSentAt": 1766159895108
+  },
+  "966542541206": {
+    "phoneNumber": "966542541206",
+    "name": "موسى المحمد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "موسى المحمد",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 400,
+      "neighborhoods": [
+        "ضاحية هجر"
+      ],
+      "contactNumber": "+966542541206",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14914,
+        "offerTitle": "قطعة أرض زاوية في الحي السابع بضاحية هجر",
+        "offerLink": "https://masaak.com/?p=14914",
+        "similarityScore": 84,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160195939,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160195939,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160195940,
+    "lastMessageAt": 1766160195940,
+    "lastMatchSentAt": 1766160195939
+  },
+  "966558895515": {
+    "phoneNumber": "966558895515",
+    "name": "حسن بوعامر",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "حسن بوعامر",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 1000000,
+      "areaMin": 0,
+      "areaMax": 1500,
+      "neighborhoods": [
+        "القرى الشرقية"
+      ],
+      "contactNumber": "+966558895515",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14908,
+        "offerTitle": "أرض بالصفا 2 &#8211; قرب الدوار &#8211; شارع 15 شمال &#8211; واجهة 23م",
+        "offerLink": "https://masaak.com/?p=14908",
+        "similarityScore": 91,
+        "matchQuality": "🟢 ممتاز",
+        "sentAt": 1766159115681,
+        "userResponse": null
+      },
+      {
+        "offerId": 14914,
+        "offerTitle": "قطعة أرض زاوية في الحي السابع بضاحية هجر",
+        "offerLink": "https://masaak.com/?p=14914",
+        "similarityScore": 91,
+        "matchQuality": "🟢 ممتاز",
+        "sentAt": 1766160496343,
+        "userResponse": null
+      },
+      {
+        "offerId": 14912,
+        "offerTitle": "أرض للبيع في مخطط الزهراء 2 &#8211; مخطط 116 &#8211; شارع 15 شرق",
+        "offerLink": "https://masaak.com/?p=14912",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766161053329,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161053329,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161053329,
+    "lastMessageAt": 1766161053329,
+    "lastMatchSentAt": 1766161053329
+  },
+  "966541736637": {
+    "phoneNumber": "966541736637",
+    "name": "فاطمة الحمد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "فاطمة الحمد",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 300,
+      "neighborhoods": [
+        "القارة"
+      ],
+      "contactNumber": "+966541736637",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14912,
+        "offerTitle": "أرض للبيع في مخطط الزهراء 2 &#8211; مخطط 116 &#8211; شارع 15 شرق",
+        "offerLink": "https://masaak.com/?p=14912",
+        "similarityScore": 80,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766161354126,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161354126,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161354126,
+    "lastMessageAt": 1766161354126,
+    "lastMatchSentAt": 1766161354126
+  },
+  "966504558501": {
+    "phoneNumber": "966504558501",
+    "name": "‏‪",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "‏‪",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 500000,
+      "areaMin": 0,
+      "areaMax": 400,
+      "neighborhoods": [
+        "الحمراء",
+        "جنوب الهفوف"
+      ],
+      "contactNumber": "+966504558501",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14912,
+        "offerTitle": "أرض للبيع في مخطط الزهراء 2 &#8211; مخطط 116 &#8211; شارع 15 شرق",
+        "offerLink": "https://masaak.com/?p=14912",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766161654971,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161654971,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161654971,
+    "lastMessageAt": 1766161654971,
+    "lastMatchSentAt": 1766161654971
+  },
+  "966541234358": {
+    "phoneNumber": "966541234358",
+    "name": "غير مذكور",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "غير مذكور",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 300000,
+      "areaMin": 0,
+      "areaMax": 800,
+      "neighborhoods": [
+        "ضاحية هجر12"
+      ],
+      "contactNumber": "+966541234358",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14908,
+        "offerTitle": "أرض بالصفا 2 &#8211; قرب الدوار &#8211; شارع 15 شمال &#8211; واجهة 23م",
+        "offerLink": "https://masaak.com/?p=14908",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766159416581,
+        "userResponse": null
+      },
+      {
+        "offerId": 14914,
+        "offerTitle": "قطعة أرض زاوية في الحي السابع بضاحية هجر",
+        "offerLink": "https://masaak.com/?p=14914",
+        "similarityScore": 92,
+        "matchQuality": "🟢 ممتاز",
+        "sentAt": 1766160796751,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160796751,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160796751,
+    "lastMessageAt": 1766160796751,
+    "lastMatchSentAt": 1766160796751
+  },
+  "966507400007": {
+    "phoneNumber": "966507400007",
+    "name": "ERGANY 329 - عبد العزيز عبد الرحمن",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "ERGANY 329 - عبد العزيز عبد الرحمن",
+      "propertyType": "عمارة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "السلمانية"
+      ],
+      "contactNumber": "+966507400007",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14910,
+        "offerTitle": "للبيع عمارة سكنية بالعزيزية بمساحة 400 متر مربع",
+        "offerLink": "https://masaak.com/?p=14910",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766158870403,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766158870403,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766158870403,
+    "lastMessageAt": 1766158870403,
+    "lastMatchSentAt": 1766158870403
+  },
+  "966555231744": {
+    "phoneNumber": "966555231744",
+    "name": "ناصر عبدالله",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "ناصر عبدالله",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 800,
+      "neighborhoods": [],
+      "contactNumber": "+966555231744",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14908,
+        "offerTitle": "أرض بالصفا 2 &#8211; قرب الدوار &#8211; شارع 15 شمال &#8211; واجهة 23م",
+        "offerLink": "https://masaak.com/?p=14908",
+        "similarityScore": 80,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159717540,
+        "userResponse": null
+      },
+      {
+        "offerId": 14914,
+        "offerTitle": "قطعة أرض زاوية في الحي السابع بضاحية هجر",
+        "offerLink": "https://masaak.com/?p=14914",
+        "similarityScore": 80,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766161097155,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161097155,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161097155,
+    "lastMessageAt": 1766161097155,
+    "lastMatchSentAt": 1766161097155
+  },
+  "966505170804": {
+    "phoneNumber": "966505170804",
+    "name": "قاسم",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "قاسم",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 300,
+      "neighborhoods": [
+        "ضاحية هجر"
+      ],
+      "contactNumber": "+966505170804",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14914,
+        "offerTitle": "قطعة أرض زاوية في الحي السابع بضاحية هجر",
+        "offerLink": "https://masaak.com/?p=14914",
+        "similarityScore": 84,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766161397955,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161397955,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161397955,
+    "lastMessageAt": 1766161397955,
+    "lastMatchSentAt": 1766161397955
+  },
+  "966547224990": {
+    "phoneNumber": "966547224990",
+    "name": "أحمد الحدب",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "أحمد الحدب",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 350000,
+      "areaMin": 0,
+      "areaMax": 700,
+      "neighborhoods": [
+        "الرياض"
+      ],
+      "contactNumber": "+966547224990",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14908,
+        "offerTitle": "أرض بالصفا 2 &#8211; قرب الدوار &#8211; شارع 15 شمال &#8211; واجهة 23م",
+        "offerLink": "https://masaak.com/?p=14908",
+        "similarityScore": 73,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160018385,
+        "userResponse": null
+      },
+      {
+        "offerId": 14914,
+        "offerTitle": "قطعة أرض زاوية في الحي السابع بضاحية هجر",
+        "offerLink": "https://masaak.com/?p=14914",
+        "similarityScore": 70,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766161698356,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161698356,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161698356,
+    "lastMessageAt": 1766161698356,
+    "lastMatchSentAt": 1766161698356
+  },
+  "966563558975": {
+    "phoneNumber": "966563558975",
+    "name": "عبد الملك",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "عبد الملك",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": 180000,
+      "priceMax": 200000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [],
+      "contactNumber": "+966563558975",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14908,
+        "offerTitle": "أرض بالصفا 2 &#8211; قرب الدوار &#8211; شارع 15 شمال &#8211; واجهة 23م",
+        "offerLink": "https://masaak.com/?p=14908",
+        "similarityScore": 71,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160319263,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160319263,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160319263,
+    "lastMessageAt": 1766160319263,
+    "lastMatchSentAt": 1766160319263
+  },
+  "966505786985": {
+    "phoneNumber": "966505786985",
+    "name": "ابراهيم العقتد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "ابراهيم العقتد",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 200,
+      "neighborhoods": [],
+      "contactNumber": "+966505786985",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14908,
+        "offerTitle": "أرض بالصفا 2 &#8211; قرب الدوار &#8211; شارع 15 شمال &#8211; واجهة 23م",
+        "offerLink": "https://masaak.com/?p=14908",
+        "similarityScore": 71,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160620150,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160620150,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160620150,
+    "lastMessageAt": 1766160620150,
+    "lastMatchSentAt": 1766160620150
+  },
+  "966503906077": {
+    "phoneNumber": "966503906077",
+    "name": "سعود الشعيبي",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "سعود الشعيبي",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 800,
+      "neighborhoods": [],
+      "contactNumber": "+966503906077",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14908,
+        "offerTitle": "أرض بالصفا 2 &#8211; قرب الدوار &#8211; شارع 15 شمال &#8211; واجهة 23م",
+        "offerLink": "https://masaak.com/?p=14908",
+        "similarityScore": 80,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160921196,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160921196,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160921196,
+    "lastMessageAt": 1766160921196,
+    "lastMatchSentAt": 1766160921196
+  },
+  "966548548373": {
+    "phoneNumber": "966548548373",
+    "name": "عامر",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "عامر",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [],
+      "contactNumber": "+966548548373",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14908,
+        "offerTitle": "أرض بالصفا 2 &#8211; قرب الدوار &#8211; شارع 15 شمال &#8211; واجهة 23م",
+        "offerLink": "https://masaak.com/?p=14908",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766161222054,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161222054,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161222054,
+    "lastMessageAt": 1766161222054,
+    "lastMatchSentAt": 1766161222054
+  },
+  "966595993187": {
+    "phoneNumber": "966595993187",
+    "name": "خالد العنزي",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "id": "req_legacy_966595993187",
+      "clientName": "nan",
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 4000000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [],
+      "contactNumber": "+966595993187",
+      "additionalSpecs": null,
+      "createdAt": 1765806377190,
+      "updatedAt": 1766161522974,
+      "status": "active"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14908,
+        "offerTitle": "أرض بالصفا 2 &#8211; قرب الدوار &#8211; شارع 15 شمال &#8211; واجهة 23م",
+        "offerLink": "https://masaak.com/?p=14908",
+        "similarityScore": 80,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766161522974,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161522974,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766241162267,
+    "lastMessageAt": 1766241162267,
+    "lastMatchSentAt": 1766161522974,
+    "requests": [
+      {
+        "id": "req_legacy_966595993187",
+        "clientName": "nan",
+        "propertyType": "أرض",
+        "purpose": "شراء",
+        "priceMin": null,
+        "priceMax": 4000000,
+        "areaMin": 0,
+        "areaMax": null,
+        "neighborhoods": [],
+        "contactNumber": "+966595993187",
+        "additionalSpecs": null,
+        "createdAt": 1765806377190,
+        "updatedAt": 1766161522974,
+        "status": "active"
+      },
+      {
+        "id": "req_1766239471964_af4u",
+        "clientName": "خالد العنزي",
+        "propertyType": "محطة بنزين",
+        "purpose": "شراء",
+        "priceMin": 0,
+        "priceMax": 7000000,
+        "areaMin": 0,
+        "areaMax": 3187,
+        "neighborhoods": [],
+        "contactNumber": "+966595993187",
+        "additionalSpecs": "طلب\nخالد العنزي\nنوع العقار المطلوب: محطة بنزين\nالغرض: شراء\nحدود السعر: 7000000\nرقم التواصل: +966595993187\nمواصفات إضافية:",
+        "createdAt": 1766239471964,
+        "updatedAt": 1766241162264,
+        "status": "active"
+      }
+    ],
+    "registeredByAdmin": true,
+    "adminPhone": "54773818589318@lid"
+  },
+  "966967772266443": {
+    "phoneNumber": "966967772266443",
+    "name": "nan",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "nan",
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": 150000,
+      "priceMax": 180000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الشهابية",
+        "البصيرة",
+        "الملك فهد",
+        "السنيدية"
+      ],
+      "contactNumber": "+966967772266443",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14903,
+        "offerTitle": "بيت عربي دورين في العيون",
+        "offerLink": "https://masaak.com/?p=14903",
+        "similarityScore": 81,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766146884184,
+        "userResponse": null
+      },
+      {
+        "offerId": 14918,
+        "offerTitle": "للبيع فيلا في الشهابية &#8211; مساحة 684 متر &#8211; سوم 1,050,000 ريال",
+        "offerLink": "https://masaak.com/?p=14918",
+        "similarityScore": 82,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159224226,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159224226,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159224226,
+    "lastMessageAt": 1766159224226,
+    "lastMatchSentAt": 1766159224226
+  },
+  "966561444363": {
+    "phoneNumber": "966561444363",
+    "name": "حسن البشر",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "حسن البشر",
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": 900000,
+      "priceMax": 950000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "المبرز",
+        "الاندلس",
+        "الراشدية",
+        "النزهة"
+      ],
+      "contactNumber": "+966561444363",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14903,
+        "offerTitle": "بيت عربي دورين في العيون",
+        "offerLink": "https://masaak.com/?p=14903",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766146884832,
+        "userResponse": null
+      },
+      {
+        "offerId": 14918,
+        "offerTitle": "للبيع فيلا في الشهابية &#8211; مساحة 684 متر &#8211; سوم 1,050,000 ريال",
+        "offerLink": "https://masaak.com/?p=14918",
+        "similarityScore": 77,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159525057,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159525057,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159525057,
+    "lastMessageAt": 1766159525057,
+    "lastMatchSentAt": 1766159525057
+  },
+  "966562912253": {
+    "phoneNumber": "966562912253",
+    "name": "غير متوفر",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "غير متوفر",
+      "propertyType": "فيلا",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 830000,
+      "areaMin": 0,
+      "areaMax": 260,
+      "neighborhoods": [
+        "جنوب الهفوف"
+      ],
+      "contactNumber": "+966562912253",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14918,
+        "offerTitle": "للبيع فيلا في الشهابية &#8211; مساحة 684 متر &#8211; سوم 1,050,000 ريال",
+        "offerLink": "https://masaak.com/?p=14918",
+        "similarityScore": 77,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159825887,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159825887,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159825887,
+    "lastMessageAt": 1766159825887,
+    "lastMatchSentAt": 1766159825887
+  },
+  "966566958436": {
+    "phoneNumber": "966566958436",
+    "name": "أم محمد البشر",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "أم محمد البشر",
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 700000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الخالدية",
+        "إسكان الخالدية",
+        "منسوبي التعليم",
+        "المبرز"
+      ],
+      "contactNumber": "+966566958436",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14903,
+        "offerTitle": "بيت عربي دورين في العيون",
+        "offerLink": "https://masaak.com/?p=14903",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766146885550,
+        "userResponse": null
+      },
+      {
+        "offerId": 14918,
+        "offerTitle": "للبيع فيلا في الشهابية &#8211; مساحة 684 متر &#8211; سوم 1,050,000 ريال",
+        "offerLink": "https://masaak.com/?p=14918",
+        "similarityScore": 72,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160126725,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160126725,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160126725,
+    "lastMessageAt": 1766160126725,
+    "lastMatchSentAt": 1766160126725
+  },
+  "966503842044": {
+    "phoneNumber": "966503842044",
+    "name": "عايش",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "عايش",
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "المبرز"
+      ],
+      "contactNumber": "+966503842044",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14903,
+        "offerTitle": "بيت عربي دورين في العيون",
+        "offerLink": "https://masaak.com/?p=14903",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766146886119,
+        "userResponse": null
+      },
+      {
+        "offerId": 6701,
+        "offerTitle": "✨ دور عظم بالجابرية بناء شخصي &#8211; واجهة 42 متر مقابل مواقف سيارات 🚩",
+        "offerLink": "https://hsaak.com/?p=6701",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159179357,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159179357,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159179357,
+    "lastMessageAt": 1766159179357,
+    "lastMatchSentAt": 1766159179357
+  },
+  "966508356523": {
+    "phoneNumber": "966508356523",
+    "name": "عبد المجيد يوسف",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "عبد المجيد يوسف",
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": 600000,
+      "priceMax": 650000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الخالدية",
+        "المعلمن",
+        "القرى"
+      ],
+      "contactNumber": "+966508356523",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14918,
+        "offerTitle": "للبيع فيلا في الشهابية &#8211; مساحة 684 متر &#8211; سوم 1,050,000 ريال",
+        "offerLink": "https://masaak.com/?p=14918",
+        "similarityScore": 71,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160427561,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160427561,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160427561,
+    "lastMessageAt": 1766160427561,
+    "lastMatchSentAt": 1766160427561
+  },
+  "966508195556": {
+    "phoneNumber": "966508195556",
+    "name": "أبو عبدالله الخميس",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "أبو عبدالله الخميس",
+      "propertyType": "عمارة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الراشدية",
+        "الجابرية"
+      ],
+      "contactNumber": "+966508195556",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14910,
+        "offerTitle": "للبيع عمارة سكنية بالعزيزية بمساحة 400 متر مربع",
+        "offerLink": "https://masaak.com/?p=14910",
+        "similarityScore": 81,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159171347,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159171347,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159171347,
+    "lastMessageAt": 1766159171347,
+    "lastMatchSentAt": 1766159171347
+  },
+  "966567338177": {
+    "phoneNumber": "966567338177",
+    "name": "nan",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "nan",
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الحزام",
+        "الخالدية"
+      ],
+      "contactNumber": "+966567338177",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 6701,
+        "offerTitle": "✨ دور عظم بالجابرية بناء شخصي &#8211; واجهة 42 متر مقابل مواقف سيارات 🚩",
+        "offerLink": "https://hsaak.com/?p=6701",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159480225,
+        "userResponse": null
+      },
+      {
+        "offerId": 14918,
+        "offerTitle": "للبيع فيلا في الشهابية &#8211; مساحة 684 متر &#8211; سوم 1,050,000 ريال",
+        "offerLink": "https://masaak.com/?p=14918",
+        "similarityScore": 74,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160727969,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160727969,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160727969,
+    "lastMessageAt": 1766160727969,
+    "lastMatchSentAt": 1766160727969
+  },
+  "966542177793": {
+    "phoneNumber": "966542177793",
+    "name": "عباس علي الحكيم",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "عباس علي الحكيم",
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 850000,
+      "areaMin": 0,
+      "areaMax": 200,
+      "neighborhoods": [
+        "المبرز",
+        "الهفوف"
+      ],
+      "contactNumber": "+966542177793",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14918,
+        "offerTitle": "للبيع فيلا في الشهابية &#8211; مساحة 684 متر &#8211; سوم 1,050,000 ريال",
+        "offerLink": "https://masaak.com/?p=14918",
+        "similarityScore": 84,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766161028796,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161028796,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161028796,
+    "lastMessageAt": 1766161028796,
+    "lastMatchSentAt": 1766161028796
+  },
+  "966549711388": {
+    "phoneNumber": "966549711388",
+    "name": "nan",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "nan",
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الخالدية",
+        "المعلمين",
+        "المحمدية",
+        "المرقاب"
+      ],
+      "contactNumber": "+966549711388",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 6701,
+        "offerTitle": "✨ دور عظم بالجابرية بناء شخصي &#8211; واجهة 42 متر مقابل مواقف سيارات 🚩",
+        "offerLink": "https://hsaak.com/?p=6701",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159781018,
+        "userResponse": null
+      },
+      {
+        "offerId": 14918,
+        "offerTitle": "للبيع فيلا في الشهابية &#8211; مساحة 684 متر &#8211; سوم 1,050,000 ريال",
+        "offerLink": "https://masaak.com/?p=14918",
+        "similarityScore": 74,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766161329160,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161329160,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161329160,
+    "lastMessageAt": 1766161329160,
+    "lastMatchSentAt": 1766161329160
+  },
+  "966567419483": {
+    "phoneNumber": "966567419483",
+    "name": "nan",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "nan",
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": 1000000,
+      "priceMax": 1100000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "النزهة",
+        "الاندلس",
+        "الراشدية",
+        "المحدود"
+      ],
+      "contactNumber": "+966567419483",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14918,
+        "offerTitle": "للبيع فيلا في الشهابية &#8211; مساحة 684 متر &#8211; سوم 1,050,000 ريال",
+        "offerLink": "https://masaak.com/?p=14918",
+        "similarityScore": 79,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766161630055,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161630055,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161630055,
+    "lastMessageAt": 1766161630055,
+    "lastMatchSentAt": 1766161630055
+  },
+  "966504923971": {
+    "phoneNumber": "966504923971",
+    "name": "عصام السالم",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "عصام السالم",
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [],
+      "contactNumber": "+966504923971",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 6701,
+        "offerTitle": "✨ دور عظم بالجابرية بناء شخصي &#8211; واجهة 42 متر مقابل مواقف سيارات 🚩",
+        "offerLink": "https://hsaak.com/?p=6701",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160081850,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160081850,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160081850,
+    "lastMessageAt": 1766160081850,
+    "lastMatchSentAt": 1766160081850
+  },
+  "966504928230": {
+    "phoneNumber": "966504928230",
+    "name": "عبدالفتاح العوض",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "عبدالفتاح العوض",
+      "propertyType": "عمارة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الملك فهد",
+        "الحزام",
+        "منسوبي التعليم"
+      ],
+      "contactNumber": "+966504928230",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14910,
+        "offerTitle": "للبيع عمارة سكنية بالعزيزية بمساحة 400 متر مربع",
+        "offerLink": "https://masaak.com/?p=14910",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766159472189,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159472189,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159472189,
+    "lastMessageAt": 1766159472189,
+    "lastMatchSentAt": 1766159472189
+  },
+  "966559296590": {
+    "phoneNumber": "966559296590",
+    "name": "علي جمعه",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "علي جمعه",
+      "propertyType": "عمارة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 1200000,
+      "areaMin": 0,
+      "areaMax": 400,
+      "neighborhoods": [
+        "المبرز"
+      ],
+      "contactNumber": "+966559296590",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14910,
+        "offerTitle": "للبيع عمارة سكنية بالعزيزية بمساحة 400 متر مربع",
+        "offerLink": "https://masaak.com/?p=14910",
+        "similarityScore": 91,
+        "matchQuality": "🟢 ممتاز",
+        "sentAt": 1766159773061,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766159773061,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766159773061,
+    "lastMessageAt": 1766159773061,
+    "lastMatchSentAt": 1766159773061
+  },
+  "966543722404": {
+    "phoneNumber": "966543722404",
+    "name": "أحمد الحواج",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "أحمد الحواج",
+      "propertyType": "عمارة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 1000000,
+      "areaMin": 0,
+      "areaMax": 400,
+      "neighborhoods": [],
+      "contactNumber": "+966543722404",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14910,
+        "offerTitle": "للبيع عمارة سكنية بالعزيزية بمساحة 400 متر مربع",
+        "offerLink": "https://masaak.com/?p=14910",
+        "similarityScore": 84,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160073939,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160073939,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160073939,
+    "lastMessageAt": 1766160073939,
+    "lastMatchSentAt": 1766160073939
+  },
+  "966566596843": {
+    "phoneNumber": "966566596843",
+    "name": "nan",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "nan",
+      "propertyType": "عمارة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 900000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [],
+      "contactNumber": "+966566596843",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14910,
+        "offerTitle": "للبيع عمارة سكنية بالعزيزية بمساحة 400 متر مربع",
+        "offerLink": "https://masaak.com/?p=14910",
+        "similarityScore": 77,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160374801,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160374801,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160374801,
+    "lastMessageAt": 1766160374801,
+    "lastMatchSentAt": 1766160374801
+  },
+  "966536861852": {
+    "phoneNumber": "966536861852",
+    "name": "مظاهر حبيب",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "مظاهر حبيب",
+      "propertyType": "عمارة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": 800000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "المبرز"
+      ],
+      "contactNumber": "+966536861852",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14910,
+        "offerTitle": "للبيع عمارة سكنية بالعزيزية بمساحة 400 متر مربع",
+        "offerLink": "https://masaak.com/?p=14910",
+        "similarityScore": 81,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160675802,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160675802,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160675802,
+    "lastMessageAt": 1766160675802,
+    "lastMatchSentAt": 1766160675802
+  },
+  "966593332163": {
+    "phoneNumber": "966593332163",
+    "name": "nan",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "nan",
+      "propertyType": "عمارة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 500,
+      "neighborhoods": [
+        "النزهة",
+        "الهفوف"
+      ],
+      "contactNumber": "+966593332163",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14910,
+        "offerTitle": "للبيع عمارة سكنية بالعزيزية بمساحة 400 متر مربع",
+        "offerLink": "https://masaak.com/?p=14910",
+        "similarityScore": 93,
+        "matchQuality": "🟢 ممتاز",
+        "sentAt": 1766160976621,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160976621,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160976621,
+    "lastMessageAt": 1766160976621,
+    "lastMatchSentAt": 1766160976621
+  },
+  "966507897107": {
+    "phoneNumber": "966507897107",
+    "name": "nan",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "nan",
+      "propertyType": "عمارة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [],
+      "contactNumber": "+966507897107",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14910,
+        "offerTitle": "للبيع عمارة سكنية بالعزيزية بمساحة 400 متر مربع",
+        "offerLink": "https://masaak.com/?p=14910",
+        "similarityScore": 75,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766161277435,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161277435,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161277435,
+    "lastMessageAt": 1766161277435,
+    "lastMatchSentAt": 1766161277435
+  },
+  "966500568083": {
+    "phoneNumber": "966500568083",
+    "name": "ام عبدالعزيز",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "ام عبدالعزيز",
+      "propertyType": "عمارة",
+      "purpose": "شراء",
+      "priceMin": 1800000,
+      "priceMax": 1800000,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الراشدية"
+      ],
+      "contactNumber": "+966500568083",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 14910,
+        "offerTitle": "للبيع عمارة سكنية بالعزيزية بمساحة 400 متر مربع",
+        "offerLink": "https://masaak.com/?p=14910",
+        "similarityScore": 81,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766161578229,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161578229,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766161578229,
+    "lastMessageAt": 1766161578229,
+    "lastMatchSentAt": 1766161578229
+  },
+  "966535699731": {
+    "phoneNumber": "966535699731",
+    "name": "شهيد السناوي",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "شهيد السناوي",
+      "propertyType": "فيلا",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 200,
+      "neighborhoods": [],
+      "contactNumber": "+966535699731",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 6701,
+        "offerTitle": "✨ دور عظم بالجابرية بناء شخصي &#8211; واجهة 42 متر مقابل مواقف سيارات 🚩",
+        "offerLink": "https://hsaak.com/?p=6701",
+        "similarityScore": 70,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160382784,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160382784,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160382784,
+    "lastMessageAt": 1766160382784,
+    "lastMatchSentAt": 1766160382784
+  },
+  "966506800064": {
+    "phoneNumber": "966506800064",
+    "name": "nan",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "nan",
+      "propertyType": "فيلا",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الزهراء",
+        "الجفر",
+        "الطرف",
+        "الخزامي"
+      ],
+      "contactNumber": "+966506800064",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 6701,
+        "offerTitle": "✨ دور عظم بالجابرية بناء شخصي &#8211; واجهة 42 متر مقابل مواقف سيارات 🚩",
+        "offerLink": "https://hsaak.com/?p=6701",
+        "similarityScore": 74,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766160683628,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160683628,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160683628,
+    "lastMessageAt": 1766160683628,
+    "lastMatchSentAt": 1766160683628
+  },
+  "9660558612666": {
+    "phoneNumber": "9660558612666",
+    "name": "جمعية",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": "جمعية",
+      "propertyType": "شقة",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": null,
+      "neighborhoods": [
+        "الهفوف"
+      ],
+      "contactNumber": "+9660558612666",
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 6701,
+        "offerTitle": "✨ دور عظم بالجابرية بناء شخصي &#8211; واجهة 42 متر مقابل مواقف سيارات 🚩",
+        "offerLink": "https://hsaak.com/?p=6701",
+        "similarityScore": 76,
+        "matchQuality": "🟢 جيد جداً",
+        "sentAt": 1766160985487,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766160985487,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765806377190,
+    "updatedAt": 1766160985487,
+    "lastMessageAt": 1766160985487,
+    "lastMatchSentAt": 1766160985487
+  },
+  "108864653512712": {
+    "phoneNumber": "108864653512712",
+    "name": "اوامى",
+    "role": "مالك",
+    "state": "completed",
+    "requirements": {
+      "propertyType": null,
+      "purpose": null,
+      "priceRange": null,
+      "area": null,
+      "neighborhoods": [],
+      "contactNumber": null,
+      "additionalSpecs": null
+    },
+    "propertyOffer": "1",
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765135392564,
+    "updatedAt": 1765400693091,
+    "lastMessageAt": 1766647043321,
+    "nameValidationWarned": false,
+    "roleValidationWarned": false
+  },
+  "966555323394": {
+    "phoneNumber": "966555323394",
+    "name": "عميل جديد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": null,
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 300,
+      "neighborhoods": [
+        "السياسب",
+        "المبرز"
+      ],
+      "contactNumber": "+966555323394",
+      "additionalSpecs": "طلب\nنوع العقار المطلوب:  بيت\nالغرض: شراء\nالمساحة المطلوبة: ٣٠٠\nالأحياء المفضلة: السياسب و المبرز\nرقم التواصل: +966555323394\nمواصفات إضافية:"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [
+      {
+        "offerId": 6701,
+        "offerTitle": "✨ دور عظم بالجابرية بناء شخصي &#8211; واجهة 42 متر مقابل مواقف سيارات 🚩",
+        "offerLink": "https://hsaak.com/?p=6701",
+        "similarityScore": 74,
+        "matchQuality": "🟡 جيد",
+        "sentAt": 1766161286346,
+        "userResponse": null
+      }
+    ],
+    "lastNotificationAt": 1766161286346,
+    "awaitingStillLookingResponse": true,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765314648232,
+    "updatedAt": 1766161286346,
+    "lastMessageAt": 1766161286346,
+    "registeredByAdmin": true,
+    "adminPhone": "108864653512712@lid",
+    "lastMatchSentAt": 1766161286346
+  },
+  "54773818589318": {
+    "phoneNumber": "54773818589318",
+    "name": "اوامى",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "clientName": null,
+      "propertyType": null,
+      "purpose": null,
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": null,
+      "areaMax": null,
+      "neighborhoods": [
+        "رقم التواصل:"
+      ],
+      "contactNumber": null,
+      "additionalSpecs": "نوع العقار المطلوب: للتقبيل\nالغرض: \nحدود السعر: \nالمساحة المطلوبة: \nالأحياء المفضلة: \nرقم التواصل: \nمواصفات إضافية:"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765745361218,
+    "updatedAt": 1766241720548,
+    "lastMessageAt": 1766863858230,
+    "nameValidationWarned": false,
+    "mediaWarningShown": false,
+    "roleValidationWarned": false
+  },
+  "966542273777": {
+    "phoneNumber": "966542273777",
+    "name": "عميل جديد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "id": "req_legacy_966542273777",
+      "clientName": null,
+      "propertyType": "بيت",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 500,
+      "neighborhoods": [
+        "القادسية"
+      ],
+      "contactNumber": "0542273777",
+      "additionalSpecs": "طلب\nنوع العقار المطلوب: بيت \nالغرض: شراء\nالمساحة المطلوبة: ٥٠٠\nالأحياء: القادسية\nرقم التواصل: 0542273777\nمواصفات إضافية:",
+      "createdAt": 1765809327261,
+      "updatedAt": 1765809327261,
+      "status": "active"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1765809327261,
+    "updatedAt": 1766241827415,
+    "lastMessageAt": 1766241827415,
+    "registeredByAdmin": true,
+    "adminPhone": "54773818589318@lid",
+    "requests": [
+      {
+        "id": "req_legacy_966542273777",
+        "clientName": null,
+        "propertyType": "بيت",
+        "purpose": "شراء",
+        "priceMin": null,
+        "priceMax": null,
+        "areaMin": 0,
+        "areaMax": 500,
+        "neighborhoods": [
+          "القادسية"
+        ],
+        "contactNumber": "0542273777",
+        "additionalSpecs": "طلب\nنوع العقار المطلوب: بيت \nالغرض: شراء\nالمساحة المطلوبة: ٥٠٠\nالأحياء: القادسية\nرقم التواصل: 0542273777\nمواصفات إضافية:",
+        "createdAt": 1765809327261,
+        "updatedAt": 1765809327261,
+        "status": "active"
+      },
+      {
+        "id": "req_1766241827413_cixy",
+        "clientName": null,
+        "propertyType": null,
+        "purpose": null,
+        "priceMin": null,
+        "priceMax": null,
+        "areaMin": 0,
+        "areaMax": 3777,
+        "neighborhoods": [],
+        "contactNumber": "0542273777",
+        "additionalSpecs": "طلب\nنوع العقار المطلوب: مطعم \nالغرض: للاستثمار\nرقم التواصل: 0542273777\nمواصفات إضافية:",
+        "createdAt": 1766241827413,
+        "updatedAt": 1766241827413,
+        "status": "active"
+      }
+    ]
+  },
+  "966555919977": {
+    "phoneNumber": "966555919977",
+    "name": "خالد العنزي",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "id": "req_1766175855453_frir",
+      "clientName": null,
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": 0,
+      "priceMax": 370000,
+      "areaMin": 0,
+      "areaMax": 9977,
+      "neighborhoods": [
+        "اللويمي",
+        "الخدود"
+      ],
+      "contactNumber": "+966555919977",
+      "additionalSpecs": "طلب\nنوع العقار المطلوب: مزرعة عرق \nالغرض: شراء\nحدود السعر: 370 الف\nالأحياء: اللويمي و الخدود\nرقم التواصل: +966555919977\nمواصفات إضافية:",
+      "createdAt": 1766175855453,
+      "updatedAt": 1766175952732,
+      "status": "active"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1766175855449,
+    "updatedAt": 1766239285742,
+    "lastMessageAt": 1766239285742,
+    "requests": [
+      {
+        "id": "req_1766175855453_frir",
+        "clientName": null,
+        "propertyType": "مزرعة",
+        "purpose": "شراء",
+        "priceMin": 0,
+        "priceMax": 370000,
+        "areaMin": 0,
+        "areaMax": 9977,
+        "neighborhoods": [
+          "اللويمي",
+          "الخدود"
+        ],
+        "contactNumber": "+966555919977",
+        "additionalSpecs": "طلب\nنوع العقار المطلوب: مزرعة عرق \nالغرض: شراء\nحدود السعر: 370 الف\nالأحياء: اللويمي و الخدود\nرقم التواصل: +966555919977\nمواصفات إضافية:",
+        "createdAt": 1766175855453,
+        "updatedAt": 1766175952732,
+        "status": "active"
+      },
+      {
+        "id": "req_1766239190483_w14e",
+        "clientName": "خالد العنزي",
+        "propertyType": "محطة بنزين",
+        "purpose": "شراء",
+        "priceMin": 0,
+        "priceMax": 7000000,
+        "areaMin": 0,
+        "areaMax": 9977,
+        "neighborhoods": [],
+        "contactNumber": "+966555919977",
+        "additionalSpecs": "طلب\nخالد العنزي\nنوع العقار المطلوب: محطة بنزين\nالغرض: شراء\nحدود السعر: 7000000\nرقم التواصل: +966555919977\nمواصفات إضافية:",
+        "createdAt": 1766239190483,
+        "updatedAt": 1766239285739,
+        "status": "active"
+      }
+    ],
+    "registeredByAdmin": true,
+    "adminPhone": "54773818589318@lid"
+  },
+  "966508001475": {
+    "phoneNumber": "966508001475",
+    "name": null,
+    "role": null,
+    "state": "awaiting_name",
+    "requirements": {
+      "propertyType": null,
+      "purpose": null,
+      "priceRange": null,
+      "area": null,
+      "neighborhoods": [],
+      "contactNumber": null,
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1766178642960,
+    "updatedAt": 1766647041803,
+    "lastMessageAt": 1766647041803,
+    "mediaWarningShown": false,
+    "nameValidationWarned": true
+  },
+  "966543730039": {
+    "phoneNumber": "966543730039",
+    "name": "عميل جديد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "id": "req_1766263828112_7iwn",
+      "clientName": null,
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": 0,
+      "priceMax": 600000,
+      "areaMin": 0,
+      "areaMax": 600,
+      "neighborhoods": [
+        "القرى"
+      ],
+      "contactNumber": "0543730039",
+      "additionalSpecs": "طلب\nنوع العقار المطلوب: مزرعة\nالغرض: شراء\nالأحياء: القرى\nحدود السعر: ٦٠٠ الف\nالمساحة: 600\nرقم التواصل: 0543730039\nمواصفات إضافية:",
+      "createdAt": 1766263828112,
+      "updatedAt": 1766265285298,
+      "status": "active"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1766263828108,
+    "updatedAt": 1766265285301,
+    "lastMessageAt": 1766265285301,
+    "requests": [
+      {
+        "id": "req_1766263828112_7iwn",
+        "clientName": null,
+        "propertyType": "مزرعة",
+        "purpose": "شراء",
+        "priceMin": 0,
+        "priceMax": 600000,
+        "areaMin": 0,
+        "areaMax": 600,
+        "neighborhoods": [
+          "القرى"
+        ],
+        "contactNumber": "0543730039",
+        "additionalSpecs": "طلب\nنوع العقار المطلوب: مزرعة\nالغرض: شراء\nالأحياء: القرى\nحدود السعر: ٦٠٠ الف\nالمساحة: 600\nرقم التواصل: 0543730039\nمواصفات إضافية:",
+        "createdAt": 1766263828112,
+        "updatedAt": 1766265285298,
+        "status": "active"
+      },
+      {
+        "id": "req_1766263874219_d7fz",
+        "clientName": null,
+        "propertyType": "أرض",
+        "purpose": "شراء",
+        "priceMin": 0,
+        "priceMax": 600000,
+        "areaMin": 0,
+        "areaMax": 39,
+        "neighborhoods": [
+          "القرى"
+        ],
+        "contactNumber": "0543730039",
+        "additionalSpecs": "طلب\nنوع العقار المطلوب: أرض زراعية\nالغرض: شراء\nالأحياء: القرى\nحدود السعر: ٦٠٠ الف\nرقم التواصل: 0543730039\nمواصفات إضافية:",
+        "createdAt": 1766263874219,
+        "updatedAt": 1766263874219,
+        "status": "active"
+      }
+    ],
+    "registeredByAdmin": true,
+    "adminPhone": "54773818589318@lid"
+  },
+  "966553210651": {
+    "phoneNumber": "966553210651",
+    "name": "عميل جديد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "id": "req_1766429881617_jacx",
+      "clientName": null,
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": 0,
+      "priceMax": 900,
+      "areaMin": 0,
+      "areaMax": 550,
+      "neighborhoods": [
+        "الدانة دال"
+      ],
+      "contactNumber": "0553210651",
+      "additionalSpecs": "طلب\nنوع العقار المطلوب: أرض\nالغرض: شراء\nحدود السعر: 900 للمتر\nالمساحة المطلوبة: 550\nالأحياء المفضلة: الدانة دال\nرقم التواصل: 0553210651\nمواصفات إضافية: في الدانة دال و بطن ٩٠٠ للمتر\n *🔰مسعاك العقارية*",
+      "createdAt": 1766429881617,
+      "updatedAt": 1766429881617,
+      "status": "active"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1766429881612,
+    "updatedAt": 1766429881621,
+    "lastMessageAt": 1766429881621,
+    "requests": [
+      {
+        "id": "req_1766429881617_jacx",
+        "clientName": null,
+        "propertyType": "أرض",
+        "purpose": "شراء",
+        "priceMin": 0,
+        "priceMax": 900,
+        "areaMin": 0,
+        "areaMax": 550,
+        "neighborhoods": [
+          "الدانة دال"
+        ],
+        "contactNumber": "0553210651",
+        "additionalSpecs": "طلب\nنوع العقار المطلوب: أرض\nالغرض: شراء\nحدود السعر: 900 للمتر\nالمساحة المطلوبة: 550\nالأحياء المفضلة: الدانة دال\nرقم التواصل: 0553210651\nمواصفات إضافية: في الدانة دال و بطن ٩٠٠ للمتر\n *🔰مسعاك العقارية*",
+        "createdAt": 1766429881617,
+        "updatedAt": 1766429881617,
+        "status": "active"
+      }
+    ],
+    "registeredByAdmin": true,
+    "adminPhone": "54773818589318@lid"
+  },
+  "966504937440": {
+    "phoneNumber": "966504937440",
+    "name": "عميل جديد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "id": "req_1766431125673_vj0c",
+      "clientName": null,
+      "propertyType": "مزرعة",
+      "purpose": "شراء",
+      "priceMin": 700000,
+      "priceMax": 850000,
+      "areaMin": 0,
+      "areaMax": 7440,
+      "neighborhoods": [
+        "الهفوف",
+        "المحدود",
+        "الطرف",
+        "السيفة"
+      ],
+      "contactNumber": "0504937440",
+      "additionalSpecs": "طلب\nنوع العقار المطلوب: مزرعة\nالغرض: شراء\nحدود السعر: ٧٠٠ الف الى ٨٥٠ الف\nالأحياء المفضلة: الهفوف و المحدود و الطرف و السيفة\nرقم التواصل: 0504937440\nمواصفات إضافية: كهرباء و عين وسور  و نافذ واسع\n *🔰مسعاك العقارية*",
+      "createdAt": 1766431125673,
+      "updatedAt": 1766431428414,
+      "status": "active"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1766431125670,
+    "updatedAt": 1766431428417,
+    "lastMessageAt": 1766431428417,
+    "requests": [
+      {
+        "id": "req_1766431125673_vj0c",
+        "clientName": null,
+        "propertyType": "مزرعة",
+        "purpose": "شراء",
+        "priceMin": 700000,
+        "priceMax": 850000,
+        "areaMin": 0,
+        "areaMax": 7440,
+        "neighborhoods": [
+          "الهفوف",
+          "المحدود",
+          "الطرف",
+          "السيفة"
+        ],
+        "contactNumber": "0504937440",
+        "additionalSpecs": "طلب\nنوع العقار المطلوب: مزرعة\nالغرض: شراء\nحدود السعر: ٧٠٠ الف الى ٨٥٠ الف\nالأحياء المفضلة: الهفوف و المحدود و الطرف و السيفة\nرقم التواصل: 0504937440\nمواصفات إضافية: كهرباء و عين وسور  و نافذ واسع\n *🔰مسعاك العقارية*",
+        "createdAt": 1766431125673,
+        "updatedAt": 1766431428414,
+        "status": "active"
+      }
+    ],
+    "registeredByAdmin": true,
+    "adminPhone": "54773818589318@lid"
+  },
+  "966539357357": {
+    "phoneNumber": "966539357357",
+    "name": "عميل جديد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "id": "req_1766438303769_jf93",
+      "clientName": null,
+      "propertyType": "دبلكس",
+      "purpose": "شراء",
+      "priceMin": 0,
+      "priceMax": 700000,
+      "areaMin": 0,
+      "areaMax": 7357,
+      "neighborhoods": [
+        "الهفوف"
+      ],
+      "contactNumber": "0539357357",
+      "additionalSpecs": "طلب\nنوع العقار المطلوب: دبلكس عظم\nالغرض: شراء\nحدود السعر: 700000 \nالأحياء المفضلة: الهفوف \nرقم التواصل: 0539357357\nمواصفات إضافية: \n *🔰مسعاك العقارية*",
+      "createdAt": 1766438303769,
+      "updatedAt": 1766438342566,
+      "status": "active"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1766438303764,
+    "updatedAt": 1766438342568,
+    "lastMessageAt": 1766438342568,
+    "requests": [
+      {
+        "id": "req_1766438303769_jf93",
+        "clientName": null,
+        "propertyType": "دبلكس",
+        "purpose": "شراء",
+        "priceMin": 0,
+        "priceMax": 700000,
+        "areaMin": 0,
+        "areaMax": 7357,
+        "neighborhoods": [
+          "الهفوف"
+        ],
+        "contactNumber": "0539357357",
+        "additionalSpecs": "طلب\nنوع العقار المطلوب: دبلكس عظم\nالغرض: شراء\nحدود السعر: 700000 \nالأحياء المفضلة: الهفوف \nرقم التواصل: 0539357357\nمواصفات إضافية: \n *🔰مسعاك العقارية*",
+        "createdAt": 1766438303769,
+        "updatedAt": 1766438342566,
+        "status": "active"
+      }
+    ],
+    "registeredByAdmin": true,
+    "adminPhone": "54773818589318@lid"
+  },
+  "68247466578085": {
+    "phoneNumber": "68247466578085",
+    "name": null,
+    "role": null,
+    "state": "awaiting_name",
+    "requirements": {
+      "propertyType": null,
+      "purpose": null,
+      "priceRange": null,
+      "area": null,
+      "neighborhoods": [],
+      "contactNumber": null,
+      "additionalSpecs": null
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1766481063706,
+    "updatedAt": 1766482632180,
+    "lastMessageAt": 1766484570880,
+    "nameValidationWarned": true
+  },
+  "966505917467": {
+    "phoneNumber": "966505917467",
+    "name": "عميل جديد",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "id": "req_1766756516749_pupa",
+      "clientName": null,
+      "propertyType": "أرض",
+      "purpose": "شراء",
+      "priceMin": 0,
+      "priceMax": 1700000,
+      "areaMin": 4000,
+      "areaMax": 10000,
+      "neighborhoods": [
+        "جليجلة",
+        "الشعبة",
+        "والمبرز"
+      ],
+      "contactNumber": "0505917467",
+      "additionalSpecs": "طلب\nنوع العقار المطلوب: أرض زراعية\nالغرض: شراء\nحدود السعر: 1700000\nالأحياء المفضلة: جليجلة و الشعبة و والمبرز\nالمساحة: 4 الاف الى 10 الاف\nرقم التواصل: 0505917467\nمواصفات إضافية: \n *🔰مسعاك العقارية*",
+      "createdAt": 1766756516749,
+      "updatedAt": 1766756516749,
+      "status": "active"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1766756516747,
+    "updatedAt": 1766756550123,
+    "lastMessageAt": 1766756550123,
+    "requests": [
+      {
+        "id": "req_1766756516749_pupa",
+        "clientName": null,
+        "propertyType": "أرض",
+        "purpose": "شراء",
+        "priceMin": 0,
+        "priceMax": 1700000,
+        "areaMin": 4000,
+        "areaMax": 10000,
+        "neighborhoods": [
+          "جليجلة",
+          "الشعبة",
+          "والمبرز"
+        ],
+        "contactNumber": "0505917467",
+        "additionalSpecs": "طلب\nنوع العقار المطلوب: أرض زراعية\nالغرض: شراء\nحدود السعر: 1700000\nالأحياء المفضلة: جليجلة و الشعبة و والمبرز\nالمساحة: 4 الاف الى 10 الاف\nرقم التواصل: 0505917467\nمواصفات إضافية: \n *🔰مسعاك العقارية*",
+        "createdAt": 1766756516749,
+        "updatedAt": 1766756516749,
+        "status": "active"
+      },
+      {
+        "id": "req_1766756550122_mgrd",
+        "clientName": null,
+        "propertyType": "مزرعة",
+        "purpose": "شراء",
+        "priceMin": 0,
+        "priceMax": 1700000,
+        "areaMin": 4000,
+        "areaMax": 10000,
+        "neighborhoods": [
+          "جليجلة",
+          "الشعبة",
+          "والمبرز"
+        ],
+        "contactNumber": "0505917467",
+        "additionalSpecs": "طلب\nنوع العقار المطلوب: مزرعة\nالغرض: شراء\nحدود السعر: 1700000\nالأحياء المفضلة: جليجلة و الشعبة و والمبرز\nالمساحة: 4 الاف الى 10 الاف\nرقم التواصل: 0505917467\nمواصفات إضافية: \n *🔰مسعاك العقارية*",
+        "createdAt": 1766756550122,
+        "updatedAt": 1766756550122,
+        "status": "active"
+      }
+    ],
+    "registeredByAdmin": true,
+    "adminPhone": "54773818589318@lid"
+  }
+}

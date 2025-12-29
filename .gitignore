@@ -3,5 +3,4 @@ auth_info_baileys/
 .env
 *.log
 sessions/
-data/
 test*

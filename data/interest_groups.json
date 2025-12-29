@@ -1,0 +1,1656 @@
+{
+  "groups": {
+    "IG001": {
+      "id": "IG001",
+      "interest": "أرض النزهة",
+      "createdAt": 1765143315089,
+      "createdBy": "108864653512712@lid",
+      "members": [
+        {
+          "phone": "966508007053",
+          "name": "أحمد",
+          "addedAt": 1765143315089
+        }
+      ]
+    },
+    "IG002": {
+      "id": "IG002",
+      "interest": "مزارع صغيرة",
+      "createdAt": 1765203903973,
+      "createdBy": "108864653512712@lid",
+      "members": [
+        {
+          "phone": "966538178170",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966503871913",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966564879889",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966539306502",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966503877066",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966508128078",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966561200920",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966542003729",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966544047373",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966559574059",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966554931131",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966565311703",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966559290449",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966503871913",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966508007053",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966503912760",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966565311703",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966504930271",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966505899403",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966554931131",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966564014376",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966564014376",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966503871913",
+          "name": null,
+          "addedAt": 1765203903973
+        },
+        {
+          "phone": "966506932504",
+          "name": "بوحسن الغانم",
+          "addedAt": 1765208832616
+        }
+      ]
+    },
+    "IG003": {
+      "id": "IG003",
+      "interest": "مزارع وسط",
+      "createdAt": 1765208726380,
+      "createdBy": "108864653512712@lid",
+      "members": [
+        {
+          "phone": "966506932504",
+          "name": null,
+          "addedAt": 1765208726380
+        }
+      ]
+    },
+    "IG004": {
+      "id": "IG004",
+      "interest": "مزارع وسط",
+      "createdAt": 1765210725430,
+      "createdBy": "108864653512712@lid",
+      "members": [
+        {
+          "phone": "966500966922",
+          "name": "مرتضى السلمان",
+          "addedAt": 1765210725430
+        },
+        {
+          "phone": "966555929230",
+          "name": "يبحث مزارع باهلة",
+          "addedAt": 1765210725430
+        },
+        {
+          "phone": "966555929230",
+          "name": "القطان",
+          "addedAt": 1765210725430
+        }
+      ]
+    },
+    "IG005": {
+      "id": "IG005",
+      "interest": "وسيط",
+      "createdAt": 1765223943316,
+      "createdBy": "108864653512712@lid",
+      "members": [
+        {
+          "phone": "966506903048",
+          "name": "مكتب الهلال",
+          "addedAt": 1765223943316
+        },
+        {
+          "phone": "966551959990",
+          "name": "مكتب الهلال",
+          "addedAt": 1765223943316
+        }
+      ]
+    },
+    "IG006": {
+      "id": "IG006",
+      "interest": "بيت السياسب",
+      "createdAt": 1765315486916,
+      "createdBy": "108864653512712@lid",
+      "members": [
+        {
+          "phone": "966",
+          "name": "53 335 1373",
+          "addedAt": 1765315486916
+        },
+        {
+          "phone": "966",
+          "name": "55 532 3394",
+          "addedAt": 1765315486916
+        },
+        {
+          "phone": "966",
+          "name": "53 191 0344",
+          "addedAt": 1765315486916
+        },
+        {
+          "phone": "966",
+          "name": "59 420 5554",
+          "addedAt": 1765315486916
+        },
+        {
+          "phone": "966",
+          "name": "50 692 2144",
+          "addedAt": 1765315486916
+        }
+      ]
+    },
+    "IG007": {
+      "id": "IG007",
+      "interest": "بيت السياسب ١",
+      "createdAt": 1765315878397,
+      "createdBy": "108864653512712@lid",
+      "members": [
+        {
+          "phone": "966533351373",
+          "name": null,
+          "addedAt": 1765315878397
+        },
+        {
+          "phone": "966555323394",
+          "name": null,
+          "addedAt": 1765315878397
+        },
+        {
+          "phone": "966531910344",
+          "name": null,
+          "addedAt": 1765315878397
+        },
+        {
+          "phone": "966594205554",
+          "name": null,
+          "addedAt": 1765315878397
+        },
+        {
+          "phone": "966506922144",
+          "name": null,
+          "addedAt": 1765315878397
+        }
+      ]
+    },
+    "IG008": {
+      "id": "IG008",
+      "interest": "العفالق",
+      "createdAt": 1765478965449,
+      "createdBy": "108864653512712@lid",
+      "members": [
+        {
+          "phone": "966118362094",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966133337033",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966135310500",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966135315712",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966135821076",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966500400734",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966503930013",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966504809622",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966504855571",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966504919198",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505453054",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505805869",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505811102",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505819055",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505823339",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505826870",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505860561",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505870220",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505871682",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505919459",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505921801",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505923236",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505923562",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505924813",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966505965462",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966507311115",
+          "name": null,
+          "addedAt": 1765478965449
+        },
+        {
+          "phone": "966508335055",
+          "name": null,
+          "addedAt": 1765478965449
+        }
+      ]
+    },
+    "IG009": {
+      "id": "IG009",
+      "interest": "مزرعة 1",
+      "createdAt": 1765480158838,
+      "createdBy": "108864653512712@lid",
+      "members": [
+        {
+          "phone": "966503920577",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966506924974",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966503920121",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966502223031",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966564014376",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966544484233",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966505560255",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966504927153",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966548697701",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966506918001",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966556966631",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966545867732",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966551826041",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966531816104",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966566091230",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966544501542",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966504694132",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966506932238",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966581211910",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966540814441",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966536554460",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966505808537",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966508438981",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966550085725",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966505920577",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966559499409",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966503908942",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966509762458",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966500850032",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966597240004",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966509762458",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966538949075",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966568375264",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966534166865",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966538178170",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966549139093",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966569969885",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966504930057",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966505938520",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966504797521",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966544501542",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966562263857",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966536888073",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966558446346",
+          "name": null,
+          "addedAt": 1765480158838
+        },
+        {
+          "phone": "966541391590",
+          "name": null,
+          "addedAt": 1765480158838
+        }
+      ]
+    },
+    "IG010": {
+      "id": "IG010",
+      "interest": "مزرعة 2",
+      "createdAt": 1765480177535,
+      "createdBy": "108864653512712@lid",
+      "members": [
+        {
+          "phone": "966504930057",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966597240004",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966503932242",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966536590314",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966596366337",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966544162313",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966534166865",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966542003729",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966505258294",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966554224991",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966566247777",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966509604105",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966536554460",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966553333566",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966558774923",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966590062618",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966503932242",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966504920425",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966557002581",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966543566765",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966566119366",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966503411167",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966506808537",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966542003729",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966555922886",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966558666833",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966500863833",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966505935612",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966544162313",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966568375264",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966505938520",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966544501542",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966597240004",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966505936937",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966596366337",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966504797521",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966505912734",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966551400417",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966549139093",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966540814441",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966558446346",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966540932225",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966538178170",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966563334247",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966568708378",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966569969885",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966505935612",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966505935612",
+          "name": null,
+          "addedAt": 1765480177535
+        },
+        {
+          "phone": "966551400417",
+          "name": null,
+          "addedAt": 1765480177535
+        }
+      ]
+    },
+    "IG011": {
+      "id": "IG011",
+      "interest": "بيت الفضول",
+      "createdAt": 1765832646469,
+      "createdBy": "54773818589318@lid",
+      "members": [
+        {
+          "phone": "966555930119",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966545016131",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966549018273",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966581451141",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966565820010",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966533746659",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966562132816",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966570412460",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966562891154",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966569582662",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966503929332",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966504136781",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966562891154",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966507591671",
+          "name": null,
+          "addedAt": 1765832646469
+        },
+        {
+          "phone": "966581451141",
+          "name": null,
+          "addedAt": 1765832646469
+        }
+      ]
+    },
+    "IG012": {
+      "id": "IG012",
+      "interest": "بيت عربي النعاثل",
+      "createdAt": 1766312651662,
+      "createdBy": "54773818589318@lid",
+      "members": [
+        {
+          "phone": "966568930894",
+          "name": null,
+          "addedAt": 1766312651662
+        },
+        {
+          "phone": "966564456032",
+          "name": null,
+          "addedAt": 1766312651662
+        },
+        {
+          "phone": "966507471661",
+          "name": null,
+          "addedAt": 1766312651662
+        },
+        {
+          "phone": "966568974048",
+          "name": null,
+          "addedAt": 1766312651662
+        },
+        {
+          "phone": "966591725777",
+          "name": null,
+          "addedAt": 1766312651662
+        }
+      ]
+    },
+    "IG013": {
+      "id": "IG013",
+      "interest": "ارض النور",
+      "createdAt": 1766312693574,
+      "createdBy": "54773818589318@lid",
+      "members": [
+        {
+          "phone": "966548141072",
+          "name": null,
+          "addedAt": 1766312693574
+        },
+        {
+          "phone": "966541582293",
+          "name": null,
+          "addedAt": 1766312693574
+        },
+        {
+          "phone": "966503072775",
+          "name": null,
+          "addedAt": 1766312693574
+        },
+        {
+          "phone": "966590840143",
+          "name": null,
+          "addedAt": 1766312693574
+        },
+        {
+          "phone": "966553966673",
+          "name": null,
+          "addedAt": 1766312693574
+        },
+        {
+          "phone": "966503792188",
+          "name": null,
+          "addedAt": 1766312693574
+        }
+      ]
+    },
+    "IG014": {
+      "id": "IG014",
+      "interest": "دبلكس العليا",
+      "createdAt": 1766331837806,
+      "createdBy": "54773818589318@lid",
+      "members": [
+        {
+          "phone": "966500511570",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966540760082",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966551714410",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966500511570",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966540760082",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966551714410",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966558888235",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966540760082",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966542706574",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966551345543",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966535016945",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966561117119",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966553299925",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966563680670",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966540044856",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966546278111",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966507305029",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966541885149",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966564044402",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966502523940",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966550992116",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966568851485",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966538433999",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966566052941",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966503842044",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966551714410",
+          "name": null,
+          "addedAt": 1766331837806
+        },
+        {
+          "phone": "966502523940",
+          "name": null,
+          "addedAt": 1766331837806
+        }
+      ]
+    },
+    "IG015": {
+      "id": "IG015",
+      "interest": "دبلكس العليا",
+      "createdAt": 1766488356372,
+      "createdBy": "54773818589318@lid",
+      "members": [
+        {
+          "phone": "966500511570",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966540760082",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966551714410",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966558888235",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966542706574",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966551345543",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966535016945",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966561117119",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966553299925",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966563680670",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966540044856",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966546278111",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966507305029",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966541885149",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966564044402",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966502523940",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966550992116",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966568851485",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966538433999",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966566052941",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966503842044",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966503906483",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966532680005",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966566116845",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966502628233",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966569994112",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966539357357",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966565997493",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966544853605",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966540447649",
+          "name": null,
+          "addedAt": 1766488356372
+        },
+        {
+          "phone": "966534394101",
+          "name": null,
+          "addedAt": 1766488356372
+        }
+      ]
+    },
+    "IG016": {
+      "id": "IG016",
+      "interest": "مستثمر",
+      "createdAt": 1766586871062,
+      "createdBy": "54773818589318@lid",
+      "members": [
+        {
+          "phone": "966505916022",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966505925376",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966506929964",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966506900053",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966500612400",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966500652393",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966556448800",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966503877066",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966598823409",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966548135338",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966555937770",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966560672050",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966545006005",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966555059999",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966558228870",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966505925118",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966506913493",
+          "name": null,
+          "addedAt": 1766586871062
+        },
+        {
+          "phone": "966504930603",
+          "name": null,
+          "addedAt": 1766586871062
+        }
+      ]
+    },
+    "IG017": {
+      "id": "IG017",
+      "interest": "مالك",
+      "createdAt": 1766640028747,
+      "createdBy": "54773818589318@lid",
+      "members": [
+        {
+          "phone": "966500568083",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966501662589",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966502200016",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966503124991",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966503922751",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966503922988",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966504567382",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966504613244",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966504901344",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966505925376",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966505960108",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966506900053",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966509401051",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966509822195",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966532934406",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966534529078",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966542888010",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966543404680",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966544088833",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966545854381",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966548135338",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966549034099",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966550406745",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966552348525",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966552535505",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966553005299",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966557881877",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966559772666",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966561229994",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966561881888",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966564057650",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966566247777",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966566813345",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966566866698",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966577190960",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966580822220",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966582141229",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966590389988",
+          "name": null,
+          "addedAt": 1766640028747
+        },
+        {
+          "phone": "966598096248",
+          "name": null,
+          "addedAt": 1766640028747
+        }
+      ]
+    }
+  },
+  "nextId": 18
+}

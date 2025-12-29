@@ -1,0 +1,170 @@
+
+/* ========================================
+   MODERN CLIENTS UI
+   ======================================== */
+
+.clients-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+    padding: 10px 0;
+}
+
+.client-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid #f0f0f0;
+    transition: all 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+.client-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    border-color: #667eea40;
+}
+
+.client-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: #667eea;
+    opacity: 0.8;
+}
+
+.client-card.role-seeker::before { background: #667eea; }
+.client-card.role-owner::before { background: #4facfe; }
+.client-card.role-investor::before { background: #43e97b; }
+.client-card.role-broker::before { background: #f093fb; }
+
+.client-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    gap: 12px;
+}
+
+.client-main-info {
+    flex: 1;
+}
+
+.client-card-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #2d3748;
+    margin: 0 0 4px 0;
+}
+
+.client-card-phone {
+    font-size: 0.95rem;
+    color: #718096;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.client-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 15px;
+}
+
+.client-card-body {
+    flex: 1;
+}
+
+.client-card-footer {
+    display: flex;
+    gap: 8px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.client-card-footer .btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    padding: 8px 12px;
+}
+
+.client-card-details {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 12px;
+    font-size: 0.9rem;
+    border: 1px solid #edf2f7;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.detail-item:last-child {
+    margin-bottom: 0;
+}
+
+.detail-label {
+    color: #718096;
+    font-weight: 500;
+}
+
+.detail-value {
+    color: #2d3748;
+    font-weight: 600;
+}
+
+/* Responsive Adjustments for Clients */
+@media (max-width: 768px) {
+    .clients-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .client-card {
+        padding: 16px;
+    }
+    
+    .client-card-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .client-card-footer {
+        flex-wrap: wrap;
+    }
+    
+    .client-card-footer .btn {
+        min-width: calc(50% - 4px);
+    }
+    
+    .client-card-footer .btn-expand {
+        min-width: 100%;
+        order: -1;
+        margin-bottom: 4px;
+    }
+}
+
+/* Interest Groups Modernization */
+.interest-groups-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+}
