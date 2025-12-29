@@ -17,7 +17,14 @@ const {
 } = require("../config/dataPath");
 
 // ============================================
-// 🔌 CENTRALIZED SOCKET MANAGER
+// � FEATURE FLAGS
+// Toggle features on/off without removing code
+// ============================================
+const ENABLE_AD_FETCHING = false; // Set to false to stop fetching ads from groups
+// All processing code remains intact for future re-enabling
+
+// ============================================
+// �🔌 CENTRALIZED SOCKET MANAGER
 // Single source of truth for socket state
 // Fixes zombie connections caused by stale references
 // ============================================
@@ -3879,6 +3886,16 @@ async function initializeBot() {
           // ORIGINAL AD PROCESSING - Only for groups
           // ============================================
           if (!isGroup) continue; // Only process groups (@g.us) for ads, ignore everything else
+
+          // ============================================
+          // 🚦 FEATURE FLAG - Skip ad fetching if disabled
+          // ============================================
+          if (!ENABLE_AD_FETCHING) {
+            console.log(
+              `🚫 Ad fetching is disabled (ENABLE_AD_FETCHING=false) - Skipping message from: ${from}`
+            );
+            continue; // Skip processing this message as an ad
+          }
 
           // ============================================
           // CHECK EXCLUDED GROUPS - Skip if excluded
