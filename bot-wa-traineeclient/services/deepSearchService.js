@@ -5,6 +5,7 @@
  */
 
 const masaakSearchService = require("./masaakSearchService");
+const searchScoringService = require("./searchScoringService");
 
 /**
  * Generate price range variations (expand ±20%, ±30%)
@@ -124,181 +125,81 @@ async function performDeepSearch(requirements, options = {}) {
   const includeVariations = options.includeVariations !== false;
 
   console.log(`\n${"=".repeat(70)}`);
-  console.log(`🔎 DEEP SEARCH ENGINE ACTIVATED`);
+  console.log(`🔎 OPTIMIZED SEARCH ENGINE ACTIVATED`);
   console.log(`${"=".repeat(70)}`);
-  console.log(`📋 Requirements:`, JSON.stringify(requirements, null, 2));
-  console.log(`⚙️  Options:`, { maxResults, includeVariations });
-  console.log(`${"=".repeat(70)}\n`);
 
   const allResults = new Map(); // Deduplicate by ID
-  const searchVariations = [];
 
-  // 1. BASE SEARCH - Exact requirements
-  console.log(`🎯 [1/4] BASE SEARCH - Exact match...`);
-  searchVariations.push({
-    label: "BASE (Exact)",
-    requirements: { ...requirements },
-  });
-
-  if (includeVariations) {
-    // 2. PRICE VARIATIONS
-    if (requirements.priceMin !== null && requirements.priceMax !== null) {
-      console.log(`💰 [2/4] PRICE VARIATIONS - Expanding price range...`);
-      const priceVars = generatePriceVariations(
-        requirements.priceMin,
-        requirements.priceMax
-      );
-
-      // Add expanded price searches (skip exact as it's in base)
-      priceVars.slice(1, 3).forEach((priceVar) => {
-        searchVariations.push({
-          label: `PRICE ${priceVar.label}`,
-          requirements: {
-            ...requirements,
-            priceMin: Math.round(priceVar.min),
-            priceMax: Math.round(priceVar.max),
-          },
-        });
-      });
-    }
-
-    // 3. AREA VARIATIONS
-    if (requirements.areaMin !== null && requirements.areaMax !== null) {
-      console.log(`📏 [3/4] AREA VARIATIONS - Expanding area range...`);
-      const areaVars = generateAreaVariations(
-        requirements.areaMin,
-        requirements.areaMax
-      );
-
-      // Add expanded area searches (skip exact)
-      areaVars.slice(1, 3).forEach((areaVar) => {
-        searchVariations.push({
-          label: `AREA ${areaVar.label}`,
-          requirements: {
-            ...requirements,
-            areaMin: Math.round(areaVar.min),
-            areaMax: Math.round(areaVar.max),
-          },
-        });
-      });
-    }
-
-    // 4. PROPERTY TYPE VARIATIONS
-    if (requirements.propertyType) {
-      console.log(`🏠 [4/4] PROPERTY TYPE VARIATIONS - Trying synonyms...`);
-      const typeVars = generatePropertyTypeVariations(
-        requirements.propertyType
-      );
-
-      // Add type variations (skip first as it's likely in base)
-      typeVars.slice(1, 3).forEach((typeVar) => {
-        searchVariations.push({
-          label: `TYPE: ${typeVar}`,
-          requirements: {
-            ...requirements,
-            propertyType: typeVar,
-          },
-        });
-      });
-    }
+  // --- BUCKET 1: Precise Search (Exact match) ---
+  console.log(`🎯 [1/3] PRECISE SEARCH...`);
+  try {
+    const baseResults = await masaakSearchService.searchWithRequirements(requirements);
+    baseResults.forEach(r => { if (!allResults.has(r.id)) allResults.set(r.id, r); });
+    console.log(`   ✓ Found ${baseResults.length} exact matches.`);
+  } catch (e) {
+    console.error(`   ❌ Precise search failed:`, e.message);
   }
 
-  console.log(`\n📊 EXECUTING ${searchVariations.length} SEARCH VARIATIONS:\n`);
-
-  // Execute all search variations
-  let searchCount = 0;
-  for (const variation of searchVariations) {
-    searchCount++;
-    console.log(
-      `  [${searchCount}/${searchVariations.length}] ${variation.label}...`
-    );
+  // --- BUCKET 2: Relaxed Search (Merged Variations) ---
+  // If we don't have enough results or includeVariations is true
+  if (includeVariations && allResults.size < maxResults) {
+    console.log(`💰 [2/3] RELAXED SEARCH (Merged variations)...`);
+    
+    // Create relaxed requirements (Price ±30%, Area ±25%, synonyms)
+    const relaxedReq = { ...requirements };
+    
+    // Relax Price
+    if (requirements.priceMin !== null && requirements.priceMax !== null) {
+      const pRange = (requirements.priceMax - requirements.priceMin) * 0.3;
+      relaxedReq.priceMin = Math.max(0, Math.round(requirements.priceMin - pRange));
+      relaxedReq.priceMax = Math.round(requirements.priceMax + pRange);
+    }
+    
+    // Relax Area
+    if (requirements.areaMin !== null && requirements.areaMax !== null) {
+      const aRange = (requirements.areaMax - requirements.areaMin) * 0.25;
+      relaxedReq.areaMin = Math.max(0, Math.round(requirements.areaMin - aRange));
+      relaxedReq.areaMax = Math.round(requirements.areaMax + aRange);
+    }
+    
+    // Property Type variations are handled by the synonyms logic inside searchWithRequirements (if updated)
+    // or we can pick a common synonym here.
+    const synonyms = generatePropertyTypeVariations(requirements.propertyType);
+    if (synonyms.length > 1) {
+      relaxedReq.propertyType = synonyms[1]; // Try the first major synonym
+    }
 
     try {
-      const results = await masaakSearchService.searchWithRequirements(
-        variation.requirements
-      );
-
-      // Add to map (deduplicates by ID)
-      results.forEach((result) => {
-        if (result.id && !allResults.has(result.id)) {
-          allResults.set(result.id, result);
-        }
-      });
-
-      console.log(
-        `    ✓ Found ${results.length} results (Total unique: ${allResults.size})`
-      );
-
-      // Small delay between searches to keep connection alive
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      // If no results found and neighborhoods exist, try city-only search
-      if (
-        results.length === 0 &&
-        variation.requirements.neighborhoods &&
-        variation.requirements.neighborhoods.length > 0
-      ) {
-        console.log(
-          `    🔄 No results with district/neighborhood, trying city-only search...`
-        );
-
-        // Create variation without neighborhoods (city only)
-        const cityOnlyReq = {
-          ...variation.requirements,
-          neighborhoods: [], // Empty array = search entire city
-        };
-
-        try {
-          const cityResults = await masaakSearchService.searchWithRequirements(
-            cityOnlyReq
-          );
-
-          // Add city-wide results
-          cityResults.forEach((result) => {
-            if (result.id && !allResults.has(result.id)) {
-              allResults.set(result.id, result);
-            }
-          });
-
-          console.log(
-            `    ✓ City-wide search found ${cityResults.length} results (Total unique: ${allResults.size})`
-          );
-
-          // Small delay after city-wide search
-          await new Promise((resolve) => setTimeout(resolve, 300));
-        } catch (cityError) {
-          console.error(`    ⚠️  City-wide search failed:`, cityError.message);
-        }
-      }
-
-      // Stop if we have enough results
-      if (allResults.size >= maxResults * 2) {
-        console.log(
-          `    ⏸️  Reached ${allResults.size} results, stopping variations early`
-        );
-        break;
-      }
-    } catch (error) {
-      console.error(
-        `    ❌ Error in variation "${variation.label}":`,
-        error.message
-      );
+      const relaxedResults = await masaakSearchService.searchWithRequirements(relaxedReq);
+      relaxedResults.forEach(r => { if (!allResults.has(r.id)) allResults.set(r.id, r); });
+      console.log(`   ✓ Found ${relaxedResults.length} relaxed matches.`);
+    } catch (e) {
+      console.error(`   ❌ Relaxed search failed:`, e.message);
     }
   }
 
-  const uniqueResults = Array.from(allResults.values());
+  // --- BUCKET 3: City-wide Fallback (Only if desperate) ---
+  if (includeVariations && allResults.size === 0 && (requirements.neighborhoods?.length > 0 || requirements.location)) {
+    console.log(`🏙️  [3/3] TERRITORY FALLBACK (City-wide)...`);
+    const fallbackReq = { ...requirements, neighborhoods: [], location: null };
+    
+    try {
+      const fallbackResults = await masaakSearchService.searchWithRequirements(fallbackReq);
+      fallbackResults.forEach(r => { if (!allResults.has(r.id)) allResults.set(r.id, r); });
+      console.log(`   ✓ Found ${fallbackResults.length} city-wide matches.`);
+    } catch (e) {
+      console.error(`   ❌ Fallback search failed:`, e.message);
+    }
+  }
 
-  console.log(`\n${"=".repeat(70)}`);
-  console.log(`✅ DEEP SEARCH COMPLETE`);
-  console.log(`   Total searches executed: ${searchCount}`);
-  console.log(`   Unique properties found: ${uniqueResults.length}`);
-  console.log(
-    `   Returning top: ${Math.min(maxResults, uniqueResults.length)}`
-  );
-  console.log(`${"=".repeat(70)}\n`);
+  let results = Array.from(allResults.values());
 
-  // Return top results (will be scored later)
-  return uniqueResults.slice(0, maxResults);
+  // --- Post-Processing: Scoring & Ranking ---
+  console.log(`\n⚖️  Scoring and ranking ${results.length} results...`);
+  results = searchScoringService.scoreAndSortResults(results, requirements);
+
+  console.log(`\n✅ SEARCH COMPLETE. Total unique properties: ${results.length}`);
+  return results.slice(0, maxResults);
 }
 
 /**

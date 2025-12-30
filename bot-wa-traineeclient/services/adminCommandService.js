@@ -1016,6 +1016,7 @@ function getAdminHelpMessage() {
 المساحة المطلوبة: 450
 الأحياء المفضلة: عين موسى
 رقم التواصل: 0501234567
+التصنيف الفرعي: صك (اختياري)
 مواصفات إضافية: مجلس رجال منفصل
 
 *مثال مع الاسم:*
@@ -1459,7 +1460,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         const requirements = privateChatService.parseRequirements(text);
 
         if (!requirements) {
-          return "❌ *خطأ في تحليل الطلب*\n\nالرجاء التأكد من صيغة الرسالة:\n\nطلب\nنوع العقار المطلوب: بيت\nالغرض: شراء\nحدود السعر: من 500 ألف إلى مليون\nالمساحة المطلوبة: 450\nالأحياء المفضلة: عين موسى\nرقم التواصل: 0501234567\nمواصفات إضافية: ...";
+          return "❌ *خطأ في تحليل الطلب*\n\nالرجاء التأكد من صيغة الرسالة:\n\nطلب\nنوع العقار المطلوب: بيت\nالغرض: شراء\nحدود السعر: من 500 ألف إلى مليون\nالمساحة المطلوبة: 450\nالأحياء المفضلة: عين موسى\nرقم التواصل: 0501234567\nالتصنيف الفرعي: صك\nمواصفات إضافية: ...";
         }
 
         // Extract client phone number from requirements
@@ -1544,15 +1545,23 @@ async function handleAdminCommand(sock, message, phoneNumber) {
               )
             ),
           ]);
+          
+          // Sort results by date (latest first)
+          results.sort((a, b) => {
+            const dateA = a.meta?.post_date ? new Date(a.meta.post_date) : new Date(0);
+            const dateB = b.meta?.post_date ? new Date(b.meta.post_date) : new Date(0);
+            return dateB - dateA;
+          });
+
           console.log(
-            `📊 Deep search completed: Found ${results.length} properties`
+            `📊 Deep search completed: Found ${results.length} properties (sorted by date)`
           );
         } catch (searchError) {
           console.error("❌ Deep search failed:", searchError.message);
           // Include multi-request info in error response
           let errorMsg = "";
           if (multiRequestInfo.isUpdate) {
-            errorMsg += `🔄 *تم تحديث الطلب الحالي* (${requirements.propertyType})\n\n`;
+            errorMsg += `🔄 *تم تحديث الطلب الحالي* (نوع العقار: ${requirements.propertyType})\n\n`;
           } else if (multiRequestInfo.totalRequests > 1) {
             errorMsg += `➕ *طلب جديد - العميل لديه الآن ${multiRequestInfo.totalRequests} طلبات*\n\n`;
           }
@@ -1565,7 +1574,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           // Include multi-request info in no results response
           let noResultsMsg = "";
           if (multiRequestInfo.isUpdate) {
-            noResultsMsg += `🔄 *تم تحديث الطلب الحالي* (${requirements.propertyType})\n\n`;
+            noResultsMsg += `🔄 *تم تحديث الطلب الحالي* (نوع العقار: ${requirements.propertyType})\n\n`;
           } else if (multiRequestInfo.totalRequests > 1) {
             noResultsMsg += `➕ *طلب جديد - العميل لديه الآن ${multiRequestInfo.totalRequests} طلبات*\n\n`;
           }
@@ -1573,9 +1582,23 @@ async function handleAdminCommand(sock, message, phoneNumber) {
             requirements.propertyType || "غير محدد"
           }\n• الغرض: ${
             requirements.purpose || "غير محدد"
-          }\n• السعر: ${requirements.priceMin?.toLocaleString()} - ${requirements.priceMax?.toLocaleString()} ريال\n• المساحة: ${
-            requirements.areaMin
-          } - ${requirements.areaMax} م²\n• الأحياء: ${
+          }\n• السعر: ${
+            requirements.priceMin !== null && requirements.priceMin !== undefined
+              ? requirements.priceMin.toLocaleString()
+              : "0"
+          } - ${
+            requirements.priceMax !== null && requirements.priceMax !== undefined
+              ? requirements.priceMax.toLocaleString()
+              : "غير محدد"
+          } ريال\n• المساحة: ${
+            requirements.areaMin !== null && requirements.areaMin !== undefined
+              ? requirements.areaMin
+              : "0"
+          } - ${
+            requirements.areaMax !== null && requirements.areaMax !== undefined
+              ? requirements.areaMax
+              : "غير محدد"
+          } م²\n• الأحياء: ${
             requirements.neighborhoods?.join("، ") || "غير محدد"
           }\n\n📱 رقم العميل: +${normalizedPhone}\n🔔 سيتم إرسال التنبيهات التلقائية للعميل`;
           return noResultsMsg;
@@ -1606,30 +1629,38 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         }\n`;
         adminMsg += `• الغرض: ${requirements.purpose || "غير محدد"}\n`;
 
-        // Display price range if available
-        if (requirements.priceMin !== null && requirements.priceMax !== null) {
+        // Show price range if available
+        if (requirements.priceMin != null && requirements.priceMax != null) {
           adminMsg += `• السعر: ${requirements.priceMin.toLocaleString()} - ${requirements.priceMax.toLocaleString()} ريال\n`;
-        } else if (requirements.priceMax !== null) {
+        } else if (requirements.priceMax != null) {
           adminMsg += `• السعر: حتى ${requirements.priceMax.toLocaleString()} ريال\n`;
-        } else if (requirements.priceMin !== null) {
+        } else if (requirements.priceMin != null) {
           adminMsg += `• السعر: من ${requirements.priceMin.toLocaleString()} ريال\n`;
+        } else {
+          adminMsg += `• السعر: غير محدد\n`;
         }
 
-        // Display area range if available
-        if (requirements.areaMin !== null && requirements.areaMax !== null) {
+        // Show area range if available
+        if (requirements.areaMin != null && requirements.areaMax != null) {
           adminMsg += `• المساحة: ${requirements.areaMin} - ${requirements.areaMax} م²\n`;
-        } else if (requirements.areaMax !== null) {
+        } else if (requirements.areaMax != null) {
           adminMsg += `• المساحة: حتى ${requirements.areaMax} م²\n`;
-        } else if (requirements.areaMin !== null) {
+        } else if (requirements.areaMin != null) {
           adminMsg += `• المساحة: من ${requirements.areaMin} م²\n`;
+        } else {
+          adminMsg += `• المساحة: غير محدد\n`;
         }
 
         if (requirements.neighborhoods?.length > 0) {
           adminMsg += `• الأحياء: ${requirements.neighborhoods.join("، ")}\n`;
         }
 
+        if (requirements.subCategory) {
+          adminMsg += `• التصنيف الفرعي: ${requirements.subCategory}\n`;
+        }
+
         adminMsg += `\n━━━━━━━━━━━━━━━━\n`;
-        adminMsg += `📊 *النتائج (${results.length} عقار):*\n`;
+        adminMsg += `📊 *النتائج (${results.length} عقار - مرتبة حسب الأحدث):*\n`;
 
         // Store pending request FIRST (before trying to send anything)
         if (!global.pendingClientRequests) {

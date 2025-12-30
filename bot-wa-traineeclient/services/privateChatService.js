@@ -18,6 +18,11 @@ const propertyMatchingService = require("./propertyMatchingService");
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
+const areaNormalizer = require("./areaNormalizer");
+
+// Request deduplication cache: Map<hash, timestamp>
+const recentRequestsCache = new Map();
+const CACHE_TTL = 5000; // 5 seconds
 
 /**
  * Search WordPress for ads using new custom API
@@ -113,6 +118,13 @@ async function searchWordPressByRequirements(requirements) {
     const results = await deepSearchService.performDeepSearch(requirements, {
       maxResults: 20,
       includeVariations: true,
+    });
+
+    // Sort by date (latest first) if date is available
+    results.sort((a, b) => {
+      const dateA = a.meta?.post_date ? new Date(a.meta.post_date) : new Date(0);
+      const dateB = b.meta?.post_date ? new Date(b.meta.post_date) : new Date(0);
+      return dateB - dateA;
     });
 
     console.log(`\n✅ Deep search returned ${results.length} unique results`);
@@ -214,6 +226,12 @@ function formatPostAsMessage(post, index = null) {
   const meta = post.meta || {};
   const title = post.title?.rendered || "عقار";
   const category = meta.arc_category || meta.parent_catt || "عقار";
+  const subcategory = meta.sub_catt || meta.arc_subcategory || "";
+
+  let categoryDisplay = category;
+  if (subcategory && subcategory !== category) {
+    categoryDisplay = `${category} (${subcategory})`;
+  }
 
   // Use original text from API (price_text, area_text) for display
   // Fall back to price_amount/arc_space only if text not available
@@ -226,7 +244,7 @@ function formatPostAsMessage(post, index = null) {
     meta.location || meta.City || meta.before_City || "الموقع غير محدد";
   const link = post.link || `https://masaak.com/?p=${post.id}`;
 
-  // Build message with relevance indicator
+  // Build message
   let message = `━━━━━━━━━━━━━━\n`;
 
   // Add index number if provided
@@ -234,12 +252,7 @@ function formatPostAsMessage(post, index = null) {
     message += `*${index}.* `;
   }
 
-  // Add relevance label if available
-  if (post.relevance) {
-    message += `${post.relevance}\n`;
-  }
-
-  message += `🏠 *${category}* - ${title}\n\n`;
+  message += `🏠 *${categoryDisplay}* - ${title}\n\n`;
   message += `💰 *السعر:* ${price}\n`;
 
   // Check if area already includes unit (م²), if not add "متر"
@@ -251,15 +264,34 @@ function formatPostAsMessage(post, index = null) {
 
   message += `📍 *الموقع:* ${location}\n`;
 
-  // Add match reasons if available
-  if (post.matchReasons && post.matchReasons.length > 0) {
-    message += `\n✨ *لماذا يناسبك:*\n`;
-    post.matchReasons.slice(0, 3).forEach((reason) => {
-      message += `   • ${reason}\n`;
-    });
-  }
-
   message += `\n🔗 *التفاصيل:* ${link}`;
+
+  // Add relative date if available
+  if (meta.post_date) {
+    try {
+      const postDate = new Date(meta.post_date);
+      const now = new Date();
+      const diffTime = Math.abs(now - postDate);
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      let relativeTime = "";
+      if (diffDays === 0) {
+        relativeTime = "اليوم";
+      } else if (diffDays === 1) {
+        relativeTime = "أمس";
+      } else if (diffDays === 2) {
+        relativeTime = "قبل يومين";
+      } else if (diffDays <= 10) {
+        relativeTime = `قبل ${diffDays} أيام`;
+      } else {
+        relativeTime = `قبل ${diffDays} يوم`;
+      }
+
+      message += `\n📅 *نشر:* ${relativeTime}`;
+    } catch (e) {
+      console.error("Error calculating relative date:", e);
+    }
+  }
 
   return message;
 }
@@ -314,31 +346,43 @@ function isDuplicateByDetails(ad1, ad2) {
   const details1 = {
     category:
       ad1.category ||
+      ad1.meta?.arc_category ||
+      ad1.meta?.parent_catt ||
       ad1.wpData?.meta?.parent_catt ||
       ad1.wpData?.meta?.arc_category ||
       "",
     subcategory:
-      ad1.wpData?.meta?.sub_catt || ad1.wpData?.meta?.arc_subcategory || "",
-    price: ad1.wpData?.meta?.price_amount || "",
-    area: ad1.wpData?.meta?.arc_space || ad1.wpData?.meta?.area || "",
+      ad1.meta?.sub_catt ||
+      ad1.meta?.arc_subcategory ||
+      ad1.wpData?.meta?.sub_catt ||
+      ad1.wpData?.meta?.arc_subcategory ||
+      "",
+    price: ad1.meta?.price_amount || ad1.wpData?.meta?.price_amount || "",
+    area: ad1.meta?.arc_space || ad1.wpData?.meta?.arc_space || ad1.wpData?.meta?.area || "",
     neighborhood:
-      ad1.wpData?.meta?.location || ad1.wpData?.meta?.neighborhood || "",
-    city: ad1.wpData?.meta?.City || ad1.wpData?.meta?.subcity || "",
+      ad1.meta?.location || ad1.meta?.neighborhood || ad1.wpData?.meta?.location || ad1.wpData?.meta?.neighborhood || "",
+    city: ad1.meta?.City || ad1.wpData?.meta?.City || ad1.wpData?.meta?.subcity || "",
   };
 
   const details2 = {
     category:
       ad2.category ||
+      ad2.meta?.arc_category ||
+      ad2.meta?.parent_catt ||
       ad2.wpData?.meta?.parent_catt ||
       ad2.wpData?.meta?.arc_category ||
       "",
     subcategory:
-      ad2.wpData?.meta?.sub_catt || ad2.wpData?.meta?.arc_subcategory || "",
-    price: ad2.wpData?.meta?.price_amount || "",
-    area: ad2.wpData?.meta?.arc_space || ad2.wpData?.meta?.area || "",
+      ad2.meta?.sub_catt ||
+      ad2.meta?.arc_subcategory ||
+      ad2.wpData?.meta?.sub_catt ||
+      ad2.wpData?.meta?.arc_subcategory ||
+      "",
+    price: ad2.meta?.price_amount || ad2.wpData?.meta?.price_amount || "",
+    area: ad2.meta?.arc_space || ad2.wpData?.meta?.arc_space || ad2.wpData?.meta?.area || "",
     neighborhood:
-      ad2.wpData?.meta?.location || ad2.wpData?.meta?.neighborhood || "",
-    city: ad2.wpData?.meta?.City || ad2.wpData?.meta?.subcity || "",
+      ad2.meta?.location || ad2.meta?.neighborhood || ad2.wpData?.meta?.location || ad2.wpData?.meta?.neighborhood || "",
+    city: ad2.meta?.City || ad2.wpData?.meta?.City || ad2.wpData?.meta?.subcity || "",
   };
 
   // Normalize values for comparison
@@ -358,13 +402,15 @@ function isDuplicateByDetails(ad1, ad2) {
   const neighborhood1 = normalize(details1.neighborhood);
   const neighborhood2 = normalize(details2.neighborhood);
   const city1 = normalize(details1.city);
-  const city2 = normalize(details1.city);
+  const city2 = normalize(details2.city);
 
   // Must match: category, area, and neighborhood
   const categoryMatches = category1 && category2 && category1 === category2;
   const areaMatches = area1 && area2 && area1 === area2;
   const neighborhoodMatches =
     neighborhood1 && neighborhood2 && neighborhood1 === neighborhood2;
+  const subcategoryMatches =
+    !subcategory1 || !subcategory2 || subcategory1 === subcategory2;
 
   // Price can be similar (within 10% range) or exact match
   let priceMatches = false;
@@ -384,8 +430,13 @@ function isDuplicateByDetails(ad1, ad2) {
 
   // Consider duplicate if:
   // - Same category AND same area AND same neighborhood AND similar price
+  // - AND matching subcategory (if both present)
   const isDuplicate =
-    categoryMatches && areaMatches && neighborhoodMatches && priceMatches;
+    categoryMatches &&
+    areaMatches &&
+    neighborhoodMatches &&
+    priceMatches &&
+    subcategoryMatches;
 
   if (isDuplicate) {
     console.log("🔍 Duplicate detected by details:");
@@ -1596,6 +1647,24 @@ async function handleCompletedState(client, phoneNumber, message, sendReply) {
  * Parse requirements from user message
  */
 function parseRequirements(message) {
+  // --- Deduplication Layer ---
+  const requestHash = Buffer.from(message).toString("base64").substring(0, 100);
+  const now = Date.now();
+  if (recentRequestsCache.has(requestHash)) {
+    const lastTime = recentRequestsCache.get(requestHash);
+    if (now - lastTime < CACHE_TTL) {
+      console.log(`🚫 [DEDUPE] Skipping identical request received within ${CACHE_TTL}ms`);
+      return null;
+    }
+  }
+  recentRequestsCache.set(requestHash, now);
+  // Cleanup old cache entries occasionally
+  if (recentRequestsCache.size > 100) {
+    for (const [hash, time] of recentRequestsCache.entries()) {
+      if (now - time > CACHE_TTL) recentRequestsCache.delete(hash);
+    }
+  }
+
   console.log(`\n${"=".repeat(60)}`);
   console.log(`📝 PARSING USER REQUIREMENTS`);
   console.log(`${"=".repeat(60)}`);
@@ -1684,6 +1753,7 @@ function parseRequirements(message) {
     areaMax: null,
     neighborhoods: [],
     contactNumber: null,
+    subCategory: null,
     additionalSpecs: null,
   };
 
@@ -1728,6 +1798,24 @@ function parseRequirements(message) {
       requirements.propertyType = type;
       console.log(`✅ Detected property type: ${type}`);
       break;
+    }
+  }
+
+  // Sub-category detection (e.g., "صك")
+  // First look for explicit label
+  const subCatMatch = normalizedMessage.match(/(?:التصنيف الفرعي|التصنيف فرعي|تصنيف فرعي)[:*\s]*([^\n]+)/i);
+  if (subCatMatch) {
+    requirements.subCategory = subCatMatch[1].trim();
+    console.log(`✅ Detected explicit sub-category: ${requirements.subCategory}`);
+  } else {
+    // Then look for keywords
+    const subCategories = ["صك", "*صك"];
+    for (const sc of subCategories) {
+      if (lowerMsg.includes(sc.toLowerCase())) {
+        requirements.subCategory = "صك";
+        console.log(`✅ Detected sub-category keyword: صك`);
+        break;
+      }
     }
   }
 
@@ -1848,10 +1936,12 @@ function parseRequirements(message) {
       if (areaSingleMatch) {
         const area = parseInt(areaSingleMatch[1]);
         // Make sure it's a reasonable area (not phone number: 10-10000 m²)
+        // Make sure it's a reasonable area (not phone number: 10-10000 m²)
         if (area >= 10 && area <= 10000) {
+          // Reverting to legacy behavior: 0 -> target, as per user request to follow the "old way"
           requirements.areaMin = 0;
           requirements.areaMax = area;
-          console.log(`✅ Detected max area: ${area}m²`);
+          console.log(`✅ Detected max area (legacy): ${area}m²`);
         } else {
           console.log(
             `⚠️  Invalid area value: ${area} (out of reasonable bounds)`
@@ -1870,34 +1960,11 @@ function parseRequirements(message) {
   );
 
   if (neighborhoodMatch) {
-    let neighborhoodText = neighborhoodMatch[1].trim();
-
-    // Clean up the text - remove asterisks, parentheses, extra spaces
-    neighborhoodText = neighborhoodText
-      .replace(/\*+/g, "") // Remove asterisks
-      .replace(/[()]/g, "") // Remove parentheses
-      .replace(/\s+/g, " ") // Normalize spaces
-      .trim();
-
-    // Split by common separators: Arabic comma، regular comma, slash, "و", "أو", "-"
-    // Enhanced to handle multiple separators in a row and trailing separators
-    const neighborhoods = neighborhoodText
-      .split(/[،,\/\-]|\s+و\s+|\s+أو\s+/)
-      .map((n) => n.trim())
-      .filter((n) => {
-        // Must be at least 2 characters (allow shorter names like "طيبة")
-        if (n.length < 2) return false;
-        // Must not be pure numbers
-        if (/^\d+$/.test(n)) return false;
-        // Must not be common filler words
-        if (/^(في|من|إلى|الى|أو|و|ال)$/i.test(n)) return false;
-        return true;
-      })
-      .filter((n, index, self) => self.indexOf(n) === index); // Remove duplicates
+    const neighborhoods = areaNormalizer.extractNeighborhoods(neighborhoodMatch[1]);
 
     if (neighborhoods.length > 0) {
       requirements.neighborhoods = neighborhoods;
-      console.log(`✅ Detected ${neighborhoods.length} neighborhood(s):`);
+      console.log(`✅ Detected ${neighborhoods.length} neighborhood(s) via areaNormalizer:`);
       neighborhoods.forEach((n, idx) => console.log(`   ${idx + 1}. ${n}`));
     } else {
       console.log(
@@ -2294,4 +2361,5 @@ module.exports = {
   extractPhoneNumber,
   parseRequirements,
   formatPostAsMessage,
+  isDuplicateByDetails,
 };

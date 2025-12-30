@@ -5,6 +5,7 @@
     "role": "باحث",
     "state": "completed",
     "requirements": {
+      "id": "req_legacy_966506932504",
       "clientName": "بوحسن الغانم",
       "propertyType": "مزرعة",
       "purpose": "شراء",
@@ -18,7 +19,11 @@
         "عين باهلة"
       ],
       "contactNumber": "+966506932504",
-      "additionalSpecs": "طلب\nبوحسن الغانم\nنوع العقار المطلوب:  مزرعة\nالغرض: شراء\nالمساحة المطلوبة: 3000\nالأحياء المفضلة: البطالية وشارع الحيات و الخدود و عين باهلة\nرقم التواصل: +966506932504\nمواصفات إضافية:"
+      "additionalSpecs": "طلب\nبوحسن الغانم\nنوع العقار المطلوب:  مزرعة\nالغرض: شراء\nالمساحة المطلوبة: 3000\nالأحياء المفضلة: البطالية وشارع الحيات و الخدود و عين باهلة\nرقم التواصل: +966506932504\nالتصنيف الفرعي : صك \nمواصفات إضافية:",
+      "createdAt": 1765208910066,
+      "updatedAt": 1767096190795,
+      "status": "active",
+      "subCategory": "صك"
     },
     "propertyOffer": null,
     "requestStatus": "active",
@@ -30,10 +35,33 @@
     "requestDeactivatedAt": null,
     "requestDeactivationReason": null,
     "createdAt": 1765208910066,
-    "updatedAt": 1765216275717,
-    "lastMessageAt": 1765216275717,
+    "updatedAt": 1767096190797,
+    "lastMessageAt": 1767096190797,
     "registeredByAdmin": true,
-    "adminPhone": "108864653512712@lid"
+    "adminPhone": "240917902585982@lid",
+    "requests": [
+      {
+        "id": "req_legacy_966506932504",
+        "clientName": "بوحسن الغانم",
+        "propertyType": "مزرعة",
+        "purpose": "شراء",
+        "priceMin": null,
+        "priceMax": null,
+        "areaMin": 0,
+        "areaMax": 3000,
+        "neighborhoods": [
+          "البطالية وشارع الحيات",
+          "الخدود",
+          "عين باهلة"
+        ],
+        "contactNumber": "+966506932504",
+        "additionalSpecs": "طلب\nبوحسن الغانم\nنوع العقار المطلوب:  مزرعة\nالغرض: شراء\nالمساحة المطلوبة: 3000\nالأحياء المفضلة: البطالية وشارع الحيات و الخدود و عين باهلة\nرقم التواصل: +966506932504\nالتصنيف الفرعي : صك \nمواصفات إضافية:",
+        "createdAt": 1765208910066,
+        "updatedAt": 1767096190795,
+        "status": "active",
+        "subCategory": "صك"
+      }
+    ]
   },
   "966503920577": {
     "phoneNumber": "966503920577",
@@ -9207,16 +9235,25 @@
   "240917902585982": {
     "phoneNumber": "240917902585982",
     "name": "سلام",
-    "role": null,
-    "state": "awaiting_role",
+    "role": "باحث",
+    "state": "awaiting_confirmation",
     "requirements": {
-      "propertyType": null,
-      "purpose": null,
-      "priceRange": null,
-      "area": null,
-      "neighborhoods": [],
-      "contactNumber": null,
-      "additionalSpecs": null
+      "clientName": null,
+      "propertyType": "فيلا",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 3000,
+      "neighborhoods": [
+        "البطالية",
+        "شارع الحيات",
+        "الخدود",
+        "عين باهلة"
+      ],
+      "contactNumber": "+96650693250",
+      "subCategory": "دورين",
+      "additionalSpecs": "نوع العقار المطلوب:  فيلا\nالغرض: شراء \nالمساحة المطلوبة: 3000\nالأحياء المفضلة: البطالية وشارع الحيات و الخدود و عين باهلة\nرقم التواصل: +96650693250\nالتصنيف الفرعي : دورين \nمواصفات إضافية:"
     },
     "propertyOffer": null,
     "requestStatus": "active",
@@ -9228,9 +9265,75 @@
     "requestDeactivatedAt": null,
     "requestDeactivationReason": null,
     "createdAt": 1766655509006,
-    "updatedAt": 1766655549807,
-    "lastMessageAt": 1766930290117,
+    "updatedAt": 1767099002749,
+    "lastMessageAt": 1767099002759,
     "nameValidationWarned": false,
-    "roleValidationWarned": true
+    "roleValidationWarned": false
+  },
+  "96650693250": {
+    "phoneNumber": "96650693250",
+    "name": "بوحسن",
+    "role": "باحث",
+    "state": "completed",
+    "requirements": {
+      "id": "req_1767096341097_eigh",
+      "clientName": "بوحسن",
+      "propertyType": "فيلا",
+      "purpose": "شراء",
+      "priceMin": null,
+      "priceMax": null,
+      "areaMin": 0,
+      "areaMax": 3000,
+      "neighborhoods": [
+        "البطالية",
+        "شارع الحيات",
+        "الخدود",
+        "عين باهلة"
+      ],
+      "contactNumber": "+96650693250",
+      "subCategory": "دورين",
+      "additionalSpecs": "طلب\nبوحسن \nنوع العقار المطلوب:  فيلا\nالغرض: شراء \nالمساحة المطلوبة: 3000\nالأحياء المفضلة: البطالية وشارع الحيات و الخدود و عين باهلة\nرقم التواصل: +96650693250\nالتصنيف الفرعي : دورين \nمواصفات إضافية:",
+      "createdAt": 1767096341097,
+      "updatedAt": 1767098621761,
+      "status": "active"
+    },
+    "propertyOffer": null,
+    "requestStatus": "active",
+    "matchHistory": [],
+    "lastNotificationAt": null,
+    "awaitingStillLookingResponse": false,
+    "lastResponseToStillLooking": null,
+    "lastResponseToStillLookingAt": null,
+    "requestDeactivatedAt": null,
+    "requestDeactivationReason": null,
+    "createdAt": 1767096341093,
+    "updatedAt": 1767098621764,
+    "lastMessageAt": 1767098621764,
+    "requests": [
+      {
+        "id": "req_1767096341097_eigh",
+        "clientName": "بوحسن",
+        "propertyType": "فيلا",
+        "purpose": "شراء",
+        "priceMin": null,
+        "priceMax": null,
+        "areaMin": 0,
+        "areaMax": 3000,
+        "neighborhoods": [
+          "البطالية",
+          "شارع الحيات",
+          "الخدود",
+          "عين باهلة"
+        ],
+        "contactNumber": "+96650693250",
+        "subCategory": "دورين",
+        "additionalSpecs": "طلب\nبوحسن \nنوع العقار المطلوب:  فيلا\nالغرض: شراء \nالمساحة المطلوبة: 3000\nالأحياء المفضلة: البطالية وشارع الحيات و الخدود و عين باهلة\nرقم التواصل: +96650693250\nالتصنيف الفرعي : دورين \nمواصفات إضافية:",
+        "createdAt": 1767096341097,
+        "updatedAt": 1767098621761,
+        "status": "active"
+      }
+    ],
+    "registeredByAdmin": true,
+    "adminPhone": "240917902585982@lid"
   }
 }
