@@ -370,6 +370,17 @@ async function postAdToWordPress(
           استراحه: "استراحه.png",
           شالية: "شاليه.png",
           شاليه: "شاليه.png",
+          // New category images
+          عمارة: "عماره_بيع.png",
+          عماره: "عماره_بيع.png",
+          "عمارة للبيع": "عماره_بيع.png",
+          "عماره للبيع": "عماره_بيع.png",
+          للتقبيل: "للتقبيل.png",
+          تقبيل: "للتقبيل.png",
+          "عقار ايجار": "عقار_ايجار.png",
+          "عقار إيجار": "عقار_ايجار.png",
+          إيجار: "عقار_ايجار.png",
+          ايجار: "عقار_ايجار.png",
         };
 
         const propertyType =
@@ -385,25 +396,47 @@ async function postAdToWordPress(
           wpData.meta?.parent_catt === "إيجار" ||
           wpData.meta?.category_id === 66;
 
+        // Check if this is for takeover (للتقبيل)
+        const isTakeover =
+          wpData.meta?.category === "للتقبيل" ||
+          wpData.meta?.parent_catt === "للتقبيل" ||
+          wpData.meta?.order_type === "للتقبيل" ||
+          wpData.meta?.offer_type === "للتقبيل";
+
         let normalImageFilename = imageMapping[propertyType];
 
+        // Handle takeover (للتقبيل) - use takeover-specific image
+        if (isTakeover && !normalImageFilename) {
+          console.log(
+            `⚠️ Using takeover image "للتقبيل.png" for property type "${propertyType}"`
+          );
+          normalImageFilename = "للتقبيل.png";
+        }
+
         // Skip images for rentals since they show "للبيع" (for sale) text
+        // But use the rental-specific image instead
         if (isRental) {
           if (propertyType === "شقة" || propertyType === "شقه") {
             console.log(
-              `⚠️ Skipping "شقه.png" for rental apartment - image is for sale only`
+              `⚠️ Using rental image "عقار_ايجار.png" for rental apartment instead of "شقه.png"`
             );
-            normalImageFilename = null;
+            normalImageFilename = "عقار_ايجار.png";
           } else if (propertyType === "فيلا" || propertyType === "فيله") {
             console.log(
-              `⚠️ Skipping "فيلا.png" for rental villa - image is for sale only`
+              `⚠️ Using rental image "عقار_ايجار.png" for rental villa instead of "فيلا.png"`
             );
-            normalImageFilename = null;
+            normalImageFilename = "عقار_ايجار.png";
           } else if (propertyType === "دبلكس") {
             console.log(
-              `⚠️ Skipping "دبلكس.png" for rental duplex - image is for sale only`
+              `⚠️ Using rental image "عقار_ايجار.png" for rental duplex instead of "دبلكس.png"`
             );
-            normalImageFilename = null;
+            normalImageFilename = "عقار_ايجار.png";
+          } else if (!normalImageFilename) {
+            // For any other rental without a specific image, use the rental image
+            console.log(
+              `⚠️ Using rental image "عقار_ايجار.png" for rental property type "${propertyType}"`
+            );
+            normalImageFilename = "عقار_ايجار.png";
           }
         }
 

@@ -1,18 +1,17 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const fs = require("fs");
 const path = require("path");
-const dataSync = require("../utils/dataSync");
 
-const SETTINGS_FILE = dataSync.getFilePath("SETTINGS");
+const { getDataPath } = require("../config/dataPath");
+
+const SETTINGS_FILE = getDataPath("settings.json");
 
 // Load settings and get current API key
 function loadSettings() {
   try {
-    // Always read fresh data from shared folder
-    return dataSync.readDataSync("SETTINGS", {
-      geminiApiKeys: [],
-      currentKeyIndex: 0,
-    });
+    if (fs.existsSync(SETTINGS_FILE)) {
+      return JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"));
+    }
   } catch (error) {
     console.error("Error loading settings:", error);
   }
@@ -21,7 +20,7 @@ function loadSettings() {
 
 function saveSettings(settings) {
   try {
-    dataSync.writeDataSync("SETTINGS", settings);
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
   } catch (error) {
     console.error("Error saving settings:", error);
   }
@@ -203,6 +202,8 @@ async function retryWithApiKeyRotation(
     } catch (error) {
       lastError = error;
       const errorMessage = error.message || error.toString();
+
+      // Check for different retryable error types
       const isOverloadError =
         error.status === 503 ||
         errorMessage.includes("overloaded") ||
@@ -210,7 +211,13 @@ async function retryWithApiKeyRotation(
       const isRateLimitError =
         error.status === 429 ||
         errorMessage.includes("429") ||
-        errorMessage.includes("rate limit");
+        errorMessage.includes("rate limit") ||
+        errorMessage.includes("Resource exhausted");
+      const isLeakedKeyError =
+        error.status === 403 ||
+        errorMessage.includes("403") ||
+        errorMessage.includes("leaked") ||
+        errorMessage.includes("Forbidden");
 
       console.error(`❌ Attempt ${attemptCount} failed:`, errorMessage);
 
@@ -219,11 +226,17 @@ async function retryWithApiKeyRotation(
 
       // If this is the last attempt, don't switch keys
       if (i < totalRetries - 1) {
-        // Switch to next key for overload or rate limit errors
-        if (isOverloadError || isRateLimitError) {
-          console.log(
-            `⚠️ API key overloaded or rate limited, switching to next key...`
-          );
+        // Switch to next key for these retryable errors
+        if (isOverloadError || isRateLimitError || isLeakedKeyError) {
+          if (isLeakedKeyError) {
+            console.log(
+              `⚠️ API key was reported as leaked/forbidden, switching to next key...`
+            );
+          } else {
+            console.log(
+              `⚠️ API key overloaded or rate limited, switching to next key...`
+            );
+          }
 
           // Move to next key in the sorted priority list
           currentRotationIndex =
@@ -500,7 +513,7 @@ async function detectAd(text, maxRetries = null, currentRetry = 0) {
       async (apiKey, keyIndex) => {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
-          model: "gemini-2.0-flash-lite",
+          model: "gemini-2.5-flash-lite",
         });
 
         const prompt = `You are an expert at detecting real estate and business advertisements. Analyze if the following text is an advertisement.
@@ -607,8 +620,8 @@ Respond ONLY in this exact JSON format:
           reason: detection.reason || "No reason provided",
         };
       },
-      maxRetries,
-      "Ad Detection"
+      "Ad Detection",
+      maxRetries
     );
   } catch (error) {
     console.error("Error detecting ad:", error);
@@ -641,7 +654,7 @@ async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
       async (apiKey, keyIndex) => {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
-          model: "gemini-2.0-flash-lite",
+          model: "gemini-2.5-flash-lite",
         });
 
         const prompt = `أنت خبير في كتابة إعلانات وسائل التواصل الاجتماعي بأسلوب عصري وجذاب. قم بتحسين وإعادة صياغة الإعلان التالي بشكل إبداعي:
@@ -701,8 +714,8 @@ async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
           improvements: enhancement.improvements || [],
         };
       },
-      maxRetries,
-      "Ad Enhancement"
+      "Ad Enhancement",
+      maxRetries
     );
   } catch (error) {
     console.error("Error enhancing ad:", error);
@@ -913,56 +926,60 @@ ${text}
 
 قواعد التصنيف (الأولوية من الأعلى للأسفل):
 
-⚠️ القاعدة الأولى - الطلبات (أعلى أولوية - لأي شخص يطلب عقار أو خدمة أو سلعة أو سيارة):
+⚠️ القاعدة الأولى - حراج الحسا (أعلى أولوية للسيارات والمستعمل - تذهب لموقع حساك):
+- إذا كان النص يعلن عن بيع أو عرض سيارات/حراج/مستعمل ويحتوي على كلمات مثل: "سيارة"، "سيارات"، "حراج"، "معرض سيارات"، "جمس"، "جيب"، "كامري"، "النترا"، "سوناتا"، "للبيع سيارة"
+  → أرجع "حراج الحسا" (وليس "طلبات" أو "خدمات")
+- ⚠️ مهم: حتى لو احتوى على كلمات الطلب مثل "للبيع" مع سيارة، يظل "حراج الحسا"
+- ✅ مثال: "سيارة كامري 2020 للبيع" → "حراج الحسا" (وليس "طلبات")
+- ✅ مثال: "سيارة النترا موديل 2013 للبيع في الأحساء" → "حراج الحسا"
+
+⚠️ القاعدة الثانية - الطلبات (لأي شخص يطلب أو يبحث عن شيء - عقار أو سلعة):
 - إذا كان النص يحتوي على: "مطلوب"، "ابحث عن"، "من عنده"، "انا ابي"، "طالب"، "طلبي"، "ابغى"، "أبغى"، "ابغا"، "أبغا"، "ودي"، "احتاج"، "يا ليت"، "سحب طلب"، "أريد"، "عندي طلب"، "محتاج"، "دور على"، "ادور" → أرجع "طلبات"
 - ⭐ لهجة سعودية: "ابغى ابيع"، "ابي ابيع"، "ابغا اشتري"، "ودي ابيع"، "حد عنده"، "مين عنده"، "تكفون"، "ياخوان" → أرجع "طلبات"
-  مهم جداً: حتى لو قال "ابغى ابيع" (يريد أن يبيع) فهذا طلب لأنه يطلب مشتري!
+- ⚠️ استثناء مهم: إذا كان النص يحتوي على "سيارة" + كلمات طلب → أرجع "حراج الحسا" (وليس طلبات) لأن حراج السيارات يذهب لحساك
 
-⚠️ القاعدة الثانية - الإيجار (أولوية عالية للعقار فقط):
+⚠️ القاعدة الثالثة - الإيجار (أولوية عالية للعقار فقط):
 - إذا كان النص يحتوي على: "للإيجار"، "للأجار"، "ايجار"، "اجار"، "rent"، "rental" → أرجع "إيجار"
 - ملاحظة: حتى لو كان النص يحتوي على "شقة للإيجار" أو "فيلا للإيجار"، التصنيف هو "إيجار" وليس "شقة" أو "فيلا"
 
-القواعد الأخرى (للعقارات للبيع):
+قواعد خاصة بمنصة حساك (غير عقارية) - تأخذ أولوية على العقارات:
+1. حراج الحسا: سيارات، مستعمل، حراج → "حراج الحسا" (حتى لو فيها كلمات طلب)
+2. أسر منتجة: أكل بيت، طبخ منزلي، منتجات منزلية، حلويات منزلية → "أسر منتجة"
+3. كوفيهات أو مطاعم: مطعم، كوفي، كافيه، قهوة، وجبات، برجر، بيتزا → "كوفيهات أو مطاعم"
+4. منتجعات وإستراحات: منتجع، شاليه، مسبح، أماكن استجمام → "منتجعات وإستراحات"
+5. الفعاليات والانشطة: فعالية، مهرجان، حدث، نشاط مجتمعي → "الفعاليات والانشطة"
+6. محلات تجارية: متجر، سوق، مول، بازار → "محلات تجارية"
+7. مركز ترفيهي: ألعاب، ملاهي → "مركز ترفيهي"
+
+القواعد الأخرى (للعقارات للبيع - موقع مسعاك):
 1. إذا كان النص يحتوي على "بيت" أو "منزل" → أرجع "بيت"
 2. إذا كان النص يحتوي على "شقة" (بدون للإيجار) → أرجع "شقة"
 3. إذا كان النص يحتوي على "فيلا" أو "فيللا" → أرجع "فيلا"
 4. إذا كان النص يحتوي على "عمارة" → أرجع "عمارة"
 5. إذا كان النص يحتوي على "أرض" أو "قطعة أرض" → أرجع "أرض"
-6. إذا كان النص يحتوي على "محل" أو "مطعم" أو "كوفي" → أرجع "محل تجاري"
-7. إذا كان النص يحتوي على "مزرعة" → أرجع "مزرعة"
-8. إذا كان النص يحتوي على "استراحة" → أرجع "استراحة"
-9. إذا كان النص يحتوي على "وظيفة" أو "مطلوب موظف" → أرجع "وظائف" أو "برامج ووظائف" (اختر "برامج ووظائف" إذا كان النص واضح أنه إعلان برنامج أو مبادرة توظيف في حساك)
-
-قواعد خاصة بمنصة حساك (غير عقارية):
-1. إذا كان النص يعلن عن بيع أو عرض سيارات أو حراج سيارات أو يحتوي على كلمات مثل: "سيارة"، "سيارات"، "حراج"، "معرض سيارات" → أرجع "حراج الحسا" (ولا ترجع "خدمات").
-2. إذا كان النص عن أكل بيت، طبخ منزلي، منتجات منزلية، حلويات منزلية، أو يتكلم عن أسر تنتج من البيت → أرجع "أسر منتجة".
-3. إذا كان النص عن مطعم، كوفي، كافيه، قهوة، وجبات، برجر، بيتزا، مطاعم جديدة → أرجع "كوفيهات أو مطاعم".
-4. إذا كان النص عن منتجع، استراحة، شاليه، مسبح، أماكن استجمام أو منتجعات → أرجع "منتجعات وإستراحات".
-5. إذا كان النص عن فعالية أو مهرجان أو حدث أو نشاط مجتمعي → أرجع "الفعاليات والانشطة" أو "فعاليات و أنشطة" أو "فعالية مجانية مميزة" حسب سياق النص (مجانية/مدفوعة/مميزة).
-6. إذا كان النص يعلن عن متجر، محل، سوق، مول، بازار → أرجع "محلات تجارية".
-7. إذا كان النص عن مكان ألعاب، ملاهي، مركز ترفيهي للأطفال أو العائلة → أرجع "مركز ترفيهي".
+6. إذا كان النص يحتوي على "مزرعة" → أرجع "مزرعة"
+7. إذا كان النص يحتوي على "استراحة" → أرجع "استراحة"
+8. إذا كان النص يحتوي على "وظيفة" أو "مطلوب موظف" → أرجع "برامج ووظائف"
 
 مهم جداً:
-- لا تستخدم "خدمات" إلا إذا كان النص فعلاً يقدم خدمة عامة (مثل صيانة، تركيب، نقل عفش، توصيل عام) وليس حراج سيارات، مطعم، أسر منتجة أو فعالية.
-- إذا كان الإعلان واضح أنه سيارة للبيع في الأحساء أو قريب من نمط الحراج → اختر دائماً "حراج الحسا" وليس "خدمات".
+- لا تستخدم "خدمات" إلا إذا كان النص فعلاً يقدم خدمة عامة (مثل صيانة، تركيب، نقل عفش) وليس حراج سيارات أو مطعم أو فعالية.
+- إذا كان إعلان سيارة → اختر دائماً "حراج الحسا" (حتى لو فيه كلمات طلب)
 
 أمثلة توضيحية:
-1) "شقة للإيجار 3 غرف" → "إيجار" (وليس "شقة")
-2) "مطلوب شقة للبيع" → "طلبات" (وليس "شقة")
-3) "شقة للبيع 200 ألف" → "شقة"
-4) "ابحث عن فيلا" → "طلبات"
-5) "فيلا للإيجار في الأحساء" → "إيجار"
-6) "ابغى ابيع هذا المكيف" → "طلبات" (لهجة سعودية - يطلب مشتري)
-7) "حد عنده أرض للبيع؟" → "طلبات" (يسأل من عنده)
-8) "ودي اشتري بيت" → "طلبات" (يريد أن يشتري)
-9) "تكفون مين عنده شقة؟" → "طلبات" (سؤال/طلب)
-10) "سيارة النترا موديل 2013 للبيع في الأحساء" → "حراج الحسا" (وليس "خدمات")
-11) "مطعم جديد في الأحساء يقدم برجر وباستا" → "كوفيهات أو مطاعم" (وليس "خدمات")
-12) "أطباق منزلية من أسر منتجة في الأحساء" → "أسر منتجة"
+1) "سيارة كامري 2020 للبيع" → "حراج الحسا" ✅ (وليس "طلبات")
+2) "سيارة النترا موديل 2013 للبيع في الأحساء" → "حراج الحسا" ✅ (وليس "طلبات" أو "خدمات")
+3) "ابغى ابيع سيارتي" → "حراج الحسا" ✅ (سيارة تذهب لحساك)
+4) "شقة للإيجار 3 غرف" → "إيجار"
+5) "مطلوب شقة للبيع" → "طلبات" (طلب عقار يذهب لمسعاك)
+6) "شقة للبيع 200 ألف" → "شقة"
+7) "ابحث عن فيلا" → "طلبات"
+8) "ابغى ابيع هذا المكيف" → "حراج الحسا" (مستعمل يذهب لحساك)
+9) "مطعم جديد في الأحساء يقدم برجر" → "كوفيهات أو مطاعم"
+10) "أطباق منزلية من أسر منتجة" → "أسر منتجة"
 
 أرجع فقط اسم التصنيف (واحد فقط) بدون أي نص إضافي أو تفسير.`;
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const result = await model.generateContent(prompt);
         const rawCategory = result.response.text().trim();
         console.log("🏷️ Raw AI category response:", rawCategory);
@@ -1029,8 +1046,8 @@ ${text}
         console.log("🏷️ Fallback detected category:", fallbackCategory);
         return fallbackCategory;
       },
-      null,
-      "Category Detection"
+      "Category Detection",
+      null
     );
   } catch (error) {
     console.error("❌ AI category detection error:", error);
@@ -1299,11 +1316,28 @@ function detectCategoryFallback(text) {
  * Generate WhatsApp message from WordPress data
  * @param {object} wpData - WordPress data
  * @param {string} wpLink - WordPress post link
+ * @param {string} website - Target website ('masaak' or 'hasak')
+ * @param {object} settings - Optional settings object with custom footers
  * @returns {string} - Formatted WhatsApp message
  */
-function generateWhatsAppMessage(wpData, wpLink = null, website = "masaak") {
+function generateWhatsAppMessage(
+  wpData,
+  wpLink = null,
+  website = "masaak",
+  settings = null
+) {
   const meta = wpData.meta || {};
   let message = "";
+
+  // Default footers (used if settings not provided)
+  const defaultHasakFooter = `┈┉━🔰 *منصة 🌴حساك* 🔰━┅┄
+*✅إنضم في منصة حساك* 
+https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
+ *✅للإعلانات في منصة حساك* 
+0507667103`;
+
+  const defaultMasaakFooter = `┈┉━━🔰 *مسعاك العقارية* 🔰━━┅┄
+⭕ إبراء للذمة التواصل فقط مع مسعاك عند الشراء أو إذا عندك مشتري ✅ نتعاون مع جميع الوسطاء`;
 
   // Different format for Hasak vs Masaak
   if (website === "hasak") {
@@ -1318,12 +1352,12 @@ function generateWhatsAppMessage(wpData, wpLink = null, website = "masaak") {
       message += `👈 للتفاصيل اضغط على الرابط: ${wpLink}\n`;
     }
 
-    // Add Hasak footer
-    message += `\n┈┉━🔰 *منصة 🌴حساك* 🔰━┅┄\n`;
-    message += `*✅إنضم في منصة حساك* \n`;
-    message += `https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t\n`;
-    message += ` *✅للإعلانات في منصة حساك* \n`;
-    message += `0507667103`;
+    // Add Hasak footer (from settings or default)
+    const hasakFooter =
+      settings && settings.hasakFooter
+        ? settings.hasakFooter
+        : defaultHasakFooter;
+    message += `\n${hasakFooter}`;
   } else {
     // Masaak format: Title, Price, Space, Location, Contact, Link, Footer
     // Add title
@@ -1408,9 +1442,12 @@ function generateWhatsAppMessage(wpData, wpLink = null, website = "masaak") {
       message += `\n👈 *للتفاصيل اضغط على الرابط:* ${wpLink}\n`;
     }
 
-    // Add Masaak footer
-    message += `\n┈┉━━🔰 *مسعاك العقارية* 🔰━━┅┄\n`;
-    message += `⭕ إبراء للذمة التواصل فقط مع مسعاك عند الشراء أو إذا عندك مشتري ✅ نتعاون مع جميع الوسطاء`;
+    // Add Masaak footer (from settings or default)
+    const masaakFooter =
+      settings && settings.masaakFooter
+        ? settings.masaakFooter
+        : defaultMasaakFooter;
+    message += `\n${masaakFooter}`;
   }
 
   return message.trim();
@@ -2002,7 +2039,7 @@ ${adText}${contactHint}
   // Use retry mechanism with API key rotation
   return await retryWithApiKeyRotation(async (apiKey, keyIndex) => {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const result = await model.generateContent(prompt);
     const response = result.response;
@@ -2352,7 +2389,7 @@ ${adText}${contactHint}
 async function validateUserInput(input, fieldName = "name", context = "") {
   return retryWithApiKeyRotation(async (GEMINI_API_KEY, currentIndex) => {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     let prompt = "";
 

@@ -114,6 +114,12 @@ function mapRequirementsToApiParams(requirements) {
     params.property_type = requirements.propertyType;
   }
 
+  // Map sub-category if present
+  if (requirements.subCategory) {
+    params.sub_catt = requirements.subCategory;
+    params.arc_subcategory = requirements.subCategory;
+  }
+
   // Map preferred area (neighborhoods/location) with normalization
   if (requirements.location) {
     params.preferred_area = areaNormalizer.normalizeAreaName(
@@ -232,6 +238,13 @@ function formatApiResult(post) {
       // Purpose/offer type
       offer_type: post.purpose || "",
       order_type: post.purpose || "",
+
+      // Sub-category fields
+      sub_catt: post.sub_catt || "",
+      arc_subcategory: post.arc_subcategory || "",
+
+      // Date field
+      post_date: post.date || "",
     },
     // Store raw API data for reference
     apiData: post,
@@ -321,189 +334,83 @@ async function searchWithRequirements(requirements) {
 
   // Normalize neighborhoods if present AND expand cities to neighborhoods
   if (requirements.neighborhoods && Array.isArray(requirements.neighborhoods)) {
-    // First normalize the area names
     requirements.neighborhoods = areaNormalizer.normalizeAreaNames(
       requirements.neighborhoods
     );
-    console.log(
-      `📍 Normalized neighborhoods:`,
-      requirements.neighborhoods.join(", ")
-    );
 
-    // Then check if any are cities and expand them
     const expandedNeighborhoods = [];
     for (const area of requirements.neighborhoods) {
       const expanded = areaNormalizer.expandCityToNeighborhoods(area);
       expandedNeighborhoods.push(...expanded);
     }
-
-    // Remove duplicates
     requirements.neighborhoods = [...new Set(expandedNeighborhoods)];
-
-    if (expandedNeighborhoods.length > requirements.neighborhoods.length) {
-      console.log(
-        `📍 After city expansion: ${requirements.neighborhoods.join(", ")}`
-      );
-    }
   }
 
   // Normalize location if present AND expand if it's a city
   if (requirements.location) {
-    const original = requirements.location;
     requirements.location = areaNormalizer.normalizeAreaName(
       requirements.location
     );
-    if (original !== requirements.location) {
-      console.log(
-        `📍 Normalized location: "${original}" → "${requirements.location}"`
-      );
-    }
-
-    // If location is a city, expand it to neighborhoods
     if (areaNormalizer.isCity(requirements.location)) {
       const cityNeighborhoods = areaNormalizer.expandCityToNeighborhoods(
         requirements.location
       );
-      console.log(
-        `🏙️  Location "${requirements.location}" is a city - will search in ${cityNeighborhoods.length} neighborhoods`
-      );
-      // Convert location to neighborhoods array
       if (!requirements.neighborhoods) {
         requirements.neighborhoods = cityNeighborhoods;
       } else {
-        // Merge with existing neighborhoods
         requirements.neighborhoods = [
           ...new Set([...requirements.neighborhoods, ...cityNeighborhoods]),
         ];
       }
-      // Clear location since we're now using neighborhoods
       delete requirements.location;
     }
   }
 
   // Check if there are multiple neighborhoods
-  const hasMultipleNeighborhoods =
-    requirements.neighborhoods &&
-    Array.isArray(requirements.neighborhoods) &&
-    requirements.neighborhoods.length > 1;
+  const neighborhoods = requirements.neighborhoods || [];
+  const hasMultipleNeighborhoods = neighborhoods.length > 1;
 
   if (hasMultipleNeighborhoods) {
-    console.log(
-      `🏘️  Multiple neighborhoods detected: ${requirements.neighborhoods.join(
-        ", "
-      )}`
-    );
-    console.log(
-      `🔍 Will perform ${requirements.neighborhoods.length} separate searches...`
-    );
-
-    const neighborhoodResults = []; // Array to store results per neighborhood with metadata
-
-    // Search for each neighborhood separately
-    for (const neighborhood of requirements.neighborhoods) {
-      console.log(`\n  📍 Searching in neighborhood: ${neighborhood}`);
-
-      // Create a copy of requirements with single neighborhood
-      const singleNeighborhoodReq = {
-        ...requirements,
-        neighborhoods: [neighborhood],
-      };
-
-      const params = mapRequirementsToApiParams(singleNeighborhoodReq);
+    const balancedResults = new Map();
+    for (const neighborhood of neighborhoods) {
+      const singleReq = { ...requirements, neighborhoods: [neighborhood] };
+      const params = mapRequirementsToApiParams(singleReq);
       const response = await searchWithMultiWordSplit(params);
 
-      console.log(`    ✓ Found ${response.count} results in ${neighborhood}`);
-
-      // When searching by neighborhood explicitly via API, trust the API results
-      // The API already filtered by preferred_area, so no need for strict filtering
-      // Just use the results directly
-      const filteredPosts = response.posts || [];
-
-      // Store results for this neighborhood
-      if (
-        filteredPosts &&
-        Array.isArray(filteredPosts) &&
-        filteredPosts.length > 0
-      ) {
-        neighborhoodResults.push({
-          neighborhood: neighborhood,
-          results: filteredPosts,
-          count: filteredPosts.length,
+      if (response.posts && response.posts.length > 0) {
+        // Take top 5 from each neighborhood for balance
+        response.posts.slice(0, 5).forEach((post) => {
+          if (!balancedResults.has(post.ID)) {
+            balancedResults.set(post.ID, formatApiResult(post));
+          }
         });
-        console.log(
-          `    ✅ Stored ${filteredPosts.length} results for ${neighborhood}`
-        );
-      } else {
-        console.log(`    ⚠️  No results to store for ${neighborhood}`);
       }
     }
-
-    // Smart balancing: distribute fairly based on what's available
-    // Give each neighborhood a fair chance to show results
-    const numNeighborhoods = neighborhoodResults.length;
-    const balancedResults = new Map(); // Use Map to deduplicate by ID
-
-    console.log(
-      `\n⚖️  Smart balancing: distributing results fairly from ${numNeighborhoods} neighborhoods`
-    );
-
-    // Calculate how many results to take from each based on availability
-    neighborhoodResults.forEach((neighborhoodData) => {
-      // Take up to 5 results per neighborhood (or all if less than 5)
-      // This ensures fair distribution without forcing a total number
-      const take = Math.min(5, neighborhoodData.results.length);
-
-      console.log(
-        `   📍 ${neighborhoodData.neighborhood}: taking ${take} out of ${neighborhoodData.count} results`
-      );
-
-      for (let i = 0; i < take; i++) {
-        const post = neighborhoodData.results[i];
-        if (post.ID && !balancedResults.has(post.ID)) {
-          balancedResults.set(post.ID, post);
-        }
-      }
-    });
-
-    const uniqueResults = Array.from(balancedResults.values());
-    console.log(
-      `\n✅ Total balanced results from all neighborhoods: ${uniqueResults.length}`
-    );
-
-    // Format results to match expected format
-    const formattedResults = uniqueResults.map(formatApiResult);
-    return formattedResults;
+    return Array.from(balancedResults.values());
   } else {
-    // Single or no neighborhood - use standard search
+    // Single or no neighborhood
     const params = mapRequirementsToApiParams(requirements);
     const response = await searchWithMultiWordSplit(params);
 
-    console.log(`✅ Found ${response.count} results`);
+    // Check for city-wide fallback
+    const isFallback = !params.preferred_area && neighborhoods.length > 0;
 
-    // Get the requested area for filtering
-    const requestedArea =
-      requirements.location ||
-      (requirements.neighborhoods && requirements.neighborhoods[0]);
-
-    // Filter results to match the requested area
-    let filteredPosts = response.posts;
-    if (requestedArea) {
-      filteredPosts = areaNormalizer.filterResultsByArea(
-        response.posts,
-        requestedArea
-      );
-
-      // If no results after filtering, return empty array with message
-      if (filteredPosts.length === 0 && response.posts.length > 0) {
-        console.log(
-          `⚠️ No results found in "${requestedArea}" (${response.posts.length} results found in other areas were excluded)`
-        );
+    let results = response.posts.map((post) => {
+      const formatted = formatApiResult(post);
+      if (isFallback) {
+        formatted.isFallback = true;
+        formatted.fallbackReason = "بحث عام على مستوى المدينة";
       }
+      return formatted;
+    });
+
+    // Final filtering if a specific area was requested but API didn't support it strictly
+    const requestedArea = requirements.location || neighborhoods[0];
+    if (requestedArea && !isFallback) {
+      results = areaNormalizer.filterResultsByArea(results, requestedArea);
     }
 
-    // Format results to match expected format
-    const formattedResults = filteredPosts.map(formatApiResult);
-    return formattedResults;
+    return results;
   }
 }
 

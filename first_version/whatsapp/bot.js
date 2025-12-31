@@ -516,11 +516,14 @@ async function processMessageFromQueue(messageData) {
       fromGroup: from,
       fromGroupName: groupSubject,
       author: participant || remoteJid || null,
+      senderName: senderName,
+      senderPhone: senderPhone,
       rejectedAt: Date.now(),
       aiConfidence: null,
       aiReason: `Category limit reached: ${quickCategory}`,
       category: quickCategory,
       blockReason: "category_limit_reached_pre_check",
+      imageUrl: imageUrl || null, // Save image for later use
     };
 
     recycleBin.unshift(recycleBinItem);
@@ -551,16 +554,19 @@ async function processMessageFromQueue(messageData) {
         `❌ Not an ad (confidence: ${aiResult.confidence}%): ${aiResult.reason}`
       );
 
-      // Add to recycle bin
+      // Add to recycle bin - include image for later use
       const recycleBinItem = {
         id: `rb_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
         text: messageText,
         fromGroup: from,
         fromGroupName: groupSubject,
         author: participant || remoteJid || null,
+        senderName: senderName,
+        senderPhone: senderPhone,
         rejectedAt: Date.now(),
         aiConfidence: aiResult.confidence,
         aiReason: aiResult.reason,
+        imageUrl: imageUrl || null, // Save image for later use
       };
 
       recycleBin.unshift(recycleBinItem);
@@ -581,18 +587,21 @@ async function processMessageFromQueue(messageData) {
         `🚫 Category "${aiResult.category}" has reached its limit. Ad blocked and moved to recycle bin.`
       );
 
-      // Move to recycle bin instead of saving
+      // Move to recycle bin instead of saving - include image for later use
       const recycleBinItem = {
-        id: `${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+        id: `rb_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
         text: messageText,
         fromGroup: from,
         fromGroupName: groupSubject,
         author: participant || remoteJid || null,
+        senderName: senderName,
+        senderPhone: senderPhone,
         rejectedAt: Date.now(),
         aiConfidence: aiResult.confidence,
         aiReason: `Category limit reached: ${aiResult.category}`,
         category: aiResult.category,
         blockReason: "category_limit_reached",
+        imageUrl: imageUrl || null, // Save image for later use
       };
 
       recycleBin.unshift(recycleBinItem);
@@ -691,6 +700,7 @@ async function processMessageFromQueue(messageData) {
       senderName: senderName, // WhatsApp sender name (pushName)
       senderPhone: senderPhone, // WhatsApp sender ID (for reference)
       imageUrl: imageUrl, // Image data if present
+      messageKey: messageData.messageKey || null, // Store message key for full image download
       timestamp: Date.now(),
       status: "new", // new | accepted | rejected | posted
       category: aiResult.category || null, // AI-detected category
@@ -1906,6 +1916,7 @@ async function initializeBot() {
               imageUrl,
               participant: msg.key.participant,
               remoteJid: msg.key.remoteJid,
+              messageKey: msg.key, // Store message key for full image download
             },
             processMessageFromQueue
           )
@@ -2437,7 +2448,8 @@ async function getGroupsWithMetadata(forceRefresh = false) {
     }
   }
 
-  // Normal logic: use cached data, return ALL groups
+  // Normal logic: use cached data, return ALL groups without fetching metadata individually
+  // This is optimized to avoid timeout issues
   console.log(
     `📋 Normal fetch - seenGroups size: ${
       seenGroups.size
@@ -2448,45 +2460,13 @@ async function getGroupsWithMetadata(forceRefresh = false) {
     if (groupsMetadata[jid]) {
       groupsList.push(groupsMetadata[jid]);
     } else {
-      // Try to fetch metadata if not cached
-      console.log(`🔍 Fetching metadata for uncached group: ${jid}`);
-      try {
-        if (sock && connectionStatus === "connected") {
-          const metadata = await sock.groupMetadata(jid).catch(() => null);
-          if (metadata && metadata.subject) {
-            const isCommunity =
-              jid.includes("@broadcast") || metadata.isCommunity || false;
-            groupsMetadata[jid] = {
-              jid,
-              name: metadata.subject,
-              type: isCommunity ? "Community" : "Group",
-              isCommunity: isCommunity,
-            };
-            groupsList.push(groupsMetadata[jid]);
-            console.log(`✅ Fetched metadata for ${jid}: ${metadata.subject}`);
-          } else {
-            // Fallback if can't get metadata
-            console.log(`⚠️ No metadata available for ${jid}, using fallback`);
-            groupsList.push({
-              jid,
-              name: jid,
-              type: "Group",
-              isCommunity: false,
-            });
-          }
-        } else {
-          console.log(`⚠️ Bot not connected, using fallback for ${jid}`);
-          groupsList.push({
-            jid,
-            name: jid,
-            type: "Group",
-            isCommunity: false,
-          });
-        }
-      } catch (e) {
-        console.error(`❌ Error fetching metadata for ${jid}:`, e.message);
-        groupsList.push({ jid, name: jid, type: "Group", isCommunity: false });
-      }
+      // Don't fetch metadata individually - use fallback immediately to avoid timeout
+      groupsList.push({
+        jid,
+        name: jid,
+        type: "Group",
+        isCommunity: false,
+      });
     }
   }
 
@@ -2694,6 +2674,7 @@ function restoreFromRecycleBin(id) {
     targetWebsite: item.targetWebsite || null,
     // Image data
     imageUrl: item.imageUrl || null,
+    messageKey: item.messageKey || null,
   };
 
   // Add to ads

@@ -5858,9 +5858,9 @@ async function loadAnalytics() {
   try {
     analyticsLoading = true;
 
-    // Add timeout to prevent hanging
+    // Add timeout to prevent hanging - increased to 30 seconds
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
     const response = await fetch("/api/bot/analytics", {
       method: "GET",

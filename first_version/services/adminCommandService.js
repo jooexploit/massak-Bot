@@ -6,8 +6,10 @@
 
 const fs = require("fs").promises;
 const path = require("path");
-const dataSync = require("../utils/dataSync");
 const waseetDetector = require("./waseetDetector");
+const interestGroupService = require("./interestGroupService");
+const wordpressPostService = require("./wordpressPostService");
+const { getDataPath } = require("../config/dataPath");
 
 // KSA Timezone configuration
 const KSA_TIMEZONE = "Asia/Riyadh";
@@ -19,22 +21,213 @@ const ADMIN_NUMBERS = ["966508007053", "201090952790"];
 let lidMapping = {};
 
 // Reminders storage
-const REMINDERS_FILE = dataSync.getFilePath("REMINDERS");
+const REMINDERS_FILE = getDataPath("reminders.json");
 let reminders = [];
 
 // Load admins from file
-const ADMINS_FILE = dataSync.getFilePath("ADMINS");
+const ADMINS_FILE = getDataPath("admins.json");
+
+// Pending waseet confirmations: { [adminJid]: { entries: [...], createdAt } }
+const pendingWaseetConfirmations = {};
+// Pending admin confirmations: { [adminJid]: { entries: [...], createdAt } }
+const pendingAdminConfirmations = {};
+// Pending interest group confirmations: { [adminJid]: { interest, entries, groupId?, createdAt } }
+const pendingInterestConfirmations = {};
+// Pending WordPress post actions: { [adminJid]: { website, post, action, createdAt } }
+const pendingWordPressActions = {};
+
+/**
+ * Normalize phone number to standard format
+ * - Removes all spaces
+ * - Removes + prefix
+ * - Converts local formats (0xxxxxxxxx) to international (966xxxxxxxxx for Saudi)
+ * - Removes @s.whatsapp.net suffix
+ * @param {string} phone - Phone number to normalize
+ * @returns {string} Normalized phone number
+ */
+function normalizePhoneNumber(phone) {
+  if (!phone) return "";
+
+  // Remove all spaces and common separators
+  let cleaned = phone.replace(/[\s\-\(\)\.]/g, "");
+
+  // Remove + prefix
+  cleaned = cleaned.replace(/^\+/, "");
+
+  // Remove @s.whatsapp.net suffix
+  cleaned = cleaned.replace(/@s\.whatsapp\.net$/, "");
+
+  // Convert Egyptian local format 01xxxxxxxxx to 201xxxxxxxxx
+  if (cleaned.startsWith("01") && cleaned.length === 11) {
+    cleaned = "20" + cleaned.substring(1);
+  }
+
+  // Convert Saudi local format 05xxxxxxxx to 9665xxxxxxxx
+  if (cleaned.startsWith("05") && cleaned.length === 10) {
+    cleaned = "966" + cleaned.substring(1);
+  }
+
+  // Convert 5xxxxxxxx (Saudi without 0) to 9665xxxxxxxx
+  if (cleaned.startsWith("5") && cleaned.length === 9) {
+    cleaned = "966" + cleaned;
+  }
+
+  return cleaned;
+}
+
+/**
+ * Parse flexible entries from message text
+ * Supports multiple formats:
+ * - "اسم,رقم" (name comma number)
+ * - "رقم,اسم" (number comma name)
+ * - Just numbers on separate lines
+ * - Number with name on same line separated by space
+ * - Numbers with spaces like "0508 007053" (will be joined)
+ * @param {string} text - Message text after command
+ * @param {boolean} requireName - Whether name is required (true for waseet, false for admin)
+ * @returns {Array} Array of { phone, name } objects
+ */
+function parseFlexibleEntries(text, requireName = true) {
+  const entries = [];
+
+  // Split by newlines and filter empty lines
+  const lines = text
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  for (const line of lines) {
+    // Skip the command itself if it's on the first line
+    if (
+      line === "وسيط" ||
+      line === "أدمن" ||
+      line === "ادمن" ||
+      line.startsWith("مهتم")
+    )
+      continue;
+
+    // Try different parsing patterns
+    let phone = null;
+    let name = null;
+
+    // Pattern 1: "name,number" or "number,name"
+    if (line.includes(",")) {
+      const parts = line.split(",").map((p) => p.trim());
+      for (const part of parts) {
+        // Check if this part looks like a phone number (remove spaces first)
+        const cleanedPart = part.replace(/[\s\-\(\)\+\.]/g, "");
+        if (/^\d{9,15}$/.test(cleanedPart)) {
+          phone = part;
+        } else if (part.length > 0) {
+          name = part;
+        }
+      }
+    }
+    // Pattern 2: "+number name" or "number name" or just "number"
+    // Also handles numbers with spaces like "0508 007053"
+    else {
+      const parts = line.split(/\s+/);
+
+      // First, try to join digit parts to form a phone number
+      // This handles cases like "0508 007053" becoming "0508007053"
+      let digitParts = [];
+      let nameParts = [];
+      let foundCompletePhone = false;
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const cleanedPart = part.replace(/[\-\(\)\+\.]/g, "");
+
+        // Check if this part is purely digits or starts with +
+        if (/^\d+$/.test(cleanedPart) || part.startsWith("+")) {
+          // If we already found a complete phone, this might be another number
+          // or part of a split number
+          if (foundCompletePhone) {
+            // Check if joining with previous digits would make sense
+            const combined =
+              (phone || "").replace(/[\s\-\(\)\+\.]/g, "") + cleanedPart;
+            if (/^\d{9,15}$/.test(combined)) {
+              // Yes, this is a continuation of the phone number
+              phone = phone + " " + part;
+            } else {
+              // This looks like a separate number, treat as part of name
+              nameParts.push(part);
+            }
+          } else {
+            // Accumulate digit parts
+            digitParts.push(part);
+
+            // Check if accumulated digits form a valid phone
+            const combinedDigits = digitParts
+              .join("")
+              .replace(/[\-\(\)\+\.]/g, "");
+            if (/^\d{9,15}$/.test(combinedDigits)) {
+              phone = digitParts.join(" ");
+              foundCompletePhone = true;
+              digitParts = [];
+            }
+          }
+        } else if (part.length > 0) {
+          // Non-digit part
+          if (digitParts.length > 0) {
+            // We had some digits but didn't complete a phone
+            // Check if digits so far could be a partial phone
+            const combinedDigits = digitParts
+              .join("")
+              .replace(/[\-\(\)\+\.]/g, "");
+            if (!foundCompletePhone && /^\d{9,15}$/.test(combinedDigits)) {
+              phone = digitParts.join(" ");
+              foundCompletePhone = true;
+            } else if (!foundCompletePhone) {
+              // Digits weren't a phone, add them to name
+              nameParts = nameParts.concat(digitParts);
+            }
+            digitParts = [];
+          }
+          nameParts.push(part);
+        }
+      }
+
+      // Handle remaining digit parts at end of line
+      if (digitParts.length > 0) {
+        const combinedDigits = digitParts.join("").replace(/[\-\(\)\+\.]/g, "");
+        if (!foundCompletePhone && /^\d{9,15}$/.test(combinedDigits)) {
+          phone = digitParts.join(" ");
+        } else if (!foundCompletePhone) {
+          // Not a valid phone, treat as part of name
+          nameParts = nameParts.concat(digitParts);
+        }
+      }
+
+      // Build the name from name parts
+      if (nameParts.length > 0) {
+        name = nameParts.join(" ");
+      }
+    }
+
+    // If we found a phone number, add the entry
+    if (phone) {
+      const normalizedPhone = normalizePhoneNumber(phone);
+      if (normalizedPhone) {
+        entries.push({
+          phone: normalizedPhone,
+          name: name || null,
+          originalPhone: phone,
+        });
+      }
+    }
+  }
+
+  return entries;
+}
 
 /**
  * Load admins from file and update ADMIN_NUMBERS array
  */
 async function loadAdminsFromFile() {
   try {
-    // Always read fresh data from shared folder using sync method for simplicity
-    const parsed = dataSync.readDataSync("ADMINS", {
-      admins: [],
-      lid_mapping: {},
-    });
+    const adminData = await fs.readFile(ADMINS_FILE, "utf8");
+    const parsed = JSON.parse(adminData);
     if (parsed.admins && Array.isArray(parsed.admins)) {
       // Clear and reload
       ADMIN_NUMBERS.length = 0;
@@ -56,10 +249,11 @@ async function loadAdminsFromFile() {
     // File doesn't exist or error reading - save current admins
     console.log("⚠️ No admins file found, creating with default admins");
     try {
-      dataSync.writeDataSync("ADMINS", {
-        admins: ADMIN_NUMBERS,
-        lid_mapping: {},
-      });
+      await fs.writeFile(
+        ADMINS_FILE,
+        JSON.stringify({ admins: ADMIN_NUMBERS, lid_mapping: {} }, null, 2),
+        "utf8"
+      );
       console.log(`✅ Created admins file with ${ADMIN_NUMBERS.length} admins`);
     } catch (writeErr) {
       console.error("❌ Error creating admins file:", writeErr);
@@ -69,14 +263,47 @@ async function loadAdminsFromFile() {
 }
 
 /**
+ * Save LID mapping to admins file
+ * @param {string} lid - The LID (without @lid suffix)
+ * @param {string} phoneNumber - The admin phone number to map to
+ */
+async function saveLidMapping(lid, phoneNumber) {
+  try {
+    // Add to in-memory mapping
+    lidMapping[lid] = phoneNumber;
+
+    // Load current file content
+    let parsed = { admins: ADMIN_NUMBERS, lid_mapping: {} };
+    try {
+      const adminData = await fs.readFile(ADMINS_FILE, "utf8");
+      parsed = JSON.parse(adminData);
+    } catch (e) {
+      // File doesn't exist, use defaults
+    }
+
+    // Update lid_mapping
+    parsed.lid_mapping = lidMapping;
+
+    // Save back to file
+    await fs.writeFile(ADMINS_FILE, JSON.stringify(parsed, null, 2), "utf8");
+    console.log(`✅ Saved LID mapping: ${lid} -> ${phoneNumber}`);
+    return true;
+  } catch (err) {
+    console.error("❌ Error saving LID mapping:", err);
+    return false;
+  }
+}
+
+/**
  * Save admins to file
  */
 async function saveAdminsToFile() {
   try {
-    dataSync.writeDataSync("ADMINS", {
-      admins: ADMIN_NUMBERS,
-      lid_mapping: lidMapping,
-    });
+    await fs.writeFile(
+      ADMINS_FILE,
+      JSON.stringify({ admins: ADMIN_NUMBERS }, null, 2),
+      "utf8"
+    );
     console.log(
       `✅ Saved ${ADMIN_NUMBERS.length} admins to file:`,
       ADMIN_NUMBERS
@@ -95,6 +322,16 @@ async function saveAdminsToFile() {
 
 // Message queue for reliable delivery
 let isProcessingQueue = false;
+let queueProcessorInterval = null;
+
+/**
+ * Force reset the queue processor state
+ * Call this on reconnection to ensure proper retry
+ */
+function resetQueueProcessor() {
+  console.log("🔄 Resetting queue processor state...");
+  isProcessingQueue = false;
+}
 
 /**
  * Process message queue - sends queued messages when connection is stable
@@ -123,27 +360,52 @@ async function processMessageQueue() {
     while (global.messageQueue.length > 0) {
       const item = global.messageQueue[0]; // Peek at first item
 
-      // Check if item is too old (> 10 minutes)
-      if (Date.now() - item.createdAt > 600000) {
-        console.log(`⏰ Queue item ${item.id} expired, removing...`);
+      // Check if item is too old (> 30 minutes - increased from 10 for connection recovery)
+      const QUEUE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+      if (Date.now() - item.createdAt > QUEUE_TIMEOUT_MS) {
+        console.log(`⏰ Queue item ${item.id} expired (>30min), removing...`);
         global.messageQueue.shift();
         continue;
       }
 
-      // Check connection
-      const status = botModule.getConnectionStatus();
+      // Check connection with retry wait
+      let status = botModule.getConnectionStatus();
       if (status !== "connected") {
         console.log(
-          `⏸️ Connection not ready (${status}), pausing queue processor...`
+          `⏸️ Connection not ready (${status}), waiting up to 30s for reconnection...`
         );
-        break; // Exit loop, will retry later
+
+        // Wait up to 30 seconds for connection to restore
+        let waitedMs = 0;
+        const maxWaitMs = 30000;
+        while (waitedMs < maxWaitMs && status !== "connected") {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          waitedMs += 2000;
+          status = botModule.getConnectionStatus();
+          if (status === "connected") {
+            console.log(`✅ Connection restored after ${waitedMs}ms`);
+            break;
+          }
+        }
+
+        if (status !== "connected") {
+          console.log(
+            `⏸️ Connection still not ready after ${maxWaitMs}ms, pausing queue processor...`
+          );
+          break; // Exit loop, will retry later
+        }
       }
 
       console.log(`📤 Processing queue item: ${item.id}`);
 
+      // Initialize message progress tracking
+      if (typeof item.messagesSent === "undefined") {
+        item.messagesSent = 0;
+      }
+
       try {
-        // Send all messages in sequence
-        for (let i = 0; i < item.messages.length; i++) {
+        // Send messages in sequence, starting from where we left off
+        for (let i = item.messagesSent; i < item.messages.length; i++) {
           const msg = item.messages[i];
 
           // Wait for specified delay
@@ -151,12 +413,64 @@ async function processMessageQueue() {
             await new Promise((resolve) => setTimeout(resolve, msg.delay));
           }
 
-          // Send message
+          // Verify connection before each send
+          const sendStatus = botModule.getConnectionStatus();
+          if (sendStatus !== "connected") {
+            console.log(
+              `🔌 Connection lost before message ${i + 1}, will retry...`
+            );
+            throw new Error("Connection lost during message sequence");
+          }
+
+          // Send message with retry
           console.log(
             `  → Sending message ${i + 1}/${item.messages.length}...`
           );
-          await botModule.sendMessage(item.to, msg.text);
-          console.log(`  ✅ Message ${i + 1} sent`);
+
+          let sendSuccess = false;
+          let sendAttempts = 0;
+          const maxSendAttempts = 3;
+
+          while (!sendSuccess && sendAttempts < maxSendAttempts) {
+            try {
+              sendAttempts++;
+              await botModule.sendMessage(item.to, msg.text);
+              sendSuccess = true;
+              item.messagesSent = i + 1; // Track progress
+              console.log(
+                `  ✅ Message ${i + 1} sent (attempt ${sendAttempts})`
+              );
+            } catch (sendError) {
+              console.error(
+                `  ⚠️ Send attempt ${sendAttempts}/${maxSendAttempts} failed:`,
+                sendError.message
+              );
+
+              // Check if it's a connection error
+              if (
+                sendError.message?.includes("Connection") ||
+                sendError.message?.includes("Stream") ||
+                sendError.message?.includes("closed")
+              ) {
+                // Wait for potential reconnection
+                console.log(`  ⏳ Waiting 5s for connection recovery...`);
+                await new Promise((resolve) => setTimeout(resolve, 5000));
+
+                // Check if reconnected
+                const retryStatus = botModule.getConnectionStatus();
+                if (retryStatus !== "connected") {
+                  throw new Error(
+                    "Connection not recovered after send failure"
+                  );
+                }
+              } else if (sendAttempts >= maxSendAttempts) {
+                throw sendError;
+              } else {
+                // Non-connection error, wait briefly and retry
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+              }
+            }
+          }
         }
 
         console.log(`✅ Queue item ${item.id} completed successfully`);
@@ -175,20 +489,28 @@ async function processMessageQueue() {
         // Check if connection is lost
         const currentStatus = botModule.getConnectionStatus();
         if (currentStatus !== "connected") {
-          console.log(`🔌 Connection lost, stopping queue processor`);
+          console.log(
+            `🔌 Connection lost, pausing queue processor. Will resume on reconnect.`
+          );
+          console.log(
+            `📋 Item ${item.id} has ${item.messagesSent || 0}/${
+              item.messages.length
+            } messages sent`
+          );
           break; // Stop processing, will retry when connection restored
         }
 
         // If connection is OK but message failed, retry later
         item.retryCount = (item.retryCount || 0) + 1;
-        if (item.retryCount >= 3) {
+        if (item.retryCount >= 5) {
+          // Increased from 3 to 5 retries
           console.log(
-            `❌ Max retries reached for ${item.id}, removing from queue`
+            `❌ Max retries (5) reached for ${item.id}, removing from queue`
           );
           global.messageQueue.shift();
         } else {
           console.log(
-            `⏳ Will retry ${item.id} later (attempt ${item.retryCount}/3)`
+            `⏳ Will retry ${item.id} later (attempt ${item.retryCount}/5)`
           );
           // Move to end of queue
           global.messageQueue.push(global.messageQueue.shift());
@@ -219,11 +541,19 @@ async function processMessageQueue() {
 function startQueueProcessor() {
   console.log("🚀 Message queue processor started");
 
+  // IMPORTANT: Reset the processing flag to handle reconnection scenarios
+  resetQueueProcessor();
+
   // Process immediately
   processMessageQueue();
 
+  // Clear any existing interval to prevent duplicates
+  if (queueProcessorInterval) {
+    clearInterval(queueProcessorInterval);
+  }
+
   // Then check every 30 seconds
-  setInterval(() => {
+  queueProcessorInterval = setInterval(() => {
     if (global.messageQueue && global.messageQueue.length > 0) {
       processMessageQueue();
     }
@@ -232,12 +562,16 @@ function startQueueProcessor() {
 
 /**
  * Get current date/time in KSA timezone
- * @returns {Date} Date object adjusted for KSA timezone
+ * KSA is always UTC+3 (no daylight saving time)
+ * @returns {Date} Date object with KSA time
  */
 function getKSADate() {
-  return new Date(
-    new Date().toLocaleString("en-US", { timeZone: KSA_TIMEZONE })
-  );
+  const now = new Date();
+  // Get UTC time
+  const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
+  // Add KSA offset (UTC+3 = 3 hours = 3 * 60 * 60 * 1000 ms)
+  const ksaTime = utcTime + 3 * 60 * 60 * 1000;
+  return new Date(ksaTime);
 }
 
 /**
@@ -258,8 +592,8 @@ function formatKSADate(timestamp, options = {}) {
  */
 async function loadReminders() {
   try {
-    // Always read fresh data from shared folder
-    reminders = dataSync.readDataSync("REMINDERS", []);
+    const data = await fs.readFile(REMINDERS_FILE, "utf8");
+    reminders = JSON.parse(data);
   } catch (error) {
     reminders = [];
   }
@@ -270,7 +604,7 @@ async function loadReminders() {
  */
 async function saveReminders() {
   try {
-    dataSync.writeDataSync("REMINDERS", reminders);
+    await fs.writeFile(REMINDERS_FILE, JSON.stringify(reminders, null, 2));
   } catch (error) {
     console.error("❌ Error saving reminders:", error);
   }
@@ -320,11 +654,14 @@ function isAdmin(phoneNumber) {
 
 /**
  * Parse reminder command
- * Format: تذكير +201155719115 يوم/تاريخ ساعة رسالة
+ * Format: تذكير +201155719115 [اسم] يوم/تاريخ ساعة رسالة
+ * The name is optional - if the third part looks like a date, no name is assumed
  * Examples:
- * - تذكير +201155719115 غدا 3:00م اتصل بالعميل
- * - تذكير +201155719115 2025-11-10 14:30 موعد مع العميل
- * - تذكير +201155719115 يوم 5:00م متابعة الطلب
+ * - تذكير +201155719115 غدا 3:00م اتصل بالعميل (without name)
+ * - تذكير +201155719115 أحمد غدا 3:00م اتصل بالعميل (with name)
+ * - تذكير +201155719115 2025-11-10 14:30 موعد مع العميل (without name)
+ * - تذكير +201155719115 محمد علي 2025-11-10 14:30 موعد (with name, 2 words)
+ * - تذكير +201155719115 يوم 5:00م متابعة الطلب (without name)
  */
 function parseReminderCommand(message) {
   const parts = message.trim().split(/\s+/);
@@ -333,15 +670,57 @@ function parseReminderCommand(message) {
     return {
       success: false,
       error:
-        "❌ صيغة الأمر غير صحيحة\n\n✅ الصيغة الصحيحة:\nتذكير +966xxxxxxxxx يوم/تاريخ ساعة رسالة\n\nمثال:\nتذكير +201155719115 غدا 3:00م اتصل بالعميل",
+        "❌ صيغة الأمر غير صحيحة\n\n✅ الصيغة الصحيحة:\nتذكير +966xxxxxxxxx [اسم] يوم/تاريخ ساعة رسالة\n\nأمثلة:\n• تذكير +201155719115 غدا 3:00م اتصل بالعميل\n• تذكير +201155719115 أحمد غدا 3:00م اتصل بالعميل",
     };
   }
 
   const command = parts[0]; // تذكير
   const targetNumber = parts[1]; // +201155719115
-  const dateInput = parts[2]; // يوم/غدا/تاريخ
-  const timeInput = parts[3]; // 3:00م
-  const messageText = parts.slice(4).join(" "); // باقي الرسالة
+
+  // Check if parts[2] looks like a date or is a name
+  // Date patterns: اليوم, يوم, غدا, غداً, بعدغد, بعد_غد, YYYY-MM-DD, DD/MM/YYYY
+  const datePatterns = ["اليوم", "يوم", "غدا", "غداً", "بعدغد", "بعد_غد"];
+  const looksLikeDate = (str) => {
+    if (datePatterns.includes(str)) return true;
+    if (str.includes("-") && /^\d{4}-\d{1,2}-\d{1,2}$/.test(str)) return true;
+    if (str.includes("/") && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) return true;
+    return false;
+  };
+
+  let name = null;
+  let dateIndex = 2; // Default: no name, date starts at index 2
+
+  // Check if parts[2] is a name (not a date)
+  if (!looksLikeDate(parts[2])) {
+    // parts[2] is a name, now find where the date starts
+    // The name can be multiple words until we find a date pattern
+    let nameWords = [];
+    for (let i = 2; i < parts.length - 2; i++) {
+      if (looksLikeDate(parts[i])) {
+        dateIndex = i;
+        break;
+      }
+      nameWords.push(parts[i]);
+    }
+
+    if (nameWords.length > 0) {
+      name = nameWords.join(" ");
+    }
+  }
+
+  // Now extract date, time, and message based on dateIndex
+  const dateInput = parts[dateIndex]; // يوم/غدا/تاريخ
+  const timeInput = parts[dateIndex + 1]; // 3:00م
+  const messageText = parts.slice(dateIndex + 2).join(" "); // باقي الرسالة
+
+  // Validate we have enough parts
+  if (!dateInput || !timeInput || !messageText) {
+    return {
+      success: false,
+      error:
+        "❌ صيغة الأمر غير صحيحة\n\n✅ الصيغة الصحيحة:\nتذكير +966xxxxxxxxx [اسم] يوم/تاريخ ساعة رسالة\n\nأمثلة:\n• تذكير +201155719115 غدا 3:00م اتصل بالعميل\n• تذكير +201155719115 أحمد غدا 3:00م اتصل بالعميل",
+    };
+  }
 
   // Validate phone number
   if (!targetNumber.startsWith("+") || targetNumber.length < 10) {
@@ -392,14 +771,14 @@ function parseReminderCommand(message) {
   // Adjust the time to compensate for timezone difference
   reminderDateTime.setMinutes(reminderDateTime.getMinutes() - offsetDiff);
 
-  // Check if date is in the past (compare with KSA time)
-  const nowKSA = getKSADate();
-  if (reminderDateTime < nowKSA) {
+  // Check if date is in the past (compare actual timestamps)
+  // reminderDateTime is already adjusted to be a real timestamp
+  if (reminderDateTime.getTime() < Date.now()) {
     return {
       success: false,
       error:
         "❌ لا يمكن جدولة تذكير في الماضي\nالرجاء اختيار تاريخ ووقت مستقبلي\n⏰ الوقت الحالي (KSA): " +
-        formatKSADate(nowKSA.getTime(), {
+        formatKSADate(Date.now(), {
           hour: "2-digit",
           minute: "2-digit",
         }),
@@ -410,6 +789,7 @@ function parseReminderCommand(message) {
     success: true,
     data: {
       targetNumber: targetNumber.replace("+", ""),
+      name: name, // Can be null if not provided
       scheduledDateTime: reminderDateTime.getTime(),
       message: messageText,
       createdAt: Date.now(),
@@ -534,6 +914,7 @@ async function createReminder(adminNumber, reminderData) {
     id: Date.now().toString(),
     createdBy: adminNumber.replace("@s.whatsapp.net", ""),
     targetNumber: reminderData.targetNumber,
+    name: reminderData.name || null, // Optional name field
     scheduledDateTime: reminderData.scheduledDateTime,
     message: reminderData.message,
     status: "pending", // pending, sent, failed
@@ -543,6 +924,18 @@ async function createReminder(adminNumber, reminderData) {
 
   reminders.push(reminder);
   await saveReminders();
+
+  // Schedule the reminder with the cron scheduler
+  try {
+    const { scheduleReminder } = require("./reminderScheduler");
+    scheduleReminder(reminder);
+    console.log(`📅 Scheduled reminder ${reminder.id} for cron execution`);
+  } catch (error) {
+    console.error(
+      `⚠️ Could not schedule reminder ${reminder.id}:`,
+      error.message
+    );
+  }
 
   return reminder;
 }
@@ -585,6 +978,17 @@ function getAdminReminders(adminNumber, limit = 10) {
 async function deleteReminder(reminderId) {
   const index = reminders.findIndex((r) => r.id === reminderId);
   if (index !== -1) {
+    // Cancel the scheduled cron job
+    try {
+      const { cancelScheduledReminder } = require("./reminderScheduler");
+      cancelScheduledReminder(reminderId);
+    } catch (error) {
+      console.error(
+        `⚠️ Could not cancel scheduled job for reminder ${reminderId}:`,
+        error.message
+      );
+    }
+
     reminders.splice(index, 1);
     await saveReminders();
     return true;
@@ -612,6 +1016,7 @@ function getAdminHelpMessage() {
 المساحة المطلوبة: 450
 الأحياء المفضلة: عين موسى
 رقم التواصل: 0501234567
+التصنيف الفرعي: صك (اختياري)
 مواصفات إضافية: مجلس رجال منفصل
 
 *مثال مع الاسم:*
@@ -647,11 +1052,12 @@ function getAdminHelpMessage() {
 
 *4️⃣ إنشاء تذكير*
 📝 *الأمر:* تذكير
-📋 *الصيغة:* تذكير +رقم تاريخ وقت رسالة
+📋 *الصيغة:* تذكير +رقم [اسم] تاريخ وقت رسالة
 
 *أمثلة:*
 • تذكير +201155719115 اليوم 3:00م اتصل بالعميل
-• تذكير +966508007053 غدا 14:30 موعد مهم
+• تذكير +201155719115 أحمد اليوم 3:00م اتصل بالعميل
+• تذكير +966508007053 محمد علي غدا 14:30 موعد مهم
 • تذكير +201155719115 2025-11-10 9:00ص متابعة الطلب
 
 *صيغ التاريخ:*
@@ -705,32 +1111,57 @@ function getAdminHelpMessage() {
 
 *8️⃣ إدارة الوسطاء*
 📝 *الأوامر:*
-• إضافة_وسيط +966xxxxxx اسم - تعيين وسيط
-• حذف_وسيط +966xxxxxx - إزالة وسيط
+• *وسيط* رقم اسم - تعيين وسيط واحد
+• *وسيط* ثم قائمة (اسم,رقم) - تعيين وسطاء متعددين
+• حذف_وسيط رقم - إزالة وسيط
 • قائمة_الوسطاء - عرض جميع الوسطاء
-• تفاصيل_وسيط +966xxxxxx - معلومات وسيط
+• تفاصيل_وسيط رقم - معلومات وسيط
+
+*أمثلة:*
+وسيط 0508007053 أحمد
+
+وسيط
+أحمد,0508007053
+محمد,0501234567
 
 ━━━━━━━━━━━━━━━━━━━━
 
 *9️⃣ إدارة المسؤولين (Admins)*
 📝 *الأوامر:*
-• إضافة_أدمن +966xxxxxx الاسم - إضافة مسؤول جديد
+• *أدمن* رقم - إضافة مسؤول واحد
+• *أدمن* ثم قائمة أرقام - إضافة مسؤولين متعددين
+• حذف_أدمن رقم - حذف مسؤول
 • قائمة_الأدمنز - عرض جميع المسؤولين
-• حذف_أدمن +966xxxxxx - حذف مسؤول
+
+*أمثلة:*
+أدمن 0508007053
+
+أدمن
+0508007053
+0501234567
 
 ━━━━━━━━━━━━━━━━━━━━
 
-*🔟 التحكم في البوت*
-📝 *الأوامر:* (تدعم رقم واحد أو أكثر)
-• توقف +966xxxxxx - إيقاف البوت عن الرد
-• تشغيل +966xxxxxx - تشغيل البوت
-• وسيط +966xxxxxx - تعيين كوسيط
+*🔟 إدارة المهتمين*
+📝 *الأوامر:*
+• *مهتم* [الاهتمام] ثم قائمة (اسم,رقم) - إنشاء مجموعة
+• *مهتم* IG001 ثم قائمة (اسم,رقم) - إضافة لمجموعة موجودة
+• مجموعات_المهتمين - عرض جميع المجموعات
+• تفاصيل_مجموعة IG001 - عرض تفاصيل مجموعة
+• حذف_مجموعة IG001 - حذف مجموعة
 
-*أمثلة للأرقام المتعددة:*
-توقف
-0508001475
-,0508001476
-,0508001477
+*مثال إنشاء:*
+مهتم فيلا بحي النزهة
+أحمد,0508007053
+محمد,0501234567
+
+━━━━━━━━━━━━━━━━━━━━
+
+*1️⃣1️⃣ التحكم في البوت*
+📝 *الأوامر:* (تدعم رقم واحد أو أكثر)
+• توقف رقم - إيقاف البوت عن الرد
+• تشغيل رقم - تشغيل البوت
+• وسيط رقم - تعيين كوسيط
 
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -743,7 +1174,7 @@ function getAdminHelpMessage() {
 ⏰ *المنطقة الزمنية:* KSA (UTC+3)
 📅 جميع التواريخ والأوقات تستخدم توقيت السعودية
 
-💡 *ملاحظة:* جميع هذه الأوامر متاحة للمسؤولين فقط
+💡 *ملاحظة:* لا حاجة لعلامة + قبل الأرقام
   `.trim();
 }
 
@@ -751,23 +1182,272 @@ function getAdminHelpMessage() {
  * Handle admin command
  */
 async function handleAdminCommand(sock, message, phoneNumber) {
+  // ============================================
+  // 📥 DEBUG LOGGING - Track all admin commands
+  // ============================================
+  const timestamp = new Date().toISOString();
+  console.log(`\n${"=".repeat(60)}`);
+  console.log(`📥 ADMIN COMMAND HANDLER CALLED`);
+  console.log(`⏰ Time: ${timestamp}`);
+  console.log(`📱 From: ${phoneNumber}`);
+  console.log(
+    `💬 Message: ${message?.substring(0, 100)}${
+      message?.length > 100 ? "..." : ""
+    }`
+  );
+  console.log(`🔌 Socket available: ${!!sock}`);
+  console.log(`${"=".repeat(60)}`);
+
   if (!isAdmin(phoneNumber)) {
+    console.log(`❌ Not an admin, ignoring command`);
     return null; // Not an admin, ignore
   }
 
+  console.log(`✅ Admin verified: ${phoneNumber}`);
+
   // Check if message is null or empty (media without text)
   if (!message || typeof message !== "string") {
+    console.log(`⏭️ Ignoring - no text message (type: ${typeof message})`);
     return null; // No text message, ignore
   }
 
   const text = message.trim();
   if (!text) {
+    console.log(`⏭️ Ignoring - empty message after trim`);
     return null; // Empty message, ignore
   }
 
   const command = text.split(/\s+/)[0];
+  console.log(`🔍 Processing command: "${command}"`);
 
   try {
+    // ============================================
+    // ADMIN COMMAND PRIORITY CHECK
+    // ============================================
+    // List of known admin command keywords that should take priority over WordPress URL detection
+    const adminCommandKeywords = [
+      "تذكير",
+      "التذكيرات",
+      "قائمة_التذكيرات",
+      "حذف_تذكير",
+      "مساعدة",
+      "help",
+      "أوامر",
+      "اوامر",
+      "Help",
+      "احصائيات",
+      "إحصائيات",
+      "احصاءات",
+      "طلب",
+      "نعم",
+      "لا",
+      "عدد_الإعلانات",
+      "آخر_الإعلانات",
+      "حذف_إعلان",
+      "عدد_العملاء",
+      "العملاء",
+      "تفاصيل_عميل",
+      "حذف_عميل",
+      "وسيط",
+      "وسطاء",
+      "حذف_وسيط",
+      "قائمة_الوسطاء",
+      "تفاصيل_وسيط",
+      "أدمن",
+      "ادمن",
+      "حذف_أدمن",
+      "حذف_ادمن",
+      "قائمة_الأدمنز",
+      "قائمة_الادمنز",
+      "مهتم",
+      "مجموعات_المهتمين",
+      "تفاصيل_مجموعة",
+      "حذف_مجموعة",
+      "توقف",
+      "ايقاف",
+      "تشغيل",
+      "تفعيل",
+    ];
+
+    // Check if the message starts with an admin command keyword
+    // This prevents WordPress URL detection from overriding admin commands
+    const isAdminCommand = adminCommandKeywords.some(
+      (keyword) =>
+        command === keyword ||
+        text.startsWith(keyword + "\n") ||
+        text.startsWith(keyword + " ")
+    );
+
+    // ============================================
+    // WORDPRESS POST MANAGEMENT - URL DETECTION
+    // ============================================
+
+    // Check for WordPress post action confirmations first
+    if (pendingWordPressActions[phoneNumber]) {
+      const pending = pendingWordPressActions[phoneNumber];
+
+      // Handle delete confirmation ("حذف" or "1")
+      if (
+        (command === "حذف" || command === "1") &&
+        pending.action === "awaiting_action"
+      ) {
+        try {
+          console.log(
+            `🗑️ Admin confirmed delete for post ${pending.post.id} on ${pending.website}`
+          );
+          await wordpressPostService.deletePost(
+            pending.website,
+            pending.post.id
+          );
+          delete pendingWordPressActions[phoneNumber];
+          return `✅ *تم حذف المقال بنجاح*
+
+🗑️ *العنوان:* ${wordpressPostService.stripHtml(pending.post.title?.rendered)}
+🌐 *الموقع:* ${pending.website === "masaak" ? "مسعاك" : "حساك"}`;
+        } catch (deleteError) {
+          console.error("❌ Error deleting post:", deleteError);
+          delete pendingWordPressActions[phoneNumber];
+          return `❌ *فشل حذف المقال*\n\n${deleteError.message}`;
+        }
+      }
+
+      // Handle edit request ("تعديل" or "2")
+      if (
+        (command === "تعديل" || command === "2") &&
+        pending.action === "awaiting_action"
+      ) {
+        pending.action = "awaiting_edit";
+
+        // Send edit messages with website context
+        const editMessages = wordpressPostService.formatPostForEditing(
+          pending.post,
+          pending.website
+        );
+
+        // Queue messages for sending
+        const botModule = require("../whatsapp/bot");
+        for (let i = 0; i < editMessages.length; i++) {
+          setTimeout(async () => {
+            try {
+              await botModule.sendMessage(phoneNumber, editMessages[i]);
+            } catch (err) {
+              console.error("Error sending edit message:", err);
+            }
+          }, i * 1500);
+        }
+
+        return null; // Messages will be sent via setTimeout
+      }
+
+      // Handle edit submission (user sends edited content)
+      if (pending.action === "awaiting_edit") {
+        const editData = wordpressPostService.parseEditMessage(text);
+
+        if (editData) {
+          try {
+            console.log(
+              `📝 Admin editing ${editData.field} (${editData.type}) for post ${pending.post.id}`
+            );
+
+            const updatePayload = {};
+
+            // Handle post fields (title, content)
+            if (editData.type === "post" && editData.postField) {
+              updatePayload[editData.postField] = editData.value;
+            }
+            // Handle meta fields
+            else if (editData.type === "meta" && editData.metaKey) {
+              updatePayload.meta = {
+                [editData.metaKey]: editData.value,
+              };
+            }
+
+            const updatedPost = await wordpressPostService.updatePost(
+              pending.website,
+              pending.post.id,
+              updatePayload
+            );
+
+            // Update pending post with new data
+            pending.post = updatedPost;
+
+            // Get field label for response
+            const fieldLabel = editData.field;
+
+            return `✅ *تم تحديث "${fieldLabel}" بنجاح*
+
+🔗 *رابط المعاينة:* ${updatedPost.link}
+
+━━━━━━━━━━━━━━━━━━━━
+
+📝 لتعديل حقل آخر، أرسل الحقل المعدل
+✅ للإنهاء ارسل *"تم"*`;
+          } catch (updateError) {
+            console.error("❌ Error updating post:", updateError);
+            return `❌ *فشل تحديث المقال*\n\n${updateError.message}`;
+          }
+        }
+
+        // Check for "done" command to finish editing
+        if (command === "تم" || command === "انتهيت" || command === "done") {
+          const postLink = pending.post.link;
+          delete pendingWordPressActions[phoneNumber];
+          return `✅ *تم الانتهاء من التعديل*
+
+🔗 *رابط المقال:* ${postLink}
+
+💡 يمكنك فتح الرابط للتحقق من التعديلات`;
+        }
+      }
+
+      // Handle cancel ("إلغاء" or "3")
+      if (command === "إلغاء" || command === "الغاء" || command === "3") {
+        delete pendingWordPressActions[phoneNumber];
+        return "✅ تم إلغاء العملية";
+      }
+    }
+
+    // Detect WordPress URL in message (ONLY if not an admin command)
+    // This ensures admin commands take priority over WordPress link processing
+    const wpUrlInfo = !isAdminCommand
+      ? wordpressPostService.detectWordPressUrl(text)
+      : null;
+    if (wpUrlInfo) {
+      console.log(
+        `🔗 WordPress URL detected: ${wpUrlInfo.website}/${wpUrlInfo.slug}`
+      );
+
+      try {
+        const post = await wordpressPostService.getPostBySlug(
+          wpUrlInfo.website,
+          wpUrlInfo.slug
+        );
+
+        if (!post) {
+          return `❌ *لم يتم العثور على المقال*
+
+🔗 الرابط: ${text}
+🌐 الموقع: ${wpUrlInfo.website === "masaak" ? "مسعاك" : "حساك"}
+
+💡 تأكد من صحة الرابط أو أن المقال موجود`;
+        }
+
+        // Store pending action
+        pendingWordPressActions[phoneNumber] = {
+          website: wpUrlInfo.website,
+          post: post,
+          action: "awaiting_action",
+          createdAt: Date.now(),
+        };
+
+        // Return post summary with options
+        return wordpressPostService.formatPostSummary(post, wpUrlInfo.website);
+      } catch (fetchError) {
+        console.error("❌ Error fetching WordPress post:", fetchError);
+        return `❌ *فشل جلب المقال*\n\n${fetchError.message}`;
+      }
+    }
+
     // Client request registration command (طلب)
     if (command === "طلب" || text.startsWith("طلب\n")) {
       try {
@@ -780,7 +1460,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         const requirements = privateChatService.parseRequirements(text);
 
         if (!requirements) {
-          return "❌ *خطأ في تحليل الطلب*\n\nالرجاء التأكد من صيغة الرسالة:\n\nطلب\nنوع العقار المطلوب: بيت\nالغرض: شراء\nحدود السعر: من 500 ألف إلى مليون\nالمساحة المطلوبة: 450\nالأحياء المفضلة: عين موسى\nرقم التواصل: 0501234567\nمواصفات إضافية: ...";
+          return "❌ *خطأ في تحليل الطلب*\n\nالرجاء التأكد من صيغة الرسالة:\n\nطلب\nنوع العقار المطلوب: بيت\nالغرض: شراء\nحدود السعر: من 500 ألف إلى مليون\nالمساحة المطلوبة: 450\nالأحياء المفضلة: عين موسى\nرقم التواصل: 0501234567\nالتصنيف الفرعي: صك\nمواصفات إضافية: ...";
         }
 
         // Extract client phone number from requirements
@@ -794,7 +1474,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           ? clientPhone
           : `966${clientPhone.replace(/^0+/, "")}`;
 
-        // Save client FIRST before searching (so data is saved even if search fails)
+        // Save client using the new multi-request system
         const privateClient = require("../models/privateClient");
         const client = privateClient.getClient(normalizedPhone);
 
@@ -802,14 +1482,23 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         const clientName =
           requirements.clientName || client.name || "عميل جديد";
 
+        // Add the full text to requirements for reference
+        const fullRequirements = {
+          ...requirements,
+          additionalSpecs: text,
+        };
+
+        // Use new multi-request function to add or update based on property type
+        const requestResult = privateClient.addOrUpdateClientRequest(
+          normalizedPhone,
+          fullRequirements
+        );
+
+        // Also update client basic info
         privateClient.updateClient(normalizedPhone, {
           name: clientName,
           role: "باحث",
           state: "completed",
-          requirements: {
-            ...requirements,
-            additionalSpecs: text,
-          },
           propertyOffer: null,
           requestStatus: "active",
           matchHistory: client.matchHistory || [],
@@ -819,9 +1508,25 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           adminPhone: phoneNumber,
         });
 
-        console.log(
-          `✅ Client ${normalizedPhone} saved to private_clients.json`
-        );
+        // Log what happened
+        if (requestResult.isUpdate) {
+          console.log(
+            `🔄 Updated existing request for ${normalizedPhone} (${requirements.propertyType})`
+          );
+        } else if (requestResult.totalRequests > 1) {
+          console.log(
+            `➕ Added new request for ${normalizedPhone}. Total requests: ${requestResult.totalRequests}`
+          );
+        } else {
+          console.log(`✅ Client ${normalizedPhone} saved with first request`);
+        }
+
+        // Store multi-request info for admin message
+        const multiRequestInfo = {
+          isUpdate: requestResult.isUpdate,
+          totalRequests: requestResult.totalRequests,
+          message: requestResult.message,
+        };
 
         // Perform deep search immediately
         console.log("🔍 Starting deep search...");
@@ -840,61 +1545,126 @@ async function handleAdminCommand(sock, message, phoneNumber) {
               )
             ),
           ]);
+
+          // Sort results by date (latest first)
+          results.sort((a, b) => {
+            const dateA = a.meta?.post_date
+              ? new Date(a.meta.post_date)
+              : new Date(0);
+            const dateB = b.meta?.post_date
+              ? new Date(b.meta.post_date)
+              : new Date(0);
+            return dateB - dateA;
+          });
+
           console.log(
-            `📊 Deep search completed: Found ${results.length} properties`
+            `📊 Deep search completed: Found ${results.length} properties (sorted by date)`
           );
         } catch (searchError) {
           console.error("❌ Deep search failed:", searchError.message);
-          return `✅ *تم حفظ الطلب بنجاح*\n\n❌ فشل البحث: ${searchError.message}\n\n📱 رقم العميل: +${normalizedPhone}\n🔔 سيتم إرسال التنبيهات التلقائية عند توفر عقارات جديدة`;
+          // Include multi-request info in error response
+          let errorMsg = "";
+          if (multiRequestInfo.isUpdate) {
+            errorMsg += `🔄 *تم تحديث الطلب الحالي* (نوع العقار: ${requirements.propertyType})\n\n`;
+          } else if (multiRequestInfo.totalRequests > 1) {
+            errorMsg += `➕ *طلب جديد - العميل لديه الآن ${multiRequestInfo.totalRequests} طلبات*\n\n`;
+          }
+          errorMsg += `✅ *تم حفظ الطلب بنجاح*\n\n❌ فشل البحث: ${searchError.message}\n\n📱 رقم العميل: +${normalizedPhone}\n🔔 سيتم إرسال التنبيهات التلقائية عند توفر عقارات جديدة`;
+          return errorMsg;
         }
 
         // Build response with results
         if (results.length === 0) {
-          return `✅ *تم حفظ الطلب بنجاح*\n\n⚠️ *لم يتم العثور على عقارات مطابقة حالياً*\n\n📋 *تفاصيل الطلب:*\n• نوع العقار: ${
+          // Include multi-request info in no results response
+          let noResultsMsg = "";
+          if (multiRequestInfo.isUpdate) {
+            noResultsMsg += `🔄 *تم تحديث الطلب الحالي* (نوع العقار: ${requirements.propertyType})\n\n`;
+          } else if (multiRequestInfo.totalRequests > 1) {
+            noResultsMsg += `➕ *طلب جديد - العميل لديه الآن ${multiRequestInfo.totalRequests} طلبات*\n\n`;
+          }
+          noResultsMsg += `✅ *تم حفظ الطلب بنجاح*\n\n⚠️ *لم يتم العثور على عقارات مطابقة حالياً*\n\n📋 *تفاصيل الطلب:*\n• نوع العقار: ${
             requirements.propertyType || "غير محدد"
-          }\n• الغرض: ${
-            requirements.purpose || "غير محدد"
-          }\n• السعر: ${requirements.priceMin?.toLocaleString()} - ${requirements.priceMax?.toLocaleString()} ريال\n• المساحة: ${
-            requirements.areaMin
-          } - ${requirements.areaMax} م²\n• الأحياء: ${
+          }\n• الغرض: ${requirements.purpose || "غير محدد"}\n• السعر: ${
+            requirements.priceMin !== null &&
+            requirements.priceMin !== undefined
+              ? requirements.priceMin.toLocaleString()
+              : "0"
+          } - ${
+            requirements.priceMax !== null &&
+            requirements.priceMax !== undefined
+              ? requirements.priceMax.toLocaleString()
+              : "غير محدد"
+          } ريال\n• المساحة: ${
+            requirements.areaMin !== null && requirements.areaMin !== undefined
+              ? requirements.areaMin
+              : "0"
+          } - ${
+            requirements.areaMax !== null && requirements.areaMax !== undefined
+              ? requirements.areaMax
+              : "غير محدد"
+          } م²\n• الأحياء: ${
             requirements.neighborhoods?.join("، ") || "غير محدد"
           }\n\n📱 رقم العميل: +${normalizedPhone}\n🔔 سيتم إرسال التنبيهات التلقائية للعميل`;
+          return noResultsMsg;
         }
 
         // Send results to admin for review
-        let adminMsg = `✅ *تم حفظ الطلب وإيجاد ${results.length} عقار مطابق*\n\n`;
+        let adminMsg = "";
+
+        // Show multi-request status at the top
+        if (multiRequestInfo.isUpdate) {
+          adminMsg += `🔄 *تم تحديث الطلب الحالي* (نوع العقار: ${requirements.propertyType})\n\n`;
+        } else if (multiRequestInfo.totalRequests > 1) {
+          adminMsg += `➕ *طلب جديد - العميل لديه الآن ${multiRequestInfo.totalRequests} طلبات*\n\n`;
+        }
+
+        adminMsg += `✅ *تم حفظ الطلب وإيجاد ${results.length} عقار مطابق*\n\n`;
         adminMsg += `👤 *اسم العميل:* ${clientName}\n`;
-        adminMsg += `📱 *رقم العميل:* +${normalizedPhone}\n\n`;
-        adminMsg += `📋 *تفاصيل الطلب:*\n`;
+        adminMsg += `📱 *رقم العميل:* +${normalizedPhone}\n`;
+
+        // Show total requests if more than one
+        if (multiRequestInfo.totalRequests > 1) {
+          adminMsg += `📋 *عدد الطلبات:* ${multiRequestInfo.totalRequests} طلب\n`;
+        }
+
+        adminMsg += `\n📋 *تفاصيل الطلب الحالي:*\n`;
         adminMsg += `• نوع العقار: ${
           requirements.propertyType || "غير محدد"
         }\n`;
         adminMsg += `• الغرض: ${requirements.purpose || "غير محدد"}\n`;
 
-        // Display price range if available
-        if (requirements.priceMin !== null && requirements.priceMax !== null) {
+        // Show price range if available
+        if (requirements.priceMin != null && requirements.priceMax != null) {
           adminMsg += `• السعر: ${requirements.priceMin.toLocaleString()} - ${requirements.priceMax.toLocaleString()} ريال\n`;
-        } else if (requirements.priceMax !== null) {
+        } else if (requirements.priceMax != null) {
           adminMsg += `• السعر: حتى ${requirements.priceMax.toLocaleString()} ريال\n`;
-        } else if (requirements.priceMin !== null) {
+        } else if (requirements.priceMin != null) {
           adminMsg += `• السعر: من ${requirements.priceMin.toLocaleString()} ريال\n`;
+        } else {
+          adminMsg += `• السعر: غير محدد\n`;
         }
 
-        // Display area range if available
-        if (requirements.areaMin !== null && requirements.areaMax !== null) {
+        // Show area range if available
+        if (requirements.areaMin != null && requirements.areaMax != null) {
           adminMsg += `• المساحة: ${requirements.areaMin} - ${requirements.areaMax} م²\n`;
-        } else if (requirements.areaMax !== null) {
+        } else if (requirements.areaMax != null) {
           adminMsg += `• المساحة: حتى ${requirements.areaMax} م²\n`;
-        } else if (requirements.areaMin !== null) {
+        } else if (requirements.areaMin != null) {
           adminMsg += `• المساحة: من ${requirements.areaMin} م²\n`;
+        } else {
+          adminMsg += `• المساحة: غير محدد\n`;
         }
 
         if (requirements.neighborhoods?.length > 0) {
           adminMsg += `• الأحياء: ${requirements.neighborhoods.join("، ")}\n`;
         }
 
+        if (requirements.subCategory) {
+          adminMsg += `• التصنيف الفرعي: ${requirements.subCategory}\n`;
+        }
+
         adminMsg += `\n━━━━━━━━━━━━━━━━\n`;
-        adminMsg += `📊 *النتائج (${results.length} عقار):*\n`;
+        adminMsg += `📊 *النتائج (${results.length} عقار - مرتبة حسب الأحدث):*\n`;
 
         // Store pending request FIRST (before trying to send anything)
         if (!global.pendingClientRequests) {
@@ -934,10 +1704,15 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           global.messageQueue = [];
         }
 
-        const queueId = `${phoneNumber}_${Date.now()}`;
+        // FIX: phoneNumber already contains the JID suffix (@s.whatsapp.net or @lid)
+        // Don't append @s.whatsapp.net again!
+        const adminJid = phoneNumber.includes("@")
+          ? phoneNumber
+          : `${phoneNumber}@s.whatsapp.net`;
+        const queueId = `${adminJid}_${Date.now()}`;
         global.messageQueue.push({
           id: queueId,
-          to: `${phoneNumber}@s.whatsapp.net`,
+          to: adminJid, // Use the already-formatted JID
           messages: [
             { text: adminMsg, delay: 0 },
             { text: propertiesMsg.trim(), delay: 2000 },
@@ -961,53 +1736,64 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       }
     }
 
-    // Handle send confirmation (نعم)
+    // Handle send confirmation (نعم) for client requests
+    // Skip if there are other pending confirmations that should handle this
     if (command === "نعم" || text.trim() === "نعم") {
-      try {
-        if (
-          !global.pendingClientRequests ||
-          !global.pendingClientRequests[phoneNumber]
-        ) {
-          return "❌ *لا يوجد طلب معلق*\n\nالرجاء إنشاء طلب جديد باستخدام الأمر: طلب";
+      // Check if other confirmations should handle this first
+      if (
+        pendingWaseetConfirmations[phoneNumber] ||
+        pendingAdminConfirmations[phoneNumber] ||
+        pendingInterestConfirmations[phoneNumber]
+      ) {
+        // Let other handlers process this - don't return here
+        // Continue to the specific handlers below
+      } else {
+        try {
+          if (
+            !global.pendingClientRequests ||
+            !global.pendingClientRequests[phoneNumber]
+          ) {
+            return "❌ *لا يوجد طلب معلق*\n\nالرجاء إنشاء طلب جديد باستخدام الأمر: طلب";
+          }
+
+          const request = global.pendingClientRequests[phoneNumber];
+          const { clientPhone, results } = request;
+
+          console.log(`✅ Admin confirmed sending to client: ${clientPhone}`);
+
+          // Import bot module to use its sendMessage (current socket)
+          const botModule = require("../whatsapp/bot");
+          const privateChatService = require("./privateChatService");
+
+          // Send to client - ALL IN ONE MESSAGE
+          const clientJid = `${clientPhone}@s.whatsapp.net`;
+          let clientMessage = `*السلام عليكم ورحمة الله وبركاته* 👋\n\nوجدنا لك ${results.length} عقار يطابق مواصفاتك:\n\n━━━━━━━━━━━━━━━━\n\n`;
+
+          // Consolidate all properties in one message
+          for (let i = 0; i < results.length; i++) {
+            const post = results[i];
+            const formattedMsg = privateChatService.formatPostAsMessage(
+              post,
+              i + 1
+            );
+            clientMessage += formattedMsg + "\n\n━━━━━━━━━━━━━━━━\n\n";
+          }
+
+          clientMessage += `✅ *تم حفظ طلبك*\n\n🔔 سنرسل لك تلقائياً أي عقارات جديدة تطابق مواصفاتك 🏠`;
+
+          // Send everything in one message
+          await botModule.sendMessage(clientJid, clientMessage);
+
+          // Clean up
+          delete global.pendingClientRequests[phoneNumber];
+
+          return `✅ *تم إرسال ${results.length} عقار للعميل بنجاح*\n\n📱 رقم العميل: +${clientPhone}\n🔔 التنبيهات التلقائية مفعّلة`;
+        } catch (sendError) {
+          console.error("❌ Error sending to client:", sendError);
+          return `❌ *فشل الإرسال للعميل*\n\n${sendError.message}`;
         }
-
-        const request = global.pendingClientRequests[phoneNumber];
-        const { clientPhone, results } = request;
-
-        console.log(`✅ Admin confirmed sending to client: ${clientPhone}`);
-
-        // Import bot module to use its sendMessage (current socket)
-        const botModule = require("../whatsapp/bot");
-        const privateChatService = require("./privateChatService");
-
-        // Send to client - ALL IN ONE MESSAGE
-        const clientJid = `${clientPhone}@s.whatsapp.net`;
-        let clientMessage = `*السلام عليكم ورحمة الله وبركاته* 👋\n\nوجدنا لك ${results.length} عقار يطابق مواصفاتك:\n\n━━━━━━━━━━━━━━━━\n\n`;
-
-        // Consolidate all properties in one message
-        for (let i = 0; i < results.length; i++) {
-          const post = results[i];
-          const formattedMsg = privateChatService.formatPostAsMessage(
-            post,
-            i + 1
-          );
-          clientMessage += formattedMsg + "\n\n━━━━━━━━━━━━━━━━\n\n";
-        }
-
-        clientMessage += `✅ *تم حفظ طلبك*\n\n🔔 سنرسل لك تلقائياً أي عقارات جديدة تطابق مواصفاتك 🏠`;
-
-        // Send everything in one message
-        await botModule.sendMessage(clientJid, clientMessage);
-
-        // Clean up
-        delete global.pendingClientRequests[phoneNumber];
-
-        return `✅ *تم إرسال ${results.length} عقار للعميل بنجاح*\n\n📱 رقم العميل: +${clientPhone}\n🔔 التنبيهات التلقائية مفعّلة`;
-      } catch (sendError) {
-        console.error("❌ Error sending to client:", sendError);
-        return `❌ *فشل الإرسال للعميل*\n\n${sendError.message}`;
-      }
-    }
+      } // Close the else block
+    } // Close the if (command === "نعم")
 
     // Handle cancel confirmation (لا)
     if (command === "لا" || text.trim() === "لا") {
@@ -1050,7 +1836,9 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
       return `✅ *تم إنشاء التذكير بنجاح*
 
-📱 *رقم المستلم:* +${reminder.targetNumber}
+📱 *رقم المستلم:* +${reminder.targetNumber}${
+        reminder.name ? `\n👤 *الاسم:* ${reminder.name}` : ""
+      }
 📅 *التاريخ:* ${formatKSADate(reminder.scheduledDateTime, {
         year: "numeric",
         month: "long",
@@ -1268,21 +2056,125 @@ async function handleAdminCommand(sock, message, phoneNumber) {
     // WASEET MANAGEMENT COMMANDS
     // ============================================
 
-    // Add waseet
+    // Handle waseet confirmation (تأكيد or نعم_وسيط)
+    if (
+      command === "تأكيد_وسيط" ||
+      (command === "نعم" && pendingWaseetConfirmations[phoneNumber])
+    ) {
+      if (!pendingWaseetConfirmations[phoneNumber]) {
+        return "❌ لا توجد قائمة وسطاء معلقة للتأكيد";
+      }
+
+      const pending = pendingWaseetConfirmations[phoneNumber];
+      const entries = pending.entries;
+      let addedCount = 0;
+
+      for (const entry of entries) {
+        waseetDetector.markAsWaseet(entry.phone, entry.name);
+        addedCount++;
+      }
+
+      delete pendingWaseetConfirmations[phoneNumber];
+
+      let response = `✅ *تم إضافة ${addedCount} وسيط بنجاح*\n\n`;
+      entries.forEach((e, i) => {
+        response += `${i + 1}. 👤 ${e.name || "غير محدد"} - 📱 +${e.phone}\n`;
+      });
+      response += `\n💡 سيتم فحص رسائلهم تلقائياً للإعلانات`;
+
+      return response;
+    }
+
+    // Handle waseet cancellation
+    if (
+      command === "إلغاء_وسيط" ||
+      (command === "لا" && pendingWaseetConfirmations[phoneNumber])
+    ) {
+      if (pendingWaseetConfirmations[phoneNumber]) {
+        delete pendingWaseetConfirmations[phoneNumber];
+        return "✅ تم إلغاء إضافة الوسطاء";
+      }
+    }
+
+    // Add waseet - NEW simplified "وسيط" command with multiple entry support
+    if (command === "وسيط") {
+      // Get remaining text after command
+      const remainingText = text.substring(command.length).trim();
+
+      // Check if it's a single-line format: وسيط +966508007053 أحمد
+      const singleLineMatch = remainingText.match(/^(\+?\d[\d\s\-\(\)]+)(.*)$/);
+
+      if (singleLineMatch) {
+        // Single entry mode
+        const phoneRaw = singleLineMatch[1].trim();
+        const name = singleLineMatch[2].trim() || null;
+        const normalizedPhone = normalizePhoneNumber(phoneRaw);
+
+        if (!normalizedPhone) {
+          return "❌ الرجاء تحديد رقم هاتف صحيح\nمثال: وسيط 0508007053 أحمد";
+        }
+
+        // Check if already exists
+        if (waseetDetector.isWaseet(normalizedPhone)) {
+          return `⚠️ +${normalizedPhone} مسجل بالفعل كوسيط`;
+        }
+
+        waseetDetector.markAsWaseet(normalizedPhone, name);
+        return `✅ *تم إضافة وسيط جديد*\n\n📱 *الرقم:* +${normalizedPhone}\n👤 *الاسم:* ${
+          name || "غير محدد"
+        }\n\n💡 سيتم فحص رسائله تلقائياً للإعلانات`;
+      }
+
+      // Multi-line format - parse all entries
+      const entries = parseFlexibleEntries(text, true);
+
+      if (entries.length === 0) {
+        return `❌ *لم يتم العثور على أرقام صحيحة*\n\n📝 *الصيغ المدعومة:*\n\n*رقم واحد:*\nوسيط 0508007053 أحمد\n\n*عدة أرقام:*\nوسيط\nأحمد,0508007053\nمحمد,0501234567\n\n*أو:*\nوسيط\n0508007053 أحمد\n0501234567 محمد`;
+      }
+
+      // Filter out already existing waseets
+      const newEntries = entries.filter(
+        (e) => !waseetDetector.isWaseet(e.phone)
+      );
+      const existingCount = entries.length - newEntries.length;
+
+      if (newEntries.length === 0) {
+        return `⚠️ جميع الأرقام (${entries.length}) مسجلة بالفعل كوسطاء`;
+      }
+
+      // Store for confirmation
+      pendingWaseetConfirmations[phoneNumber] = {
+        entries: newEntries,
+        createdAt: Date.now(),
+      };
+
+      let response = `📋 *تأكيد إضافة ${newEntries.length} وسيط*\n\n`;
+      newEntries.forEach((e, i) => {
+        response += `${i + 1}. 👤 ${e.name || "غير محدد"} - 📱 +${e.phone}\n`;
+      });
+
+      if (existingCount > 0) {
+        response += `\n⚠️ تم تجاهل ${existingCount} رقم مسجل مسبقاً\n`;
+      }
+
+      response += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+      response += `✅ أرسل *نعم* للتأكيد\n`;
+      response += `❌ أرسل *لا* للإلغاء`;
+
+      return response;
+    }
+
+    // Keep old command for backwards compatibility (will be removed later)
     if (
       command === "إضافة_وسيط" ||
       command === "اضافة_وسيط" ||
       command === "اضافه_وسيط"
     ) {
-      // Extract phone number and name from message
-      // The phone number might contain spaces like: +20 10909 52790
       const parts = text.split(/\s+/);
       let phoneNumber = parts[1];
 
-      // Collect all consecutive parts that look like phone digits until we hit the name
       let nameStartIndex = 2;
       for (let i = 2; i < parts.length; i++) {
-        // If part is only digits or starts with +, it's part of the phone number
         if (/^[\d+]+$/.test(parts[i])) {
           phoneNumber += parts[i];
           nameStartIndex = i + 1;
@@ -1293,33 +2185,34 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
       const name = parts.slice(nameStartIndex).join(" ");
 
-      if (!phoneNumber || !phoneNumber.startsWith("+")) {
-        return "❌ الرجاء تحديد رقم الهاتف بصيغة صحيحة\nمثال: إضافة_وسيط +966508007053 أحمد\n\nيمكن كتابة الرقم بمسافات: +20 10909 52790";
+      if (!phoneNumber) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: وسيط 0508007053 أحمد";
       }
 
-      // Remove all spaces from phone number
-      phoneNumber = phoneNumber.replace(/\s+/g, "");
-
-      waseetDetector.markAsWaseet(phoneNumber, name || null);
-      return `✅ *تم إضافة وسيط جديد*\n\n📱 *الرقم:* ${phoneNumber}\n👤 *الاسم:* ${
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
+      waseetDetector.markAsWaseet(normalizedPhone, name || null);
+      return `✅ *تم إضافة وسيط جديد*\n\n📱 *الرقم:* +${normalizedPhone}\n👤 *الاسم:* ${
         name || "غير محدد"
-      }\n\n💡 *الآن:*\n• سيتم فحص رسائله تلقائياً\n• الإعلانات فقط تظهر في لوحة التحكم\n• يظهر في قائمة العملاء برتبة "وسيط"\n\n🔍 توفير 90% من استهلاك التوكنات!`;
+      }\n\n💡 استخدم الأمر الجديد: *وسيط*`;
     }
 
     // Remove waseet
     if (command === "حذف_وسيط") {
-      const phoneNumber = text.split(/\s+/)[1];
-      if (!phoneNumber) {
-        return "❌ الرجاء تحديد رقم الهاتف\nمثال: حذف_وسيط +966508007053";
+      const phoneRaw = text.split(/\s+/)[1];
+      if (!phoneRaw) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: حذف_وسيط 0508007053";
       }
 
-      const waseetInfo = waseetDetector.getWaseetInfo(phoneNumber);
+      const normalizedPhone = normalizePhoneNumber(phoneRaw);
+      const waseetInfo = waseetDetector.getWaseetInfo(normalizedPhone);
       if (!waseetInfo) {
-        return `❌ ${phoneNumber} ليس مسجلاً كوسيط`;
+        return `❌ +${normalizedPhone} ليس مسجلاً كوسيط`;
       }
 
-      waseetDetector.unmarkAsWaseet(phoneNumber);
-      return `✅ تم إزالة ${waseetInfo.name || phoneNumber} من قائمة الوسطاء`;
+      waseetDetector.unmarkAsWaseet(normalizedPhone);
+      return `✅ تم إزالة ${
+        waseetInfo.name || "+" + normalizedPhone
+      } من قائمة الوسطاء`;
     }
 
     // List waseet
@@ -1327,7 +2220,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       const waseetList = waseetDetector.listAllWaseet();
 
       if (waseetList.length === 0) {
-        return "📭 لا يوجد وسطاء مسجلين\n\nلإضافة وسيط:\nإضافة_وسيط +966xxxxxxxxx الاسم";
+        return "📭 لا يوجد وسطاء مسجلين\n\nلإضافة وسيط:\nوسيط 0508007053 الاسم";
       }
 
       let response = `📋 *قائمة الوسطاء (${waseetList.length})*\n\n`;
@@ -1356,19 +2249,20 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
     // Waseet details
     if (command === "تفاصيل_وسيط") {
-      const phoneNumber = text.split(/\s+/)[1];
-      if (!phoneNumber) {
-        return "❌ الرجاء تحديد رقم الهاتف\nمثال: تفاصيل_وسيط +966508007053";
+      const phoneRaw = text.split(/\s+/)[1];
+      if (!phoneRaw) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: تفاصيل_وسيط 0508007053";
       }
 
-      const waseetInfo = waseetDetector.getWaseetInfo(phoneNumber);
+      const normalizedPhone = normalizePhoneNumber(phoneRaw);
+      const waseetInfo = waseetDetector.getWaseetInfo(normalizedPhone);
       if (!waseetInfo) {
-        return `❌ ${phoneNumber} ليس مسجلاً كوسيط`;
+        return `❌ +${normalizedPhone} ليس مسجلاً كوسيط`;
       }
 
       let response = `📋 *تفاصيل الوسيط*\n\n`;
       response += `👤 *الاسم:* ${waseetInfo.name || "غير محدد"}\n`;
-      response += `📱 *الهاتف:* ${phoneNumber}\n`;
+      response += `📱 *الهاتف:* +${normalizedPhone}\n`;
       response += `📊 *إعلانات مستلمة:* ${waseetInfo.totalAdsReceived || 0}\n`;
       response += `📅 *تاريخ الإضافة:* ${formatKSADate(waseetInfo.addedAt, {
         year: "numeric",
@@ -1395,21 +2289,137 @@ async function handleAdminCommand(sock, message, phoneNumber) {
     // ADMIN MANAGEMENT COMMANDS
     // ============================================
 
-    // Add admin
+    // Handle admin confirmation (تأكيد_أدمن or نعم when pending)
+    if (
+      command === "تأكيد_أدمن" ||
+      (command === "نعم" && pendingAdminConfirmations[phoneNumber])
+    ) {
+      if (!pendingAdminConfirmations[phoneNumber]) {
+        return "❌ لا توجد قائمة أدمنز معلقة للتأكيد";
+      }
+
+      const pending = pendingAdminConfirmations[phoneNumber];
+      const entries = pending.entries;
+      let addedCount = 0;
+      const addedPhones = [];
+
+      for (const entry of entries) {
+        if (!ADMIN_NUMBERS.includes(entry.phone)) {
+          ADMIN_NUMBERS.push(entry.phone);
+          addedPhones.push(entry.phone);
+          addedCount++;
+        }
+      }
+
+      delete pendingAdminConfirmations[phoneNumber];
+
+      if (addedCount > 0) {
+        await saveAdminsToFile();
+      }
+
+      let response = `✅ *تم إضافة ${addedCount} أدمن بنجاح*\n\n`;
+      addedPhones.forEach((phone, i) => {
+        response += `${i + 1}. 📱 +${phone}\n`;
+      });
+      response += `\n✨ عدد الأدمنز الحالي: ${ADMIN_NUMBERS.length}`;
+
+      return response;
+    }
+
+    // Handle admin cancellation
+    if (
+      command === "إلغاء_أدمن" ||
+      (command === "لا" && pendingAdminConfirmations[phoneNumber])
+    ) {
+      if (pendingAdminConfirmations[phoneNumber]) {
+        delete pendingAdminConfirmations[phoneNumber];
+        return "✅ تم إلغاء إضافة الأدمنز";
+      }
+    }
+
+    // Add admin - NEW simplified "أدمن" command with multiple number support
+    if (command === "أدمن" || command === "ادمن") {
+      // Get remaining text after command
+      const remainingText = text.substring(command.length).trim();
+
+      // Check if it's a single-line format: أدمن +966508007053
+      const singleLineMatch = remainingText.match(/^(\+?\d[\d\s\-\(\)]+)$/);
+
+      if (singleLineMatch) {
+        // Single entry mode
+        const phoneRaw = singleLineMatch[1].trim();
+        const normalizedPhone = normalizePhoneNumber(phoneRaw);
+
+        if (!normalizedPhone) {
+          return "❌ الرجاء تحديد رقم هاتف صحيح\nمثال: أدمن 0508007053";
+        }
+
+        // Check if already exists
+        if (ADMIN_NUMBERS.includes(normalizedPhone)) {
+          return `⚠️ +${normalizedPhone} مسجل بالفعل كأدمن`;
+        }
+
+        ADMIN_NUMBERS.push(normalizedPhone);
+        const saved = await saveAdminsToFile();
+
+        if (!saved) {
+          ADMIN_NUMBERS.pop();
+          return "❌ فشل حفظ الأدمن الجديد";
+        }
+
+        return `✅ *تم إضافة أدمن جديد*\n\n📱 *الرقم:* +${normalizedPhone}\n\n🔐 *الصلاحيات:*\n• الوصول لجميع أوامر البوت\n• إدارة العملاء والإعلانات\n\n✨ عدد الأدمنز الحالي: ${ADMIN_NUMBERS.length}`;
+      }
+
+      // Multi-line format - parse all entries (just numbers, no names needed)
+      const entries = parseFlexibleEntries(text, false);
+
+      if (entries.length === 0) {
+        return `❌ *لم يتم العثور على أرقام صحيحة*\n\n📝 *الصيغ المدعومة:*\n\n*رقم واحد:*\nأدمن 0508007053\n\n*عدة أرقام:*\nأدمن\n0508007053\n0501234567`;
+      }
+
+      // Filter out already existing admins
+      const newEntries = entries.filter(
+        (e) => !ADMIN_NUMBERS.includes(e.phone)
+      );
+      const existingCount = entries.length - newEntries.length;
+
+      if (newEntries.length === 0) {
+        return `⚠️ جميع الأرقام (${entries.length}) مسجلة بالفعل كأدمنز`;
+      }
+
+      // Store for confirmation
+      pendingAdminConfirmations[phoneNumber] = {
+        entries: newEntries,
+        createdAt: Date.now(),
+      };
+
+      let response = `📋 *تأكيد إضافة ${newEntries.length} أدمن*\n\n`;
+      newEntries.forEach((e, i) => {
+        response += `${i + 1}. 📱 +${e.phone}\n`;
+      });
+
+      if (existingCount > 0) {
+        response += `\n⚠️ تم تجاهل ${existingCount} رقم مسجل مسبقاً\n`;
+      }
+
+      response += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+      response += `✅ أرسل *نعم* للتأكيد\n`;
+      response += `❌ أرسل *لا* للإلغاء`;
+
+      return response;
+    }
+
+    // Keep old command for backwards compatibility
     if (
       command === "إضافة_أدمن" ||
       command === "اضافة_ادمن" ||
       command === "اضافه_ادمن"
     ) {
-      // Extract phone number and name from message
-      // The phone number might contain spaces like: +20 10909 52790
       const parts = text.split(/\s+/);
       let phoneNumber = parts[1];
 
-      // Collect all consecutive parts that look like phone digits until we hit the name
       let nameStartIndex = 2;
       for (let i = 2; i < parts.length; i++) {
-        // If part is only digits or starts with +, it's part of the phone number
         if (/^[\d+]+$/.test(parts[i])) {
           phoneNumber += parts[i];
           nameStartIndex = i + 1;
@@ -1420,76 +2430,55 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
       const name = parts.slice(nameStartIndex).join(" ");
 
-      if (!phoneNumber || !phoneNumber.startsWith("+")) {
-        return "❌ الرجاء تحديد رقم الهاتف بصيغة صحيحة\nمثال: إضافة_أدمن +966508007053 محمد\n\nيمكن كتابة الرقم بمسافات: +20 10909 52790";
+      if (!phoneNumber) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: أدمن 0508007053";
       }
 
-      // Clean phone number (remove spaces, +, and @s.whatsapp.net)
-      const cleanPhone = phoneNumber
-        .replace(/\s+/g, "") // Remove all spaces
-        .replace(/^\+/, "")
-        .replace(/@s\.whatsapp\.net$/, "");
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
 
-      console.log(`➕ Adding admin: ${phoneNumber} -> cleaned: ${cleanPhone}`);
-      console.log(`📋 Current admins before add:`, ADMIN_NUMBERS);
-
-      // Check if already admin
-      if (ADMIN_NUMBERS.includes(cleanPhone)) {
-        return `⚠️ *${phoneNumber} مسجل بالفعل كأدمن*`;
+      if (ADMIN_NUMBERS.includes(normalizedPhone)) {
+        return `⚠️ +${normalizedPhone} مسجل بالفعل كأدمن`;
       }
 
-      // Add to admin list
-      ADMIN_NUMBERS.push(cleanPhone);
-      console.log(`📋 Current admins after add:`, ADMIN_NUMBERS);
-
-      // Save to file using helper function
+      ADMIN_NUMBERS.push(normalizedPhone);
       const saved = await saveAdminsToFile();
 
       if (!saved) {
-        // Rollback if save failed
-        const index = ADMIN_NUMBERS.indexOf(cleanPhone);
-        if (index > -1) {
-          ADMIN_NUMBERS.splice(index, 1);
-        }
-        return "❌ فشل حفظ الأدمن الجديد، الرجاء المحاولة مرة أخرى";
+        ADMIN_NUMBERS.pop();
+        return "❌ فشل حفظ الأدمن الجديد";
       }
 
-      return `✅ *تم إضافة أدمن جديد*\n\n📱 *الرقم:* ${phoneNumber}\n👤 *الاسم:* ${
+      return `✅ *تم إضافة أدمن جديد*\n\n📱 *الرقم:* +${normalizedPhone}\n👤 *الاسم:* ${
         name || "غير محدد"
-      }\n\n🔐 *الصلاحيات:*\n• الوصول لجميع أوامر البوت\n• إدارة العملاء والإعلانات\n• إدارة الأدمنز الآخرين\n\n✨ عدد الأدمنز الحالي: ${
+      }\n\n💡 استخدم الأمر الجديد: *أدمن*\n\n✨ عدد الأدمنز الحالي: ${
         ADMIN_NUMBERS.length
       }`;
     }
 
     // Remove admin
     if (command === "حذف_أدمن" || command === "حذف_ادمن") {
-      const phoneNumber = text.split(/\s+/)[1];
-      if (!phoneNumber) {
-        return "❌ الرجاء تحديد رقم الهاتف\nمثال: حذف_أدمن +966508007053";
+      const phoneRaw = text.split(/\s+/)[1];
+      if (!phoneRaw) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: حذف_أدمن 0508007053";
       }
 
-      // Clean phone number
-      const cleanPhone = phoneNumber
-        .replace(/^\+/, "")
-        .replace(/@s\.whatsapp\.net$/, "");
+      // Normalize phone number
+      const normalizedPhone = normalizePhoneNumber(phoneRaw);
 
       console.log(
-        `➖ Removing admin: ${phoneNumber} -> cleaned: ${cleanPhone}`
+        `➖ Removing admin: ${phoneRaw} -> normalized: ${normalizedPhone}`
       );
       console.log(`📋 Current admins before remove:`, ADMIN_NUMBERS);
 
       // Check if admin exists
-      const adminIndex = ADMIN_NUMBERS.indexOf(cleanPhone);
+      const adminIndex = ADMIN_NUMBERS.indexOf(normalizedPhone);
       if (adminIndex === -1) {
-        return `❌ ${phoneNumber} ليس مسجلاً كأدمن`;
+        return `❌ +${normalizedPhone} ليس مسجلاً كأدمن`;
       }
 
-      // Prevent removing yourself (check against the sender's phone number)
-      const currentAdminClean = phoneNumber
-        .replace(/^\+/, "")
-        .replace(/@s\.whatsapp\.net$/, "");
-      if (cleanPhone === currentAdminClean) {
-        return "❌ لا يمكنك حذف نفسك من قائمة الأدمنز";
+      // Prevent removing the last admin
+      if (ADMIN_NUMBERS.length === 1) {
+        return "❌ لا يمكن حذف آخر أدمن في النظام";
       }
 
       // Remove from list
@@ -1501,11 +2490,11 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
       if (!saved) {
         // Rollback if save failed
-        ADMIN_NUMBERS.splice(adminIndex, 0, cleanPhone);
+        ADMIN_NUMBERS.splice(adminIndex, 0, normalizedPhone);
         return "❌ فشل حذف الأدمن، الرجاء المحاولة مرة أخرى";
       }
 
-      return `✅ تم حذف ${phoneNumber} من قائمة الأدمنز\n\n✨ عدد الأدمنز المتبقي: ${ADMIN_NUMBERS.length}`;
+      return `✅ تم حذف +${normalizedPhone} من قائمة الأدمنز\n\n✨ عدد الأدمنز المتبقي: ${ADMIN_NUMBERS.length}`;
     }
 
     // List admins
@@ -1521,9 +2510,8 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       });
 
       response += `\n💡 *الأوامر المتاحة:*\n`;
-      response += `• إضافة_أدمن +966xxx الاسم\n`;
-      response += `• حذف_أدمن +966xxx\n`;
-      response += `• قائمة_الأدمنز\n`;
+      response += `• أدمن رقم - إضافة أدمن\n`;
+      response += `• حذف_أدمن رقم - حذف أدمن\n`;
 
       return response;
     }
@@ -1533,20 +2521,20 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       let response = `🤖 *أوامر الأدمن المتاحة*\n\n`;
 
       response += `👥 *إدارة الأدمنز:*\n`;
-      response += `• إضافة_أدمن +966xxx الاسم\n`;
-      response += `• حذف_أدمن +966xxx\n`;
+      response += `• أدمن رقم - إضافة أدمن\n`;
+      response += `• حذف_أدمن رقم\n`;
       response += `• قائمة_الأدمنز\n\n`;
 
       response += `👤 *إدارة العملاء:*\n`;
       response += `• طلب (تسجيل طلب عميل)\n`;
-      response += `• تفاصيل_عميل +966xxx\n`;
-      response += `• حذف_عميل +966xxx\n\n`;
+      response += `• تفاصيل_عميل رقم\n`;
+      response += `• حذف_عميل رقم\n\n`;
 
       response += `🤝 *إدارة الوسطاء:*\n`;
-      response += `• إضافة_وسيط +966xxx الاسم\n`;
-      response += `• حذف_وسيط +966xxx\n`;
+      response += `• وسيط رقم اسم - إضافة وسيط\n`;
+      response += `• حذف_وسيط رقم\n`;
       response += `• قائمة_الوسطاء\n`;
-      response += `• تفاصيل_وسيط +966xxx\n\n`;
+      response += `• تفاصيل_وسيط رقم\n\n`;
 
       response += `📊 *معلومات النظام:*\n`;
       response += `• احصائيات (عرض إحصائيات النظام)\n\n`;
@@ -1559,6 +2547,194 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       response += `💡 *نصيحة:* يمكنك كتابة أي أمر للحصول على مزيد من التفاصيل`;
 
       return response;
+    }
+
+    // ============================================
+    // INTEREST GROUPS COMMANDS (مهتم)
+    // ============================================
+
+    // Handle interest confirmation
+    if (command === "نعم" && pendingInterestConfirmations[phoneNumber]) {
+      const pending = pendingInterestConfirmations[phoneNumber];
+      const entries = pending.entries;
+
+      let result;
+      if (pending.groupId) {
+        // Adding to existing group
+        result = await interestGroupService.addToGroup(
+          pending.groupId,
+          entries
+        );
+        delete pendingInterestConfirmations[phoneNumber];
+
+        if (!result) {
+          return `❌ المجموعة ${pending.groupId} غير موجودة`;
+        }
+
+        let response = `✅ *تم إضافة ${result.addedCount} عضو إلى ${pending.groupId}*\n\n`;
+        response += `📋 *الاهتمام:* ${result.group.interest}\n`;
+        response += `👥 *إجمالي الأعضاء:* ${result.group.members.length}\n`;
+        if (result.skippedCount > 0) {
+          response += `⚠️ تم تجاهل ${result.skippedCount} رقم موجود مسبقاً`;
+        }
+        return response;
+      } else {
+        // Creating new group
+        const group = await interestGroupService.createGroup(
+          pending.interest,
+          entries,
+          phoneNumber
+        );
+        delete pendingInterestConfirmations[phoneNumber];
+
+        let response = `✅ *تم إنشاء مجموعة مهتمين جديدة*\n\n`;
+        response += `🆔 *رقم المجموعة:* ${group.id}\n`;
+        response += `📋 *الاهتمام:* ${group.interest}\n`;
+        response += `👥 *عدد الأعضاء:* ${group.members.length}\n\n`;
+        response += `💡 لإضافة أعضاء لاحقاً:\nمهتم ${group.id}\nاسم,رقم`;
+        return response;
+      }
+    }
+
+    // Handle interest cancellation
+    if (command === "لا" && pendingInterestConfirmations[phoneNumber]) {
+      delete pendingInterestConfirmations[phoneNumber];
+      return "✅ تم إلغاء العملية";
+    }
+
+    // مهتم command - create new group or add to existing
+    if (command === "مهتم") {
+      const lines = text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l);
+
+      if (lines.length < 2) {
+        return `❌ *صيغة غير صحيحة*\n\n📝 *لإنشاء مجموعة جديدة:*\nمهتم [الاهتمام]\nاسم,رقم\nاسم,رقم\n\n📝 *لإضافة لمجموعة موجودة:*\nمهتم IG001\nاسم,رقم`;
+      }
+
+      const firstArg = lines[0].replace("مهتم", "").trim();
+
+      // Check if first arg is a group ID
+      if (interestGroupService.isGroupId(firstArg)) {
+        const groupId = firstArg.toUpperCase();
+        const group = interestGroupService.getGroup(groupId);
+
+        if (!group) {
+          return `❌ المجموعة ${groupId} غير موجودة\n\n💡 لعرض المجموعات: مجموعات_المهتمين`;
+        }
+
+        // Parse members from remaining lines
+        const entries = parseFlexibleEntries(lines.slice(1).join("\n"), true);
+
+        if (entries.length === 0) {
+          return `❌ لم يتم العثور على أرقام صحيحة\n\nالصيغة المطلوبة:\nمهتم ${groupId}\nاسم,رقم`;
+        }
+
+        // Store for confirmation
+        pendingInterestConfirmations[phoneNumber] = {
+          groupId,
+          entries,
+          createdAt: Date.now(),
+        };
+
+        let response = `📋 *تأكيد إضافة ${entries.length} عضو إلى ${groupId}*\n\n`;
+        response += `📌 *الاهتمام:* ${group.interest}\n\n`;
+        entries.forEach((e, i) => {
+          response += `${i + 1}. ${e.name || "غير محدد"} - +${e.phone}\n`;
+        });
+        response += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+        response += `✅ أرسل *نعم* للتأكيد\n❌ أرسل *لا* للإلغاء`;
+        return response;
+      } else {
+        // Creating new group - firstArg is the interest text
+        if (!firstArg) {
+          return `❌ الرجاء تحديد نص الاهتمام\n\nمثال:\nمهتم فيلا بحي النزهة\nأحمد,0508007053`;
+        }
+
+        // Parse members from remaining lines
+        const entries = parseFlexibleEntries(lines.slice(1).join("\n"), true);
+
+        if (entries.length === 0) {
+          return `❌ لم يتم العثور على أرقام صحيحة\n\nالصيغة المطلوبة:\nمهتم ${firstArg}\nاسم,رقم`;
+        }
+
+        // Store for confirmation
+        pendingInterestConfirmations[phoneNumber] = {
+          interest: firstArg,
+          entries,
+          createdAt: Date.now(),
+        };
+
+        let response = `📋 *تأكيد إنشاء مجموعة مهتمين*\n\n`;
+        response += `📌 *الاهتمام:* ${firstArg}\n`;
+        response += `👥 *الأعضاء (${entries.length}):*\n\n`;
+        entries.forEach((e, i) => {
+          response += `${i + 1}. ${e.name || "غير محدد"} - +${e.phone}\n`;
+        });
+        response += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+        response += `✅ أرسل *نعم* للتأكيد\n❌ أرسل *لا* للإلغاء`;
+        return response;
+      }
+    }
+
+    // List interest groups
+    if (command === "مجموعات_المهتمين" || command === "المهتمين") {
+      const groups = interestGroupService.getAllGroups();
+
+      if (groups.length === 0) {
+        return `📭 لا توجد مجموعات مهتمين\n\n💡 لإنشاء مجموعة:\nمهتم [الاهتمام]\nاسم,رقم`;
+      }
+
+      let response = `📋 *مجموعات المهتمين (${groups.length})*\n\n`;
+      groups.forEach((g) => {
+        response += `🆔 *${g.id}*\n`;
+        response += `📌 ${g.interest}\n`;
+        response += `👥 ${g.members.length} عضو\n`;
+        response += `📅 ${formatKSADate(g.createdAt, {
+          month: "short",
+          day: "numeric",
+        })}\n\n`;
+      });
+
+      response += `\n💡 لعرض تفاصيل:\nتفاصيل_مجموعة IG001`;
+      return response;
+    }
+
+    // Group details
+    if (command === "تفاصيل_مجموعة") {
+      const groupId = text.split(/\s+/)[1];
+      if (!groupId) {
+        return "❌ الرجاء تحديد رقم المجموعة\nمثال: تفاصيل_مجموعة IG001";
+      }
+
+      const group = interestGroupService.getGroup(groupId);
+      if (!group) {
+        return `❌ المجموعة ${groupId} غير موجودة`;
+      }
+
+      let response = `📋 *تفاصيل المجموعة ${group.id}*\n\n`;
+      response += `📌 *الاهتمام:* ${group.interest}\n`;
+      response += `📅 *تاريخ الإنشاء:* ${formatKSADate(group.createdAt)}\n\n`;
+      response += `👥 *الأعضاء (${group.members.length}):*\n`;
+      group.members.forEach((m, i) => {
+        response += `${i + 1}. ${m.name || "غير محدد"} - +${m.phone}\n`;
+      });
+      return response;
+    }
+
+    // Delete interest group
+    if (command === "حذف_مجموعة") {
+      const groupId = text.split(/\s+/)[1];
+      if (!groupId) {
+        return "❌ الرجاء تحديد رقم المجموعة\nمثال: حذف_مجموعة IG001";
+      }
+
+      const deleted = await interestGroupService.deleteGroup(groupId);
+      if (!deleted) {
+        return `❌ المجموعة ${groupId} غير موجودة`;
+      }
+      return `✅ تم حذف المجموعة ${groupId.toUpperCase()}`;
     }
 
     return null; // Unknown command
@@ -1660,7 +2836,35 @@ module.exports = {
   getAdminHelpMessage,
   processMessageQueue,
   startQueueProcessor,
+  resetQueueProcessor, // For connection recovery
   loadAdminsFromFile,
   saveAdminsToFile,
   ADMIN_NUMBERS, // Export for direct access if needed
+  // Reminder functions for API
+  loadReminders,
+  saveReminders,
+  createReminder,
+  deleteReminder,
+  getAdminReminders,
+  getAllReminders: () => reminders, // Export getter for all reminders
+  updateReminder: async (id, updates) => {
+    const index = reminders.findIndex((r) => r.id === id);
+    if (index === -1) return null;
+    reminders[index] = { ...reminders[index], ...updates };
+    await saveReminders();
+
+    // Reschedule if the reminder is still pending
+    if (reminders[index].status === "pending") {
+      try {
+        const { scheduleReminder } = require("./reminderScheduler");
+        scheduleReminder(reminders[index]);
+        console.log(`📅 Rescheduled reminder ${id} after update`);
+      } catch (error) {
+        console.error(`⚠️ Could not reschedule reminder ${id}:`, error.message);
+      }
+    }
+
+    return reminders[index];
+  },
+  getReminderById: (id) => reminders.find((r) => r.id === id),
 };

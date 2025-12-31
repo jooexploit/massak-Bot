@@ -63,6 +63,25 @@ const CITY_NEIGHBORHOODS = {
 const CITIES = Object.keys(CITY_NEIGHBORHOODS);
 
 /**
+ * Common prefixes that often start compound neighborhood/area names
+ * These should prevent splitting on spaces following them.
+ */
+const COMPOUND_PREFIXES = [
+  "حي",
+  "شارع",
+  "طريق",
+  "مجمع",
+  "خلف",
+  "مقابل",
+  "بجوار",
+  "دوار",
+  "ميدان",
+  "مركز",
+  "نهاية",
+  "مخطط",
+];
+
+/**
  * Common area name variations and corrections
  * Maps incorrect spellings to the correct official name
  */
@@ -261,6 +280,62 @@ function normalizeAreaName(areaName) {
 }
 
 /**
+ * Advanced extraction of neighborhoods from a raw string.
+ * Handles compound names and smarter splitting.
+ * @param {string} text - The input text containing neighborhood names.
+ * @returns {Array<string>} List of extracted and normalized neighborhoods.
+ */
+function extractNeighborhoods(text) {
+  if (!text) return [];
+
+  // 1. Initial cleanup
+  let cleanText = text
+    .replace(/\*+/g, " ")
+    .replace(/[()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // 2. Split by major separators: comma, slash, "أو", "-"
+  // We handle "و" separately because it can be part of a name (e.g., "أبو")
+  // or a connector for compound names ("شارع الحيات").
+  let parts = cleanText.split(/[،,\/\-]|(?:\s+أو\s+)/);
+
+  let finalNeighborhoods = [];
+
+  for (let part of parts) {
+    part = part.trim();
+    if (!part) continue;
+
+    // 3. Smart handle "و" connector
+    // "البطالية وشارع الحيات" -> ["البطالية", "شارع الحيات"]
+    // "المبرز والهفوف" -> ["المبرز", "الهفوف"]
+    // We split on " و" (space then "و") if it's a connector.
+    let subParts = [];
+    if (part.includes(" و")) {
+      // Split on space followed by "و"
+      // This handles both " و " and " وشارع"
+      let chunks = part.split(/\s+و/);
+      for (let chunk of chunks) {
+        let trimmed = chunk.trim();
+        if (trimmed) subParts.push(trimmed);
+      }
+    } else {
+      subParts.push(part);
+    }
+
+    for (let subPart of subParts) {
+      const normalized = normalizeAreaName(subPart);
+      if (normalized && normalized.length > 2 && !/^\d+$/.test(normalized)) {
+        finalNeighborhoods.push(normalized);
+      }
+    }
+  }
+
+  // Deduplicate
+  return [...new Set(finalNeighborhoods)];
+}
+
+/**
  * Normalize multiple area names
  * @param {Array<string>} areas - Array of area names
  * @returns {Array<string>} Array of normalized area names
@@ -437,6 +512,7 @@ module.exports = {
   isCity,
   getNeighborhoodsForCity,
   expandCityToNeighborhoods,
+  extractNeighborhoods, // Export new extraction logic
   VALID_AREAS,
   AREA_CORRECTIONS,
   CITY_NEIGHBORHOODS,
