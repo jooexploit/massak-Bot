@@ -65,7 +65,7 @@ const ConnectionPhase = {
   WARMING: "warming", // Connected but warming up Signal/Crypto (5-10s)
   RECEIVING: "receiving", // 🔍 Validating inbound capability (wait for first message)
   STABLE: "stable", // Fully ready for sends
-  CRYPTO_UNSTABLE: "crypto_unstable", // 🔴 Crypto error detected - NO SENDS ALLOWED
+  CRYPTO_UNSTABLE: "crypto_unstable", // ⚠️ Crypto error detected - SENDS ALLOWED with admin notification
   RECEIVE_DEAD: "receive_dead", // 🔴 Confirmed dead inbound - force reconnect
 };
 
@@ -110,8 +110,8 @@ function setConnectionPhase(newPhase) {
     lastCryptoErrorAt = 0;
     prekeyBundleProcessing = false;
   } else if (newPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
-    console.error(`   🔴 CRYPTO UNSTABLE - All sends BLOCKED`);
-    console.error(`   🔴 Reason: Bad MAC burst or PreKey rotation detected`);
+    console.warn(`   ⚠️ CRYPTO UNSTABLE - Sends ALLOWED with admin notification`);
+    console.warn(`   ⚠️ Reason: Bad MAC burst or PreKey rotation detected`);
     sendAdminAlert("CRYPTO_UNSTABLE", {
       cryptoErrorCount,
       prekeyBundleProcessing,
@@ -210,32 +210,33 @@ function handleSuccessfulDecrypt() {
 
 /**
  * Check if system is in a sending-ready state
- * Returns true only when STABLE (not INIT, CONNECTING, WARMING, RECEIVING, or CRYPTO_UNSTABLE)
+ * Returns object with canSend (boolean) and warning (string|null)
+ * Now allows sending during CRYPTO_UNSTABLE but with warning to notify admin
  */
 function isReadyToSend() {
-  // 🔴 CRITICAL: Block ALL sends during crypto instability
+  // ⚠️ CRYPTO_UNSTABLE: Allow sending but return warning to notify admin
   if (currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
-    console.warn(`   ⛔ isReadyToSend: BLOCKED - Crypto unstable`);
-    return false;
+    console.warn(`   ⚠️ isReadyToSend: CRYPTO_UNSTABLE - Will attempt send with admin notification`);
+    return { canSend: socketManager.isConnected(), warning: 'crypto_unstable' };
   }
 
   // 🔴 CRITICAL: Block sends during receive validation
   if (currentPhase === ConnectionPhase.RECEIVING) {
     console.warn(`   ⛔ isReadyToSend: BLOCKED - Validating inbound`);
-    return false;
+    return { canSend: false, warning: 'receiving' };
   }
 
   // 🔴 CRITICAL: Block sends in receive-dead state
   if (currentPhase === ConnectionPhase.RECEIVE_DEAD) {
     console.warn(`   ⛔ isReadyToSend: BLOCKED - Receive dead`);
-    return false;
+    return { canSend: false, warning: 'receive_dead' };
   }
 
   if (currentPhase !== ConnectionPhase.STABLE) {
-    return false;
+    return { canSend: false, warning: currentPhase };
   }
 
-  return socketManager.isConnected();
+  return { canSend: socketManager.isConnected(), warning: null };
 }
 
 // Connection state machine
@@ -411,11 +412,11 @@ function sendAdminAlert(event, details = {}) {
 
       queueAdminNotification(alertMessage);
     } else if (event === "CRYPTO_UNSTABLE") {
-      // 🔴 CRITICAL: Crypto instability detected
+      // ⚠️ Crypto instability detected - sends allowed with monitoring
       const queueStats = messageQueue ? messageQueue.getStats() : {};
 
       alertMessage =
-        `🔴 *[تنبيه حرج: عدم استقرار التشفير]*\n\n` +
+        `⚠️ *[تنبيه: عدم استقرار التشفير]*\n\n` +
         `⏰ الوقت: ${timestamp}\n` +
         `🔐 السبب: ${
           details.prekeyBundleProcessing
@@ -425,8 +426,8 @@ function sendAdminAlert(event, details = {}) {
         `📊 عدد أخطاء التشفير: ${details.cryptoErrorCount || 0}\n` +
         `🌡️ الحالة السابقة: ${details.phase || "unknown"}\n` +
         `📬 رسائل في الطابور: ${queueStats.currentQueueSize || 0}\n` +
-        `⛔ جميع عمليات الإرسال متوقفة\n` +
-        `🔄 سيتم الاستئناف بعد استقرار التشفير أو إعادة الاتصال`;
+        `✅ الإرسال مسموح مع إشعار المشرف\n` +
+        `🔍 سيتم مراقبة حالة الاتصال`;
 
       queueAdminNotification(alertMessage);
     } else if (event === "RECEIVE_DEAD") {
@@ -466,33 +467,29 @@ async function deliverPendingNotifications() {
       `📬 [QUEUE] Waiting for STABLE phase before delivering ${pending.length} notification(s)...`
     );
 
-    // 🌡️ CRITICAL: Wait for STABLE phase before sending
-    // This prevents Bad MAC errors from Signal ratchet instability
-    // Also blocks during CRYPTO_UNSTABLE
+    // 🌡️ Wait for STABLE or CRYPTO_UNSTABLE (allowed to send now) before sending
+    // This prevents Bad MAC errors from Signal ratchet instability during WARMING phase
     let waitAttempts = 0;
     const maxWaitAttempts = 120; // Max 120 attempts = 60 seconds
+    const canSendPhases = [ConnectionPhase.STABLE, ConnectionPhase.CRYPTO_UNSTABLE];
     while (
-      (currentPhase !== ConnectionPhase.STABLE ||
-        currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) &&
+      !canSendPhases.includes(currentPhase) &&
       waitAttempts < maxWaitAttempts
     ) {
       console.log(
-        `   ⏳ Waiting for STABLE phase (current: ${currentPhase})...`
+        `   ⏳ Waiting for sendable phase (current: ${currentPhase})...`
       );
       await new Promise((resolve) => setTimeout(resolve, 500));
       waitAttempts++;
     }
 
-    if (
-      currentPhase !== ConnectionPhase.STABLE ||
-      currentPhase === ConnectionPhase.CRYPTO_UNSTABLE
-    ) {
+    if (!canSendPhases.includes(currentPhase)) {
       console.error(`❌ [QUEUE] Cannot deliver - Phase: ${currentPhase}`);
-      return; // Don't send if not stable - try again on next reconnect
+      return; // Don't send if not ready - try again on next reconnect
     }
 
     console.log(
-      `✅ [QUEUE] Phase is STABLE. Delivering ${pending.length} pending notification(s)...`
+      `✅ [QUEUE] Phase is ${currentPhase}. Delivering ${pending.length} pending notification(s)...`
     );
 
     for (const notification of pending) {
@@ -2613,12 +2610,19 @@ async function initializeBot() {
 
     /**
      * Checks if the bot is ready to send messages
-     * Returns true ONLY when in STABLE phase AND socket is connected
+     * Returns object with canSend (boolean) and warning (string|null)
+     * Allows sending during CRYPTO_UNSTABLE with warning
      */
     function isReadyToSend() {
-      const isPhaseReady = currentPhase === ConnectionPhase.STABLE;
       const isSocketReady = socketManager && socketManager.isConnected();
-      return isPhaseReady && isSocketReady;
+      
+      // Allow sending during CRYPTO_UNSTABLE but with warning
+      if (currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
+        return { canSend: isSocketReady, warning: 'crypto_unstable' };
+      }
+      
+      const isPhaseReady = currentPhase === ConnectionPhase.STABLE;
+      return { canSend: isPhaseReady && isSocketReady, warning: isPhaseReady ? null : currentPhase };
     }
 
     // Initialize to INIT phase
@@ -4150,20 +4154,25 @@ async function disconnectBot() {
   }
 }
 async function sendMessage(numberOrJid, message) {
-  // 🔴 CRITICAL GUARDS - Block sends during crypto instability
+  // Check socket connection first
   if (!socketManager.isConnected()) {
     console.warn(`❌ sendMessage: Socket not connected`);
     return null;
   }
 
-  if (!isReadyToSend()) {
-    console.warn(`❌ sendMessage: Not ready to send (phase: ${currentPhase})`);
+  // Check readiness with new format (allows crypto_unstable with warning)
+  const readyStatus = isReadyToSend();
+  
+  // Block only for non-crypto_unstable blocking states
+  if (!readyStatus.canSend) {
+    console.warn(`❌ sendMessage: Not ready to send (phase: ${currentPhase}, reason: ${readyStatus.warning})`);
     return null;
   }
 
-  if (currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
-    console.error(`🔴 sendMessage: BLOCKED - Crypto unstable`);
-    return null;
+  // Track if we're sending during crypto_unstable for admin notification
+  const sendingDuringCryptoUnstable = readyStatus.warning === 'crypto_unstable';
+  if (sendingDuringCryptoUnstable) {
+    console.warn(`⚠️ sendMessage: Attempting send during CRYPTO_UNSTABLE - will notify admin`);
   }
 
   // Helper function to wait for connection to be restored
@@ -4171,10 +4180,11 @@ async function sendMessage(numberOrJid, message) {
     const startTime = Date.now();
     while (Date.now() - startTime < maxWaitMs) {
       // CRITICAL: Use socketManager to check connection, not stale variables
+      const readyCheck = isReadyToSend();
       if (
         socketManager.isConnected() &&
         socketManager.getSocket() &&
-        isReadyToSend()
+        readyCheck.canSend
       ) {
         return true;
       }
@@ -4183,10 +4193,11 @@ async function sendMessage(numberOrJid, message) {
       );
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
+    const finalCheck = isReadyToSend();
     return (
       socketManager.isConnected() &&
       socketManager.getSocket() &&
-      isReadyToSend()
+      finalCheck.canSend
     );
   };
 
@@ -4335,6 +4346,19 @@ async function sendMessage(numberOrJid, message) {
         try {
           await sendWithRetry(jid, messageContent);
           console.log(`✅ Message sent with link preview to ${jid}`);
+          
+          // Notify admin if sent during crypto_unstable
+          if (sendingDuringCryptoUnstable) {
+            console.log(`📢 Notifying admin: Message sent during CRYPTO_UNSTABLE`);
+            queueAdminNotification(
+              `⚠️ *[إرسال أثناء عدم استقرار التشفير]*\n\n` +
+              `✅ تم إرسال رسالة بنجاح أثناء حالة CRYPTO_UNSTABLE\n` +
+              `📱 المستلم: ${jid}\n` +
+              `⏰ الوقت: ${new Date().toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })}\n` +
+              `⚠️ يرجى مراقبة استقرار الاتصال`
+            );
+          }
+          
           return; // Exit after successful send
         } catch (sendError) {
           console.warn(
@@ -4356,6 +4380,18 @@ async function sendMessage(numberOrJid, message) {
   // Now with retry logic for Stream Errors
   await sendWithRetry(jid, { text: message });
   console.log(`✅ Message sent (plain text) to ${jid}`);
+  
+  // Notify admin if sent during crypto_unstable
+  if (sendingDuringCryptoUnstable) {
+    console.log(`📢 Notifying admin: Message sent during CRYPTO_UNSTABLE`);
+    queueAdminNotification(
+      `⚠️ *[إرسال أثناء عدم استقرار التشفير]*\n\n` +
+      `✅ تم إرسال رسالة بنجاح أثناء حالة CRYPTO_UNSTABLE\n` +
+      `📱 المستلم: ${jid}\n` +
+      `⏰ الوقت: ${new Date().toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })}\n` +
+      `⚠️ يرجى مراقبة استقرار الاتصال`
+    );
+  }
 }
 
 /**
