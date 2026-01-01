@@ -410,7 +410,7 @@ async function executeSchedule(scheduleId) {
 
     // Notify admin
     try {
-      const adminJid = "966508001475@s.whatsapp.net";
+      const adminJid = "966508007053@s.whatsapp.net";
       const notifyText = `✅ *إرسال مجدول مكتمل*
 
 📝 الرسالة: ${message.name}

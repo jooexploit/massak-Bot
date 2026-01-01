@@ -82,6 +82,16 @@ let prekeyBundleProcessing = false;
 const CRYPTO_ERROR_WINDOW_MS = 5000; // 5 second window for burst detection
 const CRYPTO_ERROR_THRESHOLD = 2; // 2 errors within window = UNSTABLE
 
+// ============================================
+// 📢 ADMIN NOTIFICATION RATE LIMITING
+// Only send summary notifications every 3 days
+// ============================================
+let lastAdminSummaryNotificationAt = 0; // Last time we sent summary notification
+let disconnectEventCount = 0; // Count of disconnect events since last notification
+let reconnectEventCount = 0; // Count of reconnect events since last notification
+let cryptoUnstableEventCount = 0; // Count of crypto unstable events since last notification
+const ADMIN_NOTIFICATION_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+
 /**
  * Transition to new connection phase
  * INIT → CONNECTING → WARMING → RECEIVING → STABLE
@@ -110,7 +120,9 @@ function setConnectionPhase(newPhase) {
     lastCryptoErrorAt = 0;
     prekeyBundleProcessing = false;
   } else if (newPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
-    console.warn(`   ⚠️ CRYPTO UNSTABLE - Sends ALLOWED with admin notification`);
+    console.warn(
+      `   ⚠️ CRYPTO UNSTABLE - Sends ALLOWED with admin notification`
+    );
     console.warn(`   ⚠️ Reason: Bad MAC burst or PreKey rotation detected`);
     sendAdminAlert("CRYPTO_UNSTABLE", {
       cryptoErrorCount,
@@ -216,20 +228,22 @@ function handleSuccessfulDecrypt() {
 function isReadyToSend() {
   // ⚠️ CRYPTO_UNSTABLE: Allow sending but return warning to notify admin
   if (currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
-    console.warn(`   ⚠️ isReadyToSend: CRYPTO_UNSTABLE - Will attempt send with admin notification`);
-    return { canSend: socketManager.isConnected(), warning: 'crypto_unstable' };
+    console.warn(
+      `   ⚠️ isReadyToSend: CRYPTO_UNSTABLE - Will attempt send with admin notification`
+    );
+    return { canSend: socketManager.isConnected(), warning: "crypto_unstable" };
   }
 
   // 🔴 CRITICAL: Block sends during receive validation
   if (currentPhase === ConnectionPhase.RECEIVING) {
     console.warn(`   ⛔ isReadyToSend: BLOCKED - Validating inbound`);
-    return { canSend: false, warning: 'receiving' };
+    return { canSend: false, warning: "receiving" };
   }
 
   // 🔴 CRITICAL: Block sends in receive-dead state
   if (currentPhase === ConnectionPhase.RECEIVE_DEAD) {
     console.warn(`   ⛔ isReadyToSend: BLOCKED - Receive dead`);
-    return { canSend: false, warning: 'receive_dead' };
+    return { canSend: false, warning: "receive_dead" };
   }
 
   if (currentPhase !== ConnectionPhase.STABLE) {
@@ -353,83 +367,75 @@ function queueAdminNotification(message, jid = null) {
 /**
  * 🌡️ Send WhatsApp alerts to admin on critical events
  * Events: Disconnect, Reconnect, Phase transitions, Bad MAC storms
+ *
+ * RATE LIMITED: Most events are counted and summarized every 3 days
+ * to avoid spamming the admin with too many notifications
  */
 function sendAdminAlert(event, details = {}) {
   try {
     const timestamp = new Date().toLocaleString("ar-SA", {
       timeZone: "Asia/Riyadh",
     });
+    const now = Date.now();
 
-    let alertMessage = "";
+    // Check if it's time to send a summary notification (every 3 days)
+    const shouldSendSummary =
+      now - lastAdminSummaryNotificationAt >= ADMIN_NOTIFICATION_INTERVAL_MS;
 
     if (event === "DISCONNECT") {
-      // When bot disconnects - log queue status and last activity
-      const queueStats = messageQueue ? messageQueue.getStats() : {};
+      // Just count - don't send notification for each disconnect
+      disconnectEventCount++;
+      console.log(
+        `📊 [ADMIN] Disconnect event counted (total: ${disconnectEventCount})`
+      );
 
-      alertMessage =
-        `🔌 *[تنبيه قطع الاتصال]*\n\n` +
-        `⏰ الوقت: ${timestamp}\n` +
-        `❌ الحالة: تم قطع اتصال البوت\n` +
-        `📊 السبب: ${details.reason || "غير معروف"}\n` +
-        `🔄 رقم المحاولة: ${details.attempts || 0}\n` +
-        `📨 الرسائل المعالجة: ${totalMessagesProcessed}\n` +
-        `📬 الرسائل المتبقية في الطابور: ${
-          queueStats.currentQueueSize || 0
-        }\n` +
-        `🌡️ الحالة الحالية: ${currentPhase.toUpperCase()}\n` +
-        `📝 ملاحظات: سيتم إعادة الاتصال تلقائياً`;
-
-      queueAdminNotification(alertMessage);
+      // Check if we should send 3-day summary
+      if (shouldSendSummary && disconnectEventCount > 0) {
+        sendAdminSummaryNotification();
+      }
+      return; // Don't send individual notification
     } else if (event === "RECONNECT") {
-      // When bot reconnects successfully
-      alertMessage =
-        `✅ *[تنبيه إعادة الاتصال]*\n\n` +
-        `⏰ الوقت: ${timestamp}\n` +
-        `✅ الحالة: تم إعادة الاتصال بنجاح\n` +
-        `🔢 محاولات: ${details.attempts || 0}\n` +
-        `📱 المستخدم: ${details.userId || "غير معروف"}\n` +
-        `🌡️ الحالة الحالية: ${currentPhase.toUpperCase()}\n` +
-        `📬 سيتم معالجة الرسائل المعلقة تلقائياً`;
+      // Just count - don't send notification for each reconnect
+      reconnectEventCount++;
+      console.log(
+        `📊 [ADMIN] Reconnect event counted (total: ${reconnectEventCount})`
+      );
 
-      queueAdminNotification(alertMessage);
+      // Check if we should send 3-day summary
+      if (shouldSendSummary && reconnectEventCount > 0) {
+        sendAdminSummaryNotification();
+      }
+      return; // Don't send individual notification
     } else if (event === "PHASE_WARMING") {
-      // During warmup phase - optional logging
+      // During warmup phase - optional logging (no notification)
       console.log(
         `🌡️ [ALERT] Entering WARMING phase for session stabilization`
       );
     } else if (event === "PHASE_STABLE") {
-      // When bot becomes stable and ready
+      // When bot becomes stable and ready (no notification)
       console.log(`✅ [ALERT] Bot is now STABLE and ready to send messages`);
     } else if (event === "BAD_MAC_STORM") {
-      // Too many Bad MAC errors - critical
-      alertMessage =
-        `⚠️ *[تنبيه عاصفة Bad MAC]*\n\n` +
-        `⏰ الوقت: ${timestamp}\n` +
-        `⚠️ تم اكتشاف ${details.count || 5} أخطاء Bad MAC متتالية\n` +
-        `🌡️ الحالة الحالية: ${currentPhase.toUpperCase()}\n` +
-        `📊 يشير هذا إلى مشكلة في تشفير الجلسة\n` +
-        `🔄 سيتم إعادة تهيئة الاتصال`;
+      // Count and log only
+      cryptoUnstableEventCount++;
+      console.log(
+        `📊 [ADMIN] Bad MAC storm event counted (total: ${cryptoUnstableEventCount})`
+      );
 
-      queueAdminNotification(alertMessage);
+      if (shouldSendSummary) {
+        sendAdminSummaryNotification();
+      }
+      return;
     } else if (event === "CRYPTO_UNSTABLE") {
-      // ⚠️ Crypto instability detected - sends allowed with monitoring
-      const queueStats = messageQueue ? messageQueue.getStats() : {};
+      // Count and log only - don't spam admin
+      cryptoUnstableEventCount++;
+      console.log(
+        `📊 [ADMIN] Crypto unstable event counted (total: ${cryptoUnstableEventCount})`
+      );
 
-      alertMessage =
-        `⚠️ *[تنبيه: عدم استقرار التشفير]*\n\n` +
-        `⏰ الوقت: ${timestamp}\n` +
-        `🔐 السبب: ${
-          details.prekeyBundleProcessing
-            ? "PreKey Bundle Rotation"
-            : "Bad MAC Burst"
-        }\n` +
-        `📊 عدد أخطاء التشفير: ${details.cryptoErrorCount || 0}\n` +
-        `🌡️ الحالة السابقة: ${details.phase || "unknown"}\n` +
-        `📬 رسائل في الطابور: ${queueStats.currentQueueSize || 0}\n` +
-        `✅ الإرسال مسموح مع إشعار المشرف\n` +
-        `🔍 سيتم مراقبة حالة الاتصال`;
-
-      queueAdminNotification(alertMessage);
+      if (shouldSendSummary) {
+        sendAdminSummaryNotification();
+      }
+      return;
     } else if (event === "RECEIVE_DEAD") {
       // 🔴 CRITICAL: Receive-Dead session detected
       alertMessage =
@@ -447,6 +453,64 @@ function sendAdminAlert(event, details = {}) {
     }
   } catch (e) {
     console.error(`❌ Error sending admin alert: ${e.message}`);
+  }
+}
+
+/**
+ * 📢 Send summary notification to admin every 3 days
+ * Contains count of all events and recommendation to reconnect
+ */
+function sendAdminSummaryNotification() {
+  try {
+    const timestamp = new Date().toLocaleString("ar-SA", {
+      timeZone: "Asia/Riyadh",
+    });
+
+    const totalEvents =
+      disconnectEventCount + reconnectEventCount + cryptoUnstableEventCount;
+
+    // Calculate days since last notification
+    const daysSinceLastNotification =
+      lastAdminSummaryNotificationAt > 0
+        ? Math.floor(
+            (Date.now() - lastAdminSummaryNotificationAt) /
+              (24 * 60 * 60 * 1000)
+          )
+        : 3;
+
+    const alertMessage =
+      `📊 *[تقرير حالة البوت - كل 3 أيام]*\n\n` +
+      `⏰ الوقت: ${timestamp}\n` +
+      `📅 الفترة: آخر ${daysSinceLastNotification} أيام\n\n` +
+      `📈 *إحصائيات الأحداث:*\n` +
+      `🔌 قطع الاتصال: ${disconnectEventCount} مرة\n` +
+      `✅ إعادة الاتصال: ${reconnectEventCount} مرة\n` +
+      `⚠️ عدم استقرار التشفير: ${cryptoUnstableEventCount} مرة\n` +
+      `📊 إجمالي الأحداث: ${totalEvents}\n\n` +
+      `⚠️ *تنبيه هام:*\n` +
+      `للحفاظ على استقرار البوت وتجنب الحظر من واتساب، يُنصح بـ:\n\n` +
+      `1️⃣ إعادة ربط البوت بجهازك كل فترة\n` +
+      `2️⃣ افتح واتساب على هاتفك\n` +
+      `3️⃣ اذهب إلى الإعدادات > الأجهزة المرتبطة\n` +
+      `4️⃣ تأكد من أن البوت مرتبط بشكل صحيح\n` +
+      `5️⃣ إذا كان هناك مشاكل، قم بإلغاء الربط وأعد الربط من جديد\n\n` +
+      `🔒 هذا يساعد على:\n` +
+      `• تجديد مفاتيح التشفير\n` +
+      `• تجنب الحظر من واتساب\n` +
+      `• ضمان عمل البوت بشكل سليم\n\n` +
+      `📱 *الإجراء المطلوب:* قم بإعادة ربط البوت خلال الأيام القادمة`;
+
+    queueAdminNotification(alertMessage);
+
+    // Reset counters and update last notification time
+    lastAdminSummaryNotificationAt = Date.now();
+    disconnectEventCount = 0;
+    reconnectEventCount = 0;
+    cryptoUnstableEventCount = 0;
+
+    console.log(`📢 [ADMIN] Summary notification sent, counters reset`);
+  } catch (e) {
+    console.error(`❌ Error sending admin summary: ${e.message}`);
   }
 }
 
@@ -471,7 +535,10 @@ async function deliverPendingNotifications() {
     // This prevents Bad MAC errors from Signal ratchet instability during WARMING phase
     let waitAttempts = 0;
     const maxWaitAttempts = 120; // Max 120 attempts = 60 seconds
-    const canSendPhases = [ConnectionPhase.STABLE, ConnectionPhase.CRYPTO_UNSTABLE];
+    const canSendPhases = [
+      ConnectionPhase.STABLE,
+      ConnectionPhase.CRYPTO_UNSTABLE,
+    ];
     while (
       !canSendPhases.includes(currentPhase) &&
       waitAttempts < maxWaitAttempts
@@ -1008,7 +1075,7 @@ let lastMessageReceivedAt = Date.now();
 let messageHandlerHealthCheckInterval = null;
 let totalMessagesProcessed = 0;
 let messageHandlerErrors = 0;
-const ADMIN_NOTIFICATION_JID = "201090952790@s.whatsapp.net"; // Admin for error notifications
+const ADMIN_NOTIFICATION_JID = "966508007053@s.whatsapp.net"; // Admin for error notifications
 
 // ============================================
 // 🏓 KEEPALIVE PING TRACKING
@@ -2615,14 +2682,17 @@ async function initializeBot() {
      */
     function isReadyToSend() {
       const isSocketReady = socketManager && socketManager.isConnected();
-      
+
       // Allow sending during CRYPTO_UNSTABLE but with warning
       if (currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
-        return { canSend: isSocketReady, warning: 'crypto_unstable' };
+        return { canSend: isSocketReady, warning: "crypto_unstable" };
       }
-      
+
       const isPhaseReady = currentPhase === ConnectionPhase.STABLE;
-      return { canSend: isPhaseReady && isSocketReady, warning: isPhaseReady ? null : currentPhase };
+      return {
+        canSend: isPhaseReady && isSocketReady,
+        warning: isPhaseReady ? null : currentPhase,
+      };
     }
 
     // Initialize to INIT phase
@@ -4162,17 +4232,21 @@ async function sendMessage(numberOrJid, message) {
 
   // Check readiness with new format (allows crypto_unstable with warning)
   const readyStatus = isReadyToSend();
-  
+
   // Block only for non-crypto_unstable blocking states
   if (!readyStatus.canSend) {
-    console.warn(`❌ sendMessage: Not ready to send (phase: ${currentPhase}, reason: ${readyStatus.warning})`);
+    console.warn(
+      `❌ sendMessage: Not ready to send (phase: ${currentPhase}, reason: ${readyStatus.warning})`
+    );
     return null;
   }
 
   // Track if we're sending during crypto_unstable for admin notification
-  const sendingDuringCryptoUnstable = readyStatus.warning === 'crypto_unstable';
+  const sendingDuringCryptoUnstable = readyStatus.warning === "crypto_unstable";
   if (sendingDuringCryptoUnstable) {
-    console.warn(`⚠️ sendMessage: Attempting send during CRYPTO_UNSTABLE - will notify admin`);
+    console.warn(
+      `⚠️ sendMessage: Attempting send during CRYPTO_UNSTABLE - will notify admin`
+    );
   }
 
   // Helper function to wait for connection to be restored
@@ -4346,19 +4420,12 @@ async function sendMessage(numberOrJid, message) {
         try {
           await sendWithRetry(jid, messageContent);
           console.log(`✅ Message sent with link preview to ${jid}`);
-          
-          // Notify admin if sent during crypto_unstable
+
+          // Log if sent during crypto_unstable (no notification to avoid spam)
           if (sendingDuringCryptoUnstable) {
-            console.log(`📢 Notifying admin: Message sent during CRYPTO_UNSTABLE`);
-            queueAdminNotification(
-              `⚠️ *[إرسال أثناء عدم استقرار التشفير]*\n\n` +
-              `✅ تم إرسال رسالة بنجاح أثناء حالة CRYPTO_UNSTABLE\n` +
-              `📱 المستلم: ${jid}\n` +
-              `⏰ الوقت: ${new Date().toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })}\n` +
-              `⚠️ يرجى مراقبة استقرار الاتصال`
-            );
+            console.log(`📢 Message sent during CRYPTO_UNSTABLE to ${jid}`);
           }
-          
+
           return; // Exit after successful send
         } catch (sendError) {
           console.warn(
@@ -4380,17 +4447,10 @@ async function sendMessage(numberOrJid, message) {
   // Now with retry logic for Stream Errors
   await sendWithRetry(jid, { text: message });
   console.log(`✅ Message sent (plain text) to ${jid}`);
-  
-  // Notify admin if sent during crypto_unstable
+
+  // Log if sent during crypto_unstable (no notification to avoid spam)
   if (sendingDuringCryptoUnstable) {
-    console.log(`📢 Notifying admin: Message sent during CRYPTO_UNSTABLE`);
-    queueAdminNotification(
-      `⚠️ *[إرسال أثناء عدم استقرار التشفير]*\n\n` +
-      `✅ تم إرسال رسالة بنجاح أثناء حالة CRYPTO_UNSTABLE\n` +
-      `📱 المستلم: ${jid}\n` +
-      `⏰ الوقت: ${new Date().toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })}\n` +
-      `⚠️ يرجى مراقبة استقرار الاتصال`
-    );
+    console.log(`📢 Message sent during CRYPTO_UNSTABLE to ${jid}`);
   }
 }
 

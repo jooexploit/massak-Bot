@@ -1223,7 +1223,7 @@ async function processBulkMessagesInBackground(jobInfo) {
   }
 
   // Send completion notification to admin
-  const ADMIN_PHONE = "966508001475@s.whatsapp.net";
+  const ADMIN_PHONE = "966508007053@s.whatsapp.net";
   const completionMessage = `✅ *إرسال جماعي مكتمل*
 
 📦 رقم المهمة: ${jobId}

@@ -467,7 +467,7 @@ async function executeScheduledMessage(id) {
 
   // Notify admin
   try {
-    const ADMIN_PHONE = "966508001475@s.whatsapp.net";
+    const ADMIN_PHONE = "966508007053@s.whatsapp.net";
     const notifyText = `✅ *رسالة مجدولة تم إرسالها*
 
 📅 كان موعدها: ${formatKSADate(message.scheduledTimestamp)}
