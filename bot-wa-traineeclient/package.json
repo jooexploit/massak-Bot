@@ -29,6 +29,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
+    "openai": "^6.15.0",
     "pino": "^8.16.2",
     "qrcode": "^1.5.3",
     "sharp": "^0.34.5"

@@ -10,12 +10,25 @@ const SETTINGS_FILE = getDataPath("settings.json");
 function loadSettings() {
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
-      return JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"));
+      const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"));
+      // Ensure new keys exist if loading old settings
+      if (!settings.gptApiKeys) settings.gptApiKeys = [];
+      if (settings.currentKeyIndex !== undefined && settings.currentGeminiKeyIndex === undefined) {
+          settings.currentGeminiKeyIndex = settings.currentKeyIndex;
+      }
+      if (settings.currentGeminiKeyIndex === undefined) settings.currentGeminiKeyIndex = 0;
+      if (settings.currentGptKeyIndex === undefined) settings.currentGptKeyIndex = 0;
+      return settings;
     }
   } catch (error) {
     console.error("Error loading settings:", error);
   }
-  return { geminiApiKeys: [], currentKeyIndex: 0 };
+  return { 
+    geminiApiKeys: [], 
+    gptApiKeys: [], 
+    currentGeminiKeyIndex: 0,
+    currentGptKeyIndex: 0 
+  };
 }
 
 function saveSettings(settings) {
@@ -28,56 +41,70 @@ function saveSettings(settings) {
 
 function getApiKeysStatus() {
   const settings = loadSettings();
-  const keys = settings.geminiApiKeys || [];
-  const enabledKeys = keys.filter((k) => k.enabled);
-
+  const geminiKeys = settings.geminiApiKeys || [];
+  const gptKeys = settings.gptApiKeys || [];
+  
   const now = Date.now();
   const ONE_DAY = 24 * 60 * 60 * 1000;
 
-  let exhaustedCount = 0;
-  let workingCount = 0;
-  let totalCount = enabledKeys.length;
+  function processKeys(keys) {
+    const enabledKeys = keys.filter((k) => k.enabled);
+    const totalCount = enabledKeys.length;
+    let exhaustedCount = 0;
+    let workingCount = 0;
 
-  const keyDetails = enabledKeys.map((key) => {
-    const isExhausted =
-      key.lastError &&
-      key.lastError.message &&
-      (key.lastError.message.includes("429") ||
-        key.lastError.message.includes("quota")) &&
-      now - key.lastError.timestamp < ONE_DAY; // Error within last 24 hours
+    const details = enabledKeys.map((key) => {
+      const isExhausted =
+        key.lastError &&
+        key.lastError.message &&
+        (key.lastError.message.includes("429") ||
+          key.lastError.message.includes("quota") ||
+          key.lastError.message.includes("Resource exhausted")) &&
+        now - key.lastError.timestamp < ONE_DAY;
 
-    if (isExhausted) {
-      exhaustedCount++;
-    } else {
-      workingCount++;
-    }
+      if (isExhausted) {
+        exhaustedCount++;
+      } else {
+        workingCount++;
+      }
 
-    return {
-      id: key.id,
-      name: key.name,
-      requestCount: key.requestCount || 0,
-      isExhausted,
-      lastError: key.lastError
-        ? {
-            message: key.lastError.message.substring(0, 100),
-            timestamp: key.lastError.timestamp,
-          }
-        : null,
-    };
-  });
+      return {
+        id: key.id,
+        name: key.name,
+        requestCount: key.requestCount || 0,
+        isExhausted,
+        lastError: key.lastError
+          ? {
+              message: key.lastError.message.substring(0, 100),
+              timestamp: key.lastError.timestamp,
+            }
+          : null,
+      };
+    });
+
+    return { totalCount, workingCount, exhaustedCount, details };
+  }
+
+  const geminiStatus = processKeys(geminiKeys);
+  const gptStatus = processKeys(gptKeys);
 
   return {
-    totalKeys: totalCount,
-    workingKeys: workingCount,
-    exhaustedKeys: exhaustedCount,
-    allExhausted: totalCount > 0 && exhaustedCount === totalCount,
-    details: keyDetails,
+    gemini: geminiStatus,
+    gpt: gptStatus,
+    totalKeys: geminiStatus.totalCount + gptStatus.totalCount,
+    workingKeys: geminiStatus.workingCount + gptStatus.workingCount,
+    exhaustedKeys: geminiStatus.exhaustedCount + gptStatus.exhaustedCount,
+    allExhausted: (geminiStatus.totalCount > 0 && geminiStatus.exhaustedCount === geminiStatus.totalCount) &&
+                  (gptStatus.totalCount > 0 && gptStatus.exhaustedCount === gptStatus.totalCount),
   };
 }
 
-function getActiveApiKey() {
+function getActiveApiKey(provider = "gemini") {
   const settings = loadSettings();
-  const keys = settings.geminiApiKeys || [];
+  const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
+  const indexKey = provider === "gpt" ? "currentGptKeyIndex" : "currentGeminiKeyIndex";
+  
+  const keys = settings[keysKey] || [];
 
   // Find enabled keys sorted by priority
   const enabledKeys = keys
@@ -85,12 +112,12 @@ function getActiveApiKey() {
     .sort((a, b) => a.priority - b.priority);
 
   if (enabledKeys.length === 0) {
-    console.error("❌ No enabled API keys found!");
+    console.error(`❌ No enabled API keys found for ${provider}!`);
     return null;
   }
 
   // Get current key based on index
-  let currentIndex = settings.currentKeyIndex || 0;
+  let currentIndex = settings[indexKey] || 0;
   if (currentIndex >= enabledKeys.length) {
     currentIndex = 0;
   }
@@ -100,46 +127,50 @@ function getActiveApiKey() {
     settings,
     currentIndex,
     enabledKeys,
+    provider
   };
 }
 
-function switchToNextApiKey() {
+function switchToNextApiKey(provider = "gemini") {
   const settings = loadSettings();
-  const enabledKeys = (settings.geminiApiKeys || [])
+  const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
+  const indexKey = provider === "gpt" ? "currentGptKeyIndex" : "currentGeminiKeyIndex";
+  
+  const enabledKeys = (settings[keysKey] || [])
     .filter((k) => k.enabled)
     .sort((a, b) => a.priority - b.priority);
 
   if (enabledKeys.length <= 1) {
-    console.warn("⚠️ No other API keys available to switch to");
+    console.warn(`⚠️ No other ${provider} API keys available to switch to`);
     return null;
   }
 
   // Move to next key
-  settings.currentKeyIndex =
-    (settings.currentKeyIndex + 1) % enabledKeys.length;
+  settings[indexKey] = (settings[indexKey] + 1) % enabledKeys.length;
   saveSettings(settings);
 
   console.log(
-    `🔄 Switched to API key #${settings.currentKeyIndex + 1}: ${
-      enabledKeys[settings.currentKeyIndex].name
+    `🔄 Switched to ${provider} API key #${settings[indexKey] + 1}: ${
+      enabledKeys[settings[indexKey]].name
     }`
   );
-  return enabledKeys[settings.currentKeyIndex].key;
+  return enabledKeys[settings[indexKey]].key;
 }
 
-function updateKeyStats(keyIndex, error = null, enabledKeys = null) {
+function updateKeyStats(provider, keyIndex, error = null, enabledKeys = null) {
   const settings = loadSettings();
+  const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
 
   // If enabledKeys not provided, sort them
   if (!enabledKeys) {
-    enabledKeys = (settings.geminiApiKeys || [])
+    enabledKeys = (settings[keysKey] || [])
       .filter((k) => k.enabled)
       .sort((a, b) => a.priority - b.priority);
   }
 
   if (keyIndex < enabledKeys.length) {
     const keyId = enabledKeys[keyIndex].id;
-    const keyInSettings = settings.geminiApiKeys.find((k) => k.id === keyId);
+    const keyInSettings = settings[keysKey].find((k) => k.id === keyId);
 
     if (keyInSettings) {
       keyInSettings.requestCount = (keyInSettings.requestCount || 0) + 1;
@@ -158,17 +189,20 @@ function updateKeyStats(keyIndex, error = null, enabledKeys = null) {
 // Retry Mechanism with API Key Rotation
 // -------------------------
 async function retryWithApiKeyRotation(
+  provider,
   operation,
   operationName = "AI operation",
   maxRetries = null
 ) {
   const settings = loadSettings();
-  const enabledKeys = (settings.geminiApiKeys || [])
+  const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
+  
+  const enabledKeys = (settings[keysKey] || [])
     .filter((k) => k.enabled)
     .sort((a, b) => a.priority - b.priority);
 
   if (enabledKeys.length === 0) {
-    throw new Error("❌ No enabled API keys available");
+    throw new Error(`❌ No enabled ${provider} API keys available`);
   }
 
   // Max retries = number of available keys (try each key once)
@@ -177,7 +211,7 @@ async function retryWithApiKeyRotation(
   let attemptCount = 0;
 
   console.log(
-    `🔄 Starting ${operationName} with ${enabledKeys.length} available API keys`
+    `🔄 Starting ${operationName} (${provider}) with ${enabledKeys.length} available API keys`
   );
 
   // Always start from the first key (lowest priority) in each operation
@@ -189,14 +223,14 @@ async function retryWithApiKeyRotation(
       const currentKey = enabledKeys[currentRotationIndex];
 
       console.log(
-        `🔑 Attempt ${attemptCount}/${totalRetries} - Using API key: ${currentKey.name} (Priority: ${currentKey.priority})`
+        `🔑 Attempt ${attemptCount}/${totalRetries} - Using ${provider} API key: ${currentKey.name} (Priority: ${currentKey.priority})`
       );
 
       // Execute the operation
       const result = await operation(currentKey.key, currentRotationIndex);
 
       console.log(`✅ ${operationName} succeeded with key: ${currentKey.name}`);
-      updateKeyStats(currentRotationIndex, null, enabledKeys);
+      updateKeyStats(provider, currentRotationIndex, null, enabledKeys);
 
       return result;
     } catch (error) {
@@ -205,42 +239,25 @@ async function retryWithApiKeyRotation(
 
       // Check for different retryable error types
       const isOverloadError =
-        error.status === 503 ||
-        errorMessage.includes("overloaded") ||
-        errorMessage.includes("503");
+        (error.status === 503 || errorMessage.includes("503") || errorMessage.includes("overloaded"));
       const isRateLimitError =
-        error.status === 429 ||
-        errorMessage.includes("429") ||
-        errorMessage.includes("rate limit") ||
-        errorMessage.includes("Resource exhausted");
+        (error.status === 429 || errorMessage.includes("429") || errorMessage.includes("rate limit") || errorMessage.includes("Resource exhausted"));
       const isLeakedKeyError =
-        error.status === 403 ||
-        errorMessage.includes("403") ||
-        errorMessage.includes("leaked") ||
-        errorMessage.includes("Forbidden");
+        (error.status === 403 || errorMessage.includes("403") || errorMessage.includes("leaked") || errorMessage.includes("Forbidden"));
 
       console.error(`❌ Attempt ${attemptCount} failed:`, errorMessage);
 
       // Update stats with error
-      updateKeyStats(currentRotationIndex, error, enabledKeys);
+      updateKeyStats(provider, currentRotationIndex, error, enabledKeys);
 
       // If this is the last attempt, don't switch keys
       if (i < totalRetries - 1) {
         // Switch to next key for these retryable errors
         if (isOverloadError || isRateLimitError || isLeakedKeyError) {
-          if (isLeakedKeyError) {
-            console.log(
-              `⚠️ API key was reported as leaked/forbidden, switching to next key...`
-            );
-          } else {
-            console.log(
-              `⚠️ API key overloaded or rate limited, switching to next key...`
-            );
-          }
+          console.log(`⚠️ ${provider} API key issue, switching to next key...`);
 
           // Move to next key in the sorted priority list
-          currentRotationIndex =
-            (currentRotationIndex + 1) % enabledKeys.length;
+          currentRotationIndex = (currentRotationIndex + 1) % enabledKeys.length;
 
           // Add delay before retry (exponential backoff)
           const delayMs = Math.min(1000 * Math.pow(2, i), 10000);
@@ -256,12 +273,75 @@ async function retryWithApiKeyRotation(
 
   // All retries exhausted
   console.error(
-    `💥 ${operationName} failed after ${attemptCount} attempts with all available API keys`
+    `💥 ${operationName} failed after ${attemptCount} attempts with all available ${provider} API keys`
   );
   throw new Error(
-    `All API keys failed for ${operationName}. Last error: ${
+    `All ${provider} API keys failed for ${operationName}. Last error: ${
       lastError?.message || lastError
     }`
+  );
+}
+
+/**
+ * Unified AI call function supporting both Gemini and GPT
+ */
+async function callAI(prompt, provider = "gemini", operationName = "AI call", options = {}) {
+  return await retryWithApiKeyRotation(
+    provider,
+    async (apiKey) => {
+      if (provider === "gpt") {
+        const OpenAI = require("openai");
+        const openai = new OpenAI({ apiKey });
+        const response = await openai.chat.completions.create({
+          model: options.model || "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          temperature: options.temperature || 0.7,
+        });
+        return response.choices[0].message.content;
+      } else {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+          model: options.model || "gemini-2.5-flash",
+        });
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+      }
+    },
+    operationName
+  );
+}
+
+/**
+ * Unified AI call function supporting both Gemini and GPT
+ * @param {string} prompt - The prompt to send
+ * @param {string} provider - 'gemini' or 'gpt' (default: 'gemini')
+ * @param {string} operationName - Name for logging/error reporting
+ * @param {object} options - Generation options (optional)
+ * @returns {Promise<string>} - The AI response text
+ */
+async function callAI(prompt, provider = "gemini", operationName = "AI call", options = {}) {
+  return await retryWithApiKeyRotation(
+    provider,
+    async (apiKey) => {
+      if (provider === "gpt") {
+        const OpenAI = require("openai");
+        const openai = new OpenAI({ apiKey });
+        const response = await openai.chat.completions.create({
+          model: options.model || "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          temperature: options.temperature || 0.7,
+        });
+        return response.choices[0].message.content;
+      } else {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+          model: options.model || "gemini-2.5-flash",
+        });
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+      }
+    },
+    operationName
   );
 }
 
@@ -501,22 +581,17 @@ function useFallbackDetection(text) {
  */
 async function detectAd(text, maxRetries = null, currentRetry = 0) {
   const settings = loadSettings();
-  const enabledKeys = (settings.geminiApiKeys || []).filter((k) => k.enabled);
+  const geminiKeys = (settings.geminiApiKeys || []).filter((k) => k.enabled);
+  const gptKeys = (settings.gptApiKeys || []).filter((k) => k.enabled);
 
-  if (enabledKeys.length === 0) {
+  if (geminiKeys.length === 0 && gptKeys.length === 0) {
     console.error("❌ No API key available. Using fallback keyword detection.");
     return useFallbackDetection(text);
   }
 
-  try {
-    return await retryWithApiKeyRotation(
-      async (apiKey, keyIndex) => {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({
-          model: "gemini-2.5-flash-lite",
-        });
+  const provider = geminiKeys.length > 0 ? "gemini" : "gpt";
 
-        const prompt = `You are an expert at detecting real estate and business advertisements. Analyze if the following text is an advertisement.
+  const prompt = `You are an expert at detecting real estate and business advertisements. Analyze if the following text is an advertisement.
 
 Text: "${text}"
 
@@ -598,37 +673,36 @@ Respond ONLY in this exact JSON format:
 {"isAd": true/false, "confidence": 0-100, "reason": "brief explanation in Arabic"}
 `;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const responseText = response.text().trim();
+  try {
+    const responseText = await callAI(prompt, provider, "Ad Detection");
+    let jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("Invalid AI response format");
+    const detection = JSON.parse(jsonMatch[0]);
 
-        // Try to extract JSON from response
-        let jsonText = responseText;
-        if (responseText.includes("```json")) {
-          jsonText =
-            responseText.match(/```json\n([\s\S]*?)\n```/)?.[1] || responseText;
-        } else if (responseText.includes("```")) {
-          jsonText =
-            responseText.match(/```\n([\s\S]*?)\n```/)?.[1] || responseText;
-        }
-
-        const detection = JSON.parse(jsonText);
-
-        return {
-          isAd: detection.isAd || false,
-          confidence: detection.confidence || 0,
-          reason: detection.reason || "No reason provided",
-        };
-      },
-      "Ad Detection",
-      maxRetries
-    );
+    return {
+      isAd: detection.isAd || false,
+      confidence: detection.confidence || 0,
+      reason: detection.reason || "No reason provided",
+    };
   } catch (error) {
-    console.error("Error detecting ad:", error);
-    // If all retries failed, use fallback
-    console.error(
-      `❌ All API key attempts failed. Using fallback keyword detection.`
-    );
+    console.error(`Error in detectAd (${provider}):`, error);
+    if (provider === "gemini" && gptKeys.length > 0) {
+      console.log("🔄 Gemini failed, falling back to GPT for Ad Detection...");
+      try {
+        const responseText = await callAI(prompt, "gpt", "Ad Detection (GPT Fallback)");
+        let jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const detection = JSON.parse(jsonMatch[0]);
+            return {
+              isAd: detection.isAd || false,
+              confidence: detection.confidence || 0,
+              reason: detection.reason || "No reason provided",
+            };
+        }
+      } catch (gptError) {
+        console.error("❌ GPT fallback also failed:", gptError);
+      }
+    }
     return useFallbackDetection(text);
   }
 }
@@ -642,22 +716,17 @@ Respond ONLY in this exact JSON format:
  */
 async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
   const settings = loadSettings();
-  const enabledKeys = (settings.geminiApiKeys || []).filter((k) => k.enabled);
+  const geminiKeys = (settings.geminiApiKeys || []).filter((k) => k.enabled);
+  const gptKeys = (settings.gptApiKeys || []).filter((k) => k.enabled);
 
-  if (enabledKeys.length === 0) {
+  if (geminiKeys.length === 0 && gptKeys.length === 0) {
     console.error("❌ No API key available for enhancement. Using fallback.");
     return enhanceWithSmartEmojis(originalText);
   }
 
-  try {
-    return await retryWithApiKeyRotation(
-      async (apiKey, keyIndex) => {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({
-          model: "gemini-2.5-flash-lite",
-        });
+  const provider = geminiKeys.length > 0 ? "gemini" : "gpt";
 
-        const prompt = `أنت خبير في كتابة إعلانات وسائل التواصل الاجتماعي بأسلوب عصري وجذاب. قم بتحسين وإعادة صياغة الإعلان التالي بشكل إبداعي:
+  const prompt = `أنت خبير في كتابة إعلانات وسائل التواصل الاجتماعي بأسلوب عصري وجذاب. قم بتحسين وإعادة صياغة الإعلان التالي بشكل إبداعي:
 
 النص الأصلي:
 "${originalText}"
@@ -677,55 +746,49 @@ async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
 - اجعل النص يبدو طبيعياً وليس آلياً
 - نوّع في الأسلوب حسب نوع الإعلان (عقار، مطعم، خدمة، وظيفة، فعالية، منتج...)
 
-� أمثلة على التنوع المطلوب:
-بدلاً من: "شقة للبيع � 3 غرف � السعر"
-اكتب مثل: "فرصة رائعة ✨ شقة مميزة � تتكون من 3 غرف واسعة �️ بسعر مغري �"
-
-بدلاً من: "📍 الموقع: الأحساء"  
-اكتب مثل: "تقع في قلب الأحساء 📍 في موقع استراتيجي مميز 🌟"
-
-بدلاً من: "☕ مطعم جديد"
-اكتب مثل: "افتتاح مطعم جديد 🎉 أطباق شهية 🍽️ ونكهات لا تُقاوم ☕"
-
 أرجع النتيجة بصيغة JSON فقط:
 {
   "enhanced": "النص المحسّن مع الإيموجي موزعة طبيعياً في كل أجزاء النص",
   "improvements": ["قائمة بالتحسينات التي أضفتها"]
-}`;
+}
+`;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const responseText = response.text().trim();
+  try {
+    const responseText = await callAI(prompt, provider, "Ad Enhancement");
+    
+    // Try to extract JSON from response
+    let jsonText = responseText;
+    if (responseText.includes("```json")) {
+      jsonText = responseText.match(/\`\`\`json\n([\s\S]*?)\n\`\`\`/)?.[1] || responseText;
+    } else if (responseText.includes("```")) {
+      jsonText = responseText.match(/\`\`\`\n([\s\S]*?)\n\`\`\`/)?.[1] || responseText;
+    }
 
-        // Try to extract JSON from response
-        let jsonText = responseText;
-        if (responseText.includes("```json")) {
-          jsonText =
-            responseText.match(/```json\n([\s\S]*?)\n```/)?.[1] || responseText;
-        } else if (responseText.includes("```")) {
-          jsonText =
-            responseText.match(/```\n([\s\S]*?)\n```/)?.[1] || responseText;
-        }
+    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+    const enhancement = JSON.parse(jsonMatch ? jsonMatch[0] : jsonText);
 
-        const enhancement = JSON.parse(jsonText);
-
+    return {
+      enhanced: enhancement.enhanced || originalText,
+      improvements: enhancement.improvements || [],
+    };
+  } catch (error) {
+    console.error(`Error in enhanceAd (${provider}):`, error);
+    if (provider === "gemini" && gptKeys.length > 0) {
+      console.log("🔄 Gemini failed, falling back to GPT for Ad Enhancement...");
+      try {
+        const responseText = await callAI(prompt, "gpt", "Ad Enhancement (GPT Fallback)");
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        const enhancement = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
         return {
           enhanced: enhancement.enhanced || originalText,
           improvements: enhancement.improvements || [],
         };
-      },
-      "Ad Enhancement",
-      maxRetries
-    );
-  } catch (error) {
-    console.error("Error enhancing ad:", error);
-    // If all retries failed, use fallback
-    console.error(
-      `❌ All API key attempts failed for enhancement. Using fallback.`
-    );
+      } catch (gptError) {}
+    }
     return enhanceWithSmartEmojis(originalText);
   }
 }
+
 
 /**
  * Smart emoji enhancement fallback when AI fails
@@ -873,188 +936,84 @@ async function detectCategory(text) {
     console.log("🤖 Using AI to detect category...");
 
     const settings = loadSettings();
-    const enabledKeys = (settings.geminiApiKeys || []).filter((k) => k.enabled);
+    const geminiKeys = (settings.geminiApiKeys || []).filter((k) => k.enabled);
+    const gptKeys = (settings.gptApiKeys || []).filter((k) => k.enabled);
 
-    if (enabledKeys.length === 0) {
+    if (geminiKeys.length === 0 && gptKeys.length === 0) {
       console.log("🏷️ No API key available, using fallback detection...");
       return detectCategoryFallback(text);
     }
 
-    return await retryWithApiKeyRotation(
-      async (apiKey, keyIndex) => {
-        const genAI = new GoogleGenerativeAI(apiKey);
+    const provider = geminiKeys.length > 0 ? "gemini" : "gpt";
 
-        const prompt = `أنت نظام ذكي لتصنيف الإعلانات العقارية وإعلانات منصة حساك (فعاليات، حراج، أسر منتجة، محلات...). قم بتحليل النص التالي وأرجع فقط اسم التصنيف المناسب من القائمة التالية:
+    const prompt = `أنت نظام ذكي لتصنيف الإعلانات العقارية وإعلانات منصة حساك (فعاليات، حراج، أسر منتجة، محلات...). قم بتحليل النص التالي وأرجع فقط اسم التصنيف المناسب من القائمة التالية:
 
-  التصنيفات المتاحة (اختر منها فقط حرفيًا):
-  - شقة دبلكسية
-  - دبلكس
-  - محطة بنزين
-  - محل تجاري
-  - عمارة
-  - فيلا
-  - بيت
-  - شقة
-  - مزرعة
-  - استراحة
-  - شالية
-  - مستودع
-  - أرض
-  - إيجار (لأي عقار للإيجار)
-  - طلبات (لأي شخص يطلب أو يبحث عن شيء)
-  - وظائف
-  - فعاليات
-  - خدمات
-  - أسر منتجة
-  - إعلان تجاري ربحي مميز
-  - الفعاليات والانشطة
-  - برامج ووظائف
-  - توصيل سيارات
-  - حراج الحسا
-  - فعاليات و أنشطة
-  - فعالية مجانية مميزة
-  - كوفيهات أو مطاعم
-  - مجتمع حساك
-  - محلات تجارية
-  - مركز ترفيهي
-  - منتجعات وإستراحات
+التصنيفات المتاحة:
+- شقق للبيع
+- شقق للإيجار
+- فيلا للبيع
+- فيلا للإيجار
+- عمارة للبيع
+- عمارة للإيجار
+- أرض للبيع
+- أرض للإيجار
+- محل للبيع
+- محل للإيجار
+- محل للتقبيل
+- استراحة للبيع
+- استراحة للإيجار
+- شاليه للإيجار
+- مزرعة للبيع
+- مزرعة للإيجار
+- فعاليات
+- حراج
+- أسر منتجة
+- خدمات
 
-النص للتحليل:
-"""
-${text}
-"""
+قواعد التصنيف:
+1. اقرأ النص بعناية وحدد نوع العقار (شقة، فيلا، أرض، إلخ) ونوع الإجراء (بيع، إيجار، تقبيل).
+2. إذا كان الإعلان غير عقاري، اختر من (فعاليات، حراج، أسر منتجة، خدمات) حسب المحتوى.
+3. إذا وجدت "تقبيل" لمحلات، اختر "محل للتقبيل".
+4. أرجع **الاسم فقط** كما هو مكتوب في القائمة أعلاه بدون أي زيادات أو شرح.
 
-قواعد التصنيف (الأولوية من الأعلى للأسفل):
+النص المراد تصنيفه:
+"${text}"
 
-⚠️ القاعدة الأولى - حراج الحسا (أعلى أولوية للسيارات والمستعمل - تذهب لموقع حساك):
-- إذا كان النص يعلن عن بيع أو عرض سيارات/حراج/مستعمل ويحتوي على كلمات مثل: "سيارة"، "سيارات"، "حراج"، "معرض سيارات"، "جمس"، "جيب"، "كامري"، "النترا"، "سوناتا"، "للبيع سيارة"
-  → أرجع "حراج الحسا" (وليس "طلبات" أو "خدمات")
-- ⚠️ مهم: حتى لو احتوى على كلمات الطلب مثل "للبيع" مع سيارة، يظل "حراج الحسا"
-- ✅ مثال: "سيارة كامري 2020 للبيع" → "حراج الحسا" (وليس "طلبات")
-- ✅ مثال: "سيارة النترا موديل 2013 للبيع في الأحساء" → "حراج الحسا"
+النتيجة:`;
 
-⚠️ القاعدة الثانية - الطلبات (لأي شخص يطلب أو يبحث عن شيء - عقار أو سلعة):
-- إذا كان النص يحتوي على: "مطلوب"، "ابحث عن"، "من عنده"، "انا ابي"، "طالب"، "طلبي"، "ابغى"، "أبغى"، "ابغا"، "أبغا"، "ودي"، "احتاج"، "يا ليت"، "سحب طلب"، "أريد"، "عندي طلب"، "محتاج"، "دور على"، "ادور" → أرجع "طلبات"
-- ⭐ لهجة سعودية: "ابغى ابيع"، "ابي ابيع"، "ابغا اشتري"، "ودي ابيع"، "حد عنده"، "مين عنده"، "تكفون"، "ياخوان" → أرجع "طلبات"
-- ⚠️ استثناء مهم: إذا كان النص يحتوي على "سيارة" + كلمات طلب → أرجع "حراج الحسا" (وليس طلبات) لأن حراج السيارات يذهب لحساك
-
-⚠️ القاعدة الثالثة - الإيجار (أولوية عالية للعقار فقط):
-- إذا كان النص يحتوي على: "للإيجار"، "للأجار"، "ايجار"، "اجار"، "rent"، "rental" → أرجع "إيجار"
-- ملاحظة: حتى لو كان النص يحتوي على "شقة للإيجار" أو "فيلا للإيجار"، التصنيف هو "إيجار" وليس "شقة" أو "فيلا"
-
-قواعد خاصة بمنصة حساك (غير عقارية) - تأخذ أولوية على العقارات:
-1. حراج الحسا: سيارات، مستعمل، حراج → "حراج الحسا" (حتى لو فيها كلمات طلب)
-2. أسر منتجة: أكل بيت، طبخ منزلي، منتجات منزلية، حلويات منزلية → "أسر منتجة"
-3. كوفيهات أو مطاعم: مطعم، كوفي، كافيه، قهوة، وجبات، برجر، بيتزا → "كوفيهات أو مطاعم"
-4. منتجعات وإستراحات: منتجع، شاليه، مسبح، أماكن استجمام → "منتجعات وإستراحات"
-5. الفعاليات والانشطة: فعالية، مهرجان، حدث، نشاط مجتمعي → "الفعاليات والانشطة"
-6. محلات تجارية: متجر، سوق، مول، بازار → "محلات تجارية"
-7. مركز ترفيهي: ألعاب، ملاهي → "مركز ترفيهي"
-
-القواعد الأخرى (للعقارات للبيع - موقع مسعاك):
-1. إذا كان النص يحتوي على "بيت" أو "منزل" → أرجع "بيت"
-2. إذا كان النص يحتوي على "شقة" (بدون للإيجار) → أرجع "شقة"
-3. إذا كان النص يحتوي على "فيلا" أو "فيللا" → أرجع "فيلا"
-4. إذا كان النص يحتوي على "عمارة" → أرجع "عمارة"
-5. إذا كان النص يحتوي على "أرض" أو "قطعة أرض" → أرجع "أرض"
-6. إذا كان النص يحتوي على "مزرعة" → أرجع "مزرعة"
-7. إذا كان النص يحتوي على "استراحة" → أرجع "استراحة"
-8. إذا كان النص يحتوي على "وظيفة" أو "مطلوب موظف" → أرجع "برامج ووظائف"
-
-مهم جداً:
-- لا تستخدم "خدمات" إلا إذا كان النص فعلاً يقدم خدمة عامة (مثل صيانة، تركيب، نقل عفش) وليس حراج سيارات أو مطعم أو فعالية.
-- إذا كان إعلان سيارة → اختر دائماً "حراج الحسا" (حتى لو فيه كلمات طلب)
-
-أمثلة توضيحية:
-1) "سيارة كامري 2020 للبيع" → "حراج الحسا" ✅ (وليس "طلبات")
-2) "سيارة النترا موديل 2013 للبيع في الأحساء" → "حراج الحسا" ✅ (وليس "طلبات" أو "خدمات")
-3) "ابغى ابيع سيارتي" → "حراج الحسا" ✅ (سيارة تذهب لحساك)
-4) "شقة للإيجار 3 غرف" → "إيجار"
-5) "مطلوب شقة للبيع" → "طلبات" (طلب عقار يذهب لمسعاك)
-6) "شقة للبيع 200 ألف" → "شقة"
-7) "ابحث عن فيلا" → "طلبات"
-8) "ابغى ابيع هذا المكيف" → "حراج الحسا" (مستعمل يذهب لحساك)
-9) "مطعم جديد في الأحساء يقدم برجر" → "كوفيهات أو مطاعم"
-10) "أطباق منزلية من أسر منتجة" → "أسر منتجة"
-
-أرجع فقط اسم التصنيف (واحد فقط) بدون أي نص إضافي أو تفسير.`;
-
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-        const result = await model.generateContent(prompt);
-        const rawCategory = result.response.text().trim();
-        console.log("🏷️ Raw AI category response:", rawCategory);
-
-        // Normalize and clean category (remove quotes or markdown formatting)
-        let category = rawCategory
-          .replace(/^"+|"+$/g, "")
-          .replace(/^'+|'+$/g, "")
-          .replace(/```/g, "")
-          .trim();
-
-        // Validate the category is in our list
-        const validCategories = [
-          // Masaak (real estate) categories
-          "شقة دبلكسية",
-          "دبلكس",
-          "محطة بنزين",
-          "محل تجاري",
-          "عمارة",
-          "فيلا",
-          "بيت",
-          "شقة",
-          "مزرعة",
-          "استراحة",
-          "شالية",
-          "مستودع",
-          "أرض",
-          "إيجار",
-          "طلبات",
-          "وظائف",
-          "فعاليات",
-          "خدمات",
-          // Hasak categories
-          "أسر منتجة",
-          "إعلان تجاري ربحي مميز",
-          "الفعاليات والانشطة",
-          "برامج ووظائف",
-          "توصيل سيارات",
-          "فريق حساك",
-          "فعاليات و أنشطة",
-          "فعالية مجانية مميزة",
-          "كوفيهات أو مطاعم",
-          "مجتمع حساك",
-          "محلات تجارية",
-          "مركز ترفيهي",
-          "منتجعات وإستراحات",
-          "حراج الحسا",
+    try {
+        const responseText = await callAI(prompt, provider, "Category Detection");
+        const cleanedResponse = responseText.trim().replace(/^ التصنيف : /i, "");
+        
+        const categories = [
+          "شقق للبيع", "شقق للإيجار", "فيلا للبيع", "فيلا للإيجار",
+          "عمارة للبيع", "عمارة للإيجار", "أرض للبيع", "أرض للإيجار",
+          "محل للبيع", "محل للإيجار", "محل للتقبيل", "استراحة للبيع",
+          "استراحة للإيجار", "شاليه للإيجار", "مزرعة للبيع", "مزرعة للإيجار",
+          "فعاليات", "حراج", "أسر منتجة", "خدمات"
         ];
 
-        if (validCategories.includes(category)) {
-          console.log(`🏷️ AI detected category (validated): ${category}`);
-          return category;
+        const matchedCategory = categories.find(cat => cleanedResponse.includes(cat));
+        if (matchedCategory) return matchedCategory;
+
+        if (provider === "gemini" && gptKeys.length > 0) {
+            console.log("🔄 Gemini failed to match category, trying GPT...");
+            const gptResponse = await callAI(prompt, "gpt", "Category Detection (GPT Fallback)");
+            const gptMatched = categories.find(cat => gptResponse.includes(cat));
+            if (gptMatched) return gptMatched;
         }
 
-        // Fallback to keyword-based detection
-        console.log(
-          "🏷️ AI result not in valid list, using fallback detection...",
-          "raw=",
-          rawCategory,
-          "normalized=",
-          category
-        );
-        const fallbackCategory = detectCategoryFallback(text);
-        console.log("🏷️ Fallback detected category:", fallbackCategory);
-        return fallbackCategory;
-      },
-      "Category Detection",
-      null
-    );
+        return detectCategoryFallback(text);
+    } catch (e) {
+        console.error("AI Category Detection error:", e);
+        return detectCategoryFallback(text);
+    }
   } catch (error) {
-    console.error("❌ AI category detection error:", error);
-    // Fallback to keyword-based detection
+    console.error("Error in detectCategory:", error);
     return detectCategoryFallback(text);
   }
 }
+
 
 /**
  * Fallback keyword-based category detection
@@ -2036,14 +1995,14 @@ ${adText}${contactHint}
 
 أرجع JSON صالح فقط بدون markdown أو شروحات.`;
 
-  // Use retry mechanism with API key rotation
-  return await retryWithApiKeyRotation(async (apiKey, keyIndex) => {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+  // Determine provider
+  const settings = loadSettings();
+  const geminiKeys = (settings.geminiApiKeys || []).filter((k) => k.enabled);
+  const gptKeys = (settings.gptApiKeys || []).filter((k) => k.enabled);
+  const provider = geminiKeys.length > 0 ? "gemini" : "gpt";
 
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    const text = response.text();
+  try {
+    const text = await callAI(prompt, provider, "WordPress Data Extraction");
 
     console.log("🤖 =========================");
     console.log("🤖 RAW AI RESPONSE (first 500 chars):");
@@ -2376,7 +2335,37 @@ ${adText}${contactHint}
     }
 
     return wpData;
-  }, "Extract WordPress Data");
+  } catch (error) {
+    console.error("❌ Error in extractWordPressData:", error.message);
+    
+    // Try GPT as fallback if Gemini failed
+    const settings = loadSettings();
+    const gptKeys = (settings.gptApiKeys || []).filter((k) => k.enabled);
+    
+    if (gptKeys.length > 0 && error.message && !error.message.includes("GPT")) {
+      console.log("🔄 Trying GPT as fallback for WordPress extraction...");
+      try {
+        const text = await callAI(prompt, "gpt", "WordPress Data Extraction (GPT Fallback)");
+        const cleanedText = text.trim().replace(/^```json\s*/, "").replace(/```\s*$/, "");
+        const data = JSON.parse(cleanedText);
+        
+        return {
+          title: data.title || "إعلان عقاري",
+          content: data.content || { rendered: "" },
+          meta: data.meta || {},
+        };
+      } catch (gptError) {
+        console.error("❌ GPT fallback also failed:", gptError.message);
+      }
+    }
+    
+    // Return default structure on complete failure
+    return {
+      title: "إعلان عقاري",
+      content: { rendered: "" },
+      meta: {},
+    };
+  }
 }
 
 /**
@@ -2387,15 +2376,21 @@ ${adText}${contactHint}
  * @returns {object} - { isValid: boolean, reason: string, suggestion: string }
  */
 async function validateUserInput(input, fieldName = "name", context = "") {
-  return retryWithApiKeyRotation(async (GEMINI_API_KEY, currentIndex) => {
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+  const settings = loadSettings();
+  const geminiKeys = (settings.geminiApiKeys || []).filter((k) => k.enabled);
+  const gptKeys = (settings.gptApiKeys || []).filter((k) => k.enabled);
 
-    let prompt = "";
+  if (geminiKeys.length === 0 && gptKeys.length === 0) {
+    return { isValid: true, reason: "لا توجد مفاتيح تفعيل", suggestion: "" };
+  }
 
-    // Different validation prompts based on field type
-    if (fieldName === "name") {
-      prompt = `أنت مساعد ذكي صارم للتحقق من صحة الأسماء. مهمتك الأساسية هي التأكد من أن المدخل هو اسم شخص فقط.
+  const provider = geminiKeys.length > 0 ? "gemini" : "gpt";
+
+  let prompt = "";
+
+  // Different validation prompts based on field type
+  if (fieldName === "name") {
+    prompt = `أنت مساعد ذكي صارم للتحقق من صحة الأسماء. مهمتك الأساسية هي التأكد من أن المدخل هو اسم شخص فقط.
 
 المستخدم أدخل: "${input}"
 
@@ -2409,103 +2404,54 @@ async function validateUserInput(input, fieldName = "name", context = "") {
 - نماذج أو قوائم (نوع العقار، حدود السعر، رقم التواصل)
 - أكثر من 4 كلمات
 - رموز خاصة (* : - / . + = [ ] { })
-- أرقام
-- نقاط أو علامات ترقيم كثيرة
 
-✅ **ACCEPT فقط إذا:**
-- اسم شخص واضح (2-4 كلمات فقط)
-- أحرف عربية أو إنجليزية فقط
-- يبدو كاسم حقيقي لشخص (مثل: محمد أحمد، يوسف تامر، سارة علي)
-- لا يحتوي على أي معلومات إضافية
+✅ **ACCEPT فقط إذا كان:**
+- اسم شخص واضح (محمد، أحمد علي، سارة، عائلة الودعاني)
+- لقب مقبول اجتماعياً (أبو فلان، أم فلان)
 
-**أمثلة:**
-✅ "محمد أحمد" → VALID
-✅ "يوسف تامر" → VALID
-✅ "عبدالرحمن السليم" → VALID
-❌ "تشرفنا فيك يوسف تامر" → INVALID (يحتوي ترحيب)
-❌ "معك أخوك عبدالرحمن" → INVALID (يحتوي عبارات وظيفية)
-❌ "محمد - مسعاك العقارية" → INVALID (يحتوي اسم شركة)
-❌ "*محمد أحمد* 0505050505" → INVALID (يحتوي رموز ورقم)
-❌ "نوع العقار: فيلا" → INVALID (نموذج عقاري)
-❌ "محمد" → INVALID (اسم واحد فقط، نحتاج اسم ثنائي)
-
-أرجع JSON فقط:
+أرجع النتيجة بصيغة JSON فقط:
 {
-  "isValid": true/false,
-  "reason": "سبب قصير جداً (جملة واحدة)",
-  "suggestion": "اقتراح للمستخدم إذا كان غير صحيح، أو فارغ إذا كان صحيحاً"
-}`;
-    } else if (fieldName === "phone") {
-      prompt = `تحقق من رقم الهاتف: "${input}"
-هل هو رقم هاتف سعودي صحيح؟ (يبدأ بـ 05 أو 9665 أو +9665)
-
-أرجع JSON:
-{
-  "isValid": true/false,
-  "reason": "سبب",
-  "suggestion": "اقتراح أو فارغ"
-}`;
-    } else if (fieldName === "price") {
-      prompt = `تحقق من السعر: "${input}"
-هل هو نطاق سعر منطقي؟ (مثال: "من 500 ألف إلى مليون" أو "800000")
-
-أرجع JSON:
-{
-  "isValid": true/false,
-  "reason": "سبب",
-  "suggestion": "اقتراح أو فارغ"
-}`;
-    } else {
-      // Generic validation
-      prompt = `تحقق من هذا الإدخال للحقل "${fieldName}": "${input}"
-${context}
-
-هل هذا إدخال صحيح ومنطقي؟
-
-أرجع JSON:
-{
-  "isValid": true/false,
-  "reason": "سبب قصير",
-  "suggestion": "اقتراح أو فارغ"
-}`;
-    }
-
-    console.log(`🤖 AI validating ${fieldName}: "${input}"`);
-
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    const text = response.text();
-
-    console.log(`📝 AI response: ${text}`);
-
-    // Parse JSON response
-    try {
-      // Extract JSON from markdown code blocks if present
-      let jsonText = text.trim();
-      if (jsonText.includes("```json")) {
-        jsonText = jsonText.split("```json")[1].split("```")[0].trim();
-      } else if (jsonText.includes("```")) {
-        jsonText = jsonText.split("```")[1].split("```")[0].trim();
-      }
-
-      const validation = JSON.parse(jsonText);
-
-      console.log(
-        `✅ Validation result: ${validation.isValid ? "VALID ✓" : "INVALID ✗"}`
-      );
-      if (!validation.isValid) {
-        console.log(`   Reason: ${validation.reason}`);
-      }
-
-      return validation;
-    } catch (parseError) {
-      console.error("❌ Failed to parse AI validation response:", parseError);
-      // Fallback - assume valid if can't parse
-      return {
-        isValid: true,
-        reason: "تعذر التحقق",
-        suggestion: "",
-      };
-    }
-  }, `Validate ${fieldName}`);
+  "isValid": boolean,
+  "reason": "سبب الرفض بالعربي",
+  "suggestion": "اقتراح للمستخدم بالعربي"
 }
+`;
+  } else {
+    // Generic validation
+    prompt = `تحقق من صحة المدخل التالي للحقل "${fieldName}":
+"${input}"
+السياق: ${context}
+
+أرجع النتيجة بصيغة JSON فقط:
+{
+  "isValid": boolean,
+  "reason": "السبب",
+  "suggestion": "اقتراح"
+}
+`;
+  }
+
+  try {
+    const responseText = await callAI(prompt, provider, `Validate ${fieldName}`);
+    
+    // Extract JSON
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("Invalid AI response format");
+    const validation = JSON.parse(jsonMatch[0]);
+
+    console.log(`✅ Validation result: ${validation.isValid ? "VALID ✓" : "INVALID ✗"}`);
+    return validation;
+  } catch (error) {
+    console.error(`Error in validateUserInput (${provider}):`, error);
+    if (provider === "gemini" && gptKeys.length > 0) {
+      console.log("🔄 Gemini failed, falling back to GPT for Validation...");
+      try {
+        const responseText = await callAI(prompt, "gpt", `Validate ${fieldName} (GPT Fallback)`);
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) return JSON.parse(jsonMatch[0]);
+      } catch (gptError) {}
+    }
+    return { isValid: true, reason: "تعذر التحقق", suggestion: "" };
+  }
+}
+

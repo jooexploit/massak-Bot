@@ -4616,8 +4616,10 @@ async function loadSettingsView() {
       });
     }
 
-    // Load API keys
-    renderApiKeys(data.settings.geminiApiKeys || []);
+    // Load API keys (Combine both providers)
+    const geminiKeys = (data.settings.geminiApiKeys || []).map(k => ({ ...k, provider: 'gemini' }));
+    const gptKeys = (data.settings.gptApiKeys || []).map(k => ({ ...k, provider: 'gpt' }));
+    renderApiKeys([...geminiKeys, ...gptKeys]);
 
     // Load category limits
     renderCategoryLimits(data.settings.categoryLimits || []);
@@ -4829,13 +4831,16 @@ function renderApiKeys(apiKeys) {
     .sort((a, b) => a.priority - b.priority)
     .map(
       (key, index) => `
-      <div class="api-key-item" draggable="true" data-key-id="${key.id}" 
+      <div class="api-key-item" draggable="true" data-key-id="${key.id}" data-provider="${key.provider || 'gemini'}"
            style="background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; cursor: move; border: 2px solid #ddd;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div style="flex: 1;">
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
               <span style="font-size: 1.2rem; cursor: grab;">☰</span>
               <strong>${escapeHtml(key.name)}</strong>
+              <span class="badge" style="background: ${key.provider === 'gpt' ? '#10a37f' : '#1a73e8'};">
+                ${key.provider === 'gpt' ? 'GPT' : 'Gemini'}
+              </span>
               <span class="badge" style="background: ${
                 key.enabled ? "#28a745" : "#dc3545"
               };">
@@ -4865,13 +4870,11 @@ function renderApiKeys(apiKeys) {
             <button class="btn btn-sm ${
               key.enabled ? "btn-secondary" : "btn-success"
             }" 
-                    onclick="toggleApiKey('${key.id}', ${!key.enabled})">
+                    onclick="toggleApiKey('${key.id}', ${!key.enabled}, '${key.provider || 'gemini'}')">
               <i class="fas fa-${key.enabled ? "ban" : "check"}"></i>
               ${key.enabled ? "Disable" : "Enable"}
             </button>
-            <button class="btn btn-sm btn-danger" onclick="deleteApiKey('${
-              key.id
-            }')">
+            <button class="btn btn-sm btn-danger" onclick="deleteApiKey('${key.id}', '${key.provider || 'gemini'}')">
               <i class="fas fa-trash"></i>
             </button>
           </div>
@@ -4944,25 +4947,40 @@ async function updateApiKeyPriorities() {
   const items = document.querySelectorAll(".api-key-item");
   const response = await fetch("/api/bot/settings");
   const data = await response.json();
-  const apiKeys = data.settings.geminiApiKeys || [];
+  const geminiKeys = data.settings.geminiApiKeys || [];
+  const gptKeys = data.settings.gptApiKeys || [];
 
   items.forEach((item, index) => {
     const keyId = item.getAttribute("data-key-id");
-    const key = apiKeys.find((k) => k.id === keyId);
+    const provider = item.getAttribute("data-provider");
+    
+    const targetList = provider === "gpt" ? gptKeys : geminiKeys;
+    const key = targetList.find((k) => k.id === keyId);
+    
     if (key) {
       key.priority = index + 1;
     }
   });
 
-  // Save updated priorities
-  await fetch("/api/bot/settings", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ geminiApiKeys: apiKeys }),
-  });
+  // Save updated priorities for both
+  try {
+    const saveResponse = await fetch("/api/bot/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        geminiApiKeys: geminiKeys,
+        gptApiKeys: gptKeys
+      }),
+    });
 
-  showMessage("settings-message", "Priorities updated!", "success");
+    if (!saveResponse.ok) throw new Error("Failed to save priorities");
+    loadSettingsView(); // Refresh to show updated priorities
+  } catch (error) {
+    console.error("Error updating priorities:", error);
+    showMessage("settings-message", "Failed to update priorities", "error");
+  }
 }
+
 
 async function handleSaveApiKey() {
   const nameInput = document.getElementById("api-key-name");
@@ -4983,7 +5001,9 @@ async function handleSaveApiKey() {
   try {
     const response = await fetch("/api/bot/settings");
     const data = await response.json();
-    const apiKeys = data.settings.geminiApiKeys || [];
+    const provider = document.getElementById("api-key-provider").value;
+    const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
+    const apiKeys = data.settings[keysKey] || [];
 
     const newKey = {
       id: `key_${Date.now()}`,
@@ -4997,10 +5017,13 @@ async function handleSaveApiKey() {
 
     apiKeys.push(newKey);
 
+    const payload = {};
+    payload[keysKey] = apiKeys;
+
     const saveResponse = await fetch("/api/bot/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ geminiApiKeys: apiKeys }),
+      body: JSON.stringify(payload),
     });
 
     if (!saveResponse.ok) throw new Error("Failed to save API key");
@@ -5017,21 +5040,25 @@ async function handleSaveApiKey() {
   }
 }
 
-async function toggleApiKey(keyId, enabled) {
+async function toggleApiKey(keyId, enabled, provider = "gemini") {
   try {
     const response = await fetch("/api/bot/settings");
     const data = await response.json();
-    const apiKeys = data.settings.geminiApiKeys || [];
+    const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
+    const apiKeys = data.settings[keysKey] || [];
 
     const key = apiKeys.find((k) => k.id === keyId);
     if (key) {
       key.enabled = enabled;
     }
 
+    const payload = {};
+    payload[keysKey] = apiKeys;
+
     const saveResponse = await fetch("/api/bot/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ geminiApiKeys: apiKeys }),
+      body: JSON.stringify(payload),
     });
 
     if (!saveResponse.ok) throw new Error("Failed to update API key");
@@ -5048,20 +5075,24 @@ async function toggleApiKey(keyId, enabled) {
   }
 }
 
-async function deleteApiKey(keyId) {
+async function deleteApiKey(keyId, provider = "gemini") {
   if (!confirm("Are you sure you want to delete this API key?")) return;
 
   try {
     const response = await fetch("/api/bot/settings");
     const data = await response.json();
-    let apiKeys = data.settings.geminiApiKeys || [];
+    const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
+    let apiKeys = data.settings[keysKey] || [];
 
     apiKeys = apiKeys.filter((k) => k.id !== keyId);
+
+    const payload = {};
+    payload[keysKey] = apiKeys;
 
     const saveResponse = await fetch("/api/bot/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ geminiApiKeys: apiKeys }),
+      body: JSON.stringify(payload),
     });
 
     if (!saveResponse.ok) throw new Error("Failed to delete API key");

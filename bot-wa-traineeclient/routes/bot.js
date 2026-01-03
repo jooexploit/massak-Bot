@@ -2489,6 +2489,7 @@ router.put(
       const {
         recycleBinDays,
         geminiApiKeys,
+        gptApiKeys,
         wordpressUrl,
         wordpressUsername,
         wordpressPassword,
@@ -2539,6 +2540,16 @@ router.put(
             .json({ error: "geminiApiKeys must be an array" });
         }
         updates.geminiApiKeys = geminiApiKeys;
+      }
+
+      if (gptApiKeys !== undefined) {
+        // Validate API keys array
+        if (!Array.isArray(gptApiKeys)) {
+          return res
+            .status(400)
+            .json({ error: "gptApiKeys must be an array" });
+        }
+        updates.gptApiKeys = gptApiKeys;
       }
 
       if (excludedGroups !== undefined) {

@@ -2336,9 +2336,9 @@
                 <!-- API Keys Settings -->
                 <div class="card" style="margin-top: 1rem;">
                     <div class="card-body">
-                        <h3><i class="fas fa-key"></i> Gemini API Keys Management</h3>
+                        <h3><i class="fas fa-key"></i> AI API Keys Management</h3>
                         <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
-                            Add multiple API keys. If one reaches its limit, the system will automatically switch to the
+                            Add multiple API keys for Gemini or GPT. If one reaches its limit, the system will automatically switch to the
                             next one. Drag to reorder priority.
                         </p>
                         <button id="add-api-key-btn" class="btn btn-success" style="margin-bottom: 1rem;">
@@ -2349,13 +2349,20 @@
                             style="display: none; background: #f5f5f5; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
                             <h4>Add New API Key</h4>
                             <div class="form-group">
+                                <label for="api-key-provider">AI Provider:</label>
+                                <select id="api-key-provider" class="form-control">
+                                    <option value="gemini">Google Gemini</option>
+                                    <option value="gpt">OpenAI GPT (ChatGPT)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
                                 <label for="api-key-name">Key Name:</label>
                                 <input type="text" id="api-key-name" class="form-control"
-                                    placeholder="e.g., Primary Key">
+                                    placeholder="e.g., Gemini Primary or GPT Mini">
                             </div>
                             <div class="form-group">
                                 <label for="api-key-value">API Key:</label>
-                                <input type="text" id="api-key-value" class="form-control" placeholder="AIzaSy...">
+                                <input type="text" id="api-key-value" class="form-control" placeholder="AIzaSy... or sk-...">
                             </div>
                             <div style="display: flex; gap: 0.5rem;">
                                 <button id="save-api-key-btn" class="btn btn-primary">
