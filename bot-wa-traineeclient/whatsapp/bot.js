@@ -3365,6 +3365,18 @@ async function initializeBot() {
             }, hasMessage: ${!!msg.message}, remoteJid: ${msg.key.remoteJid}`
           );
 
+          // ============================================
+          // 🔍 INBOUND VALIDATION - Track received messages
+          // ============================================
+          // This is critical for transitioning from RECEIVING to STABLE phase
+          if (!msg.key.fromMe && msg.message) {
+            inboundMessageCount++;
+            lastInboundAt = Date.now();
+
+            // Call handleFirstInboundMessage to complete RECEIVING validation
+            handleFirstInboundMessage();
+          }
+
           // Skip messages without content
           if (!msg.message) {
             console.log(`⏩ Skipping message - no message content`);
