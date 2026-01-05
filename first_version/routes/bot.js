@@ -40,6 +40,7 @@ const {
   generateWhatsAppMessage,
   getApiKeysStatus,
 } = require("../services/aiService");
+const apiKeyManager = require("../services/apiKeyManager");
 const dataSync = require("../utils/dataSync");
 const messageQueue = require("../services/messageQueue");
 const axios = require("axios");
@@ -1857,16 +1858,178 @@ router.get("/settings", authenticateToken, (req, res) => {
   }
 });
 
-// Get API keys status
+// Get API keys status (enhanced with provider info)
 router.get("/api-keys/status", authenticateToken, (req, res) => {
   try {
-    const status = getApiKeysStatus();
+    const status = apiKeyManager.getApiKeysStatus();
     res.json({ success: true, status });
   } catch (err) {
     console.error("Error getting API keys status:", err);
     res.status(500).json({ error: "Failed to get API keys status" });
   }
 });
+
+// Get all API keys (for management UI)
+router.get("/api-keys", authenticateToken, (req, res) => {
+  try {
+    const allKeys = apiKeyManager.getAllApiKeys();
+    // Mask the actual key values for security
+    const maskedKeys = allKeys.map((key) => ({
+      ...key,
+      key:
+        key.key.substring(0, 8) + "..." + key.key.substring(key.key.length - 4),
+      fullKey: undefined, // Don't expose full key
+    }));
+    res.json({ success: true, keys: maskedKeys });
+  } catch (err) {
+    console.error("Error getting API keys:", err);
+    res.status(500).json({ error: "Failed to get API keys" });
+  }
+});
+
+// Add new API key (admin only)
+router.post(
+  "/api-keys",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { provider, name, key } = req.body;
+
+      // Validate required fields
+      if (!provider || !name || !key) {
+        return res.status(400).json({
+          error: "provider, name, and key are required",
+        });
+      }
+
+      // Validate provider
+      if (
+        provider !== apiKeyManager.PROVIDERS.GEMINI &&
+        provider !== apiKeyManager.PROVIDERS.GPT
+      ) {
+        return res.status(400).json({
+          error: "provider must be 'gemini' or 'gpt'",
+        });
+      }
+
+      const newKey = apiKeyManager.addApiKey({ provider, name, key });
+      res.json({
+        success: true,
+        key: {
+          ...newKey,
+          key:
+            newKey.key.substring(0, 8) +
+            "..." +
+            newKey.key.substring(newKey.key.length - 4),
+        },
+      });
+    } catch (err) {
+      console.error("Error adding API key:", err);
+      res.status(500).json({ error: "Failed to add API key" });
+    }
+  }
+);
+
+// Update API key (admin only)
+router.put(
+  "/api-keys/:keyId",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { keyId } = req.params;
+      const updates = req.body;
+
+      // Validate provider if provided
+      if (
+        updates.provider &&
+        updates.provider !== apiKeyManager.PROVIDERS.GEMINI &&
+        updates.provider !== apiKeyManager.PROVIDERS.GPT
+      ) {
+        return res.status(400).json({
+          error: "provider must be 'gemini' or 'gpt'",
+        });
+      }
+
+      const result = apiKeyManager.updateApiKey(keyId, updates);
+      if (!result.success) {
+        return res.status(404).json({ error: result.error });
+      }
+
+      res.json({
+        success: true,
+        key: {
+          ...result.key,
+          key:
+            result.key.key.substring(0, 8) +
+            "..." +
+            result.key.key.substring(result.key.key.length - 4),
+        },
+      });
+    } catch (err) {
+      console.error("Error updating API key:", err);
+      res.status(500).json({ error: "Failed to update API key" });
+    }
+  }
+);
+
+// Delete API key (admin only)
+router.delete(
+  "/api-keys/:keyId",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { keyId } = req.params;
+      const result = apiKeyManager.deleteApiKey(keyId);
+
+      if (!result.success) {
+        return res.status(404).json({ error: result.error });
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting API key:", err);
+      res.status(500).json({ error: "Failed to delete API key" });
+    }
+  }
+);
+
+// Update API key priorities (admin only)
+router.put(
+  "/api-keys/priorities/:provider",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { provider } = req.params;
+      const { keyIds } = req.body;
+
+      // Validate provider
+      if (
+        provider !== apiKeyManager.PROVIDERS.GEMINI &&
+        provider !== apiKeyManager.PROVIDERS.GPT
+      ) {
+        return res.status(400).json({
+          error: "provider must be 'gemini' or 'gpt'",
+        });
+      }
+
+      if (!Array.isArray(keyIds)) {
+        return res.status(400).json({
+          error: "keyIds must be an array",
+        });
+      }
+
+      const result = apiKeyManager.updateKeyPriorities(provider, keyIds);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error updating API key priorities:", err);
+      res.status(500).json({ error: "Failed to update priorities" });
+    }
+  }
+);
 
 // Update settings (admin only)
 router.put(
@@ -1878,6 +2041,7 @@ router.put(
       const {
         recycleBinDays,
         geminiApiKeys,
+        gptApiKeys,
         wordpressUrl,
         wordpressUsername,
         wordpressPassword,
@@ -1926,6 +2090,14 @@ router.put(
             .json({ error: "geminiApiKeys must be an array" });
         }
         updates.geminiApiKeys = geminiApiKeys;
+      }
+
+      if (gptApiKeys !== undefined) {
+        // Validate GPT API keys array
+        if (!Array.isArray(gptApiKeys)) {
+          return res.status(400).json({ error: "gptApiKeys must be an array" });
+        }
+        updates.gptApiKeys = gptApiKeys;
       }
 
       if (excludedGroups !== undefined) {

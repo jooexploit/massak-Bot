@@ -3,265 +3,157 @@ const fs = require("fs");
 const path = require("path");
 
 const { getDataPath } = require("../config/dataPath");
+const apiKeyManager = require("./apiKeyManager");
 
 const SETTINGS_FILE = getDataPath("settings.json");
 
-// Load settings and get current API key
-function loadSettings() {
-  try {
-    if (fs.existsSync(SETTINGS_FILE)) {
-      return JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"));
-    }
-  } catch (error) {
-    console.error("Error loading settings:", error);
-  }
-  return { geminiApiKeys: [], currentKeyIndex: 0 };
-}
+// Re-export from apiKeyManager for backward compatibility
+const {
+  PROVIDERS,
+  MODEL_CONFIG,
+  loadSettings,
+  saveSettings,
+  getApiKeysStatus,
+  getActiveApiKey: getActiveApiKeyInternal,
+  switchToNextKey,
+  updateKeyStats: updateKeyStatsInternal,
+  retryWithKeyRotation,
+  selectProvider,
+  getModelConfig,
+} = apiKeyManager;
 
-function saveSettings(settings) {
-  try {
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
-  } catch (error) {
-    console.error("Error saving settings:", error);
-  }
-}
-
-function getApiKeysStatus() {
-  const settings = loadSettings();
-  const keys = settings.geminiApiKeys || [];
-  const enabledKeys = keys.filter((k) => k.enabled);
-
-  const now = Date.now();
-  const ONE_DAY = 24 * 60 * 60 * 1000;
-
-  let exhaustedCount = 0;
-  let workingCount = 0;
-  let totalCount = enabledKeys.length;
-
-  const keyDetails = enabledKeys.map((key) => {
-    const isExhausted =
-      key.lastError &&
-      key.lastError.message &&
-      (key.lastError.message.includes("429") ||
-        key.lastError.message.includes("quota")) &&
-      now - key.lastError.timestamp < ONE_DAY; // Error within last 24 hours
-
-    if (isExhausted) {
-      exhaustedCount++;
-    } else {
-      workingCount++;
-    }
-
-    return {
-      id: key.id,
-      name: key.name,
-      requestCount: key.requestCount || 0,
-      isExhausted,
-      lastError: key.lastError
-        ? {
-            message: key.lastError.message.substring(0, 100),
-            timestamp: key.lastError.timestamp,
-          }
-        : null,
-    };
-  });
-
-  return {
-    totalKeys: totalCount,
-    workingKeys: workingCount,
-    exhaustedKeys: exhaustedCount,
-    allExhausted: totalCount > 0 && exhaustedCount === totalCount,
-    details: keyDetails,
-  };
-}
-
+// Backward-compatible wrapper for getActiveApiKey (defaults to Gemini)
 function getActiveApiKey() {
-  const settings = loadSettings();
-  const keys = settings.geminiApiKeys || [];
-
-  // Find enabled keys sorted by priority
-  const enabledKeys = keys
-    .filter((k) => k.enabled)
-    .sort((a, b) => a.priority - b.priority);
-
-  if (enabledKeys.length === 0) {
-    console.error("❌ No enabled API keys found!");
-    return null;
-  }
-
-  // Get current key based on index
-  let currentIndex = settings.currentKeyIndex || 0;
-  if (currentIndex >= enabledKeys.length) {
-    currentIndex = 0;
-  }
-
-  return {
-    key: enabledKeys[currentIndex].key,
-    settings,
-    currentIndex,
-    enabledKeys,
-  };
+  return getActiveApiKeyInternal(PROVIDERS.GEMINI);
 }
 
+// Backward-compatible wrapper for switchToNextApiKey (defaults to Gemini)
 function switchToNextApiKey() {
-  const settings = loadSettings();
-  const enabledKeys = (settings.geminiApiKeys || [])
-    .filter((k) => k.enabled)
-    .sort((a, b) => a.priority - b.priority);
-
-  if (enabledKeys.length <= 1) {
-    console.warn("⚠️ No other API keys available to switch to");
-    return null;
-  }
-
-  // Move to next key
-  settings.currentKeyIndex =
-    (settings.currentKeyIndex + 1) % enabledKeys.length;
-  saveSettings(settings);
-
-  console.log(
-    `🔄 Switched to API key #${settings.currentKeyIndex + 1}: ${
-      enabledKeys[settings.currentKeyIndex].name
-    }`
-  );
-  return enabledKeys[settings.currentKeyIndex].key;
+  return switchToNextKey(PROVIDERS.GEMINI);
 }
 
+// Backward-compatible wrapper for updateKeyStats (defaults to Gemini)
 function updateKeyStats(keyIndex, error = null, enabledKeys = null) {
-  const settings = loadSettings();
+  if (enabledKeys && enabledKeys[keyIndex]) {
+    updateKeyStatsInternal(PROVIDERS.GEMINI, enabledKeys[keyIndex].id, error);
+  }
+}
 
-  // If enabledKeys not provided, sort them
-  if (!enabledKeys) {
-    enabledKeys = (settings.geminiApiKeys || [])
-      .filter((k) => k.enabled)
-      .sort((a, b) => a.priority - b.priority);
+/**
+ * Execute AI request with GPT provider
+ * @param {string} prompt - The prompt to send
+ * @param {Object} options - Optional configuration
+ */
+async function executeWithGPT(prompt, options = {}) {
+  const axios = require("axios");
+
+  return retryWithKeyRotation(
+    PROVIDERS.GPT,
+    async (apiKey, keyData, keyIndex) => {
+      const modelConfig = getModelConfig(
+        PROVIDERS.GPT,
+        options.modelType || "efficient"
+      );
+
+      const response = await axios.post(
+        `${modelConfig.endpoint}/chat/completions`,
+        {
+          model: modelConfig.model,
+          messages: [
+            {
+              role: "system",
+              content:
+                options.systemPrompt ||
+                "You are a helpful assistant specialized in analyzing Arabic real estate advertisements.",
+            },
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          max_tokens: options.maxTokens || 2000,
+          temperature: options.temperature || 0.3,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 30000,
+        }
+      );
+
+      return response.data.choices[0].message.content;
+    },
+    options.operationName || "GPT Request",
+    options.maxRetries
+  );
+}
+
+/**
+ * Execute AI request with Gemini provider
+ * @param {string} prompt - The prompt to send
+ * @param {Object} options - Optional configuration
+ */
+async function executeWithGemini(prompt, options = {}) {
+  return retryWithKeyRotation(
+    PROVIDERS.GEMINI,
+    async (apiKey, keyData, keyIndex) => {
+      const modelConfig = getModelConfig(
+        PROVIDERS.GEMINI,
+        options.modelType || "efficient"
+      );
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: modelConfig.model });
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      return response.text();
+    },
+    options.operationName || "Gemini Request",
+    options.maxRetries
+  );
+}
+
+/**
+ * Execute AI request with automatic provider selection
+ * @param {string} prompt - The prompt to send
+ * @param {Object} options - Optional configuration including preferredProvider
+ */
+async function executeAIRequest(prompt, options = {}) {
+  const provider = selectProvider(options.preferredProvider);
+
+  if (!provider) {
+    throw new Error("No AI providers available. Please add API keys.");
   }
 
-  if (keyIndex < enabledKeys.length) {
-    const keyId = enabledKeys[keyIndex].id;
-    const keyInSettings = settings.geminiApiKeys.find((k) => k.id === keyId);
+  console.log(`🤖 Using ${provider.toUpperCase()} provider for AI request`);
 
-    if (keyInSettings) {
-      keyInSettings.requestCount = (keyInSettings.requestCount || 0) + 1;
-      if (error) {
-        keyInSettings.lastError = {
-          message: error.message || error.toString(),
-          timestamp: Date.now(),
-        };
-      }
-      saveSettings(settings);
-    }
+  if (provider === PROVIDERS.GPT) {
+    return executeWithGPT(prompt, options);
+  } else {
+    return executeWithGemini(prompt, options);
   }
 }
 
 // -------------------------
-// Retry Mechanism with API Key Rotation
+// Retry Mechanism with API Key Rotation (Legacy - for backward compatibility)
+// Uses the new apiKeyManager under the hood
 // -------------------------
 async function retryWithApiKeyRotation(
   operation,
   operationName = "AI operation",
   maxRetries = null
 ) {
-  const settings = loadSettings();
-  const enabledKeys = (settings.geminiApiKeys || [])
-    .filter((k) => k.enabled)
-    .sort((a, b) => a.priority - b.priority);
-
-  if (enabledKeys.length === 0) {
-    throw new Error("❌ No enabled API keys available");
-  }
-
-  // Max retries = number of available keys (try each key once)
-  const totalRetries = maxRetries || enabledKeys.length;
-  let lastError = null;
-  let attemptCount = 0;
-
-  console.log(
-    `🔄 Starting ${operationName} with ${enabledKeys.length} available API keys`
-  );
-
-  // Always start from the first key (lowest priority) in each operation
-  let currentRotationIndex = 0;
-
-  for (let i = 0; i < totalRetries; i++) {
-    try {
-      attemptCount++;
-      const currentKey = enabledKeys[currentRotationIndex];
-
-      console.log(
-        `🔑 Attempt ${attemptCount}/${totalRetries} - Using API key: ${currentKey.name} (Priority: ${currentKey.priority})`
-      );
-
-      // Execute the operation
-      const result = await operation(currentKey.key, currentRotationIndex);
-
-      console.log(`✅ ${operationName} succeeded with key: ${currentKey.name}`);
-      updateKeyStats(currentRotationIndex, null, enabledKeys);
-
-      return result;
-    } catch (error) {
-      lastError = error;
-      const errorMessage = error.message || error.toString();
-
-      // Check for different retryable error types
-      const isOverloadError =
-        error.status === 503 ||
-        errorMessage.includes("overloaded") ||
-        errorMessage.includes("503");
-      const isRateLimitError =
-        error.status === 429 ||
-        errorMessage.includes("429") ||
-        errorMessage.includes("rate limit") ||
-        errorMessage.includes("Resource exhausted");
-      const isLeakedKeyError =
-        error.status === 403 ||
-        errorMessage.includes("403") ||
-        errorMessage.includes("leaked") ||
-        errorMessage.includes("Forbidden");
-
-      console.error(`❌ Attempt ${attemptCount} failed:`, errorMessage);
-
-      // Update stats with error
-      updateKeyStats(currentRotationIndex, error, enabledKeys);
-
-      // If this is the last attempt, don't switch keys
-      if (i < totalRetries - 1) {
-        // Switch to next key for these retryable errors
-        if (isOverloadError || isRateLimitError || isLeakedKeyError) {
-          if (isLeakedKeyError) {
-            console.log(
-              `⚠️ API key was reported as leaked/forbidden, switching to next key...`
-            );
-          } else {
-            console.log(
-              `⚠️ API key overloaded or rate limited, switching to next key...`
-            );
-          }
-
-          // Move to next key in the sorted priority list
-          currentRotationIndex =
-            (currentRotationIndex + 1) % enabledKeys.length;
-
-          // Add delay before retry (exponential backoff)
-          const delayMs = Math.min(1000 * Math.pow(2, i), 10000);
-          console.log(`⏳ Waiting ${delayMs}ms before retry...`);
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-        } else {
-          // For other errors, throw immediately (non-retryable)
-          throw error;
-        }
-      }
-    }
-  }
-
-  // All retries exhausted
-  console.error(
-    `💥 ${operationName} failed after ${attemptCount} attempts with all available API keys`
-  );
-  throw new Error(
-    `All API keys failed for ${operationName}. Last error: ${
-      lastError?.message || lastError
-    }`
+  // Use the new retryWithKeyRotation from apiKeyManager with Gemini as default
+  return retryWithKeyRotation(
+    PROVIDERS.GEMINI,
+    async (apiKey, keyData, keyIndex) => {
+      // Call the original operation with apiKey and keyIndex for backward compatibility
+      return operation(apiKey, keyIndex);
+    },
+    operationName,
+    maxRetries
   );
 }
 
@@ -1532,6 +1424,14 @@ module.exports = {
   generateWhatsAppMessage,
   validateUserInput,
   getApiKeysStatus,
+  // New exports for multi-provider support
+  PROVIDERS,
+  MODEL_CONFIG,
+  executeWithGPT,
+  executeWithGemini,
+  executeAIRequest,
+  selectProvider,
+  getModelConfig,
 };
 
 async function extractWordPressData(adText) {

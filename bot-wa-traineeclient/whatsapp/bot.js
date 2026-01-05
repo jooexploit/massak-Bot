@@ -20,7 +20,7 @@ const {
 // � FEATURE FLAGS
 // Toggle features on/off without removing code
 // ============================================
-const ENABLE_AD_FETCHING = true; // Set to false to stop fetching ads from groups
+const ENABLE_AD_FETCHING = false; // Set to false to stop fetching ads from groups
 // All processing code remains intact for future re-enabling
 
 // ============================================

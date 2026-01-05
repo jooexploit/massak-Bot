@@ -4398,8 +4398,23 @@ async function loadSettingsView() {
       });
     }
 
-    // Load API keys
-    renderApiKeys(data.settings.geminiApiKeys || []);
+    // Load API keys for both providers
+    renderApiKeysByProvider(
+      "gemini",
+      data.settings.geminiApiKeys || [],
+      "gemini-keys-list"
+    );
+    renderApiKeysByProvider(
+      "gpt",
+      data.settings.gptApiKeys || [],
+      "gpt-keys-list"
+    );
+
+    // Setup provider tab switching
+    setupApiKeyProviderTabs();
+
+    // Update API keys summary
+    updateApiKeysSummary(data.settings);
 
     // Load category limits
     renderCategoryLimits(data.settings.categoryLimits || []);
@@ -4433,6 +4448,58 @@ async function loadSettingsView() {
   }
 }
 
+// Track current active provider tab
+let currentApiKeyProvider = "gemini";
+
+function setupApiKeyProviderTabs() {
+  const geminiTab = document.getElementById("gemini-tab-btn");
+  const gptTab = document.getElementById("gpt-tab-btn");
+  const geminiSection = document.getElementById("gemini-keys-section");
+  const gptSection = document.getElementById("gpt-keys-section");
+
+  if (geminiTab) {
+    geminiTab.addEventListener("click", () => {
+      currentApiKeyProvider = "gemini";
+      geminiTab.style.background = "#4285f4";
+      geminiTab.style.color = "white";
+      gptTab.style.background = "#e0e0e0";
+      gptTab.style.color = "#333";
+      geminiSection.style.display = "block";
+      gptSection.style.display = "none";
+    });
+  }
+
+  if (gptTab) {
+    gptTab.addEventListener("click", () => {
+      currentApiKeyProvider = "gpt";
+      gptTab.style.background = "#10a37f";
+      gptTab.style.color = "white";
+      geminiTab.style.background = "#e0e0e0";
+      geminiTab.style.color = "#333";
+      gptSection.style.display = "block";
+      geminiSection.style.display = "none";
+    });
+  }
+}
+
+function updateApiKeysSummary(settings) {
+  const geminiStatus = document.getElementById("gemini-keys-status");
+  const gptStatus = document.getElementById("gpt-keys-status");
+
+  const geminiKeys = settings.geminiApiKeys || [];
+  const gptKeys = settings.gptApiKeys || [];
+
+  const geminiEnabled = geminiKeys.filter((k) => k.enabled).length;
+  const gptEnabled = gptKeys.filter((k) => k.enabled).length;
+
+  if (geminiStatus) {
+    geminiStatus.innerHTML = `${geminiEnabled}/${geminiKeys.length} active`;
+  }
+  if (gptStatus) {
+    gptStatus.innerHTML = `${gptEnabled}/${gptKeys.length} active`;
+  }
+}
+
 async function checkApiKeysStatus() {
   try {
     const response = await fetch("/api/bot/api-keys/status");
@@ -4445,20 +4512,27 @@ async function checkApiKeysStatus() {
 
     if (!alertBanner) return;
 
-    if (data.status.allExhausted && data.status.totalKeys > 0) {
+    // Use combined status from both providers
+    const combinedStatus = data.status.combined || data.status;
+
+    if (combinedStatus.allExhausted && combinedStatus.totalKeys > 0) {
       // All keys are exhausted - show critical alert
       alertMessage.innerHTML = `
-        <strong>⚠️ Critical: All ${data.status.totalKeys} API keys have reached their quota limits!</strong><br>
+        <strong>⚠️ Critical: All ${combinedStatus.totalKeys} API keys have reached their quota limits!</strong><br>
         The system is now using fallback keyword detection with reduced accuracy. 
         Please add new API keys immediately to restore full functionality.
       `;
 
-      statusDetails.innerHTML = data.status.details
+      statusDetails.innerHTML = combinedStatus.details
         .map((key) => {
           const lastError = key.lastError
             ? new Date(key.lastError.timestamp).toLocaleString()
             : "N/A";
-          return `<div style="padding: 0.25rem 0;"><strong>${escapeHtml(
+          const providerBadge =
+            key.provider === "gpt"
+              ? '<span style="background:#10a37f;color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;">GPT</span>'
+              : '<span style="background:#4285f4;color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;">Gemini</span>';
+          return `<div style="padding: 0.25rem 0;">${providerBadge} <strong>${escapeHtml(
             key.name
           )}:</strong> ${
             key.requestCount
@@ -4467,7 +4541,7 @@ async function checkApiKeysStatus() {
         .join("");
 
       alertBanner.style.display = "block";
-    } else if (data.status.exhaustedKeys > 0) {
+    } else if (combinedStatus.exhaustedKeys > 0) {
       // Some keys exhausted - show warning
       alertMessage.innerHTML = `
         <strong>⚠️ Warning: ${data.status.exhaustedKeys} out of ${data.status.totalKeys} API keys have reached their limits.</strong><br>
@@ -4565,12 +4639,21 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function renderApiKeys(apiKeys) {
-  const container = document.getElementById("api-keys-list");
+  // Legacy function - redirect to provider-specific rendering
+  renderApiKeysByProvider("gemini", apiKeys, "gemini-keys-list");
+}
+
+// New provider-aware API key rendering
+function renderApiKeysByProvider(provider, apiKeys, containerId) {
+  const container = document.getElementById(containerId);
   if (!container) return;
 
+  const providerColor = provider === "gpt" ? "#10a37f" : "#4285f4";
+  const providerIcon = provider === "gpt" ? "fa-brain" : "fa-gem";
+  const providerName = provider === "gpt" ? "GPT" : "Gemini";
+
   if (apiKeys.length === 0) {
-    container.innerHTML =
-      '<p style="color: #999;">No API keys configured yet.</p>';
+    container.innerHTML = `<p style="color: #999;">No ${providerName} API keys configured yet.</p>`;
     return;
   }
 
@@ -4578,51 +4661,74 @@ function renderApiKeys(apiKeys) {
     .sort((a, b) => a.priority - b.priority)
     .map(
       (key, index) => `
-      <div class="api-key-item" draggable="true" data-key-id="${key.id}" 
-           style="background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; cursor: move; border: 2px solid #ddd;">
+      <div class="api-key-item" draggable="true" data-key-id="${
+        key.id
+      }" data-provider="${provider}"
+           style="background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; cursor: move; border: 2px solid #ddd; border-left: 4px solid ${providerColor};">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div style="flex: 1;">
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
               <span style="font-size: 1.2rem; cursor: grab;">☰</span>
+              <span class="badge" style="background: ${providerColor}; color: white;">
+                <i class="fas ${providerIcon}"></i> ${providerName}
+              </span>
               <strong>${escapeHtml(key.name)}</strong>
               <span class="badge" style="background: ${
                 key.enabled ? "#28a745" : "#dc3545"
               };">
-                ${key.enabled ? "Enabled" : "Disabled"}
+                ${key.enabled ? "Active" : "Inactive"}
               </span>
-              <span class="badge" style="background: #17a2b8;">Priority: ${
+              <span class="badge" style="background: #6c757d;">Priority: ${
                 key.priority
               }</span>
             </div>
             <div style="font-family: monospace; font-size: 0.85rem; color: #666;">
-              ${key.key.substring(0, 20)}...${key.key.substring(
+              ${key.key.substring(0, 15)}...${key.key.substring(
         key.key.length - 4
       )}
             </div>
             <div style="font-size: 0.85rem; color: #999; margin-top: 0.5rem;">
-              Requests: ${key.requestCount || 0}
+              <span style="margin-right: 1rem;">📊 Requests: ${
+                key.requestCount || 0
+              }</span>
+              ${
+                key.lastUsed
+                  ? `<span style="margin-right: 1rem;">🕐 Last used: ${new Date(
+                      key.lastUsed
+                    ).toLocaleString()}</span>`
+                  : ""
+              }
               ${
                 key.lastError
-                  ? `| Last Error: ${new Date(
+                  ? `<span style="color: #dc3545;">⚠️ Error: ${new Date(
                       key.lastError.timestamp
-                    ).toLocaleString()}`
+                    ).toLocaleString()}</span>`
                   : ""
               }
             </div>
           </div>
-          <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-sm ${
-              key.enabled ? "btn-secondary" : "btn-success"
-            }" 
-                    onclick="toggleApiKey('${key.id}', ${!key.enabled})">
-              <i class="fas fa-${key.enabled ? "ban" : "check"}"></i>
-              ${key.enabled ? "Disable" : "Enable"}
-            </button>
-            <button class="btn btn-sm btn-danger" onclick="deleteApiKey('${
-              key.id
-            }')">
-              <i class="fas fa-trash"></i>
-            </button>
+          <div style="display: flex; gap: 0.5rem; flex-direction: column; align-items: flex-end;">
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-sm ${
+                key.enabled ? "btn-secondary" : "btn-success"
+              }" 
+                      onclick="toggleApiKeyByProvider('${provider}', '${
+        key.id
+      }', ${!key.enabled})">
+                <i class="fas fa-${key.enabled ? "pause" : "play"}"></i>
+                ${key.enabled ? "Pause" : "Activate"}
+              </button>
+              <button class="btn btn-sm btn-info" onclick="editApiKey('${provider}', '${
+        key.id
+      }')">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="btn btn-sm btn-danger" onclick="deleteApiKeyByProvider('${provider}', '${
+        key.id
+      }')">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -4633,17 +4739,25 @@ function renderApiKeys(apiKeys) {
   // Add drag and drop event listeners
   const items = container.querySelectorAll(".api-key-item");
   items.forEach((item) => {
-    item.addEventListener("dragstart", handleDragStart);
+    item.addEventListener("dragstart", handleProviderDragStart);
     item.addEventListener("dragover", handleDragOver);
-    item.addEventListener("drop", handleDrop);
+    item.addEventListener("drop", handleProviderDrop);
     item.addEventListener("dragend", handleDragEnd);
   });
 }
 
 let draggedElement = null;
+let draggedProvider = null;
 
 function handleDragStart(e) {
   draggedElement = this;
+  this.style.opacity = "0.5";
+  e.dataTransfer.effectAllowed = "move";
+}
+
+function handleProviderDragStart(e) {
+  draggedElement = this;
+  draggedProvider = this.getAttribute("data-provider");
   this.style.opacity = "0.5";
   e.dataTransfer.effectAllowed = "move";
 }
@@ -4680,13 +4794,63 @@ function handleDrop(e) {
   return false;
 }
 
+function handleProviderDrop(e) {
+  if (e.stopPropagation) {
+    e.stopPropagation();
+  }
+
+  const targetProvider = this.getAttribute("data-provider");
+
+  // Only allow drop within same provider
+  if (draggedElement !== this && draggedProvider === targetProvider) {
+    const container = this.parentNode;
+    const allItems = [...container.querySelectorAll(".api-key-item")];
+    const draggedIndex = allItems.indexOf(draggedElement);
+    const targetIndex = allItems.indexOf(this);
+
+    if (draggedIndex < targetIndex) {
+      this.parentNode.insertBefore(draggedElement, this.nextSibling);
+    } else {
+      this.parentNode.insertBefore(draggedElement, this);
+    }
+
+    // Update priorities for this provider
+    updateApiKeyPrioritiesByProvider(draggedProvider);
+  }
+
+  return false;
+}
+
 function handleDragEnd(e) {
   this.style.opacity = "1";
+  draggedProvider = null;
 
   const items = document.querySelectorAll(".api-key-item");
   items.forEach((item) => {
     item.style.border = "2px solid #ddd";
   });
+}
+
+async function updateApiKeyPrioritiesByProvider(provider) {
+  const containerId = provider === "gpt" ? "gpt-keys-list" : "gemini-keys-list";
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const items = container.querySelectorAll(".api-key-item");
+  const keyIds = [];
+
+  items.forEach((item, index) => {
+    keyIds.push(item.getAttribute("data-key-id"));
+  });
+
+  // Save updated priorities via new API endpoint
+  await fetch(`/api/bot/api-keys/priorities/${provider}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keyIds }),
+  });
+
+  showMessage("settings-message", "Priorities updated!", "success");
 }
 
 async function updateApiKeyPriorities() {
@@ -4714,9 +4878,11 @@ async function updateApiKeyPriorities() {
 }
 
 async function handleSaveApiKey() {
+  const providerInput = document.getElementById("api-key-provider");
   const nameInput = document.getElementById("api-key-name");
   const valueInput = document.getElementById("api-key-value");
 
+  const provider = providerInput ? providerInput.value : currentApiKeyProvider;
   const name = nameInput.value.trim();
   const key = valueInput.value.trim();
 
@@ -4729,32 +4895,40 @@ async function handleSaveApiKey() {
     return;
   }
 
+  // Validate key format based on provider
+  if (provider === "gemini" && !key.startsWith("AIza")) {
+    showMessage(
+      "settings-message",
+      "Gemini API keys typically start with 'AIza...'",
+      "warning"
+    );
+  }
+  if (provider === "gpt" && !key.startsWith("sk-")) {
+    showMessage(
+      "settings-message",
+      "GPT API keys typically start with 'sk-...'",
+      "warning"
+    );
+  }
+
   try {
-    const response = await fetch("/api/bot/settings");
-    const data = await response.json();
-    const apiKeys = data.settings.geminiApiKeys || [];
-
-    const newKey = {
-      id: `key_${Date.now()}`,
-      name: name,
-      key: key,
-      priority: apiKeys.length + 1,
-      enabled: true,
-      requestCount: 0,
-      lastError: null,
-    };
-
-    apiKeys.push(newKey);
-
-    const saveResponse = await fetch("/api/bot/settings", {
-      method: "PUT",
+    // Use new API endpoint for adding keys
+    const saveResponse = await fetch("/api/bot/api-keys", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ geminiApiKeys: apiKeys }),
+      body: JSON.stringify({ provider, name, key }),
     });
 
-    if (!saveResponse.ok) throw new Error("Failed to save API key");
+    if (!saveResponse.ok) {
+      const errData = await saveResponse.json();
+      throw new Error(errData.error || "Failed to save API key");
+    }
 
-    showMessage("settings-message", "API key added successfully!", "success");
+    showMessage(
+      "settings-message",
+      `${provider.toUpperCase()} API key added successfully!`,
+      "success"
+    );
     nameInput.value = "";
     valueInput.value = "";
     document.getElementById("api-key-form").style.display = "none";
@@ -4762,32 +4936,28 @@ async function handleSaveApiKey() {
     loadSettingsView(); // Reload to show new key
   } catch (error) {
     console.error("Error saving API key:", error);
-    showMessage("settings-message", "Failed to save API key", "error");
+    showMessage(
+      "settings-message",
+      error.message || "Failed to save API key",
+      "error"
+    );
   }
 }
 
-async function toggleApiKey(keyId, enabled) {
+// New provider-aware toggle function
+async function toggleApiKeyByProvider(provider, keyId, enabled) {
   try {
-    const response = await fetch("/api/bot/settings");
-    const data = await response.json();
-    const apiKeys = data.settings.geminiApiKeys || [];
-
-    const key = apiKeys.find((k) => k.id === keyId);
-    if (key) {
-      key.enabled = enabled;
-    }
-
-    const saveResponse = await fetch("/api/bot/settings", {
+    const saveResponse = await fetch(`/api/bot/api-keys/${keyId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ geminiApiKeys: apiKeys }),
+      body: JSON.stringify({ enabled }),
     });
 
     if (!saveResponse.ok) throw new Error("Failed to update API key");
 
     showMessage(
       "settings-message",
-      `API key ${enabled ? "enabled" : "disabled"}!`,
+      `API key ${enabled ? "activated" : "paused"}!`,
       "success"
     );
     loadSettingsView(); // Reload
@@ -4797,20 +4967,13 @@ async function toggleApiKey(keyId, enabled) {
   }
 }
 
-async function deleteApiKey(keyId) {
+// New provider-aware delete function
+async function deleteApiKeyByProvider(provider, keyId) {
   if (!confirm("Are you sure you want to delete this API key?")) return;
 
   try {
-    const response = await fetch("/api/bot/settings");
-    const data = await response.json();
-    let apiKeys = data.settings.geminiApiKeys || [];
-
-    apiKeys = apiKeys.filter((k) => k.id !== keyId);
-
-    const saveResponse = await fetch("/api/bot/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ geminiApiKeys: apiKeys }),
+    const saveResponse = await fetch(`/api/bot/api-keys/${keyId}`, {
+      method: "DELETE",
     });
 
     if (!saveResponse.ok) throw new Error("Failed to delete API key");
@@ -4821,6 +4984,38 @@ async function deleteApiKey(keyId) {
     console.error("Error deleting API key:", error);
     showMessage("settings-message", "Failed to delete API key", "error");
   }
+}
+
+// Edit API key function
+async function editApiKey(provider, keyId) {
+  // For now, show a simple prompt to edit the key name
+  const newName = prompt("Enter new name for this API key:");
+  if (!newName || !newName.trim()) return;
+
+  try {
+    const saveResponse = await fetch(`/api/bot/api-keys/${keyId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName.trim() }),
+    });
+
+    if (!saveResponse.ok) throw new Error("Failed to update API key");
+
+    showMessage("settings-message", "API key updated!", "success");
+    loadSettingsView();
+  } catch (error) {
+    console.error("Error editing API key:", error);
+    showMessage("settings-message", "Failed to update API key", "error");
+  }
+}
+
+// Legacy functions for backward compatibility
+async function toggleApiKey(keyId, enabled) {
+  await toggleApiKeyByProvider("gemini", keyId, enabled);
+}
+
+async function deleteApiKey(keyId) {
+  await deleteApiKeyByProvider("gemini", keyId);
 }
 
 // ============ Category Limits Management ============

@@ -1400,13 +1400,48 @@
                 <!-- API Keys Settings -->
                 <div class="card admin-only" style="display: none; margin-top: 1rem;">
                     <div class="card-body">
-                        <h3><i class="fas fa-key"></i> Gemini API Keys Management</h3>
+                        <h3><i class="fas fa-key"></i> AI API Keys Management</h3>
                         <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
-                            Add multiple API keys. If one reaches its limit, the system will automatically switch to the
-                            next one. Drag to reorder priority.
+                            Manage API keys for multiple AI providers (GPT & Gemini). The system automatically routes
+                            requests to the correct provider and handles failover between keys. Drag to reorder priority
+                            within each provider.
                         </p>
 
-                        <div id="api-keys-list" style="margin-bottom: 1rem;"></div>
+                        <!-- Provider Tabs -->
+                        <div class="api-provider-tabs"
+                            style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 2px solid #e0e0e0; padding-bottom: 0.5rem;">
+                            <button id="gemini-tab-btn" class="btn btn-provider-tab active"
+                                style="background: #4285f4; color: white; border: none; padding: 0.5rem 1rem; border-radius: 8px 8px 0 0; cursor: pointer;">
+                                <i class="fas fa-gem"></i> Gemini Keys
+                            </button>
+                            <button id="gpt-tab-btn" class="btn btn-provider-tab"
+                                style="background: #e0e0e0; color: #333; border: none; padding: 0.5rem 1rem; border-radius: 8px 8px 0 0; cursor: pointer;">
+                                <i class="fas fa-brain"></i> GPT Keys
+                            </button>
+                        </div>
+
+                        <!-- API Keys Status Summary -->
+                        <div id="api-keys-summary"
+                            style="background: #f8f9fa; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 150px;">
+                                <strong style="color: #4285f4;"><i class="fas fa-gem"></i> Gemini:</strong>
+                                <span id="gemini-keys-status">Loading...</span>
+                            </div>
+                            <div style="flex: 1; min-width: 150px;">
+                                <strong style="color: #10a37f;"><i class="fas fa-brain"></i> GPT:</strong>
+                                <span id="gpt-keys-status">Loading...</span>
+                            </div>
+                        </div>
+
+                        <!-- Gemini Keys List -->
+                        <div id="gemini-keys-section">
+                            <div id="gemini-keys-list" style="margin-bottom: 1rem;"></div>
+                        </div>
+
+                        <!-- GPT Keys List -->
+                        <div id="gpt-keys-section" style="display: none;">
+                            <div id="gpt-keys-list" style="margin-bottom: 1rem;"></div>
+                        </div>
 
                         <button id="add-api-key-btn" class="btn btn-success" style="margin-bottom: 1rem;">
                             <i class="fas fa-plus"></i> Add New API Key
@@ -1416,13 +1451,23 @@
                             style="display: none; background: #f5f5f5; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
                             <h4>Add New API Key</h4>
                             <div class="form-group">
+                                <label for="api-key-provider">Provider:</label>
+                                <select id="api-key-provider" class="form-control">
+                                    <option value="gemini">Gemini (Google AI)</option>
+                                    <option value="gpt">GPT (OpenAI)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
                                 <label for="api-key-name">Key Name:</label>
                                 <input type="text" id="api-key-name" class="form-control"
                                     placeholder="e.g., Primary Key">
                             </div>
                             <div class="form-group">
                                 <label for="api-key-value">API Key:</label>
-                                <input type="text" id="api-key-value" class="form-control" placeholder="AIzaSy...">
+                                <input type="text" id="api-key-value" class="form-control" placeholder="Enter API key">
+                                <small id="api-key-hint" style="color: #666; display: block; margin-top: 0.25rem;">
+                                    Gemini keys start with "AIzaSy...", GPT keys start with "sk-..."
+                                </small>
                             </div>
                             <div style="display: flex; gap: 0.5rem;">
                                 <button id="save-api-key-btn" class="btn btn-primary">
