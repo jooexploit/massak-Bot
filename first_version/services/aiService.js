@@ -139,21 +139,74 @@ async function executeAIRequest(prompt, options = {}) {
 // -------------------------
 // Retry Mechanism with API Key Rotation (Legacy - for backward compatibility)
 // Uses the new apiKeyManager under the hood
+// Now with automatic fallback to GPT when Gemini fails
 // -------------------------
 async function retryWithApiKeyRotation(
   operation,
   operationName = "AI operation",
   maxRetries = null
 ) {
-  // Use the new retryWithKeyRotation from apiKeyManager with Gemini as default
-  return retryWithKeyRotation(
-    PROVIDERS.GEMINI,
-    async (apiKey, keyData, keyIndex) => {
-      // Call the original operation with apiKey and keyIndex for backward compatibility
-      return operation(apiKey, keyIndex);
-    },
-    operationName,
-    maxRetries
+  const { getEnabledKeysByProvider } = require("./apiKeyManager");
+
+  // Get available keys for each provider
+  const geminiKeys = getEnabledKeysByProvider(PROVIDERS.GEMINI);
+  const gptKeys = getEnabledKeysByProvider(PROVIDERS.GPT);
+
+  console.log(
+    `🔍 Available API keys - Gemini: ${geminiKeys.length}, GPT: ${gptKeys.length}`
+  );
+
+  // Determine which providers to try
+  const providersToTry = [];
+  if (geminiKeys.length > 0) providersToTry.push(PROVIDERS.GEMINI);
+  if (gptKeys.length > 0) providersToTry.push(PROVIDERS.GPT);
+
+  if (providersToTry.length === 0) {
+    throw new Error(
+      "❌ No enabled API keys available for any provider. Please add API keys in the dashboard."
+    );
+  }
+
+  let lastError = null;
+
+  // Try each provider in order
+  for (const provider of providersToTry) {
+    try {
+      console.log(
+        `🔄 Trying ${provider.toUpperCase()} provider for ${operationName}...`
+      );
+
+      const result = await retryWithKeyRotation(
+        provider,
+        async (apiKey, keyData, keyIndex) => {
+          // Call the original operation with apiKey and keyIndex for backward compatibility
+          return operation(apiKey, keyIndex);
+        },
+        operationName,
+        maxRetries
+      );
+
+      return result;
+    } catch (error) {
+      console.warn(
+        `⚠️ ${provider.toUpperCase()} failed for ${operationName}: ${
+          error.message
+        }`
+      );
+      lastError = error;
+
+      // Continue to next provider if available
+      if (providersToTry.indexOf(provider) < providersToTry.length - 1) {
+        console.log(`🔄 Falling back to next provider...`);
+      }
+    }
+  }
+
+  // All providers failed
+  throw new Error(
+    `❌ All AI providers failed for ${operationName}. Last error: ${
+      lastError?.message || "Unknown error"
+    }`
   );
 }
 

@@ -417,11 +417,26 @@ async function retryWithKeyRotation(
   operationName = "AI operation",
   maxRetries = null
 ) {
+  const allKeys = getKeysByProvider(provider);
   const enabledKeys = getEnabledKeysByProvider(provider);
+
+  // Better logging for debugging
+  console.log(`📊 ${provider.toUpperCase()} API Keys Status:`);
+  console.log(`   - Total keys: ${allKeys.length}`);
+  console.log(`   - Enabled keys: ${enabledKeys.length}`);
+
+  if (allKeys.length > 0 && enabledKeys.length === 0) {
+    console.log(`   ⚠️ All ${allKeys.length} keys are disabled!`);
+    allKeys.forEach((k, i) =>
+      console.log(`     ${i + 1}. ${k.name}: enabled=${k.enabled}`)
+    );
+  }
 
   if (enabledKeys.length === 0) {
     throw new Error(
-      `❌ No enabled ${provider.toUpperCase()} API keys available`
+      `❌ No enabled ${provider.toUpperCase()} API keys available (${
+        allKeys.length
+      } total keys, all disabled)`
     );
   }
 
