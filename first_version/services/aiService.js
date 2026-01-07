@@ -189,6 +189,9 @@ function updateKeyStats(provider, keyIndex, error = null, enabledKeys = null) {
           message: error.message || error.toString(),
           timestamp: Date.now(),
         };
+      } else {
+        // Clear lastError on success so key is available again
+        keyInSettings.lastError = null;
       }
       saveSettings(settings);
     }
@@ -206,13 +209,36 @@ async function retryWithApiKeyRotation(
 ) {
   const settings = loadSettings();
   const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
-
-  const enabledKeys = (settings[keysKey] || [])
+  const allEnabledKeys = (settings[keysKey] || [])
     .filter((k) => k.enabled)
     .sort((a, b) => a.priority - b.priority);
 
-  if (enabledKeys.length === 0) {
+  if (allEnabledKeys.length === 0) {
     throw new Error(`❌ No enabled ${provider} API keys available`);
+  }
+
+  // Filter out exhausted keys (had 429 error in last 1 hour)
+  const ONE_HOUR = 60 * 60 * 1000;
+  const now = Date.now();
+
+  const workingKeys = allEnabledKeys.filter((k) => {
+    if (!k.lastError) return true;
+    const isExhausted =
+      k.lastError.message &&
+      (k.lastError.message.includes("429") ||
+        k.lastError.message.includes("quota") ||
+        k.lastError.message.includes("Resource exhausted") ||
+        k.lastError.message.includes("rate limit")) &&
+      now - k.lastError.timestamp < ONE_HOUR;
+    return !isExhausted;
+  });
+
+  // If all keys are exhausted, use all keys anyway (they might have recovered)
+  const enabledKeys = workingKeys.length > 0 ? workingKeys : allEnabledKeys;
+
+  const skippedCount = allEnabledKeys.length - workingKeys.length;
+  if (skippedCount > 0) {
+    console.log(`⏭️ Skipping ${skippedCount} recently exhausted keys`);
   }
 
   // Max retries = number of available keys (try each key once)
@@ -221,7 +247,7 @@ async function retryWithApiKeyRotation(
   let attemptCount = 0;
 
   console.log(
-    `🔄 Starting ${operationName} (${provider}) with ${enabledKeys.length} available API keys`
+    `🔄 Starting ${operationName} (${provider}) with ${enabledKeys.length} available API keys (${skippedCount} exhausted)`
   );
 
   // Always start from the first key (lowest priority) in each operation

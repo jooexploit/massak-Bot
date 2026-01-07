@@ -295,17 +295,22 @@ async function saveLidMapping(lid, phoneNumber) {
 }
 
 /**
- * Save admins to file
+ * Save admins to file (preserving lid_mapping)
  */
 async function saveAdminsToFile() {
   try {
+    // Preserve existing lid_mapping when saving admins
     await fs.writeFile(
       ADMINS_FILE,
-      JSON.stringify({ admins: ADMIN_NUMBERS }, null, 2),
+      JSON.stringify(
+        { admins: ADMIN_NUMBERS, lid_mapping: lidMapping },
+        null,
+        2
+      ),
       "utf8"
     );
     console.log(
-      `✅ Saved ${ADMIN_NUMBERS.length} admins to file:`,
+      `✅ Saved ${ADMIN_NUMBERS.length} admins to file (lid_mapping preserved):`,
       ADMIN_NUMBERS
     );
     return true;
@@ -1488,8 +1493,9 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           additionalSpecs: text,
         };
 
-        // Use new multi-request function to add or update based on property type
-        const requestResult = privateClient.addOrUpdateClientRequest(
+        // Always add new request (never replace existing ones)
+        // Admin wants to add multiple requests without removing old ones
+        const requestResult = privateClient.addClientRequest(
           normalizedPhone,
           fullRequirements
         );

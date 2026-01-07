@@ -359,6 +359,52 @@ function addOrUpdateClientRequest(phoneNumber, requirements) {
 }
 
 /**
+ * Always add a new client request (never update existing)
+ * Used by admin طلب command to always add new requests
+ * @param {string} phoneNumber - Client's phone number
+ * @param {Object} requirements - New requirements object
+ * @returns {Object} { request: Object, totalRequests: number, message: string }
+ */
+function addClientRequest(phoneNumber, requirements) {
+  const client = getClient(phoneNumber);
+
+  // Get existing requests (handles migration)
+  let existingRequests = getClientRequests(phoneNumber);
+
+  // Always create a new request
+  const request = {
+    id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    ...requirements,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    status: "active",
+  };
+  existingRequests.push(request);
+
+  let message;
+  if (existingRequests.length > 1) {
+    message = `تم إضافة طلب جديد. العميل لديه الآن ${existingRequests.length} طلبات`;
+  } else {
+    message = `تم تسجيل الطلب بنجاح`;
+  }
+
+  // Save all requests
+  updateClient(phoneNumber, {
+    requests: existingRequests,
+    // Keep requirements for backward compatibility (first active request)
+    requirements: existingRequests[0],
+  });
+
+  return {
+    isUpdate: false,
+    request,
+    totalRequests: existingRequests.length,
+    allRequests: existingRequests,
+    message,
+  };
+}
+
+/**
  * Get all active requests across all clients
  * Used by property matching service
  * @returns {Array} Array of { phoneNumber, name, request, requestId }
@@ -554,6 +600,7 @@ module.exports = {
   normalizePropertyType,
   getClientRequests,
   addOrUpdateClientRequest,
+  addClientRequest,
   getAllActiveRequests,
   // Feedback tracking functions
   recordUserInteraction,
