@@ -61,35 +61,65 @@ async function executePromptWithProvider(
       options.modelType || "efficient"
     );
 
-    const response = await axios.post(
-      `${modelConfig.endpoint}/chat/completions`,
-      {
-        model: options.model || modelConfig.model,
-        messages: [
-          {
-            role: "system",
-            content:
-              options.systemPrompt ||
-              "You are a helpful assistant specialized in analyzing Arabic real estate advertisements. Always respond in the exact format requested.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        max_tokens: options.maxTokens || 4000,
-        temperature: options.temperature || 0.3,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
+    try {
+      const response = await axios.post(
+        `${modelConfig.endpoint}/chat/completions`,
+        {
+          model: options.model || modelConfig.model,
+          messages: [
+            {
+              role: "system",
+              content:
+                options.systemPrompt ||
+                "You are a helpful assistant specialized in analyzing Arabic real estate advertisements. Always respond in the exact format requested.",
+            },
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          max_tokens: options.maxTokens || 2000,
+          temperature: options.temperature || 0.3,
         },
-        timeout: 60000,
-      }
-    );
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 90000,
+        }
+      );
 
-    return response.data.choices[0].message.content;
+      return response.data.choices[0].message.content;
+    } catch (error) {
+      // Enhanced error handling for OpenAI errors
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+
+        if (status === 429) {
+          // Rate limit - extract retry-after if available
+          const retryAfter = error.response.headers["retry-after"];
+          const errorMsg = data?.error?.message || "Rate limit exceeded";
+          console.error(`🚫 OpenAI Rate Limit: ${errorMsg}`);
+          if (retryAfter) {
+            console.log(
+              `⏰ OpenAI suggests retry after: ${retryAfter} seconds`
+            );
+          }
+          throw new Error(`429 Rate Limit: ${errorMsg}`);
+        } else if (status === 401) {
+          throw new Error(`401 Unauthorized: Invalid API key`);
+        } else if (status === 403) {
+          throw new Error(`403 Forbidden: API key lacks permissions`);
+        } else {
+          throw new Error(
+            `OpenAI Error ${status}: ${data?.error?.message || error.message}`
+          );
+        }
+      }
+      throw error;
+    }
   } else {
     // Use Gemini API (default)
     const modelConfig = getModelConfig(

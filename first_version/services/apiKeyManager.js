@@ -440,10 +440,12 @@ async function retryWithKeyRotation(
     );
   }
 
-  const totalRetries = maxRetries || enabledKeys.length;
+  // For rate limit resilience, allow more retries (at least 3, or number of keys * 2)
+  const totalRetries = maxRetries || Math.max(3, enabledKeys.length * 2);
   let lastError = null;
   let attemptCount = 0;
   let currentRotationIndex = 0;
+  let consecutiveRateLimits = 0;
 
   console.log(
     `🔄 Starting ${operationName} with ${
@@ -508,14 +510,37 @@ async function retryWithKeyRotation(
 
       if (i < totalRetries - 1) {
         if (isOverloadError || isRateLimitError || isAuthError) {
+          // Track consecutive rate limits
+          if (isRateLimitError) {
+            consecutiveRateLimits++;
+          } else {
+            consecutiveRateLimits = 0;
+          }
+
           console.log(
             `⚠️ ${provider.toUpperCase()} key issue, switching to next key...`
           );
           currentRotationIndex =
             (currentRotationIndex + 1) % enabledKeys.length;
 
-          const delayMs = Math.min(1000 * Math.pow(2, i), 10000);
-          console.log(`⏳ Waiting ${delayMs}ms before retry...`);
+          // Longer delays for rate limit errors (OpenAI needs more time)
+          let delayMs;
+          if (isRateLimitError) {
+            // For rate limits, wait longer - exponential backoff starting at 5s
+            // If all keys are rate limited (consecutiveRateLimits >= enabledKeys.length), wait even longer
+            const baseDelay =
+              consecutiveRateLimits >= enabledKeys.length ? 15000 : 5000;
+            delayMs = Math.min(
+              baseDelay * Math.pow(2, Math.floor(i / enabledKeys.length)),
+              60000
+            );
+            console.log(
+              `⏳ Rate limit hit (${consecutiveRateLimits} consecutive) - waiting ${delayMs}ms before retry...`
+            );
+          } else {
+            delayMs = Math.min(1000 * Math.pow(2, i), 10000);
+            console.log(`⏳ Waiting ${delayMs}ms before retry...`);
+          }
           await new Promise((resolve) => setTimeout(resolve, delayMs));
         } else {
           throw error;
