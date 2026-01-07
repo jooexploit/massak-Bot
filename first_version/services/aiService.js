@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 
@@ -36,6 +37,73 @@ function switchToNextApiKey() {
 function updateKeyStats(keyIndex, error = null, enabledKeys = null) {
   if (enabledKeys && enabledKeys[keyIndex]) {
     updateKeyStatsInternal(PROVIDERS.GEMINI, enabledKeys[keyIndex].id, error);
+  }
+}
+
+/**
+ * Execute a prompt with the appropriate AI provider
+ * @param {string} apiKey - The API key to use
+ * @param {string} provider - The provider type ('gemini' or 'gpt')
+ * @param {string} prompt - The prompt to send
+ * @param {Object} options - Optional configuration (model, temperature, maxTokens)
+ * @returns {Promise<string>} The AI response text
+ */
+async function executePromptWithProvider(
+  apiKey,
+  provider,
+  prompt,
+  options = {}
+) {
+  if (provider === PROVIDERS.GPT) {
+    // Use OpenAI API
+    const modelConfig = getModelConfig(
+      PROVIDERS.GPT,
+      options.modelType || "efficient"
+    );
+
+    const response = await axios.post(
+      `${modelConfig.endpoint}/chat/completions`,
+      {
+        model: options.model || modelConfig.model,
+        messages: [
+          {
+            role: "system",
+            content:
+              options.systemPrompt ||
+              "You are a helpful assistant specialized in analyzing Arabic real estate advertisements. Always respond in the exact format requested.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        max_tokens: options.maxTokens || 4000,
+        temperature: options.temperature || 0.3,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 60000,
+      }
+    );
+
+    return response.data.choices[0].message.content;
+  } else {
+    // Use Gemini API (default)
+    const modelConfig = getModelConfig(
+      PROVIDERS.GEMINI,
+      options.modelType || "efficient"
+    );
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: options.model || modelConfig.model,
+    });
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
   }
 }
 
@@ -179,8 +247,8 @@ async function retryWithApiKeyRotation(
       const result = await retryWithKeyRotation(
         provider,
         async (apiKey, keyData, keyIndex) => {
-          // Call the original operation with apiKey and keyIndex for backward compatibility
-          return operation(apiKey, keyIndex);
+          // Call the original operation with apiKey, keyIndex, AND provider for proper API selection
+          return operation(apiKey, keyIndex, provider);
         },
         operationName,
         maxRetries
@@ -455,12 +523,7 @@ async function detectAd(text, maxRetries = null, currentRetry = 0) {
 
   try {
     return await retryWithApiKeyRotation(
-      async (apiKey, keyIndex) => {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({
-          model: "gemini-2.5-flash-lite",
-        });
-
+      async (apiKey, keyIndex, provider) => {
         const prompt = `You are an expert at detecting real estate and business advertisements. Analyze if the following text is an advertisement.
 
 Text: "${text}"
@@ -543,9 +606,9 @@ Respond ONLY in this exact JSON format:
 {"isAd": true/false, "confidence": 0-100, "reason": "brief explanation in Arabic"}
 `;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const responseText = response.text().trim();
+        const responseText = (
+          await executePromptWithProvider(apiKey, provider, prompt)
+        ).trim();
 
         // Try to extract JSON from response
         let jsonText = responseText;
@@ -596,12 +659,7 @@ async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
 
   try {
     return await retryWithApiKeyRotation(
-      async (apiKey, keyIndex) => {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({
-          model: "gemini-2.5-flash-lite",
-        });
-
+      async (apiKey, keyIndex, provider) => {
         const prompt = `أنت خبير في كتابة إعلانات وسائل التواصل الاجتماعي بأسلوب عصري وجذاب. قم بتحسين وإعادة صياغة الإعلان التالي بشكل إبداعي:
 
 النص الأصلي:
@@ -622,9 +680,9 @@ async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
 - اجعل النص يبدو طبيعياً وليس آلياً
 - نوّع في الأسلوب حسب نوع الإعلان (عقار، مطعم، خدمة، وظيفة، فعالية، منتج...)
 
-� أمثلة على التنوع المطلوب:
-بدلاً من: "شقة للبيع � 3 غرف � السعر"
-اكتب مثل: "فرصة رائعة ✨ شقة مميزة � تتكون من 3 غرف واسعة �️ بسعر مغري �"
+🎨 أمثلة على التنوع المطلوب:
+بدلاً من: "شقة للبيع 🏠 3 غرف 💰 السعر"
+اكتب مثل: "فرصة رائعة ✨ شقة مميزة 🏠 تتكون من 3 غرف واسعة 🛏️ بسعر مغري 💰"
 
 بدلاً من: "📍 الموقع: الأحساء"  
 اكتب مثل: "تقع في قلب الأحساء 📍 في موقع استراتيجي مميز 🌟"
@@ -638,9 +696,9 @@ async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
   "improvements": ["قائمة بالتحسينات التي أضفتها"]
 }`;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const responseText = response.text().trim();
+        const responseText = (
+          await executePromptWithProvider(apiKey, provider, prompt)
+        ).trim();
 
         // Try to extract JSON from response
         let jsonText = responseText;
@@ -826,9 +884,7 @@ async function detectCategory(text) {
     }
 
     return await retryWithApiKeyRotation(
-      async (apiKey, keyIndex) => {
-        const genAI = new GoogleGenerativeAI(apiKey);
-
+      async (apiKey, keyIndex, provider) => {
         const prompt = `أنت نظام ذكي لتصنيف الإعلانات العقارية وإعلانات منصة حساك (فعاليات، حراج، أسر منتجة، محلات...). قم بتحليل النص التالي وأرجع فقط اسم التصنيف المناسب من القائمة التالية:
 
   التصنيفات المتاحة (اختر منها فقط حرفيًا):
@@ -924,9 +980,12 @@ ${text}
 
 أرجع فقط اسم التصنيف (واحد فقط) بدون أي نص إضافي أو تفسير.`;
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-        const result = await model.generateContent(prompt);
-        const rawCategory = result.response.text().trim();
+        const rawCategory = (
+          await executePromptWithProvider(apiKey, provider, prompt, {
+            model:
+              provider === PROVIDERS.GPT ? "gpt-4o-mini" : "gemini-2.5-flash",
+          })
+        ).trim();
         console.log("🏷️ Raw AI category response:", rawCategory);
 
         // Normalize and clean category (remove quotes or markdown formatting)
@@ -1294,7 +1353,7 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
 
     // Add link if available
     if (wpLink) {
-      message += `👈 للتفاصيل اضغط على الرابط: ${wpLink}\n`;
+      message += `\n👈 *للتفاصيل اضغط على الرابط👇*\n${wpLink}`;
     }
 
     // Add Hasak footer (from settings or default)
@@ -1384,7 +1443,7 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
 
     // Add link if available
     if (wpLink) {
-      message += `\n👈 *للتفاصيل اضغط على الرابط:* ${wpLink}\n`;
+      message += `\n👈 *للتفاصيل اضغط على الرابط👇*\n${wpLink}`;
     }
 
     // Add Masaak footer (from settings or default)
@@ -1990,21 +2049,20 @@ ${adText}${contactHint}
 أرجع JSON صالح فقط بدون markdown أو شروحات.`;
 
   // Use retry mechanism with API key rotation
-  return await retryWithApiKeyRotation(async (apiKey, keyIndex) => {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    const text = response.text();
+  return await retryWithApiKeyRotation(async (apiKey, keyIndex, provider) => {
+    const responseText = await executePromptWithProvider(
+      apiKey,
+      provider,
+      prompt
+    );
 
     console.log("🤖 =========================");
     console.log("🤖 RAW AI RESPONSE (first 500 chars):");
-    console.log(text.substring(0, 500));
+    console.log(responseText.substring(0, 500));
     console.log("🤖 =========================");
 
     // Clean the response - remove markdown code blocks if present
-    let cleanedText = text.trim();
+    let cleanedText = responseText.trim();
     if (cleanedText.startsWith("```json")) {
       cleanedText = cleanedText
         .replace(/^```json\s*/, "")
@@ -2340,10 +2398,7 @@ ${adText}${contactHint}
  * @returns {object} - { isValid: boolean, reason: string, suggestion: string }
  */
 async function validateUserInput(input, fieldName = "name", context = "") {
-  return retryWithApiKeyRotation(async (GEMINI_API_KEY, currentIndex) => {
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-
+  return retryWithApiKeyRotation(async (apiKey, currentIndex, provider) => {
     let prompt = "";
 
     // Different validation prompts based on field type
@@ -2425,16 +2480,18 @@ ${context}
 
     console.log(`🤖 AI validating ${fieldName}: "${input}"`);
 
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    const text = response.text();
+    const responseText = await executePromptWithProvider(
+      apiKey,
+      provider,
+      prompt
+    );
 
-    console.log(`📝 AI response: ${text}`);
+    console.log(`📝 AI response: ${responseText}`);
 
     // Parse JSON response
     try {
       // Extract JSON from markdown code blocks if present
-      let jsonText = text.trim();
+      let jsonText = responseText.trim();
       if (jsonText.includes("```json")) {
         jsonText = jsonText.split("```json")[1].split("```")[0].trim();
       } else if (jsonText.includes("```")) {

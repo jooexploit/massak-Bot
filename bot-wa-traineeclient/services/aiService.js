@@ -13,21 +13,26 @@ function loadSettings() {
       const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"));
       // Ensure new keys exist if loading old settings
       if (!settings.gptApiKeys) settings.gptApiKeys = [];
-      if (settings.currentKeyIndex !== undefined && settings.currentGeminiKeyIndex === undefined) {
-          settings.currentGeminiKeyIndex = settings.currentKeyIndex;
+      if (
+        settings.currentKeyIndex !== undefined &&
+        settings.currentGeminiKeyIndex === undefined
+      ) {
+        settings.currentGeminiKeyIndex = settings.currentKeyIndex;
       }
-      if (settings.currentGeminiKeyIndex === undefined) settings.currentGeminiKeyIndex = 0;
-      if (settings.currentGptKeyIndex === undefined) settings.currentGptKeyIndex = 0;
+      if (settings.currentGeminiKeyIndex === undefined)
+        settings.currentGeminiKeyIndex = 0;
+      if (settings.currentGptKeyIndex === undefined)
+        settings.currentGptKeyIndex = 0;
       return settings;
     }
   } catch (error) {
     console.error("Error loading settings:", error);
   }
-  return { 
-    geminiApiKeys: [], 
-    gptApiKeys: [], 
+  return {
+    geminiApiKeys: [],
+    gptApiKeys: [],
     currentGeminiKeyIndex: 0,
-    currentGptKeyIndex: 0 
+    currentGptKeyIndex: 0,
   };
 }
 
@@ -43,7 +48,7 @@ function getApiKeysStatus() {
   const settings = loadSettings();
   const geminiKeys = settings.geminiApiKeys || [];
   const gptKeys = settings.gptApiKeys || [];
-  
+
   const now = Date.now();
   const ONE_DAY = 24 * 60 * 60 * 1000;
 
@@ -94,16 +99,20 @@ function getApiKeysStatus() {
     totalKeys: geminiStatus.totalCount + gptStatus.totalCount,
     workingKeys: geminiStatus.workingCount + gptStatus.workingCount,
     exhaustedKeys: geminiStatus.exhaustedCount + gptStatus.exhaustedCount,
-    allExhausted: (geminiStatus.totalCount > 0 && geminiStatus.exhaustedCount === geminiStatus.totalCount) &&
-                  (gptStatus.totalCount > 0 && gptStatus.exhaustedCount === gptStatus.totalCount),
+    allExhausted:
+      geminiStatus.totalCount > 0 &&
+      geminiStatus.exhaustedCount === geminiStatus.totalCount &&
+      gptStatus.totalCount > 0 &&
+      gptStatus.exhaustedCount === gptStatus.totalCount,
   };
 }
 
 function getActiveApiKey(provider = "gemini") {
   const settings = loadSettings();
   const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
-  const indexKey = provider === "gpt" ? "currentGptKeyIndex" : "currentGeminiKeyIndex";
-  
+  const indexKey =
+    provider === "gpt" ? "currentGptKeyIndex" : "currentGeminiKeyIndex";
+
   const keys = settings[keysKey] || [];
 
   // Find enabled keys sorted by priority
@@ -127,15 +136,16 @@ function getActiveApiKey(provider = "gemini") {
     settings,
     currentIndex,
     enabledKeys,
-    provider
+    provider,
   };
 }
 
 function switchToNextApiKey(provider = "gemini") {
   const settings = loadSettings();
   const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
-  const indexKey = provider === "gpt" ? "currentGptKeyIndex" : "currentGeminiKeyIndex";
-  
+  const indexKey =
+    provider === "gpt" ? "currentGptKeyIndex" : "currentGeminiKeyIndex";
+
   const enabledKeys = (settings[keysKey] || [])
     .filter((k) => k.enabled)
     .sort((a, b) => a.priority - b.priority);
@@ -196,7 +206,7 @@ async function retryWithApiKeyRotation(
 ) {
   const settings = loadSettings();
   const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
-  
+
   const enabledKeys = (settings[keysKey] || [])
     .filter((k) => k.enabled)
     .sort((a, b) => a.priority - b.priority);
@@ -239,11 +249,19 @@ async function retryWithApiKeyRotation(
 
       // Check for different retryable error types
       const isOverloadError =
-        (error.status === 503 || errorMessage.includes("503") || errorMessage.includes("overloaded"));
+        error.status === 503 ||
+        errorMessage.includes("503") ||
+        errorMessage.includes("overloaded");
       const isRateLimitError =
-        (error.status === 429 || errorMessage.includes("429") || errorMessage.includes("rate limit") || errorMessage.includes("Resource exhausted"));
+        error.status === 429 ||
+        errorMessage.includes("429") ||
+        errorMessage.includes("rate limit") ||
+        errorMessage.includes("Resource exhausted");
       const isLeakedKeyError =
-        (error.status === 403 || errorMessage.includes("403") || errorMessage.includes("leaked") || errorMessage.includes("Forbidden"));
+        error.status === 403 ||
+        errorMessage.includes("403") ||
+        errorMessage.includes("leaked") ||
+        errorMessage.includes("Forbidden");
 
       console.error(`❌ Attempt ${attemptCount} failed:`, errorMessage);
 
@@ -257,7 +275,8 @@ async function retryWithApiKeyRotation(
           console.log(`⚠️ ${provider} API key issue, switching to next key...`);
 
           // Move to next key in the sorted priority list
-          currentRotationIndex = (currentRotationIndex + 1) % enabledKeys.length;
+          currentRotationIndex =
+            (currentRotationIndex + 1) % enabledKeys.length;
 
           // Add delay before retry (exponential backoff)
           const delayMs = Math.min(1000 * Math.pow(2, i), 10000);
@@ -285,7 +304,12 @@ async function retryWithApiKeyRotation(
 /**
  * Unified AI call function supporting both Gemini and GPT
  */
-async function callAI(prompt, provider = "gemini", operationName = "AI call", options = {}) {
+async function callAI(
+  prompt,
+  provider = "gemini",
+  operationName = "AI call",
+  options = {}
+) {
   return await retryWithApiKeyRotation(
     provider,
     async (apiKey) => {
@@ -319,7 +343,12 @@ async function callAI(prompt, provider = "gemini", operationName = "AI call", op
  * @param {object} options - Generation options (optional)
  * @returns {Promise<string>} - The AI response text
  */
-async function callAI(prompt, provider = "gemini", operationName = "AI call", options = {}) {
+async function callAI(
+  prompt,
+  provider = "gemini",
+  operationName = "AI call",
+  options = {}
+) {
   return await retryWithApiKeyRotation(
     provider,
     async (apiKey) => {
@@ -689,15 +718,19 @@ Respond ONLY in this exact JSON format:
     if (provider === "gemini" && gptKeys.length > 0) {
       console.log("🔄 Gemini failed, falling back to GPT for Ad Detection...");
       try {
-        const responseText = await callAI(prompt, "gpt", "Ad Detection (GPT Fallback)");
+        const responseText = await callAI(
+          prompt,
+          "gpt",
+          "Ad Detection (GPT Fallback)"
+        );
         let jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-            const detection = JSON.parse(jsonMatch[0]);
-            return {
-              isAd: detection.isAd || false,
-              confidence: detection.confidence || 0,
-              reason: detection.reason || "No reason provided",
-            };
+          const detection = JSON.parse(jsonMatch[0]);
+          return {
+            isAd: detection.isAd || false,
+            confidence: detection.confidence || 0,
+            reason: detection.reason || "No reason provided",
+          };
         }
       } catch (gptError) {
         console.error("❌ GPT fallback also failed:", gptError);
@@ -755,13 +788,16 @@ async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
 
   try {
     const responseText = await callAI(prompt, provider, "Ad Enhancement");
-    
+
     // Try to extract JSON from response
     let jsonText = responseText;
     if (responseText.includes("```json")) {
-      jsonText = responseText.match(/\`\`\`json\n([\s\S]*?)\n\`\`\`/)?.[1] || responseText;
+      jsonText =
+        responseText.match(/\`\`\`json\n([\s\S]*?)\n\`\`\`/)?.[1] ||
+        responseText;
     } else if (responseText.includes("```")) {
-      jsonText = responseText.match(/\`\`\`\n([\s\S]*?)\n\`\`\`/)?.[1] || responseText;
+      jsonText =
+        responseText.match(/\`\`\`\n([\s\S]*?)\n\`\`\`/)?.[1] || responseText;
     }
 
     const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
@@ -774,9 +810,15 @@ async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
   } catch (error) {
     console.error(`Error in enhanceAd (${provider}):`, error);
     if (provider === "gemini" && gptKeys.length > 0) {
-      console.log("🔄 Gemini failed, falling back to GPT for Ad Enhancement...");
+      console.log(
+        "🔄 Gemini failed, falling back to GPT for Ad Enhancement..."
+      );
       try {
-        const responseText = await callAI(prompt, "gpt", "Ad Enhancement (GPT Fallback)");
+        const responseText = await callAI(
+          prompt,
+          "gpt",
+          "Ad Enhancement (GPT Fallback)"
+        );
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         const enhancement = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
         return {
@@ -788,7 +830,6 @@ async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
     return enhanceWithSmartEmojis(originalText);
   }
 }
-
 
 /**
  * Smart emoji enhancement fallback when AI fails
@@ -982,38 +1023,58 @@ async function detectCategory(text) {
 النتيجة:`;
 
     try {
-        const responseText = await callAI(prompt, provider, "Category Detection");
-        const cleanedResponse = responseText.trim().replace(/^ التصنيف : /i, "");
-        
-        const categories = [
-          "شقق للبيع", "شقق للإيجار", "فيلا للبيع", "فيلا للإيجار",
-          "عمارة للبيع", "عمارة للإيجار", "أرض للبيع", "أرض للإيجار",
-          "محل للبيع", "محل للإيجار", "محل للتقبيل", "استراحة للبيع",
-          "استراحة للإيجار", "شاليه للإيجار", "مزرعة للبيع", "مزرعة للإيجار",
-          "فعاليات", "حراج", "أسر منتجة", "خدمات"
-        ];
+      const responseText = await callAI(prompt, provider, "Category Detection");
+      const cleanedResponse = responseText.trim().replace(/^ التصنيف : /i, "");
 
-        const matchedCategory = categories.find(cat => cleanedResponse.includes(cat));
-        if (matchedCategory) return matchedCategory;
+      const categories = [
+        "شقق للبيع",
+        "شقق للإيجار",
+        "فيلا للبيع",
+        "فيلا للإيجار",
+        "عمارة للبيع",
+        "عمارة للإيجار",
+        "أرض للبيع",
+        "أرض للإيجار",
+        "محل للبيع",
+        "محل للإيجار",
+        "محل للتقبيل",
+        "استراحة للبيع",
+        "استراحة للإيجار",
+        "شاليه للإيجار",
+        "مزرعة للبيع",
+        "مزرعة للإيجار",
+        "فعاليات",
+        "حراج",
+        "أسر منتجة",
+        "خدمات",
+      ];
 
-        if (provider === "gemini" && gptKeys.length > 0) {
-            console.log("🔄 Gemini failed to match category, trying GPT...");
-            const gptResponse = await callAI(prompt, "gpt", "Category Detection (GPT Fallback)");
-            const gptMatched = categories.find(cat => gptResponse.includes(cat));
-            if (gptMatched) return gptMatched;
-        }
+      const matchedCategory = categories.find((cat) =>
+        cleanedResponse.includes(cat)
+      );
+      if (matchedCategory) return matchedCategory;
 
-        return detectCategoryFallback(text);
+      if (provider === "gemini" && gptKeys.length > 0) {
+        console.log("🔄 Gemini failed to match category, trying GPT...");
+        const gptResponse = await callAI(
+          prompt,
+          "gpt",
+          "Category Detection (GPT Fallback)"
+        );
+        const gptMatched = categories.find((cat) => gptResponse.includes(cat));
+        if (gptMatched) return gptMatched;
+      }
+
+      return detectCategoryFallback(text);
     } catch (e) {
-        console.error("AI Category Detection error:", e);
-        return detectCategoryFallback(text);
+      console.error("AI Category Detection error:", e);
+      return detectCategoryFallback(text);
     }
   } catch (error) {
     console.error("Error in detectCategory:", error);
     return detectCategoryFallback(text);
   }
 }
-
 
 /**
  * Fallback keyword-based category detection
@@ -1308,7 +1369,7 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
 
     // Add link if available
     if (wpLink) {
-      message += `👈 للتفاصيل اضغط على الرابط: ${wpLink}\n`;
+      message += `\n👈 *للتفاصيل اضغط على الرابط👇*\n${wpLink}`;
     }
 
     // Add Hasak footer (from settings or default)
@@ -1398,7 +1459,7 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
 
     // Add link if available
     if (wpLink) {
-      message += `\n👈 *للتفاصيل اضغط على الرابط:* ${wpLink}\n`;
+      message += `\n👈 *للتفاصيل اضغط على الرابط👇*\n${wpLink}`;
     }
 
     // Add Masaak footer (from settings or default)
@@ -2337,18 +2398,25 @@ ${adText}${contactHint}
     return wpData;
   } catch (error) {
     console.error("❌ Error in extractWordPressData:", error.message);
-    
+
     // Try GPT as fallback if Gemini failed
     const settings = loadSettings();
     const gptKeys = (settings.gptApiKeys || []).filter((k) => k.enabled);
-    
+
     if (gptKeys.length > 0 && error.message && !error.message.includes("GPT")) {
       console.log("🔄 Trying GPT as fallback for WordPress extraction...");
       try {
-        const text = await callAI(prompt, "gpt", "WordPress Data Extraction (GPT Fallback)");
-        const cleanedText = text.trim().replace(/^```json\s*/, "").replace(/```\s*$/, "");
+        const text = await callAI(
+          prompt,
+          "gpt",
+          "WordPress Data Extraction (GPT Fallback)"
+        );
+        const cleanedText = text
+          .trim()
+          .replace(/^```json\s*/, "")
+          .replace(/```\s*$/, "");
         const data = JSON.parse(cleanedText);
-        
+
         return {
           title: data.title || "إعلان عقاري",
           content: data.content || { rendered: "" },
@@ -2358,7 +2426,7 @@ ${adText}${contactHint}
         console.error("❌ GPT fallback also failed:", gptError.message);
       }
     }
-    
+
     // Return default structure on complete failure
     return {
       title: "إعلان عقاري",
@@ -2432,21 +2500,31 @@ async function validateUserInput(input, fieldName = "name", context = "") {
   }
 
   try {
-    const responseText = await callAI(prompt, provider, `Validate ${fieldName}`);
-    
+    const responseText = await callAI(
+      prompt,
+      provider,
+      `Validate ${fieldName}`
+    );
+
     // Extract JSON
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("Invalid AI response format");
     const validation = JSON.parse(jsonMatch[0]);
 
-    console.log(`✅ Validation result: ${validation.isValid ? "VALID ✓" : "INVALID ✗"}`);
+    console.log(
+      `✅ Validation result: ${validation.isValid ? "VALID ✓" : "INVALID ✗"}`
+    );
     return validation;
   } catch (error) {
     console.error(`Error in validateUserInput (${provider}):`, error);
     if (provider === "gemini" && gptKeys.length > 0) {
       console.log("🔄 Gemini failed, falling back to GPT for Validation...");
       try {
-        const responseText = await callAI(prompt, "gpt", `Validate ${fieldName} (GPT Fallback)`);
+        const responseText = await callAI(
+          prompt,
+          "gpt",
+          `Validate ${fieldName} (GPT Fallback)`
+        );
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (jsonMatch) return JSON.parse(jsonMatch[0]);
       } catch (gptError) {}
@@ -2454,4 +2532,3 @@ async function validateUserInput(input, fieldName = "name", context = "") {
     return { isValid: true, reason: "تعذر التحقق", suggestion: "" };
   }
 }
-
