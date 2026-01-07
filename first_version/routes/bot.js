@@ -1437,7 +1437,10 @@ router.post(
       });
     } catch (err) {
       console.error("Error regenerating ad:", err);
-      res.status(500).json({ error: "Failed to regenerate ad" });
+      res.status(500).json({
+        error: "Failed to regenerate ad",
+        message: err.message || "AI extraction failed - please try again later",
+      });
     }
   }
 );

@@ -689,6 +689,45 @@ async function processMessageFromQueue(messageData) {
     }
 
     // Create the ad (duplicate already checked before AI)
+    // Check if WordPress data was generated - if not, move to recycle bin
+    if (
+      !aiResult.wpData ||
+      !aiResult.wpData.title ||
+      aiResult.wpData.title === "إعلان عقاري"
+    ) {
+      console.log(
+        "⚠️ WordPress data extraction failed - moving to recycle bin"
+      );
+
+      const recycleBinItem = {
+        id: `rb_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+        text: messageText,
+        fromGroup: from,
+        fromGroupName: groupSubject,
+        author: participant || remoteJid || null,
+        senderName: senderName,
+        senderPhone: senderPhone,
+        rejectedAt: Date.now(),
+        aiConfidence: aiResult.confidence,
+        aiReason: "فشل في استخراج بيانات ووردبريس - يرجى إعادة المحاولة لاحقاً",
+        blockReason: "wpdata_extraction_failed",
+        imageUrl: imageUrl || null,
+      };
+
+      recycleBin.unshift(recycleBinItem);
+      if (recycleBin.length > 500) recycleBin = recycleBin.slice(0, 500);
+      saveRecycleBin();
+
+      console.log(
+        `🗑️ Moved to recycle bin (wpData failed): ${recycleBinItem.id}`
+      );
+      return {
+        success: false,
+        reason: "wpdata_extraction_failed",
+        message: "فشل في استخراج بيانات الإعلان",
+      };
+    }
+
     const ad = {
       id: `${Date.now()}_${Math.floor(Math.random() * 10000)}`,
       text: messageText, // Original text
