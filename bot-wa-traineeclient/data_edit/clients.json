@@ -12,11 +12,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 3000,
-      "neighborhoods": [
-        "البطالية وشارع الحيات",
-        "الخدود",
-        "عين باهلة"
-      ],
+      "neighborhoods": ["البطالية وشارع الحيات", "الخدود", "عين باهلة"],
       "contactNumber": "+966506932504",
       "additionalSpecs": "طلب\nبوحسن الغانم\nنوع العقار المطلوب:  مزرعة\nالغرض: شراء\nالمساحة المطلوبة: 3000\nالأحياء المفضلة: البطالية وشارع الحيات و الخدود و عين باهلة\nرقم التواصل: +966506932504\nمواصفات إضافية:"
     },
@@ -108,10 +104,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الطرف",
-        "الجفر"
-      ],
+      "neighborhoods": ["الطرف", "الجفر"],
       "contactNumber": "+966545867732",
       "additionalSpecs": null
     },
@@ -141,9 +134,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المطيرفي"
-      ],
+      "neighborhoods": ["المطيرفي"],
       "contactNumber": "+966504694132",
       "additionalSpecs": null
     },
@@ -173,11 +164,7 @@
       "priceMax": 950000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "ضاحية هجر 1",
-        "النخيل",
-        "الجشة"
-      ],
+      "neighborhoods": ["ضاحية هجر 1", "النخيل", "الجشة"],
       "contactNumber": "+966540653663",
       "additionalSpecs": null
     },
@@ -207,10 +194,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الرابية",
-        "الخالدية"
-      ],
+      "neighborhoods": ["الرابية", "الخالدية"],
       "contactNumber": "+966500850032",
       "additionalSpecs": null
     },
@@ -240,11 +224,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 675,
-      "neighborhoods": [
-        "الروضة",
-        "منسوبي التعليم",
-        "الدانة"
-      ],
+      "neighborhoods": ["الروضة", "منسوبي التعليم", "الدانة"],
       "contactNumber": "+966505935612",
       "additionalSpecs": null
     },
@@ -274,9 +254,7 @@
       "priceMax": 200000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الطرف"
-      ],
+      "neighborhoods": ["الطرف"],
       "contactNumber": "+966597240004",
       "additionalSpecs": null
     },
@@ -306,9 +284,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "العمران"
-      ],
+      "neighborhoods": ["العمران"],
       "contactNumber": "+966509762458",
       "additionalSpecs": null
     },
@@ -338,9 +314,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الجبيل"
-      ],
+      "neighborhoods": ["الجبيل"],
       "contactNumber": "+966538949075",
       "additionalSpecs": null
     },
@@ -370,12 +344,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 150,
-      "neighborhoods": [
-        "الحقل",
-        "بني معن",
-        "شارع الحيات",
-        "الجبيل"
-      ],
+      "neighborhoods": ["الحقل", "بني معن", "شارع الحيات", "الجبيل"],
       "contactNumber": "+966568708378",
       "additionalSpecs": null
     },
@@ -405,9 +374,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الدمام"
-      ],
+      "neighborhoods": ["الدمام"],
       "contactNumber": "+966563334247",
       "additionalSpecs": null
     },
@@ -437,11 +404,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الخدود",
-        "بني معن",
-        "الشهارين"
-      ],
+      "neighborhoods": ["الخدود", "بني معن", "الشهارين"],
       "contactNumber": "+966568375264",
       "additionalSpecs": null
     },
@@ -471,9 +434,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الغويبة"
-      ],
+      "neighborhoods": ["الغويبة"],
       "contactNumber": "+966544495333",
       "additionalSpecs": null
     },
@@ -503,12 +464,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 800,
-      "neighborhoods": [
-        "القرين",
-        "أم سبعة",
-        "السحيمية",
-        "عين منصور"
-      ],
+      "neighborhoods": ["القرين", "أم سبعة", "السحيمية", "عين منصور"],
       "contactNumber": "+966534166865",
       "additionalSpecs": null
     },
@@ -538,9 +494,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المحدود"
-      ],
+      "neighborhoods": ["المحدود"],
       "contactNumber": "+966538178170",
       "additionalSpecs": null
     },
@@ -570,9 +524,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 1000,
-      "neighborhoods": [
-        "الخزامى"
-      ],
+      "neighborhoods": ["الخزامى"],
       "contactNumber": "+966549139093",
       "additionalSpecs": null
     },
@@ -602,10 +554,7 @@
       "priceMax": 150000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الشعبة",
-        "المطيرفي"
-      ],
+      "neighborhoods": ["الشعبة", "المطيرفي"],
       "contactNumber": "+966569969885",
       "additionalSpecs": null
     },
@@ -635,12 +584,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "طريق العقير",
-        "المنيزلة",
-        "الفضول",
-        "المحدود"
-      ],
+      "neighborhoods": ["طريق العقير", "المنيزلة", "الفضول", "المحدود"],
       "contactNumber": "+966551400417",
       "additionalSpecs": null
     },
@@ -670,11 +614,7 @@
       "priceMax": 600000,
       "areaMin": 0,
       "areaMax": 1500,
-      "neighborhoods": [
-        "المنيزلة",
-        "الجفر",
-        "الفضول"
-      ],
+      "neighborhoods": ["المنيزلة", "الجفر", "الفضول"],
       "contactNumber": "+966504930057",
       "additionalSpecs": null
     },
@@ -704,10 +644,7 @@
       "priceMax": 900000,
       "areaMin": 0,
       "areaMax": 800,
-      "neighborhoods": [
-        "البطالية",
-        "شارع الحيات"
-      ],
+      "neighborhoods": ["البطالية", "شارع الحيات"],
       "contactNumber": "+966505938520",
       "additionalSpecs": null
     },
@@ -767,9 +704,7 @@
       "priceMax": 400000,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "المبرز"
-      ],
+      "neighborhoods": ["المبرز"],
       "contactNumber": "+966544501542",
       "additionalSpecs": null
     },
@@ -799,12 +734,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "الطريفي",
-        "شارع الحيات",
-        "البطالية",
-        "المشرفة"
-      ],
+      "neighborhoods": ["الطريفي", "شارع الحيات", "البطالية", "المشرفة"],
       "contactNumber": "+966562263857",
       "additionalSpecs": null
     },
@@ -834,11 +764,7 @@
       "priceMax": 600000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الحليلة",
-        "البطالية",
-        "الشعبة"
-      ],
+      "neighborhoods": ["الحليلة", "البطالية", "الشعبة"],
       "contactNumber": "+966536888073",
       "additionalSpecs": null
     },
@@ -958,11 +884,7 @@
       "priceMax": 500000,
       "areaMin": 0,
       "areaMax": 1500,
-      "neighborhoods": [
-        "الهفوف",
-        "الجفر",
-        "المنيزلة"
-      ],
+      "neighborhoods": ["الهفوف", "الجفر", "المنيزلة"],
       "contactNumber": "+966540932225",
       "additionalSpecs": null
     },
@@ -992,9 +914,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "بني معن"
-      ],
+      "neighborhoods": ["بني معن"],
       "contactNumber": "+966503932242",
       "additionalSpecs": null
     },
@@ -1024,9 +944,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "التيمية"
-      ],
+      "neighborhoods": ["التيمية"],
       "contactNumber": "+966536590314",
       "additionalSpecs": null
     },
@@ -1056,9 +974,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 800,
-      "neighborhoods": [
-        "العمران"
-      ],
+      "neighborhoods": ["العمران"],
       "contactNumber": "+966596366337",
       "additionalSpecs": null
     },
@@ -1088,9 +1004,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 800,
-      "neighborhoods": [
-        "الشهارين"
-      ],
+      "neighborhoods": ["الشهارين"],
       "contactNumber": "+966566876581",
       "additionalSpecs": null
     },
@@ -1150,12 +1064,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 1000,
-      "neighborhoods": [
-        "المطيرفي",
-        "القرين",
-        "جليجلة",
-        "شقيق"
-      ],
+      "neighborhoods": ["المطيرفي", "القرين", "جليجلة", "شقيق"],
       "contactNumber": "+966548448537",
       "additionalSpecs": null
     },
@@ -1215,9 +1124,7 @@
       "priceMax": 400000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المطيرفي"
-      ],
+      "neighborhoods": ["المطيرفي"],
       "contactNumber": "+966551253075",
       "additionalSpecs": null
     },
@@ -1277,11 +1184,7 @@
       "priceMax": 400000,
       "areaMin": 0,
       "areaMax": 250,
-      "neighborhoods": [
-        "العمران",
-        "المزاوي",
-        "الجفر"
-      ],
+      "neighborhoods": ["العمران", "المزاوي", "الجفر"],
       "contactNumber": "+966507470242",
       "additionalSpecs": null
     },
@@ -1321,11 +1224,7 @@
       "priceMax": 500000,
       "areaMin": 0,
       "areaMax": 100,
-      "neighborhoods": [
-        "الشهابية",
-        "البصيرة",
-        "الملك فهد"
-      ],
+      "neighborhoods": ["الشهابية", "البصيرة", "الملك فهد"],
       "contactNumber": "+966772266443",
       "additionalSpecs": null
     },
@@ -1355,11 +1254,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 1000,
-      "neighborhoods": [
-        "الطرف",
-        "المركز",
-        "الجفر"
-      ],
+      "neighborhoods": ["الطرف", "المركز", "الجفر"],
       "contactNumber": "+966504921716‎",
       "additionalSpecs": null
     },
@@ -1389,12 +1284,7 @@
       "priceMax": 900000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الفضول",
-        "المنيزلة",
-        "لا يوجد",
-        "لا يوجد"
-      ],
+      "neighborhoods": ["الفضول", "المنيزلة", "لا يوجد", "لا يوجد"],
       "contactNumber": "+966500212154",
       "additionalSpecs": null
     },
@@ -1424,9 +1314,7 @@
       "priceMax": 500000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "جميع الاحياء"
-      ],
+      "neighborhoods": ["جميع الاحياء"],
       "contactNumber": "+966563774828",
       "additionalSpecs": null
     },
@@ -1456,9 +1344,7 @@
       "priceMax": 500000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "جميع الاحياء"
-      ],
+      "neighborhoods": ["جميع الاحياء"],
       "contactNumber": "+966541921222",
       "additionalSpecs": null
     },
@@ -1488,9 +1374,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الغسانية"
-      ],
+      "neighborhoods": ["الغسانية"],
       "contactNumber": "+966562186090",
       "additionalSpecs": null
     },
@@ -1520,9 +1404,7 @@
       "priceMax": 850000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "ضاحية هجر"
-      ],
+      "neighborhoods": ["ضاحية هجر"],
       "contactNumber": "+966531615559",
       "additionalSpecs": null
     },
@@ -1552,12 +1434,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "البريد",
-        "الخزامى",
-        "ضاحية هجر",
-        "النور"
-      ],
+      "neighborhoods": ["البريد", "الخزامى", "ضاحية هجر", "النور"],
       "contactNumber": "+966544483316",
       "additionalSpecs": null
     },
@@ -1587,9 +1464,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "العمران"
-      ],
+      "neighborhoods": ["العمران"],
       "contactNumber": "+966551345543",
       "additionalSpecs": null
     },
@@ -1619,10 +1494,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "العزيزية",
-        "السلمانية"
-      ],
+      "neighborhoods": ["العزيزية", "السلمانية"],
       "contactNumber": "+966505924413",
       "additionalSpecs": null
     },
@@ -1652,9 +1524,7 @@
       "priceMax": 600000,
       "areaMin": 0,
       "areaMax": 250,
-      "neighborhoods": [
-        "الغسانية"
-      ],
+      "neighborhoods": ["الغسانية"],
       "contactNumber": "+966545389537",
       "additionalSpecs": null
     },
@@ -1684,9 +1554,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "جواثا"
-      ],
+      "neighborhoods": ["جواثا"],
       "contactNumber": "+966537354128",
       "additionalSpecs": null
     },
@@ -1716,9 +1584,7 @@
       "priceMax": 950000,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "المنيزلة"
-      ],
+      "neighborhoods": ["المنيزلة"],
       "contactNumber": "+966548860027",
       "additionalSpecs": null
     },
@@ -1748,9 +1614,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "الخزامى"
-      ],
+      "neighborhoods": ["الخزامى"],
       "contactNumber": "+966501954472",
       "additionalSpecs": null
     },
@@ -1810,10 +1674,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 250,
-      "neighborhoods": [
-        "الخزامى",
-        "البريد"
-      ],
+      "neighborhoods": ["الخزامى", "البريد"],
       "contactNumber": "+966553898535",
       "additionalSpecs": null
     },
@@ -1843,10 +1704,7 @@
       "priceMax": 930000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "البريد",
-        "الخزامى"
-      ],
+      "neighborhoods": ["البريد", "الخزامى"],
       "contactNumber": "+966507476247",
       "additionalSpecs": null
     },
@@ -1876,9 +1734,7 @@
       "priceMax": 800000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "العزيزية"
-      ],
+      "neighborhoods": ["العزيزية"],
       "contactNumber": "+966570086863",
       "additionalSpecs": null
     },
@@ -1908,11 +1764,7 @@
       "priceMax": 35000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الربوة",
-        "السلمانية",
-        "النسيم"
-      ],
+      "neighborhoods": ["الربوة", "السلمانية", "النسيم"],
       "contactNumber": "+966598337332",
       "additionalSpecs": null
     },
@@ -1942,9 +1794,7 @@
       "priceMax": 600000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "جميع الاحياء"
-      ],
+      "neighborhoods": ["جميع الاحياء"],
       "contactNumber": "+966560909321",
       "additionalSpecs": null
     },
@@ -1974,12 +1824,7 @@
       "priceMax": 680000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "الشهابية",
-        "الدانة",
-        "الورود",
-        "منسوبي التعليم"
-      ],
+      "neighborhoods": ["الشهابية", "الدانة", "الورود", "منسوبي التعليم"],
       "contactNumber": "+966541772090",
       "additionalSpecs": null
     },
@@ -2009,9 +1854,7 @@
       "priceMax": 370000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "منسوبي التعليم"
-      ],
+      "neighborhoods": ["منسوبي التعليم"],
       "contactNumber": "+966545825244",
       "additionalSpecs": null
     },
@@ -2041,9 +1884,7 @@
       "priceMax": 1250000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الراشدية"
-      ],
+      "neighborhoods": ["الراشدية"],
       "contactNumber": "+966504905853",
       "additionalSpecs": null
     },
@@ -2073,10 +1914,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الهفوف",
-        "النسيم"
-      ],
+      "neighborhoods": ["الهفوف", "النسيم"],
       "contactNumber": "+966501234567",
       "additionalSpecs": null
     },
@@ -2106,10 +1944,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "القدس",
-        "المهندسين"
-      ],
+      "neighborhoods": ["القدس", "المهندسين"],
       "contactNumber": "+966554238649",
       "additionalSpecs": null
     },
@@ -2139,10 +1974,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 350,
-      "neighborhoods": [
-        "اليمامة",
-        "الراجحي"
-      ],
+      "neighborhoods": ["اليمامة", "الراجحي"],
       "contactNumber": "+966506916001",
       "additionalSpecs": null
     },
@@ -2172,9 +2004,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 250,
-      "neighborhoods": [
-        "الراشدية"
-      ],
+      "neighborhoods": ["الراشدية"],
       "contactNumber": "+966504905707",
       "additionalSpecs": null
     },
@@ -2204,9 +2034,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 700,
-      "neighborhoods": [
-        "اليمامة"
-      ],
+      "neighborhoods": ["اليمامة"],
       "contactNumber": "+966508966227",
       "additionalSpecs": null
     },
@@ -2236,9 +2064,7 @@
       "priceMax": 400000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الرياض"
-      ],
+      "neighborhoods": ["الرياض"],
       "contactNumber": "+966544627090",
       "additionalSpecs": null
     },
@@ -2268,9 +2094,7 @@
       "priceMax": 170000,
       "areaMin": 0,
       "areaMax": 900,
-      "neighborhoods": [
-        "ضاحية هجر12"
-      ],
+      "neighborhoods": ["ضاحية هجر12"],
       "contactNumber": "+966566642807",
       "additionalSpecs": null
     },
@@ -2300,9 +2124,7 @@
       "priceMax": 200000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "ضاحية هجر"
-      ],
+      "neighborhoods": ["ضاحية هجر"],
       "contactNumber": "+966567666055",
       "additionalSpecs": null
     },
@@ -2332,9 +2154,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "مخطط السلام"
-      ],
+      "neighborhoods": ["مخطط السلام"],
       "contactNumber": "+966551752297",
       "additionalSpecs": null
     },
@@ -2364,12 +2184,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "البساتين",
-        "البطالية",
-        "الجبيل",
-        "القارة"
-      ],
+      "neighborhoods": ["البساتين", "البطالية", "الجبيل", "القارة"],
       "contactNumber": "+966533252839",
       "additionalSpecs": null
     },
@@ -2399,11 +2214,7 @@
       "priceMax": 900000,
       "areaMin": 0,
       "areaMax": 800,
-      "neighborhoods": [
-        "الملك فهد",
-        "عين نجم",
-        "الاندلس"
-      ],
+      "neighborhoods": ["الملك فهد", "عين نجم", "الاندلس"],
       "contactNumber": "+966510012010",
       "additionalSpecs": null
     },
@@ -2433,9 +2244,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الامراء"
-      ],
+      "neighborhoods": ["الامراء"],
       "contactNumber": "+966531154999",
       "additionalSpecs": null
     },
@@ -2465,9 +2274,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 600,
-      "neighborhoods": [
-        "ضاحية هجر2"
-      ],
+      "neighborhoods": ["ضاحية هجر2"],
       "contactNumber": "+966543673100",
       "additionalSpecs": null
     },
@@ -2497,9 +2304,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "ضاحية هجر"
-      ],
+      "neighborhoods": ["ضاحية هجر"],
       "contactNumber": "+966542541206",
       "additionalSpecs": null
     },
@@ -2529,9 +2334,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": 1500,
-      "neighborhoods": [
-        "القرى الشرقية"
-      ],
+      "neighborhoods": ["القرى الشرقية"],
       "contactNumber": "+966558895515",
       "additionalSpecs": null
     },
@@ -2561,9 +2364,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "القارة"
-      ],
+      "neighborhoods": ["القارة"],
       "contactNumber": "+966541736637",
       "additionalSpecs": null
     },
@@ -2593,10 +2394,7 @@
       "priceMax": 500000,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الحمراء",
-        "جنوب الهفوف"
-      ],
+      "neighborhoods": ["الحمراء", "جنوب الهفوف"],
       "contactNumber": "+966504558501",
       "additionalSpecs": null
     },
@@ -2626,10 +2424,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الفضول",
-        "بحريف"
-      ],
+      "neighborhoods": ["الفضول", "بحريف"],
       "contactNumber": "+966544426868",
       "additionalSpecs": null
     },
@@ -2659,9 +2454,7 @@
       "priceMax": 300000,
       "areaMin": 0,
       "areaMax": 800,
-      "neighborhoods": [
-        "ضاحية هجر12"
-      ],
+      "neighborhoods": ["ضاحية هجر12"],
       "contactNumber": "+966541234358",
       "additionalSpecs": null
     },
@@ -2691,12 +2484,7 @@
       "priceMax": 400000,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "البساتين",
-        "البطالية",
-        "الجبيل",
-        "الشهارين"
-      ],
+      "neighborhoods": ["البساتين", "البطالية", "الجبيل", "الشهارين"],
       "contactNumber": "+966559914538",
       "additionalSpecs": null
     },
@@ -2726,9 +2514,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "السلمانية"
-      ],
+      "neighborhoods": ["السلمانية"],
       "contactNumber": "+966507400007",
       "additionalSpecs": null
     },
@@ -2788,9 +2574,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "ضاحية هجر"
-      ],
+      "neighborhoods": ["ضاحية هجر"],
       "contactNumber": "+966505170804",
       "additionalSpecs": null
     },
@@ -2820,10 +2604,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الفردوس",
-        "الجابرية"
-      ],
+      "neighborhoods": ["الفردوس", "الجابرية"],
       "contactNumber": "+966536656631",
       "additionalSpecs": null
     },
@@ -2853,9 +2634,7 @@
       "priceMax": 350000,
       "areaMin": 0,
       "areaMax": 700,
-      "neighborhoods": [
-        "الرياض"
-      ],
+      "neighborhoods": ["الرياض"],
       "contactNumber": "+966547224990",
       "additionalSpecs": null
     },
@@ -2885,9 +2664,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "ضاحية هجر 3"
-      ],
+      "neighborhoods": ["ضاحية هجر 3"],
       "contactNumber": "+966501096998",
       "additionalSpecs": null
     },
@@ -2917,9 +2694,7 @@
       "priceMax": 200000,
       "areaMin": 0,
       "areaMax": 399,
-      "neighborhoods": [
-        "الرميلة"
-      ],
+      "neighborhoods": ["الرميلة"],
       "contactNumber": "+966583888172",
       "additionalSpecs": null
     },
@@ -2979,10 +2754,7 @@
       "priceMax": 220000,
       "areaMin": 0,
       "areaMax": 250,
-      "neighborhoods": [
-        "الورود",
-        "المبرز"
-      ],
+      "neighborhoods": ["الورود", "المبرز"],
       "contactNumber": "+966542111770",
       "additionalSpecs": null
     },
@@ -3012,12 +2784,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 350,
-      "neighborhoods": [
-        "النور",
-        "السعدون",
-        "الخزامى",
-        "المركز"
-      ],
+      "neighborhoods": ["النور", "السعدون", "الخزامى", "المركز"],
       "contactNumber": "+96655732858",
       "additionalSpecs": null
     },
@@ -3047,9 +2814,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "الأصفر"
-      ],
+      "neighborhoods": ["الأصفر"],
       "contactNumber": "+966506884177",
       "additionalSpecs": null
     },
@@ -3079,9 +2844,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الضاحية"
-      ],
+      "neighborhoods": ["الضاحية"],
       "contactNumber": "+966506906416",
       "additionalSpecs": null
     },
@@ -3111,10 +2874,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "شرق الحديقة",
-        "شرق شرق الحديقة"
-      ],
+      "neighborhoods": ["شرق الحديقة", "شرق شرق الحديقة"],
       "contactNumber": "+966556933722",
       "additionalSpecs": null
     },
@@ -3144,9 +2904,7 @@
       "priceMax": 250000,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الامراء"
-      ],
+      "neighborhoods": ["الامراء"],
       "contactNumber": "+966555927410",
       "additionalSpecs": null
     },
@@ -3176,10 +2934,7 @@
       "priceMax": 600000,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "البستان",
-        "الحليلة"
-      ],
+      "neighborhoods": ["البستان", "الحليلة"],
       "contactNumber": "+966567328002",
       "additionalSpecs": null
     },
@@ -3239,9 +2994,7 @@
       "priceMax": 200000,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "ضاحية هجر"
-      ],
+      "neighborhoods": ["ضاحية هجر"],
       "contactNumber": "+966542400444",
       "additionalSpecs": null
     },
@@ -3271,11 +3024,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 800,
-      "neighborhoods": [
-        "الجلة",
-        "تبراك",
-        "غويبة"
-      ],
+      "neighborhoods": ["الجلة", "تبراك", "غويبة"],
       "contactNumber": "+966540356375",
       "additionalSpecs": null
     },
@@ -3305,12 +3054,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "الورود",
-        "جنوب الهفوف",
-        "الحمراء",
-        "العاصمة"
-      ],
+      "neighborhoods": ["الورود", "جنوب الهفوف", "الحمراء", "العاصمة"],
       "contactNumber": "+966534320717",
       "additionalSpecs": null
     },
@@ -3340,9 +3084,7 @@
       "priceMax": 650000,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "جواثا"
-      ],
+      "neighborhoods": ["جواثا"],
       "contactNumber": "+966506479340",
       "additionalSpecs": null
     },
@@ -3402,9 +3144,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "المباركية"
-      ],
+      "neighborhoods": ["المباركية"],
       "contactNumber": "+966543311841",
       "additionalSpecs": null
     },
@@ -3434,10 +3174,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الأصفر",
-        "العمران"
-      ],
+      "neighborhoods": ["الأصفر", "العمران"],
       "contactNumber": "+966561775955",
       "additionalSpecs": null
     },
@@ -3467,12 +3204,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 800,
-      "neighborhoods": [
-        "الورود",
-        "المهندسين",
-        "الصقور",
-        "الهدا"
-      ],
+      "neighborhoods": ["الورود", "المهندسين", "الصقور", "الهدا"],
       "contactNumber": "+966542299759",
       "additionalSpecs": null
     },
@@ -3532,12 +3264,7 @@
       "priceMax": 500000,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الزهراء",
-        "الرويضة",
-        "المروج",
-        "صويدرة"
-      ],
+      "neighborhoods": ["الزهراء", "الرويضة", "المروج", "صويدرة"],
       "contactNumber": "+966568182334",
       "additionalSpecs": null
     },
@@ -3567,9 +3294,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 550,
-      "neighborhoods": [
-        "الوزية"
-      ],
+      "neighborhoods": ["الوزية"],
       "contactNumber": "+966543284007",
       "additionalSpecs": null
     },
@@ -3599,9 +3324,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الرابية"
-      ],
+      "neighborhoods": ["الرابية"],
       "contactNumber": "+966549442688",
       "additionalSpecs": null
     },
@@ -3631,9 +3354,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 350,
-      "neighborhoods": [
-        "الجرن"
-      ],
+      "neighborhoods": ["الجرن"],
       "contactNumber": "+966550025725",
       "additionalSpecs": null
     },
@@ -3663,10 +3384,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "عين نجم",
-        "شارع الجوازات"
-      ],
+      "neighborhoods": ["عين نجم", "شارع الجوازات"],
       "contactNumber": "+966551676756",
       "additionalSpecs": null
     },
@@ -3696,9 +3414,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 600,
-      "neighborhoods": [
-        "ضاحية هجر  2"
-      ],
+      "neighborhoods": ["ضاحية هجر  2"],
       "contactNumber": "+966504925812",
       "additionalSpecs": null
     },
@@ -3728,9 +3444,7 @@
       "priceMax": 220000,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "ضاحية هجر  5"
-      ],
+      "neighborhoods": ["ضاحية هجر  5"],
       "contactNumber": "+966532359272",
       "additionalSpecs": null
     },
@@ -3760,10 +3474,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الكوثر",
-        "العمران"
-      ],
+      "neighborhoods": ["الكوثر", "العمران"],
       "contactNumber": "+966547626311",
       "additionalSpecs": null
     },
@@ -3823,10 +3534,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الجشة",
-        "البريد"
-      ],
+      "neighborhoods": ["الجشة", "البريد"],
       "contactNumber": "+966556921619",
       "additionalSpecs": null
     },
@@ -3856,10 +3564,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "جنوب الهفوف",
-        "الجامعيين"
-      ],
+      "neighborhoods": ["جنوب الهفوف", "الجامعيين"],
       "contactNumber": "+966540893339",
       "additionalSpecs": null
     },
@@ -3889,11 +3594,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الغسانية",
-        "الراشدية",
-        "النزهة"
-      ],
+      "neighborhoods": ["الغسانية", "الراشدية", "النزهة"],
       "contactNumber": "+966598813322",
       "additionalSpecs": null
     },
@@ -3923,9 +3624,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 350,
-      "neighborhoods": [
-        "الدانة"
-      ],
+      "neighborhoods": ["الدانة"],
       "contactNumber": "+966505919226",
       "additionalSpecs": null
     },
@@ -3985,9 +3684,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المحدود"
-      ],
+      "neighborhoods": ["المحدود"],
       "contactNumber": "+966508007053",
       "additionalSpecs": null
     },
@@ -4017,12 +3714,7 @@
       "priceMax": 180000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الشهابية",
-        "البصيرة",
-        "الملك فهد",
-        "السنيدية"
-      ],
+      "neighborhoods": ["الشهابية", "البصيرة", "الملك فهد", "السنيدية"],
       "contactNumber": "+966967772266443",
       "additionalSpecs": null
     },
@@ -4062,9 +3754,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "لا يوجد"
-      ],
+      "neighborhoods": ["لا يوجد"],
       "contactNumber": "+966556200805",
       "additionalSpecs": null
     },
@@ -4094,9 +3784,7 @@
       "priceMax": 950,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الدانة"
-      ],
+      "neighborhoods": ["الدانة"],
       "contactNumber": "+966599433765",
       "additionalSpecs": null
     },
@@ -4126,9 +3814,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الامراء"
-      ],
+      "neighborhoods": ["الامراء"],
       "contactNumber": "+966507130880",
       "additionalSpecs": null
     },
@@ -4158,9 +3844,7 @@
       "priceMax": 950,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الدانة"
-      ],
+      "neighborhoods": ["الدانة"],
       "contactNumber": "+966555999802",
       "additionalSpecs": null
     },
@@ -4190,9 +3874,7 @@
       "priceMax": 700000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "جواثا"
-      ],
+      "neighborhoods": ["جواثا"],
       "contactNumber": "+966501909535",
       "additionalSpecs": null
     },
@@ -4222,9 +3904,7 @@
       "priceMax": 0,
       "areaMin": 0,
       "areaMax": 1000,
-      "neighborhoods": [
-        "السلام"
-      ],
+      "neighborhoods": ["السلام"],
       "contactNumber": "+966541684198",
       "additionalSpecs": null
     },
@@ -4254,9 +3934,7 @@
       "priceMax": 400000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "بو سحبل"
-      ],
+      "neighborhoods": ["بو سحبل"],
       "contactNumber": "+966562665454",
       "additionalSpecs": null
     },
@@ -4286,10 +3964,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "القرى",
-        "ضاحية هجر ١"
-      ],
+      "neighborhoods": ["القرى", "ضاحية هجر ١"],
       "contactNumber": "+966967774918468",
       "additionalSpecs": null
     },
@@ -4319,10 +3994,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الهفوف",
-        "الحفيرة"
-      ],
+      "neighborhoods": ["الهفوف", "الحفيرة"],
       "contactNumber": "+966https://chat.whatsapp.com/FvM9p3OzW4sF0npbR1kCeG",
       "additionalSpecs": null
     },
@@ -4352,11 +4024,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المحدود",
-        "البصيرة",
-        "شرق الحديقة"
-      ],
+      "neighborhoods": ["المحدود", "البصيرة", "شرق الحديقة"],
       "contactNumber": "+966505895521",
       "additionalSpecs": null
     },
@@ -4386,12 +4054,7 @@
       "priceMax": 400000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الثليثية",
-        "المزروعية",
-        "الرفيعة",
-        "الرقيقة"
-      ],
+      "neighborhoods": ["الثليثية", "المزروعية", "الرفيعة", "الرقيقة"],
       "contactNumber": "+966543472555",
       "additionalSpecs": null
     },
@@ -4421,12 +4084,7 @@
       "priceMax": 950000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المبرز",
-        "الاندلس",
-        "الراشدية",
-        "النزهة"
-      ],
+      "neighborhoods": ["المبرز", "الاندلس", "الراشدية", "النزهة"],
       "contactNumber": "+966561444363",
       "additionalSpecs": null
     },
@@ -4466,9 +4124,7 @@
       "priceMax": 830000,
       "areaMin": 0,
       "areaMax": 260,
-      "neighborhoods": [
-        "جنوب الهفوف"
-      ],
+      "neighborhoods": ["جنوب الهفوف"],
       "contactNumber": "+966562912253",
       "additionalSpecs": null
     },
@@ -4543,9 +4199,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الإسكان"
-      ],
+      "neighborhoods": ["الإسكان"],
       "contactNumber": "+966501625592",
       "additionalSpecs": null
     },
@@ -4575,10 +4229,7 @@
       "priceMax": 350000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الاندلس",
-        "شارع النجاح"
-      ],
+      "neighborhoods": ["الاندلس", "شارع النجاح"],
       "contactNumber": "+966551753572",
       "additionalSpecs": null
     },
@@ -4608,9 +4259,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المبرز"
-      ],
+      "neighborhoods": ["المبرز"],
       "contactNumber": "+966503842044",
       "additionalSpecs": null
     },
@@ -4650,11 +4299,7 @@
       "priceMax": 650000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الخالدية",
-        "المعلمن",
-        "القرى"
-      ],
+      "neighborhoods": ["الخالدية", "المعلمن", "القرى"],
       "contactNumber": "+966508356523",
       "additionalSpecs": null
     },
@@ -4684,10 +4329,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الراشدية",
-        "الجابرية"
-      ],
+      "neighborhoods": ["الراشدية", "الجابرية"],
       "contactNumber": "+966508195556",
       "additionalSpecs": null
     },
@@ -4717,10 +4359,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الحزام",
-        "الخالدية"
-      ],
+      "neighborhoods": ["الحزام", "الخالدية"],
       "contactNumber": "+966567338177",
       "additionalSpecs": null
     },
@@ -4750,12 +4389,7 @@
       "priceMax": 1100000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المباركية",
-        "منسوبي التعليم",
-        "الزهرة",
-        "المنار"
-      ],
+      "neighborhoods": ["المباركية", "منسوبي التعليم", "الزهرة", "المنار"],
       "contactNumber": "+966562348255",
       "additionalSpecs": null
     },
@@ -4785,9 +4419,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الدمام"
-      ],
+      "neighborhoods": ["الدمام"],
       "contactNumber": "+966504855006",
       "additionalSpecs": null
     },
@@ -4817,9 +4449,7 @@
       "priceMax": 900000,
       "areaMin": 0,
       "areaMax": 495,
-      "neighborhoods": [
-        "المحدود"
-      ],
+      "neighborhoods": ["المحدود"],
       "contactNumber": "+966505938854",
       "additionalSpecs": null
     },
@@ -4849,10 +4479,7 @@
       "priceMax": 850000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "المبرز",
-        "الهفوف"
-      ],
+      "neighborhoods": ["المبرز", "الهفوف"],
       "contactNumber": "+966542177793",
       "additionalSpecs": null
     },
@@ -4882,12 +4509,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الخالدية",
-        "المعلمين",
-        "المحمدية",
-        "المرقاب"
-      ],
+      "neighborhoods": ["الخالدية", "المعلمين", "المحمدية", "المرقاب"],
       "contactNumber": "+966549711388",
       "additionalSpecs": null
     },
@@ -4917,11 +4539,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المباركية",
-        "المحدود",
-        "البصيرة"
-      ],
+      "neighborhoods": ["المباركية", "المحدود", "البصيرة"],
       "contactNumber": "+966568449971",
       "additionalSpecs": null
     },
@@ -4951,9 +4569,7 @@
       "priceMax": 450000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "غصبية"
-      ],
+      "neighborhoods": ["غصبية"],
       "contactNumber": "+966565909093",
       "additionalSpecs": null
     },
@@ -4983,9 +4599,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "غصبية"
-      ],
+      "neighborhoods": ["غصبية"],
       "contactNumber": "+966542551709",
       "additionalSpecs": null
     },
@@ -5045,9 +4659,7 @@
       "priceMax": 600000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "منسوبي التعليم"
-      ],
+      "neighborhoods": ["منسوبي التعليم"],
       "contactNumber": "+966534544129",
       "additionalSpecs": null
     },
@@ -5077,9 +4689,7 @@
       "priceMax": 650000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المرقاب"
-      ],
+      "neighborhoods": ["المرقاب"],
       "contactNumber": "+966569862641",
       "additionalSpecs": null
     },
@@ -5109,10 +4719,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "الدانة",
-        "شرق الحديقة"
-      ],
+      "neighborhoods": ["الدانة", "شرق الحديقة"],
       "contactNumber": "+966509312298",
       "additionalSpecs": null
     },
@@ -5142,10 +4749,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الرفاع",
-        "الإسكان"
-      ],
+      "neighborhoods": ["الرفاع", "الإسكان"],
       "contactNumber": "+966581633834",
       "additionalSpecs": null
     },
@@ -5175,12 +4779,7 @@
       "priceMax": 1100000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "النزهة",
-        "الاندلس",
-        "الراشدية",
-        "المحدود"
-      ],
+      "neighborhoods": ["النزهة", "الاندلس", "الراشدية", "المحدود"],
       "contactNumber": "+966567419483",
       "additionalSpecs": null
     },
@@ -5210,11 +4809,7 @@
       "priceMax": 900000,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "الصفا",
-        "الفتح",
-        "الراشدية"
-      ],
+      "neighborhoods": ["الصفا", "الفتح", "الراشدية"],
       "contactNumber": "+966559089839",
       "additionalSpecs": null
     },
@@ -5334,12 +4929,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الحمراء",
-        "الجامعيين",
-        "العاصمة",
-        "منسوبي التعليم"
-      ],
+      "neighborhoods": ["الحمراء", "الجامعيين", "العاصمة", "منسوبي التعليم"],
       "contactNumber": "+966556502273‎‏",
       "additionalSpecs": null
     },
@@ -5399,9 +4989,7 @@
       "priceMax": 180000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "جميع الأحياء"
-      ],
+      "neighborhoods": ["جميع الأحياء"],
       "contactNumber": "+966569626326",
       "additionalSpecs": null
     },
@@ -5431,12 +5019,7 @@
       "priceMax": 500000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الفيصلية",
-        "لا يوجد",
-        "الأندلس",
-        "الفاضلية"
-      ],
+      "neighborhoods": ["الفيصلية", "لا يوجد", "الأندلس", "الفاضلية"],
       "contactNumber": "+966566832896",
       "additionalSpecs": null
     },
@@ -5466,9 +5049,7 @@
       "priceMax": 1300000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المحدود"
-      ],
+      "neighborhoods": ["المحدود"],
       "contactNumber": "+966534999688",
       "additionalSpecs": null
     },
@@ -5498,9 +5079,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الحمراء"
-      ],
+      "neighborhoods": ["الحمراء"],
       "contactNumber": "+966556502273",
       "additionalSpecs": null
     },
@@ -5530,9 +5109,7 @@
       "priceMax": 600000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "العويمرية"
-      ],
+      "neighborhoods": ["العويمرية"],
       "contactNumber": "+966538830430",
       "additionalSpecs": null
     },
@@ -5592,9 +5169,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المحدود"
-      ],
+      "neighborhoods": ["المحدود"],
       "contactNumber": "+966554492182",
       "additionalSpecs": null
     },
@@ -5624,9 +5199,7 @@
       "priceMax": 500000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "جميع الاحياء"
-      ],
+      "neighborhoods": ["جميع الاحياء"],
       "contactNumber": "+966565925330",
       "additionalSpecs": null
     },
@@ -5656,12 +5229,7 @@
       "priceMax": 1900000,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الشهابية",
-        "الملك فهد",
-        "المباركية",
-        "المنيزلة"
-      ],
+      "neighborhoods": ["الشهابية", "الملك فهد", "المباركية", "المنيزلة"],
       "contactNumber": "+966553364330",
       "additionalSpecs": null
     },
@@ -5691,9 +5259,7 @@
       "priceMax": 0,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الشهارين"
-      ],
+      "neighborhoods": ["الشهارين"],
       "contactNumber": "+966501771782",
       "additionalSpecs": null
     },
@@ -5723,9 +5289,7 @@
       "priceMax": 170000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "عين موسى"
-      ],
+      "neighborhoods": ["عين موسى"],
       "contactNumber": "+966533222023",
       "additionalSpecs": null
     },
@@ -5755,10 +5319,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "القرى",
-        "المطرفية"
-      ],
+      "neighborhoods": ["القرى", "المطرفية"],
       "contactNumber": "+966549870339",
       "additionalSpecs": null
     },
@@ -5788,11 +5349,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الملك فهد",
-        "الحزام",
-        "منسوبي التعليم"
-      ],
+      "neighborhoods": ["الملك فهد", "الحزام", "منسوبي التعليم"],
       "contactNumber": "+966504928230",
       "additionalSpecs": null
     },
@@ -5822,9 +5379,7 @@
       "priceMax": 1200000,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "المبرز"
-      ],
+      "neighborhoods": ["المبرز"],
       "contactNumber": "+966559296590",
       "additionalSpecs": null
     },
@@ -5914,9 +5469,7 @@
       "priceMax": 800000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المبرز"
-      ],
+      "neighborhoods": ["المبرز"],
       "contactNumber": "+966536861852",
       "additionalSpecs": null
     },
@@ -5946,10 +5499,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "النزهة",
-        "الهفوف"
-      ],
+      "neighborhoods": ["النزهة", "الهفوف"],
       "contactNumber": "+966593332163",
       "additionalSpecs": null
     },
@@ -6009,9 +5559,7 @@
       "priceMax": 1100000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "التعاون"
-      ],
+      "neighborhoods": ["التعاون"],
       "contactNumber": "+966547111900",
       "additionalSpecs": null
     },
@@ -6041,9 +5589,7 @@
       "priceMax": 1800000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الراشدية"
-      ],
+      "neighborhoods": ["الراشدية"],
       "contactNumber": "+966500568083",
       "additionalSpecs": null
     },
@@ -6073,12 +5619,7 @@
       "priceMax": 800,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "المباركية",
-        "الحوراء",
-        "المطار",
-        "المنار"
-      ],
+      "neighborhoods": ["المباركية", "الحوراء", "المطار", "المنار"],
       "contactNumber": "+966545275919",
       "additionalSpecs": null
     },
@@ -6108,9 +5649,7 @@
       "priceMax": 1800000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "جميع الاحياء"
-      ],
+      "neighborhoods": ["جميع الاحياء"],
       "contactNumber": "+966554755629",
       "additionalSpecs": null
     },
@@ -6140,9 +5679,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الريان"
-      ],
+      "neighborhoods": ["الريان"],
       "contactNumber": "+966562323448",
       "additionalSpecs": null
     },
@@ -6202,11 +5739,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الغسانية",
-        "احد",
-        "المطيرفي"
-      ],
+      "neighborhoods": ["الغسانية", "احد", "المطيرفي"],
       "contactNumber": "+966567032232",
       "additionalSpecs": null
     },
@@ -6236,9 +5769,7 @@
       "priceMax": 700000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "الطرف"
-      ],
+      "neighborhoods": ["الطرف"],
       "contactNumber": "+966503229346",
       "additionalSpecs": null
     },
@@ -6268,11 +5799,7 @@
       "priceMax": 350000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "المبرز",
-        "المباركية",
-        "الاحياء الجديدة في الهفوف"
-      ],
+      "neighborhoods": ["المبرز", "المباركية", "الاحياء الجديدة في الهفوف"],
       "contactNumber": "+966569719449",
       "additionalSpecs": null
     },
@@ -6302,12 +5829,7 @@
       "priceMax": 850000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الغسانية",
-        "البستان",
-        "يمامة",
-        "الفنار"
-      ],
+      "neighborhoods": ["الغسانية", "البستان", "يمامة", "الفنار"],
       "contactNumber": "+966567840373",
       "additionalSpecs": null
     },
@@ -6337,12 +5859,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المبرز",
-        "الغسانية",
-        "الهادي",
-        "الراشدية"
-      ],
+      "neighborhoods": ["المبرز", "الغسانية", "الهادي", "الراشدية"],
       "contactNumber": "+966509044915",
       "additionalSpecs": null
     },
@@ -6372,9 +5889,7 @@
       "priceMax": 200000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الربوة"
-      ],
+      "neighborhoods": ["الربوة"],
       "contactNumber": "+966546809934",
       "additionalSpecs": null
     },
@@ -6404,11 +5919,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "النزهة",
-        "الراشدية",
-        "الشعبة"
-      ],
+      "neighborhoods": ["النزهة", "الراشدية", "الشعبة"],
       "contactNumber": "+966559603201",
       "additionalSpecs": null
     },
@@ -6438,11 +5949,7 @@
       "priceMax": 600000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "ام خريسان",
-        "الاندلس",
-        "الفيصلية"
-      ],
+      "neighborhoods": ["ام خريسان", "الاندلس", "الفيصلية"],
       "contactNumber": "+966550465868",
       "additionalSpecs": null
     },
@@ -6472,11 +5979,7 @@
       "priceMax": 1200000,
       "areaMin": 0,
       "areaMax": 250,
-      "neighborhoods": [
-        "الغسانية",
-        "المطيرفي",
-        "الراشدية"
-      ],
+      "neighborhoods": ["الغسانية", "المطيرفي", "الراشدية"],
       "contactNumber": "+966547044787",
       "additionalSpecs": null
     },
@@ -6506,12 +6009,7 @@
       "priceMax": 900000,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "المعلمين",
-        "الرويضة",
-        "الشهابية",
-        "منسوبي التعليم"
-      ],
+      "neighborhoods": ["المعلمين", "الرويضة", "الشهابية", "منسوبي التعليم"],
       "contactNumber": "+966598920000",
       "additionalSpecs": null
     },
@@ -6541,11 +6039,7 @@
       "priceMax": 850000,
       "areaMin": 0,
       "areaMax": 100,
-      "neighborhoods": [
-        "الجابرية",
-        "منسوب التعليم",
-        "الرويضة"
-      ],
+      "neighborhoods": ["الجابرية", "منسوب التعليم", "الرويضة"],
       "contactNumber": "+966508228200",
       "additionalSpecs": null
     },
@@ -6575,9 +6069,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "المهندسين"
-      ],
+      "neighborhoods": ["المهندسين"],
       "contactNumber": "+966532977779",
       "additionalSpecs": null
     },
@@ -6607,9 +6099,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المبرز"
-      ],
+      "neighborhoods": ["المبرز"],
       "contactNumber": "+966غيرظاهر",
       "additionalSpecs": null
     },
@@ -6639,10 +6129,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "حول الجامعة",
-        "الربوة"
-      ],
+      "neighborhoods": ["حول الجامعة", "الربوة"],
       "contactNumber": "+966509498800",
       "additionalSpecs": null
     },
@@ -6672,9 +6159,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "ضاحية هجر"
-      ],
+      "neighborhoods": ["ضاحية هجر"],
       "contactNumber": "+966597588466",
       "additionalSpecs": null
     },
@@ -6704,12 +6189,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "الخالدية",
-        "البندرية",
-        "العزيزية",
-        "الجامعيين"
-      ],
+      "neighborhoods": ["الخالدية", "البندرية", "العزيزية", "الجامعيين"],
       "contactNumber": "+966568371900",
       "additionalSpecs": null
     },
@@ -6739,12 +6219,7 @@
       "priceMax": 850000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "الضاحية",
-        "المنيزلة",
-        "الورود",
-        "المحدود"
-      ],
+      "neighborhoods": ["الضاحية", "المنيزلة", "الورود", "المحدود"],
       "contactNumber": "+966563199448",
       "additionalSpecs": null
     },
@@ -6804,12 +6279,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "ضاحية هجر",
-        "الطرف",
-        "البريد",
-        "المنيزلة"
-      ],
+      "neighborhoods": ["ضاحية هجر", "الطرف", "البريد", "المنيزلة"],
       "contactNumber": "+966536914387",
       "additionalSpecs": null
     },
@@ -6839,10 +6309,7 @@
       "priceMax": 1200000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "القرى",
-        "الاحياء الجديدة"
-      ],
+      "neighborhoods": ["القرى", "الاحياء الجديدة"],
       "contactNumber": "+966533411786",
       "additionalSpecs": null
     },
@@ -6872,12 +6339,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "الربوة",
-        "الريان",
-        "الحزام",
-        "النسيم"
-      ],
+      "neighborhoods": ["الربوة", "الريان", "الحزام", "النسيم"],
       "contactNumber": "+96650948800",
       "additionalSpecs": null
     },
@@ -6907,9 +6369,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الخزامي"
-      ],
+      "neighborhoods": ["الخزامي"],
       "contactNumber": "+966566232852",
       "additionalSpecs": null
     },
@@ -6939,9 +6399,7 @@
       "priceMax": 1400000,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "السلمانية"
-      ],
+      "neighborhoods": ["السلمانية"],
       "contactNumber": "+966552417771",
       "additionalSpecs": null
     },
@@ -6971,12 +6429,7 @@
       "priceMax": 650000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "الجفر",
-        "المركز",
-        "العقار",
-        "الطرف"
-      ],
+      "neighborhoods": ["الجفر", "المركز", "العقار", "الطرف"],
       "contactNumber": "+966549882111",
       "additionalSpecs": null
     },
@@ -7006,11 +6459,7 @@
       "priceMax": 400000,
       "areaMin": 0,
       "areaMax": 130,
-      "neighborhoods": [
-        "الشروفية",
-        "المسعودي",
-        "وسط المبرز التاريخي"
-      ],
+      "neighborhoods": ["الشروفية", "المسعودي", "وسط المبرز التاريخي"],
       "contactNumber": "+966582026688",
       "additionalSpecs": null
     },
@@ -7040,11 +6489,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "المهندسين",
-        "الربوة",
-        "المجيدية"
-      ],
+      "neighborhoods": ["المهندسين", "الربوة", "المجيدية"],
       "contactNumber": "+966563133589",
       "additionalSpecs": null
     },
@@ -7074,12 +6519,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "النخيل",
-        "الزهراء",
-        "الرويضة",
-        "الحوراء"
-      ],
+      "neighborhoods": ["النخيل", "الزهراء", "الرويضة", "الحوراء"],
       "contactNumber": "+966565982284",
       "additionalSpecs": null
     },
@@ -7109,12 +6549,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الزهراء",
-        "الجفر",
-        "الطرف",
-        "الخزامي"
-      ],
+      "neighborhoods": ["الزهراء", "الجفر", "الطرف", "الخزامي"],
       "contactNumber": "+966506800064",
       "additionalSpecs": null
     },
@@ -7144,10 +6579,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 230,
-      "neighborhoods": [
-        "الحمراء",
-        "منسوبي التعليم"
-      ],
+      "neighborhoods": ["الحمراء", "منسوبي التعليم"],
       "contactNumber": "+966532044240",
       "additionalSpecs": null
     },
@@ -7177,11 +6609,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "العليا",
-        "المزروع",
-        "جوبا"
-      ],
+      "neighborhoods": ["العليا", "المزروع", "جوبا"],
       "contactNumber": "+966563924462",
       "additionalSpecs": null
     },
@@ -7211,12 +6639,7 @@
       "priceMax": 300000,
       "areaMin": 0,
       "areaMax": 100,
-      "neighborhoods": [
-        "غرناطة",
-        "لذة",
-        "جامعة الملك فيصل",
-        "منيفة"
-      ],
+      "neighborhoods": ["غرناطة", "لذة", "جامعة الملك فيصل", "منيفة"],
       "contactNumber": "+966596347743",
       "additionalSpecs": null
     },
@@ -7276,11 +6699,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "منسوبي التعليم",
-        "جامعة الملك فيصل",
-        "الملك فهد"
-      ],
+      "neighborhoods": ["منسوبي التعليم", "جامعة الملك فيصل", "الملك فهد"],
       "contactNumber": "+966559139807",
       "additionalSpecs": null
     },
@@ -7310,11 +6729,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المعلمين",
-        "منسوبي التعليم",
-        "وسط الهفوف التاريخي"
-      ],
+      "neighborhoods": ["المعلمين", "منسوبي التعليم", "وسط الهفوف التاريخي"],
       "contactNumber": "+966569797653",
       "additionalSpecs": null
     },
@@ -7344,12 +6759,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "منسوبي التعليم",
-        "الزهرة",
-        "الدانة",
-        "الخالدية"
-      ],
+      "neighborhoods": ["منسوبي التعليم", "الزهرة", "الدانة", "الخالدية"],
       "contactNumber": "+966532465552",
       "additionalSpecs": null
     },
@@ -7379,9 +6789,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 450,
-      "neighborhoods": [
-        "الحمراء"
-      ],
+      "neighborhoods": ["الحمراء"],
       "contactNumber": "+966556909511",
       "additionalSpecs": null
     },
@@ -7411,12 +6819,7 @@
       "priceMax": 600000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الصفا",
-        "جواثا",
-        "الرفاع",
-        "الجرن"
-      ],
+      "neighborhoods": ["الصفا", "جواثا", "الرفاع", "الجرن"],
       "contactNumber": "+966508487488",
       "additionalSpecs": null
     },
@@ -7476,9 +6879,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الهفوف"
-      ],
+      "neighborhoods": ["الهفوف"],
       "contactNumber": "+9660558612666",
       "additionalSpecs": null
     },
@@ -7508,9 +6909,7 @@
       "priceMax": 60000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الهفوف"
-      ],
+      "neighborhoods": ["الهفوف"],
       "contactNumber": "+966564475167",
       "additionalSpecs": null
     },
@@ -7540,11 +6939,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "اللويمي",
-        "الشراع",
-        "شارع الحيات"
-      ],
+      "neighborhoods": ["اللويمي", "الشراع", "شارع الحيات"],
       "contactNumber": "+966505939927",
       "additionalSpecs": null
     },
@@ -7574,9 +6969,7 @@
       "priceMax": 70000,
       "areaMin": 0,
       "areaMax": 100,
-      "neighborhoods": [
-        "اللويمي"
-      ],
+      "neighborhoods": ["اللويمي"],
       "contactNumber": "+96659733222",
       "additionalSpecs": null
     },
@@ -7636,11 +7029,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "الاحساء",
-        "الدمام",
-        "الرياض"
-      ],
+      "neighborhoods": ["الاحساء", "الدمام", "الرياض"],
       "contactNumber": "+966508118228",
       "additionalSpecs": null
     },
@@ -7670,9 +7059,7 @@
       "priceMax": 20000,
       "areaMin": 0,
       "areaMax": null,
-      "neighborhoods": [
-        "المبرز"
-      ],
+      "neighborhoods": ["المبرز"],
       "contactNumber": "+966531045521",
       "additionalSpecs": null
     },
@@ -7809,9 +7196,7 @@
       "priceMax": 2500000,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "المبرز الهفوف"
-      ],
+      "neighborhoods": ["المبرز الهفوف"],
       "contactNumber": "0504925268",
       "additionalSpecs": "نوع العقار المطلوب: عمارة\nالغرض: شراء استثمار \nحدود السعر: 2500000\nالمساحة المطلوبة: 500 وأكثر \nالأحياء المفضلة: المبرز الهفوف\nرقم التواصل: 0504925268 \nمواصفات إضافية:"
     },
@@ -7852,9 +7237,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "النزهه النخيل الرفاع"
-      ],
+      "neighborhoods": ["النزهه النخيل الرفاع"],
       "contactNumber": "+966563030944",
       "additionalSpecs": "نوع العقار المطلوب: دبلكس \nالغرض: شراء\nحدود السعر: 1000000 المساحة المطلوبة: 300\nالأحياء المفضلة: النزهه النخيل الرفاع\nرقم التواصل: \n+966563030944\n\nمواصفات إضافية:"
     },
@@ -7939,9 +7322,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": 450,
-      "neighborhoods": [
-        "عين موسى"
-      ],
+      "neighborhoods": ["عين موسى"],
       "contactNumber": "+201508171821",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: بيت\nالغرض: شراء\nحدود السعر: من 500 ألف إلى مليون\nالمساحة المطلوبة: 450\nالأحياء المفضلة: عين موسى\nرقم التواصل: +201508171821\nمواصفات إضافية: مجلس رجال منفصل"
     },
@@ -8036,9 +7417,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الصفا"
-      ],
+      "neighborhoods": ["الصفا"],
       "contactNumber": "+966507850968",
       "additionalSpecs": "طلب\nساميه\nنوع العقار المطلوب: دبلكس \nالغرض: شراء\nالمساحة المطلوبة: ٤٠٠\nالأحياء المفضلة: الصفا\nرقم التواصل: +966507850968\nمواصفات إضافية: تقبله ارامكو"
     },
@@ -8084,9 +7463,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "النزهة"
-      ],
+      "neighborhoods": ["النزهة"],
       "contactNumber": "+966506993870",
       "additionalSpecs": "طلب\nعملاء النزهة\nنوع العقار المطلوب: دبلكس \nالغرض: شراء\nحدود السعر: الى مليون و٢٠٠ الف\nالمساحة المطلوبة: ٣٠٠\nالأحياء المفضلة: النزهة\nرقم التواصل: \n+966506993870\n+966563030944\n+966557039334\n+966550097483\n+966546274464\n+966 55 683 3474\n+966531689812\n+966566335412\n+966537684201\n+966545588593\n+966509880316\n+966598899525\n+966540064070\nمواصفات إضافية:"
     },
@@ -8127,9 +7504,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "النزهة"
-      ],
+      "neighborhoods": ["النزهة"],
       "contactNumber": "+966563030944",
       "additionalSpecs": "طلب\nعملاء النزهة\nنوع العقار المطلوب: دبلكس \nالغرض: شراء\nحدود السعر: الى مليون و٢٠٠ الف\nالمساحة المطلوبة: ٣٠٠\nالأحياء المفضلة: النزهة\nرقم التواصل: \n+966563030944\n\nمواصفات إضافية:"
     },
@@ -8198,9 +7573,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 600,
-      "neighborhoods": [
-        "الدانة"
-      ],
+      "neighborhoods": ["الدانة"],
       "contactNumber": "+966549066708",
       "additionalSpecs": "طلب\nبوعزوز\nنوع العقار المطلوب:  أرض\nالغرض: شراء\nالمساحة المطلوبة: 600\nالأحياء المفضلة: الدانة\nرقم التواصل: +966549066708\nمواصفات إضافية:"
     },
@@ -8248,77 +7621,6 @@
     "nameValidationWarned": false,
     "roleValidationWarned": false
   },
-  "966506932504": {
-    "phoneNumber": "966506932504",
-    "name": "بوحسن الغانم",
-    "role": "باحث",
-    "state": "completed",
-    "requirements": {
-      "clientName": "بوحسن الغانم",
-      "propertyType": "مزرعة",
-      "purpose": "شراء",
-      "priceMin": null,
-      "priceMax": null,
-      "areaMin": 0,
-      "areaMax": 3000,
-      "neighborhoods": [
-        "البطالية وشارع الحيات",
-        "الخدود",
-        "عين باهلة"
-      ],
-      "contactNumber": "+966506932504",
-      "additionalSpecs": "طلب\nبوحسن الغانم\nنوع العقار المطلوب:  مزرعة\nالغرض: شراء\nالمساحة المطلوبة: 3000\nالأحياء المفضلة: البطالية وشارع الحيات و الخدود و عين باهلة\nرقم التواصل: +966506932504\nمواصفات إضافية:"
-    },
-    "propertyOffer": null,
-    "requestStatus": "active",
-    "matchHistory": [],
-    "lastNotificationAt": null,
-    "awaitingStillLookingResponse": false,
-    "lastResponseToStillLooking": null,
-    "lastResponseToStillLookingAt": null,
-    "requestDeactivatedAt": null,
-    "requestDeactivationReason": null,
-    "createdAt": 1765208910066,
-    "updatedAt": 1765216275717,
-    "lastMessageAt": 1765216275717,
-    "registeredByAdmin": true,
-    "adminPhone": "108864653512712@lid"
-  },
-  "966508007053": {
-    "phoneNumber": "966508007053",
-    "name": "لصفا",
-    "role": "باحث",
-    "state": "completed",
-    "requirements": {
-      "clientName": "دكتور هشام",
-      "propertyType": "دبلكس",
-      "purpose": "شراء",
-      "priceMin": null,
-      "priceMax": null,
-      "areaMin": 0,
-      "areaMax": 500,
-      "neighborhoods": [
-        "الصفا"
-      ],
-      "contactNumber": "+966558671388",
-      "additionalSpecs": "طلب\nدكتور هشام\nنوع العقار المطلوب: دبلكس\nالغرض: شراء   \nالمساحة المطلوبة:  500\nالأحياء المفضلة:  الصفا\nرقم التواصل:  +966558671388\nمواصفات إضافية:"
-    },
-    "propertyOffer": null,
-    "requestStatus": "active",
-    "matchHistory": [],
-    "lastNotificationAt": null,
-    "awaitingStillLookingResponse": false,
-    "lastResponseToStillLooking": null,
-    "lastResponseToStillLookingAt": null,
-    "requestDeactivatedAt": null,
-    "requestDeactivationReason": null,
-    "createdAt": 1765224095760,
-    "updatedAt": 1765802857876,
-    "lastMessageAt": 1765802968270,
-    "nameValidationWarned": false,
-    "mediaWarningShown": false,
-    "roleValidationWarned": false
-  },
   "966555323394": {
     "phoneNumber": "966555323394",
     "name": "عميل جديد",
@@ -8332,10 +7634,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "السياسب",
-        "المبرز"
-      ],
+      "neighborhoods": ["السياسب", "المبرز"],
       "contactNumber": "+966555323394",
       "additionalSpecs": "طلب\nنوع العقار المطلوب:  بيت\nالغرض: شراء\nالمساحة المطلوبة: ٣٠٠\nالأحياء المفضلة: السياسب و المبرز\nرقم التواصل: +966555323394\nمواصفات إضافية:"
     },
@@ -8429,9 +7728,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": 350,
-      "neighborhoods": [
-        "الهفوف"
-      ],
+      "neighborhoods": ["الهفوف"],
       "contactNumber": "0509822195",
       "additionalSpecs": "طلب\nالاسم:\nنوع العقار المطلوب: بيت \nالغرض: شراء\nحدود السعر: 850 الف الى مليون\nالمساحة المطلوبة: 350\nالأحياء المفضلة: الهفوف\nرقم التواصل: 0509822195\nمواصفات إضافية:\nشقتين او ٣ شقق ودور ارضي واسع يتكون من ٤ غرف نوم ومجلس ومقلط عمره ١٥ سنه\n ونظيف وواسع ويكون فيه حوش"
     },
@@ -8463,10 +7760,7 @@
       "priceMax": null,
       "areaMin": 700,
       "areaMax": 800,
-      "neighborhoods": [
-        "ضاحية هجر1",
-        "ضاحية هجر2"
-      ],
+      "neighborhoods": ["ضاحية هجر1", "ضاحية هجر2"],
       "contactNumber": "0560562111",
       "additionalSpecs": "طلب\nمحمد الحرز\nنوع العقار المطلوب: أرض تجارية \nالغرض: شراء\nالمساحة المطلوبة: 700 الى 800\nالأحياء المفضلة: ضاحية هجر١ و ضاحية هجر٢\nرقم التواصل: 0560562111\nمواصفات إضافية:\nع شارع ٥٠"
     },
@@ -8498,9 +7792,7 @@
       "priceMax": 800000,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "منسوب التعليم"
-      ],
+      "neighborhoods": ["منسوب التعليم"],
       "contactNumber": "0543792802",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: بيت\nالغرض: شراء\nالمساحة المطلوبة: 500\nحدود السعر: 800 الف\nالأحياء المفضلة: منسوب التعليم\nرقم التواصل: 0543792802\nمواصفات إضافية:"
     },
@@ -8532,12 +7824,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "الفضول",
-        "المنيزله",
-        "الجفر",
-        "الطرف"
-      ],
+      "neighborhoods": ["الفضول", "المنيزله", "الجفر", "الطرف"],
       "contactNumber": "+966564170337",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: مزرعة\nالغرض: شراء\nالمساحة المطلوبة: 500\nالأحياء المفضلة: الفضول و المنيزله و الجفر و الطرف\nرقم التواصل: +966564170337\nمواصفات إضافية:"
     },
@@ -8569,11 +7856,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الاندلس",
-        "المباركيه",
-        "المحدود"
-      ],
+      "neighborhoods": ["الاندلس", "المباركيه", "المحدود"],
       "contactNumber": "0534926971",
       "additionalSpecs": "طلب\nنوع العقار المطلوب:  أرض\nالغرض: شراء \nحدود السعر: مليون  \nالمساحة المطلوبة:  ٤٠٠\nالأحياء المفضلة:  الاندلس و  المباركيه و المحدود \nرقم التواصل:  0534926971\nمواصفات إضافية:   غير محدده"
     },
@@ -8605,9 +7888,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "الصفا"
-      ],
+      "neighborhoods": ["الصفا"],
       "contactNumber": "+966558671388",
       "additionalSpecs": "طلب\nدكتور هشام\nنوع العقار المطلوب: دبلكس\nالغرض: شراء   \nالمساحة المطلوبة:  ٥٠٠\nالأحياء المفضلة:  الصفا\nرقم التواصل:  +966558671388\nمواصفات إضافية:"
     },
@@ -8639,9 +7920,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": 600,
-      "neighborhoods": [
-        "الهفوف"
-      ],
+      "neighborhoods": ["الهفوف"],
       "contactNumber": "0553072607",
       "additionalSpecs": "طلب\nباسم بن عبداللطيف \nنوع العقار المطلوب: فيلا \nالغرض: شراء\nحدود السعر: مليون \nالمساحة المطلوبة: ٦٠٠\nالأحياء المفضلة: الهفوف \nرقم التواصل: 0553072607\nمواصفات إضافية:يكون به حوش\n *🔰مسعاك العقارية*"
     },
@@ -8660,45 +7939,6 @@
     "registeredByAdmin": true,
     "adminPhone": "966508007053@s.whatsapp.net"
   },
-  "966504797521": {
-    "phoneNumber": "966504797521",
-    "name": "احمد النجار",
-    "role": "باحث",
-    "state": "completed",
-    "requirements": {
-      "clientName": "احمد النجار",
-      "propertyType": "مزرعة",
-      "purpose": "شراء",
-      "priceMin": 500,
-      "priceMax": 750000,
-      "areaMin": 800,
-      "areaMax": 1000,
-      "neighborhoods": [
-        "اللويمي",
-        "الخدود",
-        "بني معن",
-        "الشهارين",
-        "الجبيل",
-        "الهفوف"
-      ],
-      "contactNumber": "0504797521",
-      "additionalSpecs": "طلب\nاحمد النجار \nنوع العقار المطلوب: مزرعة\nالغرض: شراء\nحدود السعر: 500 - 750 ألف حسب التفاصيل\nالمساحة المطلوبة: 800 الى 1000\nالأحياء المفضلة: اللويمي و الخدود و بني معن و الشهارين و الجبيل و الهفوف\nرقم التواصل: 0504797521\nمواصفات إضافية: مزرعة او أرض زراعية صك حر"
-    },
-    "propertyOffer": null,
-    "requestStatus": "active",
-    "matchHistory": [],
-    "lastNotificationAt": null,
-    "awaitingStillLookingResponse": false,
-    "lastResponseToStillLooking": null,
-    "lastResponseToStillLookingAt": null,
-    "requestDeactivatedAt": null,
-    "requestDeactivationReason": null,
-    "createdAt": 1765803073302,
-    "updatedAt": 1765803111767,
-    "lastMessageAt": 1765803111767,
-    "registeredByAdmin": true,
-    "adminPhone": "54773818589318@lid"
-  },
   "966550095371": {
     "phoneNumber": "966550095371",
     "name": "عميل جديد",
@@ -8712,10 +7952,7 @@
       "priceMax": 800000,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "جنوب الهفوف",
-        "محاسن ارامكو"
-      ],
+      "neighborhoods": ["جنوب الهفوف", "محاسن ارامكو"],
       "contactNumber": "0550095371",
       "additionalSpecs": "طلب\n نوع العقار المطلوب: بيت\nالغرض: شراء\nحدود السعر: 500 - 800 ألف \nالمساحة المطلوبة: 400\nالأحياء المفضلة: جنوب الهفوف و محاسن ارامكو\nرقم التواصل: 0550095371\nمواصفات إضافية:"
     },
@@ -8747,12 +7984,7 @@
       "priceMax": 1000000,
       "areaMin": 400,
       "areaMax": 500,
-      "neighborhoods": [
-        "القدس",
-        "الربوه",
-        "السلمانيه",
-        "الحمراء"
-      ],
+      "neighborhoods": ["القدس", "الربوه", "السلمانيه", "الحمراء"],
       "contactNumber": "0502694302",
       "additionalSpecs": "طلب\n نوع العقار المطلوب: بيت\nالغرض: شراء\nحدود السعر: مليون و ١٠٠ الف \nالمساحة المطلوبة: 400 الى 500\nالأحياء المفضلة: القدس و الربوه و السلمانيه و الحمراء\nرقم التواصل: 0502694302\nمواصفات إضافية:"
     },
@@ -8784,13 +8016,7 @@
       "priceMax": 700000,
       "areaMin": 400,
       "areaMax": 500,
-      "neighborhoods": [
-        "الهفوف",
-        "اللويمي",
-        "الخدود",
-        "البطالية",
-        "بني معن"
-      ],
+      "neighborhoods": ["الهفوف", "اللويمي", "الخدود", "البطالية", "بني معن"],
       "contactNumber": "+966561048106",
       "additionalSpecs": "طلب\n نوع العقار المطلوب: مزرعة\nالغرض: شراء\nحدود السعر: ٧٠٠ الف \nالمساحة المطلوبة: 400 الى 500\nالأحياء المفضلة: الهفوف و اللويمي و الخدود و البطالية و بني معن\nرقم التواصل: +966561048106\nمواصفات إضافية:"
     },
@@ -8822,9 +8048,7 @@
       "priceMax": 650000,
       "areaMin": 0,
       "areaMax": 400,
-      "neighborhoods": [
-        "الهفوف"
-      ],
+      "neighborhoods": ["الهفوف"],
       "contactNumber": "0501003145",
       "additionalSpecs": "طلب\n نوع العقار المطلوب: بيت\nالغرض: شراء\nحدود السعر: ٦٠٠ الف الى ٦٥٠ الف\nالمساحة المطلوبة: 400\nالأحياء المفضلة: الهفوف \nرقم التواصل: 0501003145\nمواصفات إضافية: يقبل البنك"
     },
@@ -8899,11 +8123,7 @@
       "priceMax": 1000000,
       "areaMin": 0,
       "areaMax": 250,
-      "neighborhoods": [
-        "بوسحبل",
-        "الصفا والرفاع",
-        "الغسانية"
-      ],
+      "neighborhoods": ["بوسحبل", "الصفا والرفاع", "الغسانية"],
       "contactNumber": "0544459222",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: دبلكس\nالغرض: شراء\nحدود السعر: 1000000\nالمساحة المطلوبة: 250\nالأحياء المفضلة: بوسحبل و الصفا والرفاع و الغسانية \nرقم التواصل: 0544459222\nمواصفات إضافية:مستقل المدخل وكراج\n *🔰مسعاك العقارية*"
     },
@@ -8935,10 +8155,7 @@
       "priceMax": 350000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "محاسن",
-        "المبرز"
-      ],
+      "neighborhoods": ["محاسن", "المبرز"],
       "contactNumber": "0531020567",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: شقة \nالغرض:  شراء\nحدود السعر:  350 الف\nالمساحة المطلوبة: 200  \nالأحياء المفضلة:  محاسن و المبرز\nرقم التواصل: 0531020567\nمواصفات إضافية: \n *🔰مسعاك العقارية*"
     },
@@ -8970,9 +8187,7 @@
       "priceMax": 160000,
       "areaMin": 200,
       "areaMax": 300,
-      "neighborhoods": [
-        "ضاحية هجر"
-      ],
+      "neighborhoods": ["ضاحية هجر"],
       "contactNumber": "0541199947",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: أرض\nالغرض: شراء\nحدود السعر: ١٦٠ الف \nالمساحة المطلوبة: ٢٠٠ الى ٣٠٠ \nالأحياء المفضلة: ضاحية هجر\nرقم التواصل:  0541199947\nمواصفات إضافية: \n *🔰مسعاك العقارية*"
     },
@@ -9004,12 +8219,7 @@
       "priceMax": 1000000,
       "areaMin": 300,
       "areaMax": 400,
-      "neighborhoods": [
-        "المنيزله",
-        "الفضول",
-        "المحدود",
-        "الجفر"
-      ],
+      "neighborhoods": ["المنيزله", "الفضول", "المحدود", "الجفر"],
       "contactNumber": "0507591671",
       "additionalSpecs": "طلب\nام حسن الحبيب \nنوع العقار المطلوب: بيت \nالغرض: شراء \nحدود السعر: مليون الى مليون و٣٠٠ \nالمساحة المطلوبة: ٣٠٠ الى ٤٠٠\nالأحياء المفضلة: المنيزله  و الفضول و المحدود و الجفر \nرقم التواصل: 0507591671\nمواصفات إضافية: يقبل البنك"
     },
@@ -9028,41 +8238,6 @@
     "registeredByAdmin": true,
     "adminPhone": "54773818589318@lid"
   },
-  "966501234567": {
-    "phoneNumber": "966501234567",
-    "name": "محمد يوسف",
-    "role": "باحث",
-    "state": "completed",
-    "requirements": {
-      "clientName": "محمد يوسف",
-      "propertyType": "بيت",
-      "purpose": "شراء",
-      "priceMin": 500000,
-      "priceMax": 1000000,
-      "areaMin": 300,
-      "areaMax": 500,
-      "neighborhoods": [
-        "الربوة",
-        "النرجس"
-      ],
-      "contactNumber": "0501234567",
-      "additionalSpecs": "طلب\nمحمد يوسف\nنوع العقار المطلوب: بيت \nالغرض: شراء\nحدود السعر: من 500 ألف إلى مليون\nالمساحة المطلوبة: من 300 إلى 500\nالأحياء المفضلة: الربوة و النرجس\nرقم التواصل: 0501234567\nمواصفات إضافية: مجلس رجال منفصل، حوش كبير\n\nط"
-    },
-    "propertyOffer": null,
-    "requestStatus": "active",
-    "matchHistory": [],
-    "lastNotificationAt": null,
-    "awaitingStillLookingResponse": false,
-    "lastResponseToStillLooking": null,
-    "lastResponseToStillLookingAt": null,
-    "requestDeactivatedAt": null,
-    "requestDeactivationReason": null,
-    "createdAt": 1765807555174,
-    "updatedAt": 1765807555174,
-    "lastMessageAt": 1765807555174,
-    "registeredByAdmin": true,
-    "adminPhone": "54773818589318@lid"
-  },
   "9661000000000": {
     "phoneNumber": "9661000000000",
     "name": "عميل جديد",
@@ -9076,9 +8251,7 @@
       "priceMax": 1000000,
       "areaMin": 300,
       "areaMax": 400,
-      "neighborhoods": [
-        "الصفا و"
-      ],
+      "neighborhoods": ["الصفا و"],
       "contactNumber": "1000000000",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: بيت \nالغرض: شراء\nحدود السعر: من 1000000 ألف إلى مليون و ٤٠٠\nالمساحة المطلوبة: من 300 إلى ٤٠٠\nالأحياء المفضلة: الصفا و \nرقم التواصل: +966505267125\nمواصفات إضافية: مجلس رجال منفصل، حوش كب"
     },
@@ -9110,9 +8283,7 @@
       "priceMax": 1000000,
       "areaMin": 300,
       "areaMax": 400,
-      "neighborhoods": [
-        "الصفا و"
-      ],
+      "neighborhoods": ["الصفا و"],
       "contactNumber": "+966505267125",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: بيت \nالغرض: شراء\nحدود السعر: من مليون إلى مليون و ٤٠٠الف\nالمساحة المطلوبة: من 300 إلى ٤٠٠\nالأحياء المفضلة: الصفا و \nرقم التواصل: +966505267125\nمواصفات إضافية: مجلس رجال منفصل، حوش كب"
     },
@@ -9144,9 +8315,7 @@
       "priceMax": 2000000,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "محاسن ارامكو"
-      ],
+      "neighborhoods": ["محاسن ارامكو"],
       "contactNumber": "+966555097769",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: فيلا \nالغرض: شراء\nحدود السعر: من مليون إلى ٢ مليون \nالمساحة المطلوبة: ٥٠٠\nالأحياء المفضلة: محاسن ارامكو\nرقم التواصل: +966555097769\nمواصفات إضافية: تقبله ارامكو"
     },
@@ -9178,10 +8347,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 700,
-      "neighborhoods": [
-        "المعلمين",
-        "منسوب التعليم"
-      ],
+      "neighborhoods": ["المعلمين", "منسوب التعليم"],
       "contactNumber": "+966546810888",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: أرض \nالغرض: شراء\nالمساحة المطلوبة: ٧٠٠\nالأحياء المفضلة: المعلمين و منسوب التعليم\nرقم التواصل: +966546810888\nمواصفات إضافية: تقبله ارامكو"
     },
@@ -9213,10 +8379,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "الصفا",
-        "الجرن"
-      ],
+      "neighborhoods": ["الصفا", "الجرن"],
       "contactNumber": "+966505963147",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: أرض \nالغرض: شراء\nالمساحة المطلوبة: ٣٠٠\nالأحياء المفضلة: الصفا و الجرن\nرقم التواصل: +966505963147\nمواصفات إضافية:"
     },
@@ -9248,9 +8411,7 @@
       "priceMax": 300000,
       "areaMin": 0,
       "areaMax": 300,
-      "neighborhoods": [
-        "القرى"
-      ],
+      "neighborhoods": ["القرى"],
       "contactNumber": "0540473273",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: بيت \nالغرض: شراء\nالمساحة المطلوبة: ٣٠٠\nحدود السعر: ٣٠٠ الف\nالأحياء المفضلة: القرى\nرقم التواصل: 0540473273\nمواصفات إضافية:"
     },
@@ -9346,9 +8507,7 @@
       "priceMax": null,
       "areaMin": 0,
       "areaMax": 500,
-      "neighborhoods": [
-        "القادسية"
-      ],
+      "neighborhoods": ["القادسية"],
       "contactNumber": "0542273777",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: بيت \nالغرض: شراء\nالمساحة المطلوبة: ٥٠٠\nالأحياء: القادسية\nرقم التواصل: 0542273777\nمواصفات إضافية:"
     },
@@ -9380,9 +8539,7 @@
       "priceMax": 200000,
       "areaMin": 0,
       "areaMax": 200,
-      "neighborhoods": [
-        "الهفوف"
-      ],
+      "neighborhoods": ["الهفوف"],
       "contactNumber": "+966568974048",
       "additionalSpecs": "طلب\nنوع العقار المطلوب: بيت \nالغرض: شراء\nحدود السعر: ٢٠٠ الف\nالمساحة المطلوبة: ٢٠٠\nالأحياء: الهفوف\nرقم التواصل: +966568974048\nمواصفات إضافية:"
     },
