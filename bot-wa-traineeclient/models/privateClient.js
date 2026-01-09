@@ -44,30 +44,33 @@ function saveClients() {
         const raw = fs.readFileSync(CLIENTS_FILE, "utf8");
         diskClients = JSON.parse(raw || "{}");
       } catch (parseErr) {
-        console.error("Failed to parse disk clients, using memory data:", parseErr);
+        console.error(
+          "Failed to parse disk clients, using memory data:",
+          parseErr
+        );
         diskClients = {};
       }
     }
-    
+
     // Merge: disk data as base, then apply our in-memory changes
     // This preserves clients added by other bots while keeping our updates
     const mergedClients = {};
-    
+
     // First, add all disk clients EXCEPT those we deleted in this session
     for (const phoneNumber in diskClients) {
       if (!deletedInSession.has(phoneNumber)) {
         mergedClients[phoneNumber] = diskClients[phoneNumber];
       }
     }
-    
+
     // Then apply all our in-memory client changes (overwrite/add)
     for (const phoneNumber in clients) {
       mergedClients[phoneNumber] = clients[phoneNumber];
     }
-    
+
     // Update our in-memory cache with merged data
     clients = mergedClients;
-    
+
     // Write merged data to file
     fs.writeFileSync(CLIENTS_FILE, JSON.stringify(mergedClients, null, 2));
   } catch (err) {
@@ -99,7 +102,7 @@ function getClient(phoneNumber) {
       console.error("Failed to refresh clients from disk:", err);
     }
   }
-  
+
   // Check again after refresh
   if (!clients[phoneNumber]) {
     // If creating a new client, remove from deletedInSession (user wants to re-add)
@@ -204,7 +207,7 @@ function clearClient(phoneNumber) {
   } catch (err) {
     console.error("Failed to refresh before clear:", err);
   }
-  
+
   if (clients[phoneNumber]) {
     delete clients[phoneNumber];
     deletedInSession.add(phoneNumber); // Track deletion to prevent re-adding from disk
@@ -260,7 +263,7 @@ function cleanInactiveClients() {
   } catch (err) {
     console.error("Failed to refresh before cleaning:", err);
   }
-  
+
   const cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000; // 7 days
   let cleaned = 0;
 
@@ -298,7 +301,7 @@ function deleteClient(phoneNumber) {
   } catch (err) {
     console.error("Failed to refresh before delete:", err);
   }
-  
+
   if (clients[phoneNumber]) {
     delete clients[phoneNumber];
     deletedInSession.add(phoneNumber); // Track deletion to prevent re-adding from disk
