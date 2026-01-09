@@ -9,6 +9,8 @@ const { getDataPath, SHARED_DATA_DIR } = require("../config/dataPath");
 
 const CLIENTS_FILE = getDataPath("private_clients.json");
 let clients = {};
+// Track clients deleted in this session to avoid re-adding from disk
+let deletedInSession = new Set();
 
 // Load clients from file
 function loadClients() {
@@ -32,10 +34,42 @@ function loadClients() {
   }
 }
 
-// Save clients to file
+// Save clients to file with merge to prevent data loss from concurrent bots
 function saveClients() {
   try {
-    fs.writeFileSync(CLIENTS_FILE, JSON.stringify(clients, null, 2));
+    // Read fresh data from disk to get changes from other bots
+    let diskClients = {};
+    if (fs.existsSync(CLIENTS_FILE)) {
+      try {
+        const raw = fs.readFileSync(CLIENTS_FILE, "utf8");
+        diskClients = JSON.parse(raw || "{}");
+      } catch (parseErr) {
+        console.error("Failed to parse disk clients, using memory data:", parseErr);
+        diskClients = {};
+      }
+    }
+    
+    // Merge: disk data as base, then apply our in-memory changes
+    // This preserves clients added by other bots while keeping our updates
+    const mergedClients = {};
+    
+    // First, add all disk clients EXCEPT those we deleted in this session
+    for (const phoneNumber in diskClients) {
+      if (!deletedInSession.has(phoneNumber)) {
+        mergedClients[phoneNumber] = diskClients[phoneNumber];
+      }
+    }
+    
+    // Then apply all our in-memory client changes (overwrite/add)
+    for (const phoneNumber in clients) {
+      mergedClients[phoneNumber] = clients[phoneNumber];
+    }
+    
+    // Update our in-memory cache with merged data
+    clients = mergedClients;
+    
+    // Write merged data to file
+    fs.writeFileSync(CLIENTS_FILE, JSON.stringify(mergedClients, null, 2));
   } catch (err) {
     console.error("Failed to save clients:", err);
   }
@@ -47,7 +81,29 @@ function saveClients() {
  * @returns {object} Client session data
  */
 function getClient(phoneNumber) {
+  // First check our in-memory cache
   if (!clients[phoneNumber]) {
+    // Before creating new client, refresh from disk to check if another bot added it
+    try {
+      if (fs.existsSync(CLIENTS_FILE)) {
+        const raw = fs.readFileSync(CLIENTS_FILE, "utf8");
+        const diskClients = JSON.parse(raw || "{}");
+        // Merge disk data into memory (don't overwrite existing memory data, skip deleted)
+        for (const phone in diskClients) {
+          if (!clients[phone] && !deletedInSession.has(phone)) {
+            clients[phone] = diskClients[phone];
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to refresh clients from disk:", err);
+    }
+  }
+  
+  // Check again after refresh
+  if (!clients[phoneNumber]) {
+    // If creating a new client, remove from deletedInSession (user wants to re-add)
+    deletedInSession.delete(phoneNumber);
     clients[phoneNumber] = {
       phoneNumber,
       name: null,
@@ -134,8 +190,24 @@ function getHistory(phoneNumber) {
  * @param {string} phoneNumber - Client's phone number
  */
 function clearClient(phoneNumber) {
+  // Refresh from disk first to ensure we have latest data
+  try {
+    if (fs.existsSync(CLIENTS_FILE)) {
+      const raw = fs.readFileSync(CLIENTS_FILE, "utf8");
+      const diskClients = JSON.parse(raw || "{}");
+      for (const phone in diskClients) {
+        if (!clients[phone] && !deletedInSession.has(phone)) {
+          clients[phone] = diskClients[phone];
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to refresh before clear:", err);
+  }
+  
   if (clients[phoneNumber]) {
     delete clients[phoneNumber];
+    deletedInSession.add(phoneNumber); // Track deletion to prevent re-adding from disk
     saveClients();
   }
 }
@@ -145,6 +217,21 @@ function clearClient(phoneNumber) {
  * @returns {object} All client data
  */
 function getAllClients() {
+  // Refresh from disk to get latest data from all bots
+  try {
+    if (fs.existsSync(CLIENTS_FILE)) {
+      const raw = fs.readFileSync(CLIENTS_FILE, "utf8");
+      const diskClients = JSON.parse(raw || "{}");
+      // Merge: keep memory changes but add any new clients from disk (except deleted ones)
+      for (const phone in diskClients) {
+        if (!clients[phone] && !deletedInSession.has(phone)) {
+          clients[phone] = diskClients[phone];
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to refresh clients:", err);
+  }
   return clients;
 }
 
@@ -152,12 +239,35 @@ function getAllClients() {
  * Clean inactive clients (older than 7 days with no activity)
  */
 function cleanInactiveClients() {
+  // First refresh from disk to get latest activity timestamps from other bots
+  try {
+    if (fs.existsSync(CLIENTS_FILE)) {
+      const raw = fs.readFileSync(CLIENTS_FILE, "utf8");
+      const diskClients = JSON.parse(raw || "{}");
+      // Merge disk data - use disk timestamps if more recent
+      for (const phone in diskClients) {
+        if (deletedInSession.has(phone)) continue; // Skip deleted clients
+        if (clients[phone]) {
+          // Keep the more recent lastMessageAt
+          if (diskClients[phone].lastMessageAt > clients[phone].lastMessageAt) {
+            clients[phone].lastMessageAt = diskClients[phone].lastMessageAt;
+          }
+        } else {
+          clients[phone] = diskClients[phone];
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to refresh before cleaning:", err);
+  }
+  
   const cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000; // 7 days
   let cleaned = 0;
 
   for (const phoneNumber in clients) {
     if (clients[phoneNumber].lastMessageAt < cutoffTime) {
       delete clients[phoneNumber];
+      deletedInSession.add(phoneNumber); // Track deletion
       cleaned++;
     }
   }
@@ -174,8 +284,24 @@ function cleanInactiveClients() {
  * @returns {boolean} True if deleted, false if not found
  */
 function deleteClient(phoneNumber) {
+  // Refresh from disk first to ensure we have latest data
+  try {
+    if (fs.existsSync(CLIENTS_FILE)) {
+      const raw = fs.readFileSync(CLIENTS_FILE, "utf8");
+      const diskClients = JSON.parse(raw || "{}");
+      for (const phone in diskClients) {
+        if (!clients[phone] && !deletedInSession.has(phone)) {
+          clients[phone] = diskClients[phone];
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to refresh before delete:", err);
+  }
+  
   if (clients[phoneNumber]) {
     delete clients[phoneNumber];
+    deletedInSession.add(phoneNumber); // Track deletion to prevent re-adding from disk
     saveClients();
     console.log(`🗑️ Deleted client: ${phoneNumber}`);
     return true;
