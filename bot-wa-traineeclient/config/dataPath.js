@@ -69,10 +69,50 @@ function writeDataSync(filepath, data) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
+    // Create backup of existing file before overwriting
+    if (fs.existsSync(filepath)) {
+      const backupPath = filepath + ".backup";
+      try {
+        fs.copyFileSync(filepath, backupPath);
+      } catch (backupErr) {
+        console.warn(
+          `⚠️ Warning: Could not create backup for ${filepath}:`,
+          backupErr.message,
+        );
+      }
+    }
+
     // Write with pretty formatting
-    fs.writeFileSync(filepath, JSON.stringify(data, null, 2), "utf8");
+    const jsonData = JSON.stringify(data, null, 2);
+    fs.writeFileSync(filepath, jsonData, "utf8");
+
+    // Verify write was successful by reading back
+    const verifyData = fs.readFileSync(filepath, "utf8");
+    if (verifyData !== jsonData) {
+      throw new Error("Data verification failed after write");
+    }
   } catch (error) {
-    console.error(`Error writing ${filepath}:`, error.message);
+    console.error(`❌ CRITICAL: Error writing ${filepath}:`, error.message);
+
+    // Special handling for disk space errors
+    if (error.code === "ENOSPC" || error.message.includes("no space")) {
+      console.error(`\n🚨 DISK FULL ERROR DETECTED! 🚨`);
+      console.error(`Failed to save ${filepath} - NO DISK SPACE LEFT`);
+      console.error(`Data is NOT lost - still in memory`);
+      console.error(`Please free up disk space immediately!\n`);
+
+      // Try to restore from backup
+      const backupPath = filepath + ".backup";
+      if (fs.existsSync(backupPath)) {
+        try {
+          fs.copyFileSync(backupPath, filePath);
+          console.log(`✅ Restored ${filepath} from backup`);
+        } catch (restoreErr) {
+          console.error(`❌ Could not restore backup:`, restoreErr.message);
+        }
+      }
+    }
+
     throw error;
   }
 }

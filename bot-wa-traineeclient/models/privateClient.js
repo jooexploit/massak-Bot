@@ -46,7 +46,7 @@ function saveClients() {
       } catch (parseErr) {
         console.error(
           "Failed to parse disk clients, using memory data:",
-          parseErr
+          parseErr,
         );
         diskClients = {};
       }
@@ -132,6 +132,10 @@ function getClient(phoneNumber) {
       lastResponseToStillLookingAt: null, // Timestamp
       requestDeactivatedAt: null, // When request was marked inactive
       requestDeactivationReason: null, // Why it was deactivated
+
+      // Protection flags - ALL clients are protected by default
+      isProtected: true, // Prevent auto-deletion
+      manuallyAdded: true, // Mark as important client
 
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -268,7 +272,14 @@ function cleanInactiveClients() {
   let cleaned = 0;
 
   for (const phoneNumber in clients) {
-    if (clients[phoneNumber].lastMessageAt < cutoffTime) {
+    const client = clients[phoneNumber];
+
+    // Skip protected clients (manually added or marked as important)
+    if (client.isProtected || client.manuallyAdded) {
+      continue;
+    }
+
+    if (client.lastMessageAt < cutoffTime) {
       delete clients[phoneNumber];
       deletedInSession.add(phoneNumber); // Track deletion
       cleaned++;
@@ -350,8 +361,9 @@ function changeClientPhone(oldPhoneNumber, newPhoneNumber) {
 // Initialize
 loadClients();
 
-// Clean inactive clients daily
-setInterval(cleanInactiveClients, 24 * 60 * 60 * 1000);
+// Clean inactive clients daily - DISABLED to preserve all client data
+// Automatic cleanup is disabled to keep all manually added client data
+// setInterval(cleanInactiveClients, 24 * 60 * 60 * 1000);
 
 /**
  * Normalize property type for comparison
@@ -430,13 +442,13 @@ function addOrUpdateClientRequest(phoneNumber, requirements) {
 
   // Normalize the new property type for comparison
   const newPropertyTypeNormalized = normalizePropertyType(
-    requirements.propertyType
+    requirements.propertyType,
   );
 
   // Check if same property type exists
   const existingIndex = existingRequests.findIndex(
     (req) =>
-      normalizePropertyType(req.propertyType) === newPropertyTypeNormalized
+      normalizePropertyType(req.propertyType) === newPropertyTypeNormalized,
   );
 
   let isUpdate = false;
@@ -507,8 +519,8 @@ function getAllActiveRequests() {
       client.requests && Array.isArray(client.requests)
         ? client.requests
         : client.requirements?.propertyType
-        ? [client.requirements]
-        : [];
+          ? [client.requirements]
+          : [];
 
     for (const request of clientRequests) {
       // Skip inactive requests or requests without property type
@@ -555,12 +567,12 @@ function recordUserInteraction(phoneNumber, offerId, interactionType) {
 
   // Find the match in history
   const matchIndex = client.matchHistory.findIndex(
-    (m) => m.offerId === offerId
+    (m) => m.offerId === offerId,
   );
 
   if (matchIndex === -1) {
     console.log(
-      `⚠️ Offer ${offerId} not found in match history for ${phoneNumber}`
+      `⚠️ Offer ${offerId} not found in match history for ${phoneNumber}`,
     );
     return false;
   }
@@ -593,7 +605,7 @@ function recordUserInteraction(phoneNumber, offerId, interactionType) {
   saveClients();
 
   console.log(
-    `📊 Recorded interaction: ${interactionType} for offer ${offerId} by ${phoneNumber}`
+    `📊 Recorded interaction: ${interactionType} for offer ${offerId} by ${phoneNumber}`,
   );
   return true;
 }
@@ -652,21 +664,55 @@ function getInteractionStats() {
   // Calculate averages
   if (openedScores.length > 0) {
     stats.avgScoreOpened = Math.round(
-      openedScores.reduce((a, b) => a + b, 0) / openedScores.length
+      openedScores.reduce((a, b) => a + b, 0) / openedScores.length,
     );
   }
   if (contactedScores.length > 0) {
     stats.avgScoreContacted = Math.round(
-      contactedScores.reduce((a, b) => a + b, 0) / contactedScores.length
+      contactedScores.reduce((a, b) => a + b, 0) / contactedScores.length,
     );
   }
   if (rejectedScores.length > 0) {
     stats.avgScoreRejected = Math.round(
-      rejectedScores.reduce((a, b) => a + b, 0) / rejectedScores.length
+      rejectedScores.reduce((a, b) => a + b, 0) / rejectedScores.length,
     );
   }
 
   return stats;
+}
+
+/**
+ * Protect a client from auto-deletion
+ * @param {string} phoneNumber - Client's phone number
+ * @returns {boolean} True if protected, false if not found
+ */
+function protectClient(phoneNumber) {
+  const client = getClient(phoneNumber);
+  if (client) {
+    client.isProtected = true;
+    client.manuallyAdded = true;
+    updateClient(phoneNumber, { isProtected: true, manuallyAdded: true });
+    console.log(`🛡️ Protected client: ${phoneNumber}`);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Unprotect a client (allow auto-deletion)
+ * @param {string} phoneNumber - Client's phone number
+ * @returns {boolean} True if unprotected, false if not found
+ */
+function unprotectClient(phoneNumber) {
+  const client = getClient(phoneNumber);
+  if (client) {
+    client.isProtected = false;
+    client.manuallyAdded = false;
+    updateClient(phoneNumber, { isProtected: false, manuallyAdded: false });
+    console.log(`🔓 Unprotected client: ${phoneNumber}`);
+    return true;
+  }
+  return false;
 }
 
 module.exports = {
@@ -679,6 +725,8 @@ module.exports = {
   cleanInactiveClients,
   deleteClient,
   changeClientPhone,
+  protectClient,
+  unprotectClient,
   // New multi-request functions
   normalizePropertyType,
   getClientRequests,

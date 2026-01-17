@@ -234,7 +234,7 @@ async function loadAdminsFromFile() {
       ADMIN_NUMBERS.push(...parsed.admins);
       console.log(
         `✅ Loaded ${ADMIN_NUMBERS.length} admins from file:`,
-        ADMIN_NUMBERS
+        ADMIN_NUMBERS,
       );
 
       // Also load lid_mapping for WhatsApp Business accounts
@@ -252,7 +252,7 @@ async function loadAdminsFromFile() {
       await fs.writeFile(
         ADMINS_FILE,
         JSON.stringify({ admins: ADMIN_NUMBERS, lid_mapping: {} }, null, 2),
-        "utf8"
+        "utf8",
       );
       console.log(`✅ Created admins file with ${ADMIN_NUMBERS.length} admins`);
     } catch (writeErr) {
@@ -302,11 +302,11 @@ async function saveAdminsToFile() {
     await fs.writeFile(
       ADMINS_FILE,
       JSON.stringify({ admins: ADMIN_NUMBERS }, null, 2),
-      "utf8"
+      "utf8",
     );
     console.log(
       `✅ Saved ${ADMIN_NUMBERS.length} admins to file:`,
-      ADMIN_NUMBERS
+      ADMIN_NUMBERS,
     );
     return true;
   } catch (err) {
@@ -350,7 +350,7 @@ async function processMessageQueue() {
 
   isProcessingQueue = true;
   console.log(
-    `\n🔄 Processing message queue (${global.messageQueue.length} items)...`
+    `\n🔄 Processing message queue (${global.messageQueue.length} items)...`,
   );
 
   try {
@@ -372,7 +372,7 @@ async function processMessageQueue() {
       let status = botModule.getConnectionStatus();
       if (status !== "connected") {
         console.log(
-          `⏸️ Connection not ready (${status}), waiting up to 30s for reconnection...`
+          `⏸️ Connection not ready (${status}), waiting up to 30s for reconnection...`,
         );
 
         // Wait up to 30 seconds for connection to restore
@@ -390,7 +390,7 @@ async function processMessageQueue() {
 
         if (status !== "connected") {
           console.log(
-            `⏸️ Connection still not ready after ${maxWaitMs}ms, pausing queue processor...`
+            `⏸️ Connection still not ready after ${maxWaitMs}ms, pausing queue processor...`,
           );
           break; // Exit loop, will retry later
         }
@@ -417,14 +417,14 @@ async function processMessageQueue() {
           const sendStatus = botModule.getConnectionStatus();
           if (sendStatus !== "connected") {
             console.log(
-              `🔌 Connection lost before message ${i + 1}, will retry...`
+              `🔌 Connection lost before message ${i + 1}, will retry...`,
             );
             throw new Error("Connection lost during message sequence");
           }
 
           // Send message with retry
           console.log(
-            `  → Sending message ${i + 1}/${item.messages.length}...`
+            `  → Sending message ${i + 1}/${item.messages.length}...`,
           );
 
           let sendSuccess = false;
@@ -438,12 +438,12 @@ async function processMessageQueue() {
               sendSuccess = true;
               item.messagesSent = i + 1; // Track progress
               console.log(
-                `  ✅ Message ${i + 1} sent (attempt ${sendAttempts})`
+                `  ✅ Message ${i + 1} sent (attempt ${sendAttempts})`,
               );
             } catch (sendError) {
               console.error(
                 `  ⚠️ Send attempt ${sendAttempts}/${maxSendAttempts} failed:`,
-                sendError.message
+                sendError.message,
               );
 
               // Check if it's a connection error
@@ -460,7 +460,7 @@ async function processMessageQueue() {
                 const retryStatus = botModule.getConnectionStatus();
                 if (retryStatus !== "connected") {
                   throw new Error(
-                    "Connection not recovered after send failure"
+                    "Connection not recovered after send failure",
                   );
                 }
               } else if (sendAttempts >= maxSendAttempts) {
@@ -483,19 +483,19 @@ async function processMessageQueue() {
       } catch (error) {
         console.error(
           `❌ Failed to process queue item ${item.id}:`,
-          error.message
+          error.message,
         );
 
         // Check if connection is lost
         const currentStatus = botModule.getConnectionStatus();
         if (currentStatus !== "connected") {
           console.log(
-            `🔌 Connection lost, pausing queue processor. Will resume on reconnect.`
+            `🔌 Connection lost, pausing queue processor. Will resume on reconnect.`,
           );
           console.log(
             `📋 Item ${item.id} has ${item.messagesSent || 0}/${
               item.messages.length
-            } messages sent`
+            } messages sent`,
           );
           break; // Stop processing, will retry when connection restored
         }
@@ -505,12 +505,12 @@ async function processMessageQueue() {
         if (item.retryCount >= 5) {
           // Increased from 3 to 5 retries
           console.log(
-            `❌ Max retries (5) reached for ${item.id}, removing from queue`
+            `❌ Max retries (5) reached for ${item.id}, removing from queue`,
           );
           global.messageQueue.shift();
         } else {
           console.log(
-            `⏳ Will retry ${item.id} later (attempt ${item.retryCount}/5)`
+            `⏳ Will retry ${item.id} later (attempt ${item.retryCount}/5)`,
           );
           // Move to end of queue
           global.messageQueue.push(global.messageQueue.shift());
@@ -520,7 +520,7 @@ async function processMessageQueue() {
     }
 
     console.log(
-      `✅ Queue processing complete (${global.messageQueue.length} remaining)\n`
+      `✅ Queue processing complete (${global.messageQueue.length} remaining)\n`,
     );
   } catch (error) {
     console.error("❌ Queue processor error:", error);
@@ -757,9 +757,9 @@ function parseReminderCommand(message) {
 
   // Create date string in format that will be interpreted in KSA timezone
   const dateString = `${year}-${String(month + 1).padStart(2, "0")}-${String(
-    day
+    day,
   ).padStart(2, "0")}T${String(scheduledTime.hours).padStart(2, "0")}:${String(
-    scheduledTime.minutes
+    scheduledTime.minutes,
   ).padStart(2, "0")}:00`;
 
   // Parse as KSA time by using the timezone offset
@@ -933,7 +933,7 @@ async function createReminder(adminNumber, reminderData) {
   } catch (error) {
     console.error(
       `⚠️ Could not schedule reminder ${reminder.id}:`,
-      error.message
+      error.message,
     );
   }
 
@@ -945,7 +945,7 @@ async function createReminder(adminNumber, reminderData) {
  */
 function getPendingReminders() {
   return reminders.filter(
-    (r) => r.status === "pending" && r.scheduledDateTime <= Date.now()
+    (r) => r.status === "pending" && r.scheduledDateTime <= Date.now(),
   );
 }
 
@@ -985,7 +985,7 @@ async function deleteReminder(reminderId) {
     } catch (error) {
       console.error(
         `⚠️ Could not cancel scheduled job for reminder ${reminderId}:`,
-        error.message
+        error.message,
       );
     }
 
@@ -1103,9 +1103,11 @@ function getAdminHelpMessage() {
 *7️⃣ إدارة العملاء*
 📝 *الأوامر:*
 • عدد_العملاء - عرض العدد الإجمالي
-• العملاء - قائمة بالعملاء
+• العملاء - قائمة بالعملاٱء
 • تفاصيل_عميل +رقم - تفاصيل عميل محدد
 • حذف_عميل +رقم - حذف عميل
+• حماية_عميل +رقم - حماية من الحذف التلقائي
+• إلغاء_حماية_عميل +رقم - إلغاء الحماية
 
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -1193,7 +1195,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
   console.log(
     `💬 Message: ${message?.substring(0, 100)}${
       message?.length > 100 ? "..." : ""
-    }`
+    }`,
   );
   console.log(`🔌 Socket available: ${!!sock}`);
   console.log(`${"=".repeat(60)}`);
@@ -1248,6 +1250,8 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       "العملاء",
       "تفاصيل_عميل",
       "حذف_عميل",
+      "حماية_عميل",
+      "إلغاء_حماية_عميل",
       "وسيط",
       "وسطاء",
       "حذف_وسيط",
@@ -1275,7 +1279,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       (keyword) =>
         command === keyword ||
         text.startsWith(keyword + "\n") ||
-        text.startsWith(keyword + " ")
+        text.startsWith(keyword + " "),
     );
 
     // ============================================
@@ -1293,11 +1297,11 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       ) {
         try {
           console.log(
-            `🗑️ Admin confirmed delete for post ${pending.post.id} on ${pending.website}`
+            `🗑️ Admin confirmed delete for post ${pending.post.id} on ${pending.website}`,
           );
           await wordpressPostService.deletePost(
             pending.website,
-            pending.post.id
+            pending.post.id,
           );
           delete pendingWordPressActions[phoneNumber];
           return `✅ *تم حذف المقال بنجاح*
@@ -1321,7 +1325,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         // Send edit messages with website context
         const editMessages = wordpressPostService.formatPostForEditing(
           pending.post,
-          pending.website
+          pending.website,
         );
 
         // Queue messages for sending
@@ -1346,7 +1350,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         if (editData) {
           try {
             console.log(
-              `📝 Admin editing ${editData.field} (${editData.type}) for post ${pending.post.id}`
+              `📝 Admin editing ${editData.field} (${editData.type}) for post ${pending.post.id}`,
             );
 
             const updatePayload = {};
@@ -1365,7 +1369,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
             const updatedPost = await wordpressPostService.updatePost(
               pending.website,
               pending.post.id,
-              updatePayload
+              updatePayload,
             );
 
             // Update pending post with new data
@@ -1414,13 +1418,13 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       : null;
     if (wpUrlInfo) {
       console.log(
-        `🔗 WordPress URL detected: ${wpUrlInfo.website}/${wpUrlInfo.slug}`
+        `🔗 WordPress URL detected: ${wpUrlInfo.website}/${wpUrlInfo.slug}`,
       );
 
       try {
         const post = await wordpressPostService.getPostBySlug(
           wpUrlInfo.website,
-          wpUrlInfo.slug
+          wpUrlInfo.slug,
         );
 
         if (!post) {
@@ -1491,7 +1495,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         // Use new multi-request function to add or update based on property type
         const requestResult = privateClient.addOrUpdateClientRequest(
           normalizedPhone,
-          fullRequirements
+          fullRequirements,
         );
 
         // Also update client basic info
@@ -1511,11 +1515,11 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         // Log what happened
         if (requestResult.isUpdate) {
           console.log(
-            `🔄 Updated existing request for ${normalizedPhone} (${requirements.propertyType})`
+            `🔄 Updated existing request for ${normalizedPhone} (${requirements.propertyType})`,
           );
         } else if (requestResult.totalRequests > 1) {
           console.log(
-            `➕ Added new request for ${normalizedPhone}. Total requests: ${requestResult.totalRequests}`
+            `➕ Added new request for ${normalizedPhone}. Total requests: ${requestResult.totalRequests}`,
           );
         } else {
           console.log(`✅ Client ${normalizedPhone} saved with first request`);
@@ -1541,20 +1545,24 @@ async function handleAdminCommand(sock, message, phoneNumber) {
             new Promise((_, reject) =>
               setTimeout(
                 () => reject(new Error("Search timeout after 30s")),
-                30000
-              )
+                30000,
+              ),
             ),
           ]);
-          
+
           // Sort results by date (latest first)
           results.sort((a, b) => {
-            const dateA = a.meta?.post_date ? new Date(a.meta.post_date) : new Date(0);
-            const dateB = b.meta?.post_date ? new Date(b.meta.post_date) : new Date(0);
+            const dateA = a.meta?.post_date
+              ? new Date(a.meta.post_date)
+              : new Date(0);
+            const dateB = b.meta?.post_date
+              ? new Date(b.meta.post_date)
+              : new Date(0);
             return dateB - dateA;
           });
 
           console.log(
-            `📊 Deep search completed: Found ${results.length} properties (sorted by date)`
+            `📊 Deep search completed: Found ${results.length} properties (sorted by date)`,
           );
         } catch (searchError) {
           console.error("❌ Deep search failed:", searchError.message);
@@ -1580,14 +1588,14 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           }
           noResultsMsg += `✅ *تم حفظ الطلب بنجاح*\n\n⚠️ *لم يتم العثور على عقارات مطابقة حالياً*\n\n📋 *تفاصيل الطلب:*\n• نوع العقار: ${
             requirements.propertyType || "غير محدد"
-          }\n• الغرض: ${
-            requirements.purpose || "غير محدد"
-          }\n• السعر: ${
-            requirements.priceMin !== null && requirements.priceMin !== undefined
+          }\n• الغرض: ${requirements.purpose || "غير محدد"}\n• السعر: ${
+            requirements.priceMin !== null &&
+            requirements.priceMin !== undefined
               ? requirements.priceMin.toLocaleString()
               : "0"
           } - ${
-            requirements.priceMax !== null && requirements.priceMax !== undefined
+            requirements.priceMax !== null &&
+            requirements.priceMax !== undefined
               ? requirements.priceMax.toLocaleString()
               : "غير محدد"
           } ريال\n• المساحة: ${
@@ -1688,7 +1696,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           const post = results[i];
           const formattedMsg = privateChatService.formatPostAsMessage(
             post,
-            i + 1
+            i + 1,
           );
           propertiesMsg += formattedMsg + "\n\n━━━━━━━━━━━━━━━━\n\n";
         }
@@ -1770,7 +1778,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
             const post = results[i];
             const formattedMsg = privateChatService.formatPostAsMessage(
               post,
-              i + 1
+              i + 1,
             );
             clientMessage += formattedMsg + "\n\n━━━━━━━━━━━━━━━━\n\n";
           }
@@ -1981,11 +1989,21 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         return `❌ لم يتم العثور على عميل برقم ${phoneNumber}`;
       }
 
-      let response = `📋 *تفاصيل العميل*\n\n`;
+      let response = `📋 *تفاصيل العميل*
+
+`;
       response += `👤 *الاسم:* ${client.name || "غير محدد"}\n`;
       response += `📱 *الهاتف:* +${client.phoneNumber}\n`;
       response += `🎭 *الدور:* ${client.role || "غير محدد"}\n`;
       response += `📊 *الحالة:* ${getStateText(client.state)}\n`;
+
+      // Show protection status
+      if (client.isProtected || client.manuallyAdded) {
+        response += `🛡️ *الحماية:* محمي من الحذف التلقائي\n`;
+      } else {
+        response += `⚠️ *الحماية:* غير محمي (سيُحذف بعد 7 أيام من عدم النشاط)\n`;
+      }
+
       response += `📅 *تاريخ الإنشاء:* ${formatKSADate(client.createdAt, {
         year: "numeric",
         month: "long",
@@ -1999,7 +2017,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           day: "numeric",
           hour: "2-digit",
           minute: "2-digit",
-        }
+        },
       )}\n\n`;
 
       // Show requirements or property offer
@@ -2045,6 +2063,62 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         }\n📱 +${client.phoneNumber}`;
       } else {
         return "❌ فشل حذف العميل";
+      }
+    }
+
+    // Protect client from auto-deletion
+    if (command === "حماية_عميل") {
+      const phoneNumber = text.split(/\s+/)[1];
+      if (!phoneNumber) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: حماية_عميل +201090952790";
+      }
+
+      const privateClient = require("../models/privateClient");
+      const cleanNumber = phoneNumber.replace(/^\+/, "");
+
+      // Check if client exists
+      const client = privateClient.getClient(cleanNumber);
+      if (!client) {
+        return `❌ لم يتم العثور على عميل برقم ${phoneNumber}`;
+      }
+
+      // Protect the client
+      const protected = privateClient.protectClient(cleanNumber);
+
+      if (protected) {
+        return `🛡️ *تم حماية العميل من الحذف التلقائي*\n\n👤 ${
+          client.name || "غير محدد"
+        }\n📱 +${client.phoneNumber}\n\n💡 لن يتم حذف هذا العميل تلقائياً حتى لو لم يرسل رسائل لمدة طويلة`;
+      } else {
+        return "❌ فشل حماية العميل";
+      }
+    }
+
+    // Unprotect client (allow auto-deletion)
+    if (command === "إلغاء_حماية_عميل") {
+      const phoneNumber = text.split(/\s+/)[1];
+      if (!phoneNumber) {
+        return "❌ الرجاء تحديد رقم الهاتف\nمثال: إلغاء_حماية_عميل +201090952790";
+      }
+
+      const privateClient = require("../models/privateClient");
+      const cleanNumber = phoneNumber.replace(/^\+/, "");
+
+      // Check if client exists
+      const client = privateClient.getClient(cleanNumber);
+      if (!client) {
+        return `❌ لم يتم العثور على عميل برقم ${phoneNumber}`;
+      }
+
+      // Unprotect the client
+      const unprotected = privateClient.unprotectClient(cleanNumber);
+
+      if (unprotected) {
+        return `🔓 *تم إلغاء حماية العميل*\n\n👤 ${
+          client.name || "غير محدد"
+        }\n📱 +${client.phoneNumber}\n\n⚠️ سيتم حذف هذا العميل تلقائياً إذا لم يرسل رسائل لمدة 7 أيام`;
+      } else {
+        return "❌ فشل إلغاء الحماية";
       }
     }
 
@@ -2130,7 +2204,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
       // Filter out already existing waseets
       const newEntries = entries.filter(
-        (e) => !waseetDetector.isWaseet(e.phone)
+        (e) => !waseetDetector.isWaseet(e.phone),
       );
       const existingCount = entries.length - newEntries.length;
 
@@ -2375,7 +2449,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
       // Filter out already existing admins
       const newEntries = entries.filter(
-        (e) => !ADMIN_NUMBERS.includes(e.phone)
+        (e) => !ADMIN_NUMBERS.includes(e.phone),
       );
       const existingCount = entries.length - newEntries.length;
 
@@ -2462,7 +2536,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       const normalizedPhone = normalizePhoneNumber(phoneRaw);
 
       console.log(
-        `➖ Removing admin: ${phoneRaw} -> normalized: ${normalizedPhone}`
+        `➖ Removing admin: ${phoneRaw} -> normalized: ${normalizedPhone}`,
       );
       console.log(`📋 Current admins before remove:`, ADMIN_NUMBERS);
 
@@ -2559,7 +2633,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         // Adding to existing group
         result = await interestGroupService.addToGroup(
           pending.groupId,
-          entries
+          entries,
         );
         delete pendingInterestConfirmations[phoneNumber];
 
@@ -2579,7 +2653,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         const group = await interestGroupService.createGroup(
           pending.interest,
           entries,
-          phoneNumber
+          phoneNumber,
         );
         delete pendingInterestConfirmations[phoneNumber];
 

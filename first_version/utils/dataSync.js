@@ -76,10 +76,51 @@ function writeDataSync(fileKey, data) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
 
+    // Create backup of existing file before overwriting
+    if (fs.existsSync(filePath)) {
+      const backupPath = filePath + ".backup";
+      try {
+        fs.copyFileSync(filePath, backupPath);
+      } catch (backupErr) {
+        console.warn(
+          `⚠️ Warning: Could not create backup for ${fileKey}:`,
+          backupErr.message,
+        );
+      }
+    }
+
     // Write data to file
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+    const jsonData = JSON.stringify(data, null, 2);
+    fs.writeFileSync(filePath, jsonData, "utf8");
+
+    // Verify write was successful by reading back
+    const verifyData = fs.readFileSync(filePath, "utf8");
+    if (verifyData !== jsonData) {
+      throw new Error("Data verification failed after write");
+    }
   } catch (err) {
-    console.error(`Error writing ${fileKey}:`, err.message);
+    console.error(`❌ CRITICAL: Error writing ${fileKey}:`, err.message);
+
+    // Special handling for disk space errors
+    if (err.code === "ENOSPC" || err.message.includes("no space")) {
+      console.error(`
+🚨 DISK FULL ERROR DETECTED! 🚨`);
+      console.error(`Failed to save ${fileKey} - NO DISK SPACE LEFT`);
+      console.error(`Data is NOT lost - still in memory`);
+      console.error(`Please free up disk space immediately!\n`);
+
+      // Try to restore from backup
+      const backupPath = filePath + ".backup";
+      if (fs.existsSync(backupPath)) {
+        try {
+          fs.copyFileSync(backupPath, filePath);
+          console.log(`✅ Restored ${fileKey} from backup`);
+        } catch (restoreErr) {
+          console.error(`❌ Could not restore backup:`, restoreErr.message);
+        }
+      }
+    }
+
     throw err;
   }
 }
@@ -141,7 +182,7 @@ async function writeDataAsync(fileKey, data) {
     await fs.promises.writeFile(
       filePath,
       JSON.stringify(data, null, 2),
-      "utf8"
+      "utf8",
     );
   } catch (err) {
     console.error(`Error writing ${fileKey}:`, err.message);
