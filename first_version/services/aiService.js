@@ -162,7 +162,7 @@ function switchToNextApiKey(provider = "gemini") {
   console.log(
     `🔄 Switched to ${provider} API key #${settings[indexKey] + 1}: ${
       enabledKeys[settings[indexKey]].name
-    }`
+    }`,
   );
   return enabledKeys[settings[indexKey]].key;
 }
@@ -205,7 +205,7 @@ async function retryWithApiKeyRotation(
   provider,
   operation,
   operationName = "AI operation",
-  maxRetries = null
+  maxRetries = null,
 ) {
   const settings = loadSettings();
   const keysKey = provider === "gpt" ? "gptApiKeys" : "geminiApiKeys";
@@ -247,7 +247,7 @@ async function retryWithApiKeyRotation(
   let attemptCount = 0;
 
   console.log(
-    `🔄 Starting ${operationName} (${provider}) with ${enabledKeys.length} available API keys (${skippedCount} exhausted)`
+    `🔄 Starting ${operationName} (${provider}) with ${enabledKeys.length} available API keys (${skippedCount} exhausted)`,
   );
 
   // Always start from the first key (lowest priority) in each operation
@@ -259,7 +259,7 @@ async function retryWithApiKeyRotation(
       const currentKey = enabledKeys[currentRotationIndex];
 
       console.log(
-        `🔑 Attempt ${attemptCount}/${totalRetries} - Using ${provider} API key: ${currentKey.name} (Priority: ${currentKey.priority})`
+        `🔑 Attempt ${attemptCount}/${totalRetries} - Using ${provider} API key: ${currentKey.name} (Priority: ${currentKey.priority})`,
       );
 
       // Execute the operation
@@ -318,12 +318,12 @@ async function retryWithApiKeyRotation(
 
   // All retries exhausted
   console.error(
-    `💥 ${operationName} failed after ${attemptCount} attempts with all available ${provider} API keys`
+    `💥 ${operationName} failed after ${attemptCount} attempts with all available ${provider} API keys`,
   );
   throw new Error(
     `All ${provider} API keys failed for ${operationName}. Last error: ${
       lastError?.message || lastError
-    }`
+    }`,
   );
 }
 
@@ -334,7 +334,7 @@ async function callAI(
   prompt,
   provider = "gemini",
   operationName = "AI call",
-  options = {}
+  options = {},
 ) {
   return await retryWithApiKeyRotation(
     provider,
@@ -357,7 +357,7 @@ async function callAI(
         return result.response.text();
       }
     },
-    operationName
+    operationName,
   );
 }
 
@@ -373,7 +373,7 @@ async function callAI(
   prompt,
   provider = "gemini",
   operationName = "AI call",
-  options = {}
+  options = {},
 ) {
   return await retryWithApiKeyRotation(
     provider,
@@ -396,7 +396,7 @@ async function callAI(
         return result.response.text();
       }
     },
-    operationName
+    operationName,
   );
 }
 
@@ -588,7 +588,7 @@ function useFallbackDetection(text) {
 
   // Check for keywords
   const matchedKeywords = keywords.filter((keyword) =>
-    textLower.includes(keyword.toLowerCase())
+    textLower.includes(keyword.toLowerCase()),
   );
 
   if (matchedKeywords.length > 0) {
@@ -747,7 +747,7 @@ Respond ONLY in this exact JSON format:
         const responseText = await callAI(
           prompt,
           "gpt",
-          "Ad Detection (GPT Fallback)"
+          "Ad Detection (GPT Fallback)",
         );
         let jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -837,13 +837,13 @@ async function enhanceAd(originalText, maxRetries = null, currentRetry = 0) {
     console.error(`Error in enhanceAd (${provider}):`, error);
     if (provider === "gemini" && gptKeys.length > 0) {
       console.log(
-        "🔄 Gemini failed, falling back to GPT for Ad Enhancement..."
+        "🔄 Gemini failed, falling back to GPT for Ad Enhancement...",
       );
       try {
         const responseText = await callAI(
           prompt,
           "gpt",
-          "Ad Enhancement (GPT Fallback)"
+          "Ad Enhancement (GPT Fallback)",
         );
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         const enhancement = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
@@ -1076,7 +1076,7 @@ async function detectCategory(text) {
       ];
 
       const matchedCategory = categories.find((cat) =>
-        cleanedResponse.includes(cat)
+        cleanedResponse.includes(cat),
       );
       if (matchedCategory) return matchedCategory;
 
@@ -1085,7 +1085,7 @@ async function detectCategory(text) {
         const gptResponse = await callAI(
           prompt,
           "gpt",
-          "Category Detection (GPT Fallback)"
+          "Category Detection (GPT Fallback)",
         );
         const gptMatched = categories.find((cat) => gptResponse.includes(cat));
         if (gptMatched) return gptMatched;
@@ -1347,7 +1347,7 @@ function detectCategoryFallback(text) {
 
       if (pattern.test(text)) {
         console.log(
-          `🏷️ Fallback detected category: ${category} (matched: ${keyword})`
+          `🏷️ Fallback detected category: ${category} (matched: ${keyword})`,
         );
         return category;
       }
@@ -1370,7 +1370,7 @@ function generateWhatsAppMessage(
   wpData,
   wpLink = null,
   website = "masaak",
-  settings = null
+  settings = null,
 ) {
   const meta = wpData.meta || {};
   let message = "";
@@ -1591,7 +1591,7 @@ async function extractWordPressData(adText, isRegeneration = false) {
       ? `\n\nأرقام الهاتف المكتشفة في النص:\n${extractedPhones
           .map((p) => `- ${p.original} → ${p.normalized} (${p.type})`)
           .join(
-            "\n"
+            "\n",
           )}\n\nيجب استخدام هذه الأرقام في حقول phone_number و contact.`
       : "";
 
@@ -2128,10 +2128,12 @@ ${adText}${contactHint}
       console.log("⚠️ AI determined this is NOT an ad");
       throw new Error("AI determined this is not an advertisement");
     }
-    
+
     // Force IsItAd to true when regenerating
     if (isRegeneration && (!data.IsItAd || data.IsItAd === false)) {
-      console.log("⚠️ IsItAd was false, but forcing to true because this is a regeneration");
+      console.log(
+        "⚠️ IsItAd was false, but forcing to true because this is a regeneration",
+      );
       data.IsItAd = true;
     }
 
@@ -2153,7 +2155,7 @@ ${adText}${contactHint}
     // Warning if using fallback title
     if (wpData.title === "عقار للبيع") {
       console.log(
-        "⚠️ WARNING: Using fallback title! AI did not provide proper title"
+        "⚠️ WARNING: Using fallback title! AI did not provide proper title",
       );
       console.log("⚠️ data.title structure:", JSON.stringify(data.title));
     }
@@ -2246,7 +2248,7 @@ ${adText}${contactHint}
       extractedPhones.length > 0
     ) {
       console.log(
-        "⚠️ AI did not extract phone number, using smart extraction fallback"
+        "⚠️ AI did not extract phone number, using smart extraction fallback",
       );
       wpData.meta.phone_number = extractedPhones[0].normalized;
       wpData.meta.phone = extractedPhones[0].normalized;
@@ -2380,7 +2382,7 @@ ${adText}${contactHint}
 
     if (isRequestCategory) {
       console.log(
-        "\n⚠️ Detected 'طلبات' category - removing arc_category and arc_subcategory"
+        "\n⚠️ Detected 'طلبات' category - removing arc_category and arc_subcategory",
       );
 
       // ⚠️ CRITICAL: Force category_id to 83 for طلبات
@@ -2407,14 +2409,14 @@ ${adText}${contactHint}
 
     if (isOffer) {
       console.log(
-        "\n⚠️ Detected 'عرض' (offer) - using original ad text as main_ad"
+        "\n⚠️ Detected 'عرض' (offer) - using original ad text as main_ad",
       );
       // Store the original ad text in main_ad so it can be manually edited later
       wpData.meta.main_ad = adText || "";
       console.log(
         "✅ main_ad set with",
         adText ? adText.length : 0,
-        "characters"
+        "characters",
       );
     }
 
@@ -2445,7 +2447,7 @@ ${adText}${contactHint}
         const text = await callAI(
           prompt,
           "gpt",
-          "WordPress Data Extraction (GPT Fallback)"
+          "WordPress Data Extraction (GPT Fallback)",
         );
         const cleanedText = text
           .trim()
@@ -2535,7 +2537,7 @@ async function validateUserInput(input, fieldName = "name", context = "") {
     const responseText = await callAI(
       prompt,
       provider,
-      `Validate ${fieldName}`
+      `Validate ${fieldName}`,
     );
 
     // Extract JSON
@@ -2544,7 +2546,7 @@ async function validateUserInput(input, fieldName = "name", context = "") {
     const validation = JSON.parse(jsonMatch[0]);
 
     console.log(
-      `✅ Validation result: ${validation.isValid ? "VALID ✓" : "INVALID ✗"}`
+      `✅ Validation result: ${validation.isValid ? "VALID ✓" : "INVALID ✗"}`,
     );
     return validation;
   } catch (error) {
@@ -2555,7 +2557,7 @@ async function validateUserInput(input, fieldName = "name", context = "") {
         const responseText = await callAI(
           prompt,
           "gpt",
-          `Validate ${fieldName} (GPT Fallback)`
+          `Validate ${fieldName} (GPT Fallback)`,
         );
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (jsonMatch) return JSON.parse(jsonMatch[0]);

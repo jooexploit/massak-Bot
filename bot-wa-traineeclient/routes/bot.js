@@ -59,7 +59,7 @@ const customMessageImagesDir = path.join(
   __dirname,
   "..",
   "data",
-  "custom_message_images"
+  "custom_message_images",
 );
 if (!fs.existsSync(customMessageImagesDir)) {
   fs.mkdirSync(customMessageImagesDir, { recursive: true });
@@ -121,7 +121,7 @@ function isRetryableError(error) {
 async function axiosWithRetry(
   requestFn,
   maxRetries = 3,
-  operationName = "request"
+  operationName = "request",
 ) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -133,7 +133,7 @@ async function axiosWithRetry(
       console.log(
         `⚠️ ${operationName} attempt ${attempt}/${maxRetries} failed: ${
           error.code || error.message
-        }`
+        }`,
       );
 
       if (isLastAttempt || !isRetryable) {
@@ -167,7 +167,7 @@ async function postAdToWordPress(
   sock = null,
   wpData = null,
   previewOnly = false,
-  targetWebsite = null
+  targetWebsite = null,
 ) {
   const fs = require("fs");
   const path = require("path");
@@ -181,7 +181,7 @@ async function postAdToWordPress(
       } else {
         console.log("🤖 Generating WordPress data from ad text");
         wpData = await extractWordPressData(
-          ad.enhancedText || ad.enhanced_text || ad.text
+          ad.enhancedText || ad.enhanced_text || ad.text,
         );
       }
     }
@@ -198,7 +198,7 @@ async function postAdToWordPress(
     console.log("   effectiveCategory:", effectiveCategory);
     console.log(
       "   Is in Hasak categories?",
-      websiteConfig.hasak.categories[effectiveCategory] !== undefined
+      websiteConfig.hasak.categories[effectiveCategory] !== undefined,
     );
 
     // If category is one of Hasak categories, always force Hasak
@@ -208,7 +208,7 @@ async function postAdToWordPress(
     ) {
       targetWebsite = "hasak";
       console.log(
-        `🌐 Forcing target website to Hasak because category is "${effectiveCategory}"`
+        `🌐 Forcing target website to Hasak because category is "${effectiveCategory}"`,
       );
     } else if (!targetWebsite) {
       // If not Hasak category, respect existing wpData.targetWebsite or auto-detect
@@ -220,7 +220,7 @@ async function postAdToWordPress(
         targetWebsite = websiteConfig.detectWebsite(
           ad.enhancedText || ad.enhanced_text || ad.text,
           category,
-          meta // Pass meta object to check order_type
+          meta, // Pass meta object to check order_type
         );
         console.log(`🌐 Auto-detected target website: ${targetWebsite}`);
       }
@@ -252,7 +252,7 @@ async function postAdToWordPress(
         wpData.meta.phone = firstContact.value;
         console.log(
           "✅ Using extracted phone from ad text:",
-          firstContact.value
+          firstContact.value,
         );
       }
     }
@@ -271,7 +271,7 @@ async function postAdToWordPress(
         wpData,
         null,
         targetWebsite,
-        settings
+        settings,
       );
       return {
         success: true,
@@ -314,14 +314,14 @@ async function postAdToWordPress(
           {
             logger: console,
             reuploadRequest: sock.updateMediaMessage,
-          }
+          },
         );
         imageContentType = ad.imageUrl.mimetype || "image/jpeg";
         console.log("✅ WhatsApp image downloaded successfully");
       } catch (imageError) {
         console.error(
           "⚠️ Failed to download WhatsApp image:",
-          imageError.message
+          imageError.message,
         );
       }
     }
@@ -329,7 +329,7 @@ async function postAdToWordPress(
     // If no WhatsApp image, check if we should use a normal image from ad_images_normal
     if (!imageBuffer) {
       console.log(
-        "\n========== NO WHATSAPP IMAGE - CHECKING NORMAL IMAGES =========="
+        "\n========== NO WHATSAPP IMAGE - CHECKING NORMAL IMAGES ==========",
       );
 
       // Only add normal images for "عروض" (offers), NOT for "طلبات" (requests)
@@ -349,7 +349,7 @@ async function postAdToWordPress(
 
       if (!isRequest) {
         console.log(
-          "\n🖼️ No WhatsApp image found. Checking for normal image..."
+          "\n🖼️ No WhatsApp image found. Checking for normal image...",
         );
 
         // Map property types to image filenames
@@ -408,7 +408,7 @@ async function postAdToWordPress(
         // Handle takeover (للتقبيل) - use takeover-specific image
         if (isTakeover && !normalImageFilename) {
           console.log(
-            `⚠️ Using takeover image "للتقبيل.png" for property type "${propertyType}"`
+            `⚠️ Using takeover image "للتقبيل.png" for property type "${propertyType}"`,
           );
           normalImageFilename = "للتقبيل.png";
         }
@@ -418,23 +418,23 @@ async function postAdToWordPress(
         if (isRental) {
           if (propertyType === "شقة" || propertyType === "شقه") {
             console.log(
-              `⚠️ Using rental image "عقار_ايجار.png" for rental apartment instead of "شقه.png"`
+              `⚠️ Using rental image "عقار_ايجار.png" for rental apartment instead of "شقه.png"`,
             );
             normalImageFilename = "عقار_ايجار.png";
           } else if (propertyType === "فيلا" || propertyType === "فيله") {
             console.log(
-              `⚠️ Using rental image "عقار_ايجار.png" for rental villa instead of "فيلا.png"`
+              `⚠️ Using rental image "عقار_ايجار.png" for rental villa instead of "فيلا.png"`,
             );
             normalImageFilename = "عقار_ايجار.png";
           } else if (propertyType === "دبلكس") {
             console.log(
-              `⚠️ Using rental image "عقار_ايجار.png" for rental duplex instead of "دبلكس.png"`
+              `⚠️ Using rental image "عقار_ايجار.png" for rental duplex instead of "دبلكس.png"`,
             );
             normalImageFilename = "عقار_ايجار.png";
           } else if (!normalImageFilename) {
             // For any other rental without a specific image, use the rental image
             console.log(
-              `⚠️ Using rental image "عقار_ايجار.png" for rental property type "${propertyType}"`
+              `⚠️ Using rental image "عقار_ايجار.png" for rental property type "${propertyType}"`,
             );
             normalImageFilename = "عقار_ايجار.png";
           }
@@ -442,18 +442,18 @@ async function postAdToWordPress(
 
         if (!normalImageFilename) {
           console.log(
-            `⚠️ No specific image mapping for "${propertyType}", skipping image upload`
+            `⚠️ No specific image mapping for "${propertyType}", skipping image upload`,
           );
         } else {
           console.log(
-            `✅ Found image mapping for "${propertyType}": ${normalImageFilename}`
+            `✅ Found image mapping for "${propertyType}": ${normalImageFilename}`,
           );
 
           const normalImagePath = path.join(
             __dirname,
             "..",
             "ad_images_normal",
-            normalImageFilename
+            normalImageFilename,
           );
 
           try {
@@ -473,7 +473,7 @@ async function postAdToWordPress(
         }
       } else {
         console.log(
-          "⚠️ This is a request (طلبات), skipping normal image upload"
+          "⚠️ This is a request (طلبات), skipping normal image upload",
         );
       }
     }
@@ -489,7 +489,7 @@ async function postAdToWordPress(
       } catch (watermarkError) {
         console.error(
           "⚠️ Watermark processing failed:",
-          watermarkError.message
+          watermarkError.message,
         );
         console.log("⚠️ Continuing with original image without watermark");
       }
@@ -506,7 +506,7 @@ async function postAdToWordPress(
             .replace(/[^a-zA-Z0-9]/g, "") + ".png";
 
         console.log(
-          `📤 Uploading image: ${imageFilename} (as ${safeFilename})`
+          `📤 Uploading image: ${imageFilename} (as ${safeFilename})`,
         );
 
         // Use retry logic with timeout for image upload
@@ -521,18 +521,18 @@ async function postAdToWordPress(
               },
             }),
           3,
-          "WordPress image upload"
+          "WordPress image upload",
         );
 
         featuredMediaId = uploadResponse.data.id;
         console.log(
           "✅ Image uploaded to WordPress! Media ID:",
-          featuredMediaId
+          featuredMediaId,
         );
       } catch (imageError) {
         console.error(
           "⚠️ Failed to upload image to WordPress:",
-          imageError.message
+          imageError.message,
         );
         console.error("Full error:", imageError.response?.data || imageError);
       }
@@ -621,7 +621,7 @@ async function postAdToWordPress(
     let subcategoryId = websiteConfig.getSubcategoryId(
       targetWebsite,
       parentCatt,
-      subCatt
+      subCatt,
     );
 
     // ============================================
@@ -643,7 +643,7 @@ async function postAdToWordPress(
         categoryId = aiDetectedCategoryId;
         console.log(
           "✅ Using AI-detected category_id instead of default:",
-          categoryId
+          categoryId,
         );
       }
     }
@@ -710,7 +710,7 @@ async function postAdToWordPress(
           },
         }),
       3,
-      "WordPress post creation"
+      "WordPress post creation",
     );
 
     // Create SHORT link
@@ -731,7 +731,7 @@ async function postAdToWordPress(
         wpData.meta.phone = website.defaultPhone;
         console.log(
           `✅ Using ${website.name} default phone:`,
-          website.defaultPhone
+          website.defaultPhone,
         );
       } else if (targetWebsite === "hasak") {
         // For Hassak: Use phone from message if available, otherwise don't add any
@@ -740,13 +740,13 @@ async function postAdToWordPress(
           delete wpData.meta.phone_number;
           delete wpData.meta.phone;
           console.log(
-            `✅ Hassak: No phone number in message, not adding any contact`
+            `✅ Hassak: No phone number in message, not adding any contact`,
           );
         } else {
           // Phone number exists from message extraction, keep it
           console.log(
             `✅ Hassak: Using phone number from message:`,
-            wpData.meta.phone_number || wpData.meta.phone
+            wpData.meta.phone_number || wpData.meta.phone,
           );
         }
       }
@@ -763,14 +763,14 @@ async function postAdToWordPress(
       wpData,
       shortLink,
       targetWebsite,
-      settings
+      settings,
     );
 
     console.log("  - whatsappMessage generated:", !!whatsappMessage);
     console.log("  - whatsappMessage length:", whatsappMessage?.length || 0);
     console.log(
       "  - whatsappMessage preview:",
-      whatsappMessage?.substring(0, 100) || "NULL"
+      whatsappMessage?.substring(0, 100) || "NULL",
     );
     console.log("🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵\n");
 
@@ -780,7 +780,7 @@ async function postAdToWordPress(
     console.log("  - Ad ID:", ad.id);
     console.log(
       "  - WhatsApp message to save:",
-      whatsappMessage?.substring(0, 50) || "NULL"
+      whatsappMessage?.substring(0, 50) || "NULL",
     );
 
     // First, use the updateAdWordPressData function to save wpData and whatsappMessage
@@ -802,7 +802,7 @@ async function postAdToWordPress(
 
         console.log(
           "  - Saving whatsappMessage:",
-          !!adToUpdate.whatsappMessage
+          !!adToUpdate.whatsappMessage,
         );
         console.log("  - Saving targetWebsite:", adToUpdate.targetWebsite);
 
@@ -813,7 +813,7 @@ async function postAdToWordPress(
         fs.writeFileSync(adsFilePath, JSON.stringify(ads, null, 2));
 
         console.log(
-          `✅ Ad ${ad.id} updated with ${website.name} WordPress data`
+          `✅ Ad ${ad.id} updated with ${website.name} WordPress data`,
         );
         console.log("💾💾💾💾💾💾💾💾💾💾💾💾💾💾💾\n");
       } else {
@@ -952,7 +952,7 @@ router.post(
       console.error("Error configuring queue:", error);
       res.status(500).json({ error: "Failed to configure queue" });
     }
-  }
+  },
 );
 
 // Disconnect bot (admin only)
@@ -971,7 +971,7 @@ router.post(
       console.error("Error disconnecting bot:", error);
       res.status(500).json({ error: "Failed to disconnect bot" });
     }
-  }
+  },
 );
 
 // Send message (admin and author)
@@ -1000,7 +1000,7 @@ router.post(
         .status(500)
         .json({ error: error.message || "Failed to send message" });
     }
-  }
+  },
 );
 
 // ========================================================
@@ -1091,7 +1091,7 @@ router.post(
         .status(500)
         .json({ error: error.message || "Failed to start bulk send" });
     }
-  }
+  },
 );
 
 // Get bulk job status
@@ -1108,7 +1108,7 @@ router.get(
     }
 
     res.json({ success: true, job });
-  }
+  },
 );
 
 /**
@@ -1135,7 +1135,7 @@ async function processBulkMessagesInBackground(jobInfo) {
 
     try {
       console.log(
-        `📢 [${jobInfo.currentIndex}/${jobInfo.totalRecipients}] Sending to group: ${groupId}`
+        `📢 [${jobInfo.currentIndex}/${jobInfo.totalRecipients}] Sending to group: ${groupId}`,
       );
       await sendMessage(groupId, message);
       jobInfo.successCount++;
@@ -1184,7 +1184,7 @@ async function processBulkMessagesInBackground(jobInfo) {
       console.log(
         `📱 [${jobInfo.currentIndex}/${jobInfo.totalRecipients}] Sending to: ${
           number.name || cleanPhone
-        }`
+        }`,
       );
       await sendMessage(whatsappNumber, message);
       jobInfo.successCount++;
@@ -1206,7 +1206,7 @@ async function processBulkMessagesInBackground(jobInfo) {
 
   console.log(`\n✅ [BULK SEND] Job ${jobId} completed!`);
   console.log(
-    `   📊 Success: ${jobInfo.successCount}/${jobInfo.totalRecipients}`
+    `   📊 Success: ${jobInfo.successCount}/${jobInfo.totalRecipients}`,
   );
   console.log(`   ❌ Failed: ${jobInfo.failCount}`);
 
@@ -1250,10 +1250,13 @@ ${
   }
 
   // Clean up old jobs after 1 hour
-  setTimeout(() => {
-    activeBulkJobs.delete(jobId);
-    console.log(`🧹 Cleaned up job ${jobId}`);
-  }, 60 * 60 * 1000);
+  setTimeout(
+    () => {
+      activeBulkJobs.delete(jobId);
+      console.log(`🧹 Cleaned up job ${jobId}`);
+    },
+    60 * 60 * 1000,
+  );
 }
 
 // --- Ads endpoints ---
@@ -1349,7 +1352,7 @@ router.get(
       console.error("Error listing ads:", err);
       res.status(500).json({ error: "Failed to list ads" });
     }
-  }
+  },
 );
 
 // Get WhatsApp messages - optimized endpoint (admin and author)
@@ -1428,7 +1431,7 @@ router.get(
 
       if (group && group !== "all") {
         ads = ads.filter(
-          (a) => a.fromGroup === group || a.fromGroupName === group
+          (a) => a.fromGroup === group || a.fromGroupName === group,
         );
       }
 
@@ -1471,7 +1474,7 @@ router.get(
       console.error("Error listing WhatsApp messages:", err);
       res.status(500).json({ error: "Failed to list WhatsApp messages" });
     }
-  }
+  },
 );
 
 // Get ad by ID with generated data (admin and author)
@@ -1493,7 +1496,7 @@ router.get(
       console.error("Error getting ad:", err);
       res.status(500).json({ error: "Failed to get ad" });
     }
-  }
+  },
 );
 
 // Delete ad image (admin and author)
@@ -1519,7 +1522,7 @@ router.delete(
       console.error("Error removing ad image:", err);
       res.status(500).json({ error: "Failed to remove image" });
     }
-  }
+  },
 );
 
 // Get full-quality ad image from WhatsApp (admin and author)
@@ -1549,12 +1552,12 @@ router.get(
         if (ad.imageUrl.jpegThumbnail) {
           const thumbnailBuffer = Buffer.from(
             ad.imageUrl.jpegThumbnail,
-            "base64"
+            "base64",
           );
           res.set("Content-Type", "image/jpeg");
           res.set(
             "Content-Disposition",
-            `inline; filename="ad-${id}-thumbnail.jpg"`
+            `inline; filename="ad-${id}-thumbnail.jpg"`,
           );
           return res.send(thumbnailBuffer);
         }
@@ -1586,17 +1589,17 @@ router.get(
           {
             logger: console,
             reuploadRequest: sock.updateMediaMessage,
-          }
+          },
         );
       } catch (downloadErr) {
         console.warn(
-          "⚠️ Full image download failed, trying without reupload request..."
+          "⚠️ Full image download failed, trying without reupload request...",
         );
         imageBuffer = await downloadMediaMessage(
           { message: { imageMessage: ad.imageUrl } },
           "buffer",
           {},
-          { logger: console }
+          { logger: console },
         );
       }
 
@@ -1608,7 +1611,7 @@ router.get(
       res.set("Content-Type", contentType);
       res.set(
         "Content-Disposition",
-        `inline; filename="ad-${id}.${extension}"`
+        `inline; filename="ad-${id}.${extension}"`,
       );
       res.set("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
       res.send(imageBuffer);
@@ -1621,21 +1624,21 @@ router.get(
         console.log("⚠️ Falling back to thumbnail due to error");
         const thumbnailBuffer = Buffer.from(
           ad.imageUrl.jpegThumbnail,
-          "base64"
+          "base64",
         );
         res.set("Content-Type", "image/jpeg");
         res.set(
           "Content-Disposition",
-          `inline; filename="ad-${req.params.id}-thumbnail.jpg"`
+          `inline; filename="ad-${req.params.id}-thumbnail.jpg"`,
         );
         return res.send(thumbnailBuffer);
       }
       console.log("⚠️ Falling back to placeholder image");
       res.sendFile(
-        path.join(__dirname, "../public/images/no-image-placeholder.png")
+        path.join(__dirname, "../public/images/no-image-placeholder.png"),
       );
     }
-  }
+  },
 );
 
 // Update ad status (accept/reject) (admin and author)
@@ -1654,7 +1657,7 @@ router.post(
       const ok = updateAdStatus(
         id,
         status,
-        status === "rejected" ? reason : null
+        status === "rejected" ? reason : null,
       );
       if (!ok) return res.status(404).json({ error: "Ad not found" });
 
@@ -1665,7 +1668,7 @@ router.post(
 
       if (status === "accepted" && settings.autoApproveWordPress === true) {
         console.log(
-          "🚀 Auto-approve enabled, posting to WordPress automatically..."
+          "🚀 Auto-approve enabled, posting to WordPress automatically...",
         );
 
         // Capture the app reference before async
@@ -1696,7 +1699,7 @@ router.post(
             let wpData = ad.wpData;
             if (!wpData) {
               console.log(
-                "⚠️ No pre-generated WordPress data, skipping auto-post"
+                "⚠️ No pre-generated WordPress data, skipping auto-post",
               );
               return;
             }
@@ -1734,7 +1737,7 @@ router.post(
 
             const wpApiUrl = `${wpUrl}/wp-json/wp/v2/posts`;
             const auth = Buffer.from(`${wpUsername}:${wpPassword}`).toString(
-              "base64"
+              "base64",
             );
 
             // Upload image to WordPress if present
@@ -1754,7 +1757,7 @@ router.post(
                     {
                       logger: console,
                       reuploadRequest: sock.updateMediaMessage,
-                    }
+                    },
                   );
 
                   const mediaUrl = `${wpUrl}/wp-json/wp/v2/media`;
@@ -1772,23 +1775,23 @@ router.post(
                         "Content-Type": "image/jpeg",
                         "Content-Disposition": `attachment; filename="${safeFilename}"`,
                       },
-                    }
+                    },
                   );
 
                   featuredMediaId = uploadResponse.data.id;
                   console.log(
                     "✅ Auto-posted image to WordPress! Media ID:",
-                    featuredMediaId
+                    featuredMediaId,
                   );
                 } else {
                   console.log(
-                    "⚠️ WhatsApp socket not available, skipping image upload"
+                    "⚠️ WhatsApp socket not available, skipping image upload",
                   );
                 }
               } catch (imageError) {
                 console.error(
                   "⚠️ Failed to upload image during auto-post:",
-                  imageError.message
+                  imageError.message,
                 );
               }
             }
@@ -1815,7 +1818,7 @@ router.post(
             });
 
             console.log(
-              "✅ ✅ ✅ Auto-posted to WordPress successfully! ✅ ✅ ✅"
+              "✅ ✅ ✅ Auto-posted to WordPress successfully! ✅ ✅ ✅",
             );
             console.log("📌 Post ID:", wpResponse.data.id);
 
@@ -1836,7 +1839,7 @@ router.post(
               wpData,
               shortLink,
               "masaak",
-              settings
+              settings,
             );
 
             // Update ad with WordPress info - keep as "accepted" not "posted"
@@ -1850,14 +1853,14 @@ router.post(
             fs.writeFileSync(
               adsFilePath,
               JSON.stringify(adsArray, null, 2),
-              "utf8"
+              "utf8",
             );
             console.log(
-              "✅ Ad updated with WordPress info and kept as accepted"
+              "✅ Ad updated with WordPress info and kept as accepted",
             );
           } catch (error) {
             console.error(
-              "❌ ❌ ❌ Error during auto-post to WordPress ❌ ❌ ❌"
+              "❌ ❌ ❌ Error during auto-post to WordPress ❌ ❌ ❌",
             );
             console.error("Error message:", error.message);
             console.error("Error details:", error.response?.data || error);
@@ -1870,7 +1873,7 @@ router.post(
       console.error("Error updating ad status:", err);
       res.status(500).json({ error: "Failed to update status" });
     }
-  }
+  },
 );
 
 // Update ad category (admin and author)
@@ -1891,7 +1894,7 @@ router.post(
       console.error("Error updating ad category:", err);
       res.status(500).json({ error: "Failed to update category" });
     }
-  }
+  },
 );
 
 // Update ad text (manual edit) (admin and author)
@@ -1916,7 +1919,7 @@ router.post(
       console.error("Error updating ad text:", err);
       res.status(500).json({ error: "Failed to update ad text" });
     }
-  }
+  },
 );
 
 // Move rejected ad to recycle bin (admin and author)
@@ -1937,7 +1940,7 @@ router.post(
       console.error("Error moving ad to recycle bin:", err);
       res.status(500).json({ error: "Failed to move ad to recycle bin" });
     }
-  }
+  },
 );
 
 // Regenerate ad with AI (admin and author)
@@ -1966,7 +1969,7 @@ router.post(
         wpData,
         null,
         "masaak",
-        settings
+        settings,
       );
 
       // Update the ad with new WordPress data and WhatsApp message
@@ -1989,7 +1992,7 @@ router.post(
       console.error("Error regenerating ad:", err);
       res.status(500).json({ error: "Failed to regenerate ad" });
     }
-  }
+  },
 );
 
 // Resend ad to selected groups (admin only)
@@ -2011,7 +2014,7 @@ router.post(
       console.error("Error resending ad:", err);
       res.status(500).json({ error: err.message || "Failed to resend ad" });
     }
-  }
+  },
 );
 
 // Get known groups seen by the bot (admin/author)
@@ -2027,7 +2030,7 @@ router.get(
       console.error("Error getting groups:", err);
       res.status(500).json({ error: "Failed to get groups" });
     }
-  }
+  },
 );
 
 // Refresh groups list (admin/author)
@@ -2048,7 +2051,7 @@ router.post(
       console.error("Error refreshing groups:", err);
       res.status(500).json({ error: "Failed to refresh groups" });
     }
-  }
+  },
 );
 
 // Get groups cache status (admin/author)
@@ -2070,7 +2073,7 @@ router.get(
       console.error("Error checking cache status:", err);
       res.status(500).json({ error: "Failed to check cache status" });
     }
-  }
+  },
 );
 
 // Clear groups cache (admin only)
@@ -2089,7 +2092,7 @@ router.post(
       console.error("Error clearing cache:", err);
       res.status(500).json({ error: "Failed to clear cache" });
     }
-  }
+  },
 );
 
 // Get collections (admin/author)
@@ -2105,7 +2108,7 @@ router.get(
       console.error("Error getting collections:", err);
       res.status(500).json({ error: "Failed to get collections" });
     }
-  }
+  },
 );
 
 // Save collection (admin/author)
@@ -2128,7 +2131,7 @@ router.post(
       console.error("Error saving collection:", err);
       res.status(500).json({ error: "Failed to save collection" });
     }
-  }
+  },
 );
 
 // Update collection (admin/author)
@@ -2154,7 +2157,7 @@ router.put(
       console.error("Error updating collection:", err);
       res.status(500).json({ error: "Failed to update collection" });
     }
-  }
+  },
 );
 
 // Delete collection (admin/author)
@@ -2173,7 +2176,7 @@ router.delete(
       console.error("Error deleting collection:", err);
       res.status(500).json({ error: "Failed to delete collection" });
     }
-  }
+  },
 );
 
 // ========== CUSTOM PHONE NUMBERS ENDPOINTS ==========
@@ -2191,7 +2194,7 @@ router.get(
         __dirname,
         "..",
         "data",
-        "custom_numbers.json"
+        "custom_numbers.json",
       );
 
       if (!fs.existsSync(customNumbersFile)) {
@@ -2204,7 +2207,7 @@ router.get(
       console.error("Error getting custom numbers:", err);
       res.status(500).json({ error: "Failed to get custom numbers" });
     }
-  }
+  },
 );
 
 // Save custom number (admin only)
@@ -2230,7 +2233,7 @@ router.post(
         __dirname,
         "..",
         "data",
-        "custom_numbers.json"
+        "custom_numbers.json",
       );
 
       if (!fs.existsSync(customNumbersFile)) {
@@ -2258,7 +2261,7 @@ router.post(
       console.error("❌ Error saving custom number:", err);
       res.status(500).json({ error: "Failed to save custom number" });
     }
-  }
+  },
 );
 
 // Delete custom number (admin only)
@@ -2280,7 +2283,7 @@ router.delete(
         __dirname,
         "..",
         "data",
-        "custom_numbers.json"
+        "custom_numbers.json",
       );
 
       if (!fs.existsSync(customNumbersFile)) {
@@ -2296,7 +2299,7 @@ router.delete(
       console.error("Error deleting custom number:", err);
       res.status(500).json({ error: "Failed to delete custom number" });
     }
-  }
+  },
 );
 
 // ========== END CUSTOM PHONE NUMBERS ENDPOINTS ==========
@@ -2314,7 +2317,7 @@ router.get(
       console.error("Error getting categories:", err);
       res.status(500).json({ error: "Failed to get categories" });
     }
-  }
+  },
 );
 
 // Save category (admin/author)
@@ -2335,7 +2338,7 @@ router.post(
       console.error("Error saving category:", err);
       res.status(500).json({ error: "Failed to save category" });
     }
-  }
+  },
 );
 
 // Update category (admin/author)
@@ -2359,7 +2362,7 @@ router.put(
       console.error("Error updating category:", err);
       res.status(500).json({ error: "Failed to update category" });
     }
-  }
+  },
 );
 
 // Delete category (admin/author)
@@ -2378,7 +2381,7 @@ router.delete(
       console.error("Error deleting category:", err);
       res.status(500).json({ error: "Failed to delete category" });
     }
-  }
+  },
 );
 
 // ============ Recycle Bin Routes ============
@@ -2396,7 +2399,7 @@ router.get(
       console.error("Error getting recycle bin:", err);
       res.status(500).json({ error: "Failed to get recycle bin" });
     }
-  }
+  },
 );
 
 // Restore item from recycle bin to ads
@@ -2416,7 +2419,7 @@ router.post(
       console.error("Error restoring from recycle bin:", err);
       res.status(500).json({ error: "Failed to restore item" });
     }
-  }
+  },
 );
 
 // Delete item from recycle bin permanently
@@ -2436,7 +2439,7 @@ router.delete(
       console.error("Error deleting from recycle bin:", err);
       res.status(500).json({ error: "Failed to delete item" });
     }
-  }
+  },
 );
 
 // Empty entire recycle bin
@@ -2452,7 +2455,7 @@ router.delete(
       console.error("Error emptying recycle bin:", err);
       res.status(500).json({ error: "Failed to empty recycle bin" });
     }
-  }
+  },
 );
 
 // ============ Settings Routes ============
@@ -2545,9 +2548,7 @@ router.put(
       if (gptApiKeys !== undefined) {
         // Validate API keys array
         if (!Array.isArray(gptApiKeys)) {
-          return res
-            .status(400)
-            .json({ error: "gptApiKeys must be an array" });
+          return res.status(400).json({ error: "gptApiKeys must be an array" });
         }
         updates.gptApiKeys = gptApiKeys;
       }
@@ -2620,7 +2621,7 @@ router.put(
       console.error("Error updating settings:", err);
       res.status(500).json({ error: "Failed to update settings" });
     }
-  }
+  },
 );
 
 // Post ad to WordPress
@@ -2682,14 +2683,14 @@ router.post(
 
           if (matches.length > 0) {
             console.log(
-              `📨 Found ${matches.length} matching client(s)! Sending notifications...`
+              `📨 Found ${matches.length} matching client(s)! Sending notifications...`,
             );
 
             // Send notifications to matched clients (Background with 300s delay)
             propertyMatchingService.processMatchesInBackground(sock, matches);
 
             console.log(
-              `✅ Matching complete: ${matches.length} notification(s) queued for background delivery`
+              `✅ Matching complete: ${matches.length} notification(s) queued for background delivery`,
             );
           } else {
             console.log("ℹ️  No matching clients found for this offer");
@@ -2710,7 +2711,7 @@ router.post(
         details: err.response?.data?.message || err.message,
       });
     }
-  }
+  },
 );
 
 // Get analytics data (accessible to all authenticated users)
@@ -2965,8 +2966,8 @@ router.post("/ads/:id/mark-sent", authenticateToken, (req, res) => {
       JSON.stringify(
         Array.isArray(adsData) ? adsArray : { ads: adsArray },
         null,
-        2
-      )
+        2,
+      ),
     );
 
     // IMPORTANT: Also update the in-memory ads array
@@ -2996,7 +2997,7 @@ router.post("/marketing/search", authenticateToken, (req, res) => {
     const results = marketingService.searchAds(searchData);
     const message = marketingService.generateResultsMessage(
       results,
-      searchData
+      searchData,
     );
 
     res.json({
@@ -3028,10 +3029,10 @@ router.get("/marketing/analytics", authenticateToken, (req, res) => {
         activeSessions: sessionList.filter((s) => s.state === "collecting")
           .length,
         completedToday: sessionList.filter(
-          (s) => s.state === "completed" && s.updatedAt >= last24h
+          (s) => s.state === "completed" && s.updatedAt >= last24h,
         ).length,
         completedWeek: sessionList.filter(
-          (s) => s.state === "completed" && s.updatedAt >= last7d
+          (s) => s.state === "completed" && s.updatedAt >= last7d,
         ).length,
       },
       propertyTypes: {},
@@ -3074,7 +3075,7 @@ router.get("/marketing/analytics", authenticateToken, (req, res) => {
     // Calculate conversion rate
     const totalStarted = sessionList.length;
     const totalCompleted = sessionList.filter(
-      (s) => s.state === "completed"
+      (s) => s.state === "completed",
     ).length;
     analytics.conversionRate =
       totalStarted > 0 ? ((totalCompleted / totalStarted) * 100).toFixed(2) : 0;
@@ -3137,7 +3138,7 @@ router.get(
         clientsArray = clientsArray.filter(
           (c) =>
             c.name?.toLowerCase().includes(searchLower) ||
-            c.phoneNumber?.includes(searchLower)
+            c.phoneNumber?.includes(searchLower),
         );
       }
 
@@ -3145,22 +3146,22 @@ router.get(
       switch (sortBy) {
         case "name":
           clientsArray.sort((a, b) =>
-            (a.name || "").localeCompare(b.name || "")
+            (a.name || "").localeCompare(b.name || ""),
           );
           break;
         case "recent":
           clientsArray.sort(
-            (a, b) => (b.lastActivity || 0) - (a.lastActivity || 0)
+            (a, b) => (b.lastActivity || 0) - (a.lastActivity || 0),
           );
           break;
         case "oldest":
           clientsArray.sort(
-            (a, b) => (a.lastActivity || 0) - (b.lastActivity || 0)
+            (a, b) => (a.lastActivity || 0) - (b.lastActivity || 0),
           );
           break;
         default:
           clientsArray.sort(
-            (a, b) => (b.lastActivity || 0) - (a.lastActivity || 0)
+            (a, b) => (b.lastActivity || 0) - (a.lastActivity || 0),
           );
       }
 
@@ -3196,7 +3197,7 @@ router.get(
       console.error("Error getting private clients:", error);
       res.status(500).json({ error: "Failed to get private clients" });
     }
-  }
+  },
 );
 
 // Get specific client details
@@ -3224,7 +3225,7 @@ router.get(
       console.error("Error getting client details:", error);
       res.status(500).json({ error: "Failed to get client details" });
     }
-  }
+  },
 );
 
 // Delete a client
@@ -3245,7 +3246,7 @@ router.delete(
       console.error("Error deleting client:", error);
       res.status(500).json({ error: "Failed to delete client" });
     }
-  }
+  },
 );
 
 // Update a client
@@ -3285,7 +3286,7 @@ router.put(
 
         const result = privateClient.changeClientPhone(
           phoneNumber,
-          normalizedNewPhone
+          normalizedNewPhone,
         );
         if (!result) {
           // Check if it's because new phone exists
@@ -3317,7 +3318,7 @@ router.put(
       if (requests !== undefined && Array.isArray(requests)) {
         updateData.requests = requests;
         console.log(
-          `📋 Updating ${requests.length} requests for client ${targetPhone}`
+          `📋 Updating ${requests.length} requests for client ${targetPhone}`,
         );
       }
 
@@ -3338,7 +3339,7 @@ router.put(
       console.error("Error updating client:", error);
       res.status(500).json({ error: "Failed to update client" });
     }
-  }
+  },
 );
 
 // ========================================
@@ -3444,7 +3445,7 @@ router.get(
       console.error("Error getting scheduler status:", error);
       res.status(500).json({ error: "Failed to get scheduler status" });
     }
-  }
+  },
 );
 
 // =====================================
@@ -3466,7 +3467,7 @@ router.get(
       console.error("Error getting available filters:", error);
       res.status(500).json({ error: "Failed to get available filters" });
     }
-  }
+  },
 );
 
 // Preview custom summary (get count and sample before generating)
@@ -3497,7 +3498,7 @@ router.post(
       const filters = req.body;
       console.log(
         "📊 Generating custom summary with filters:",
-        JSON.stringify(filters, null, 2)
+        JSON.stringify(filters, null, 2),
       );
 
       const result = generateCustomSummary(filters);
@@ -3522,7 +3523,7 @@ router.post(
 
       saveSummaries(filtered);
       console.log(
-        `💾 Saved custom summary. Total summaries: ${filtered.length}`
+        `💾 Saved custom summary. Total summaries: ${filtered.length}`,
       );
 
       res.json({
@@ -3542,7 +3543,7 @@ router.post(
       console.error("Error generating custom summary:", error);
       res.status(500).json({ error: "Failed to generate custom summary" });
     }
-  }
+  },
 );
 
 // Get subcategories for selected main categories
@@ -3555,7 +3556,7 @@ router.post("/daily-summaries/subcategories", authenticateToken, (req, res) => {
     const { mainCategories, website } = req.body;
     const subcategories = getSubcategoriesForCategories(
       mainCategories || [],
-      website
+      website,
     );
 
     res.json({ success: true, subcategories });
@@ -3637,7 +3638,7 @@ router.post(
           } catch (error) {
             const errorMsg = error.message || String(error);
             console.log(
-              `⚠️ Attempt ${attempt}/${maxRetries} failed for ${recipientType} ${recipientId}: ${errorMsg}`
+              `⚠️ Attempt ${attempt}/${maxRetries} failed for ${recipientType} ${recipientId}: ${errorMsg}`,
             );
 
             // If it's a connection issue and we have retries left, wait and try again
@@ -3649,7 +3650,7 @@ router.post(
             ) {
               // Wait before retry (exponential backoff)
               await new Promise((resolve) =>
-                setTimeout(resolve, 1000 * attempt)
+                setTimeout(resolve, 1000 * attempt),
               );
               continue;
             }
@@ -3675,7 +3676,7 @@ router.post(
             error: result.error,
           });
           console.error(
-            `❌ Failed to send to group ${groupId} after retries: ${result.error}`
+            `❌ Failed to send to group ${groupId} after retries: ${result.error}`,
           );
         }
 
@@ -3700,7 +3701,7 @@ router.post(
             error: result.error,
           });
           console.error(
-            `❌ Failed to send to number ${phone} after retries: ${result.error}`
+            `❌ Failed to send to number ${phone} after retries: ${result.error}`,
           );
         }
 
@@ -3725,7 +3726,7 @@ router.post(
           __dirname,
           "..",
           "data",
-          "daily_summaries.json"
+          "daily_summaries.json",
         );
         fs.writeFileSync(SUMMARY_FILE, JSON.stringify(summaries, null, 2));
       }
@@ -3758,7 +3759,7 @@ router.post(
         details: error.message || String(error),
       });
     }
-  }
+  },
 );
 
 // ============================================
@@ -3783,7 +3784,7 @@ router.get(
       console.error("Error getting interest groups:", error);
       res.status(500).json({ error: "Failed to get interest groups" });
     }
-  }
+  },
 );
 
 // Get specific interest group
@@ -3808,7 +3809,7 @@ router.get(
       console.error("Error getting interest group:", error);
       res.status(500).json({ error: "Failed to get interest group" });
     }
-  }
+  },
 );
 
 // Delete interest group
@@ -3833,7 +3834,7 @@ router.delete(
       console.error("Error deleting interest group:", error);
       res.status(500).json({ error: "Failed to delete interest group" });
     }
-  }
+  },
 );
 
 // ========== REMINDER MANAGEMENT API ==========
@@ -3878,7 +3879,7 @@ router.get(
       const startIndex = (currentPage - 1) * limit;
       const paginatedReminders = reminders.slice(
         startIndex,
-        startIndex + parseInt(limit)
+        startIndex + parseInt(limit),
       );
 
       res.json({
@@ -3897,7 +3898,7 @@ router.get(
       console.error("Error getting reminders:", error);
       res.status(500).json({ error: "Failed to get reminders" });
     }
-  }
+  },
 );
 
 // Get single reminder by ID
@@ -3922,7 +3923,7 @@ router.get(
       console.error("Error getting reminder:", error);
       res.status(500).json({ error: "Failed to get reminder" });
     }
-  }
+  },
 );
 
 // Create new reminder
@@ -3961,7 +3962,7 @@ router.post(
           scheduledDateTime: scheduledTime,
           message,
           createdAt: Date.now(),
-        }
+        },
       );
 
       res.json({
@@ -3973,7 +3974,7 @@ router.post(
       console.error("Error creating reminder:", error);
       res.status(500).json({ error: "Failed to create reminder" });
     }
-  }
+  },
 );
 
 // Update reminder
@@ -4035,7 +4036,7 @@ router.put(
       console.error("Error updating reminder:", error);
       res.status(500).json({ error: "Failed to update reminder" });
     }
-  }
+  },
 );
 
 // Delete reminder
@@ -4061,7 +4062,7 @@ router.delete(
       console.error("Error deleting reminder:", error);
       res.status(500).json({ error: "Failed to delete reminder" });
     }
-  }
+  },
 );
 
 // Send follow-up message for a reminder
@@ -4142,7 +4143,7 @@ ${mapsLink}
             targetNumber: reminder.targetNumber,
             clientName,
             warning: `⚠️ الروابط التالية غير موجودة في رسالة التذكير الأصلية: ${missingLinks.join(
-              "، "
+              "، ",
             )}`,
           },
         });
@@ -4160,7 +4161,7 @@ ${mapsLink}
 
         // Log the follow-up
         console.log(
-          `✅ Follow-up sent for reminder ${id} to +${reminder.targetNumber}`
+          `✅ Follow-up sent for reminder ${id} to +${reminder.targetNumber}`,
         );
 
         res.json({
@@ -4172,7 +4173,7 @@ ${mapsLink}
       } catch (sendError) {
         console.error(
           `❌ Failed to send follow-up for reminder ${id}:`,
-          sendError
+          sendError,
         );
         res.status(500).json({
           error: "فشل إرسال رسالة المتابعة",
@@ -4183,7 +4184,7 @@ ${mapsLink}
       console.error("Error processing follow-up:", error);
       res.status(500).json({ error: "Failed to process follow-up request" });
     }
-  }
+  },
 );
 
 // ========================================
@@ -4214,7 +4215,7 @@ router.get(
       console.error("Error fetching custom messages:", error);
       res.status(500).json({ error: "Failed to fetch custom messages" });
     }
-  }
+  },
 );
 
 // Get single custom message
@@ -4239,7 +4240,7 @@ router.get(
       console.error("Error fetching custom message:", error);
       res.status(500).json({ error: "Failed to fetch custom message" });
     }
-  }
+  },
 );
 
 // Create custom message
@@ -4280,7 +4281,7 @@ router.post(
 
       const message = await customMessageService.createMessage(
         { name, content, dynamicWords: parsedDynamicWords, imagePath },
-        req.user.username
+        req.user.username,
       );
 
       res.json({
@@ -4291,7 +4292,7 @@ router.post(
       console.error("Error creating custom message:", error);
       res.status(500).json({ error: "Failed to create custom message" });
     }
-  }
+  },
 );
 
 // Update custom message
@@ -4377,7 +4378,7 @@ router.put(
         .status(500)
         .json({ error: error.message || "Failed to update custom message" });
     }
-  }
+  },
 );
 
 // Delete custom message
@@ -4401,7 +4402,7 @@ router.delete(
         .status(500)
         .json({ error: error.message || "Failed to delete custom message" });
     }
-  }
+  },
 );
 
 // Serve custom message images
@@ -4441,7 +4442,7 @@ router.get(
       console.error("Error serving custom message image:", error);
       res.status(500).json({ error: "Failed to serve image" });
     }
-  }
+  },
 );
 
 // Preview custom message with sample data
@@ -4466,7 +4467,7 @@ router.post(
         .status(500)
         .json({ error: error.message || "Failed to preview message" });
     }
-  }
+  },
 );
 
 // Send custom message immediately (manual send)
@@ -4501,7 +4502,7 @@ router.post(
 
       // Use the scheduler service to send
       const result = (await messageSchedulerService.executeScheduleNow(
-        tempSchedule.id
+        tempSchedule.id,
       )) || { success: true, message: "Message sending started" };
 
       res.json({
@@ -4514,7 +4515,7 @@ router.post(
         .status(500)
         .json({ error: error.message || "Failed to send custom message" });
     }
-  }
+  },
 );
 
 // --- Schedules ---
@@ -4538,7 +4539,7 @@ router.get(
       console.error("Error fetching schedules:", error);
       res.status(500).json({ error: "Failed to fetch schedules" });
     }
-  }
+  },
 );
 
 // Get single schedule
@@ -4563,7 +4564,7 @@ router.get(
       console.error("Error fetching schedule:", error);
       res.status(500).json({ error: "Failed to fetch schedule" });
     }
-  }
+  },
 );
 
 // Create schedule
@@ -4582,7 +4583,7 @@ router.post(
 
       const newSchedule = await customMessageService.createSchedule(
         { messageId, name, schedule, recipients, settings, enabled },
-        req.user.username
+        req.user.username,
       );
 
       // Register with scheduler
@@ -4598,7 +4599,7 @@ router.post(
         .status(500)
         .json({ error: error.message || "Failed to create schedule" });
     }
-  }
+  },
 );
 
 // Update schedule
@@ -4634,7 +4635,7 @@ router.put(
         .status(500)
         .json({ error: error.message || "Failed to update schedule" });
     }
-  }
+  },
 );
 
 // Delete schedule
@@ -4661,7 +4662,7 @@ router.delete(
         .status(500)
         .json({ error: error.message || "Failed to delete schedule" });
     }
-  }
+  },
 );
 
 // Toggle schedule enabled/disabled
@@ -4691,7 +4692,7 @@ router.post(
         .status(500)
         .json({ error: error.message || "Failed to toggle schedule" });
     }
-  }
+  },
 );
 
 // Execute schedule immediately
@@ -4718,7 +4719,7 @@ router.post(
         .status(500)
         .json({ error: error.message || "Failed to execute schedule" });
     }
-  }
+  },
 );
 
 // Get schedule run history
@@ -4745,7 +4746,7 @@ router.get(
       console.error("Error fetching schedule history:", error);
       res.status(500).json({ error: "Failed to fetch schedule history" });
     }
-  }
+  },
 );
 
 // ========================================================
@@ -4772,7 +4773,7 @@ router.get(
       console.error("Error getting scheduled messages:", error);
       res.status(500).json({ error: "Failed to get scheduled messages" });
     }
-  }
+  },
 );
 
 // Get pending scheduled WhatsApp messages only
@@ -4794,7 +4795,7 @@ router.get(
         .status(500)
         .json({ error: "Failed to get pending scheduled messages" });
     }
-  }
+  },
 );
 
 // Get a single scheduled WhatsApp message by ID
@@ -4819,7 +4820,7 @@ router.get(
       console.error("Error getting scheduled message:", error);
       res.status(500).json({ error: "Failed to get scheduled message" });
     }
-  }
+  },
 );
 
 // Create a new scheduled WhatsApp message
@@ -4876,7 +4877,7 @@ router.post(
         .status(400)
         .json({ error: error.message || "Failed to schedule message" });
     }
-  }
+  },
 );
 
 // Cancel a scheduled WhatsApp message
@@ -4900,7 +4901,7 @@ router.post(
         .status(400)
         .json({ error: error.message || "Failed to cancel scheduled message" });
     }
-  }
+  },
 );
 
 // Delete a scheduled WhatsApp message
@@ -4923,7 +4924,7 @@ router.delete(
         .status(400)
         .json({ error: error.message || "Failed to delete scheduled message" });
     }
-  }
+  },
 );
 
 // Export both the router and the reusable WordPress posting function
