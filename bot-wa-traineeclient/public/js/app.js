@@ -21,27 +21,29 @@ let initialDataLoaded = false; // Track if initial data has been loaded
  */
 const SmartSearch = {
   // Normalize Arabic text for consistent matching
-  normalizeArabic: function(text) {
-    if (!text || typeof text !== 'string') return '';
-    return text
-      // Normalize Alef variations
-      .replace(/[أإآا]/g, 'ا')
-      // Normalize Taa Marbuta to Haa
-      .replace(/ة/g, 'ه')
-      // Normalize Yaa variations
-      .replace(/ى/g, 'ي')
-      // Remove diacritics (tashkeel)
-      .replace(/[\u064B-\u065F]/g, '')
-      // Normalize spaces
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
+  normalizeArabic: function (text) {
+    if (!text || typeof text !== "string") return "";
+    return (
+      text
+        // Normalize Alef variations
+        .replace(/[أإآا]/g, "ا")
+        // Normalize Taa Marbuta to Haa
+        .replace(/ة/g, "ه")
+        // Normalize Yaa variations
+        .replace(/ى/g, "ي")
+        // Remove diacritics (tashkeel)
+        .replace(/[\u064B-\u065F]/g, "")
+        // Normalize spaces
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase()
+    );
   },
 
   // Extract all searchable text from an ad object
-  extractAdSearchableText: function(ad) {
-    if (!ad) return '';
-    
+  extractAdSearchableText: function (ad) {
+    if (!ad) return "";
+
     const fields = [
       // Basic fields
       ad.text,
@@ -54,13 +56,13 @@ const SmartSearch = {
       ad.targetWebsite,
       ad.rejectionReason,
       ad.aiReason,
-      
+
       // WordPress data
       ad.wpData?.title,
       ad.wpData?.title?.rendered,
       ad.wpData?.content,
       ad.wpData?.targetWebsite,
-      
+
       // Meta fields (WordPress)
       ad.wpData?.meta?.parent_catt,
       ad.wpData?.meta?.sub_catt,
@@ -82,90 +84,168 @@ const SmartSearch = {
       ad.wpData?.meta?.area,
       ad.wpData?.meta?.Rooms,
       ad.wpData?.meta?.rooms,
-      
+
       // Ad ID
       ad.id,
     ];
-    
+
     // Filter out null/undefined and join
     return fields
-      .filter(f => f != null && f !== '')
-      .map(f => String(f))
-      .join(' ');
+      .filter((f) => f != null && f !== "")
+      .map((f) => String(f))
+      .join(" ");
   },
 
   // Check if text matches the search query (smart matching)
-  matches: function(searchableText, query) {
+  matches: function (searchableText, query) {
     if (!query || !query.trim()) return true;
     if (!searchableText) return false;
-    
+
     const normalizedText = this.normalizeArabic(searchableText);
     const normalizedQuery = this.normalizeArabic(query);
-    
+
     // Split query into words for multi-word search
-    const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length > 0);
-    
+    const queryWords = normalizedQuery.split(/\s+/).filter((w) => w.length > 0);
+
     if (queryWords.length === 0) return true;
-    
+
     // Check if ALL words are found in the text (AND logic)
-    return queryWords.every(word => normalizedText.includes(word));
+    return queryWords.every((word) => normalizedText.includes(word));
   },
 
   // Search through ads array
-  searchAds: function(ads, query) {
+  searchAds: function (ads, query) {
     if (!query || !query.trim()) return ads;
-    
-    return ads.filter(ad => {
+
+    return ads.filter((ad) => {
       const searchableText = this.extractAdSearchableText(ad);
       return this.matches(searchableText, query);
     });
   },
 
   // Highlight search terms in text (for display)
-  highlightMatches: function(text, query) {
+  highlightMatches: function (text, query) {
     if (!text || !query || !query.trim()) return text;
-    
+
     const normalizedQuery = this.normalizeArabic(query);
-    const words = normalizedQuery.split(/\s+/).filter(w => w.length > 0);
-    
+    const words = normalizedQuery.split(/\s+/).filter((w) => w.length > 0);
+
     if (words.length === 0) return text;
-    
+
     // Create regex pattern for highlighting
-    const pattern = words.map(w => {
-      // Escape special regex characters
-      return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }).join('|');
-    
+    const pattern = words
+      .map((w) => {
+        // Escape special regex characters
+        return w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      })
+      .join("|");
+
     try {
-      const regex = new RegExp(`(${pattern})`, 'gi');
-      return text.replace(regex, '<mark style="background: #fff3cd; padding: 0 2px; border-radius: 2px;">$1</mark>');
+      const regex = new RegExp(`(${pattern})`, "gi");
+      return text.replace(
+        regex,
+        '<mark style="background: #fff3cd; padding: 0 2px; border-radius: 2px;">$1</mark>',
+      );
     } catch (e) {
       return text;
     }
-  }
+  },
 };
 
 // Predefined website categories
 const masaakCategories = [
-  "أدوات صحية", "أرض", "استراحة", "اعلانات مسعاك المميزة", "بدون محلات",
-  "برامج ووظائف", "بطن", "بقالة", "بوفية", "بيت", "تجاري", "تجارية",
-  "جوالات", "حلاق", "حلويات", "دبلكس", "دور", "دور أرضي", "دور أول",
-  "دور ثالث", "دور ثاني", "دور وشقق", "دور وملحق", "دورين", "زاوية",
-  "زراعية", "سكنية", "سكنية تجارية", "سوبر ماركت", "شالية", "شركاء مسعاك",
-  "شركات ومؤسسات", "شقة", "شقة دبلكسية", "صغير", "صك", "صيدلية", "طلبات",
-  "عربي", "عرق", "عمارة", "عن مسعاك", "فريق مسعاك", "فود ترك", "فيلا",
-  "قطع سيارات", "كبير", "كوفي", "للإيجار", "للاستثمار", "للتقبيل",
-  "مجتمع حساك", "محطة بنزين", "محل", "محل أثاث", "محل تجاري", "محل زينة",
-  "محل سباكة", "محل عصاير", "محل فواكه", "محل كماليات", "محل كهرباء",
-  "محل ملابس", "محلات للتقبيل", "مزرعة", "مستودع", "مشاع", "مشغل نسائي",
-  "مطعم", "مع محلات", "مغسلة سيارات", "مغسلة ملابس", "وقف"
+  "أدوات صحية",
+  "أرض",
+  "استراحة",
+  "اعلانات مسعاك المميزة",
+  "بدون محلات",
+  "برامج ووظائف",
+  "بطن",
+  "بقالة",
+  "بوفية",
+  "بيت",
+  "تجاري",
+  "تجارية",
+  "جوالات",
+  "حلاق",
+  "حلويات",
+  "دبلكس",
+  "دور",
+  "دور أرضي",
+  "دور أول",
+  "دور ثالث",
+  "دور ثاني",
+  "دور وشقق",
+  "دور وملحق",
+  "دورين",
+  "زاوية",
+  "زراعية",
+  "سكنية",
+  "سكنية تجارية",
+  "سوبر ماركت",
+  "شالية",
+  "شركاء مسعاك",
+  "شركات ومؤسسات",
+  "شقة",
+  "شقة دبلكسية",
+  "صغير",
+  "صك",
+  "صيدلية",
+  "طلبات",
+  "عربي",
+  "عرق",
+  "عمارة",
+  "عن مسعاك",
+  "فريق مسعاك",
+  "فود ترك",
+  "فيلا",
+  "قطع سيارات",
+  "كبير",
+  "كوفي",
+  "للإيجار",
+  "للاستثمار",
+  "للتقبيل",
+  "مجتمع حساك",
+  "محطة بنزين",
+  "محل",
+  "محل أثاث",
+  "محل تجاري",
+  "محل زينة",
+  "محل سباكة",
+  "محل عصاير",
+  "محل فواكه",
+  "محل كماليات",
+  "محل كهرباء",
+  "محل ملابس",
+  "محلات للتقبيل",
+  "مزرعة",
+  "مستودع",
+  "مشاع",
+  "مشغل نسائي",
+  "مطعم",
+  "مع محلات",
+  "مغسلة سيارات",
+  "مغسلة ملابس",
+  "وقف",
 ];
 
 const hasakCategories = [
-  "أسر منتجة", "إعلان تجاري ربحي مميز", "الفعاليات والانشطة", "برامج ووظائف",
-  "توصيل سيارات", "حراج الحسا", "شركاء حساك", "عن حساك", "فريق حساك",
-  "فعاليات و أنشطة", "فعالية مجانية مميزة", "كوفيهات أو مطاعم", "مجتمع حساك",
-  "محلات تجارية", "مركز ترفيهي", "منتجعات وإستراحات"
+  "أسر منتجة",
+  "إعلان تجاري ربحي مميز",
+  "الفعاليات والانشطة",
+  "برامج ووظائف",
+  "توصيل سيارات",
+  "حراج الحسا",
+  "شركاء حساك",
+  "عن حساك",
+  "فريق حساك",
+  "فعاليات و أنشطة",
+  "فعالية مجانية مميزة",
+  "كوفيهات أو مطاعم",
+  "مجتمع حساك",
+  "محلات تجارية",
+  "مركز ترفيهي",
+  "منتجعات وإستراحات",
 ];
 
 // DOM Elements
@@ -218,7 +298,7 @@ const modalMessage = document.getElementById("modal-message");
 // Collections modal
 const collectionsModal = document.getElementById("collections-modal");
 const closeCollectionsModalBtn = document.getElementById(
-  "close-collections-modal"
+  "close-collections-modal",
 );
 const closeCollectionsBtn = document.getElementById("close-collections-btn");
 const collectionsList = document.getElementById("collections-list");
@@ -226,7 +306,7 @@ const collectionsList = document.getElementById("collections-list");
 // Categories modal
 const categoriesModal = document.getElementById("categories-modal");
 const closeCategoriesModalBtn = document.getElementById(
-  "close-categories-modal"
+  "close-categories-modal",
 );
 const closeCategoriesBtn = document.getElementById("close-categories-btn");
 const categoriesList = document.getElementById("categories-list");
@@ -243,39 +323,39 @@ const customNumberPhoneInput = document.getElementById("custom-number-phone");
 const addCustomNumberBtn = document.getElementById("add-custom-number-btn");
 const savedNumbersSelect = document.getElementById("saved-numbers-select");
 const manageCustomNumbersBtn = document.getElementById(
-  "manage-custom-numbers-btn"
+  "manage-custom-numbers-btn",
 );
 const customNumbersModal = document.getElementById("custom-numbers-modal");
 const closeCustomNumbersModalBtn = document.getElementById(
-  "close-custom-numbers-modal"
+  "close-custom-numbers-modal",
 );
 const closeManageCustomNumbersBtn = document.getElementById(
-  "close-manage-custom-numbers-btn"
+  "close-manage-custom-numbers-btn",
 );
 const manageCustomNumberNameInput = document.getElementById(
-  "manage-custom-number-name"
+  "manage-custom-number-name",
 );
 const manageCustomNumberPhoneInput = document.getElementById(
-  "manage-custom-number-phone"
+  "manage-custom-number-phone",
 );
 const saveCustomNumberBtn = document.getElementById("save-custom-number-btn");
 const savedCustomNumbersList = document.getElementById(
-  "saved-custom-numbers-list"
+  "saved-custom-numbers-list",
 );
 const customNumbersMessage = document.getElementById("custom-numbers-message");
 
 // Groups Preview Modal custom numbers elements (simplified)
 const groupsPreviewCustomNumbersList = document.getElementById(
-  "groups-preview-custom-numbers-list"
+  "groups-preview-custom-numbers-list",
 );
 const groupsPreviewCustomNumberNameInput = document.getElementById(
-  "groups-preview-custom-number-name"
+  "groups-preview-custom-number-name",
 );
 const groupsPreviewCustomNumberPhoneInput = document.getElementById(
-  "groups-preview-custom-number-phone"
+  "groups-preview-custom-number-phone",
 );
 const groupsPreviewAddCustomNumberBtn = document.getElementById(
-  "groups-preview-add-custom-number-btn"
+  "groups-preview-add-custom-number-btn",
 );
 
 // Edit Ad modal
@@ -357,7 +437,7 @@ function setupEventListeners() {
   if (adsFilter) adsFilter.addEventListener("change", fetchAndRenderAds);
   if (categoryFilter)
     categoryFilter.addEventListener("change", fetchAndRenderAds);
-  
+
   // Website and Group filters for Ads view
   const adsWebsiteFilter = document.getElementById("ads-website-filter");
   const adsGroupFilter = document.getElementById("ads-group-filter");
@@ -367,7 +447,8 @@ function setupEventListeners() {
       fetchAndRenderAds();
     });
   }
-  if (adsGroupFilter) adsGroupFilter.addEventListener("change", fetchAndRenderAds);
+  if (adsGroupFilter)
+    adsGroupFilter.addEventListener("change", fetchAndRenderAds);
 
   // Live search functionality
   if (adsSearchInput) {
@@ -378,7 +459,7 @@ function setupEventListeners() {
 
   // View-specific buttons
   const manageCollectionsBtnView = document.getElementById(
-    "manage-collections-btn-view"
+    "manage-collections-btn-view",
   );
   if (manageCollectionsBtnView) {
     manageCollectionsBtnView.addEventListener("click", openCollectionsManager);
@@ -386,12 +467,12 @@ function setupEventListeners() {
 
   // WhatsApp Messages refresh button
   const refreshWhatsAppMessagesBtn = document.getElementById(
-    "refresh-whatsapp-messages-btn"
+    "refresh-whatsapp-messages-btn",
   );
   if (refreshWhatsAppMessagesBtn) {
     refreshWhatsAppMessagesBtn.addEventListener(
       "click",
-      loadWhatsAppMessagesView
+      loadWhatsAppMessagesView,
     );
   }
 
@@ -406,7 +487,7 @@ function setupEventListeners() {
   }
 
   const whatsappFilterStatus = document.getElementById(
-    "whatsapp-filter-status"
+    "whatsapp-filter-status",
   );
   if (whatsappFilterStatus) {
     whatsappFilterStatus.addEventListener("change", (e) => {
@@ -417,7 +498,7 @@ function setupEventListeners() {
   }
 
   const whatsappFilterWebsite = document.getElementById(
-    "whatsapp-filter-website"
+    "whatsapp-filter-website",
   );
   if (whatsappFilterWebsite) {
     whatsappFilterWebsite.addEventListener("change", (e) => {
@@ -428,7 +509,7 @@ function setupEventListeners() {
   }
 
   const whatsappFilterCategory = document.getElementById(
-    "whatsapp-filter-category"
+    "whatsapp-filter-category",
   );
   if (whatsappFilterCategory) {
     whatsappFilterCategory.addEventListener("change", (e) => {
@@ -438,9 +519,7 @@ function setupEventListeners() {
     });
   }
 
-  const whatsappFilterGroup = document.getElementById(
-    "whatsapp-filter-group"
-  );
+  const whatsappFilterGroup = document.getElementById("whatsapp-filter-group");
   if (whatsappFilterGroup) {
     whatsappFilterGroup.addEventListener("change", (e) => {
       whatsappMessagesState.filterGroup = e.target.value;
@@ -491,7 +570,7 @@ function setupEventListeners() {
 
   // Excluded Groups buttons
   const loadExcludedGroupsBtn = document.getElementById(
-    "load-excluded-groups-btn"
+    "load-excluded-groups-btn",
   );
   if (loadExcludedGroupsBtn) {
     loadExcludedGroupsBtn.addEventListener("click", loadExcludedGroups);
@@ -503,14 +582,14 @@ function setupEventListeners() {
   }
 
   const deselectAllGroupsBtn = document.getElementById(
-    "deselect-all-groups-btn"
+    "deselect-all-groups-btn",
   );
   if (deselectAllGroupsBtn) {
     deselectAllGroupsBtn.addEventListener("click", deselectAllExcludedGroups);
   }
 
   const excludedGroupsSearch = document.getElementById(
-    "excluded-groups-search"
+    "excluded-groups-search",
   );
   if (excludedGroupsSearch) {
     excludedGroupsSearch.addEventListener("input", filterExcludedGroups);
@@ -574,12 +653,12 @@ function setupEventListeners() {
   if (closeCustomNumbersModalBtn)
     closeCustomNumbersModalBtn.addEventListener(
       "click",
-      closeCustomNumbersManager
+      closeCustomNumbersManager,
     );
   if (closeManageCustomNumbersBtn)
     closeManageCustomNumbersBtn.addEventListener(
       "click",
-      closeCustomNumbersManager
+      closeCustomNumbersManager,
     );
   if (saveCustomNumberBtn)
     saveCustomNumberBtn.addEventListener("click", handleSaveCustomNumber);
@@ -590,7 +669,7 @@ function setupEventListeners() {
   if (groupsPreviewAddCustomNumberBtn)
     groupsPreviewAddCustomNumberBtn.addEventListener(
       "click",
-      handleGroupsPreviewAddCustomNumber
+      handleGroupsPreviewAddCustomNumber,
     );
 
   // Allow Enter key to add number
@@ -617,11 +696,11 @@ function setupEventListeners() {
     cancelAcceptBtn.addEventListener("click", closeAcceptOptionsModal);
   if (acceptGroupsOnlyBtn)
     acceptGroupsOnlyBtn.addEventListener("click", () =>
-      handleAcceptOption("groups")
+      handleAcceptOption("groups"),
     );
   if (acceptWpOnlyBtn)
     acceptWpOnlyBtn.addEventListener("click", () =>
-      handleAcceptOption("wordpress")
+      handleAcceptOption("wordpress"),
     );
   if (acceptBothBtn)
     acceptBothBtn.addEventListener("click", () => handleAcceptOption("both"));
@@ -633,7 +712,7 @@ function setupEventListeners() {
     cancelRejectBtn.addEventListener("click", closeRejectReasonModal);
   if (confirmRejectBtn)
     confirmRejectBtn.addEventListener("click", handleConfirmReject);
-  
+
   // Quick reject reason buttons
   document.querySelectorAll(".quick-reject-reason").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1096,7 +1175,7 @@ async function loadCollectionsView() {
           </button>
         </div>
       </div>
-    `
+    `,
       )
       .join("");
   } catch (error) {
@@ -1143,7 +1222,7 @@ async function loadCategoriesView() {
           </button>
         </div>
       </div>
-    `
+    `,
       )
       .join("");
   } catch (error) {
@@ -1175,7 +1254,7 @@ function viewCollectionGroups(collectionName) {
 async function deleteCollectionFromView(collectionName) {
   if (
     !confirm(
-      `Are you sure you want to delete the collection "${collectionName}"?`
+      `Are you sure you want to delete the collection "${collectionName}"?`,
     )
   )
     return;
@@ -1185,7 +1264,7 @@ async function deleteCollectionFromView(collectionName) {
       `/api/bot/collections/${encodeURIComponent(collectionName)}`,
       {
         method: "DELETE",
-      }
+      },
     );
 
     if (!response.ok) throw new Error("Failed to delete collection");
@@ -1194,7 +1273,7 @@ async function deleteCollectionFromView(collectionName) {
     showMessage(
       "categories-view-message",
       "Collection deleted successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error deleting collection:", error);
@@ -1214,7 +1293,7 @@ async function deleteCategoryFromView(categoryName) {
       `/api/bot/categories/${encodeURIComponent(categoryName)}`,
       {
         method: "DELETE",
-      }
+      },
     );
 
     if (!response.ok) throw new Error("Failed to delete category");
@@ -1224,7 +1303,7 @@ async function deleteCategoryFromView(categoryName) {
     showMessage(
       "categories-view-message",
       "Category deleted successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error deleting category:", error);
@@ -1279,7 +1358,7 @@ async function loadUsersView() {
           </button>
         </div>
       </div>
-    `
+    `,
       )
       .join("");
   } catch (error) {
@@ -1313,7 +1392,7 @@ async function handleAddUser() {
     showMessage(
       "users-message",
       "Password must be at least 6 characters",
-      "error"
+      "error",
     );
     return;
   }
@@ -1347,12 +1426,12 @@ async function handleAddUser() {
 async function editUser(id, currentUsername, currentRole) {
   const newUsername = prompt(
     "Enter new username (leave blank to keep current):",
-    currentUsername
+    currentUsername,
   );
   if (newUsername === null) return; // User cancelled
 
   const newPassword = prompt(
-    "Enter new password (leave blank to keep current):"
+    "Enter new password (leave blank to keep current):",
   );
   if (newPassword === null) return; // User cancelled
 
@@ -1464,12 +1543,12 @@ function performLiveSearch(searchTerm) {
   cards.forEach((card) => {
     const adId = card.getAttribute("data-ad-id");
     const adIndex = card.getAttribute("data-ad-index");
-    
+
     // Get the cached ad data for full-content search
-    const adData = cachedAdsForSearch.find(ad => ad.id === adId);
-    
+    const adData = cachedAdsForSearch.find((ad) => ad.id === adId);
+
     let matchesSearch = false;
-    
+
     if (adData) {
       // Use SmartSearch for full-content search with Arabic normalization
       const searchableText = SmartSearch.extractAdSearchableText(adData);
@@ -1479,7 +1558,7 @@ function performLiveSearch(searchTerm) {
       const cardText = card.textContent;
       matchesSearch = SmartSearch.matches(cardText, term);
     }
-    
+
     // Also match on ad index/number
     if (!matchesSearch && adIndex) {
       matchesSearch = SmartSearch.matches(adIndex, term);
@@ -1487,10 +1566,14 @@ function performLiveSearch(searchTerm) {
 
     card.style.display = matchesSearch ? "block" : "none";
   });
-  
+
   // Show search result count
-  const visibleCount = Array.from(cards).filter(c => c.style.display !== 'none').length;
-  console.log(`🔍 Smart Search: "${term}" - Found ${visibleCount}/${cards.length} ads`);
+  const visibleCount = Array.from(cards).filter(
+    (c) => c.style.display !== "none",
+  ).length;
+  console.log(
+    `🔍 Smart Search: "${term}" - Found ${visibleCount}/${cards.length} ads`,
+  );
 }
 
 // Focus on specific ad and expand it
@@ -1539,8 +1622,10 @@ async function fetchAndRenderAds(reset = true) {
 
     const statusFilter = adsFilter.value;
     const catFilter = categoryFilter.value;
-    const websiteFilter = document.getElementById("ads-website-filter")?.value || "all";
-    const groupFilter = document.getElementById("ads-group-filter")?.value || "all";
+    const websiteFilter =
+      document.getElementById("ads-website-filter")?.value || "all";
+    const groupFilter =
+      document.getElementById("ads-group-filter")?.value || "all";
 
     // Build query params
     const params = new URLSearchParams({
@@ -1614,7 +1699,7 @@ function populateAdsGroupFilter(groups) {
   if (!groupSelect) return;
 
   const currentValue = groupSelect.value;
-  
+
   // Clear existing options except the first "All Groups"
   while (groupSelect.options.length > 1) {
     groupSelect.remove(1);
@@ -1665,17 +1750,18 @@ function renderAds(list, reset = true, pagination = {}) {
     const catColor = catObj ? catObj.color : "#95a5a6";
 
     // AI confidence badge - only show for non-rejected ads
-    const aiConfidenceBadge = ad.status !== 'rejected' && ad.aiConfidence
-      ? `<span style="background: ${
-          ad.aiConfidence > 70
-            ? "#28a745"
-            : ad.aiConfidence > 40
-            ? "#ffc107"
-            : "#dc3545"
-        }; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; margin-left: 8px;">
+    const aiConfidenceBadge =
+      ad.status !== "rejected" && ad.aiConfidence
+        ? `<span style="background: ${
+            ad.aiConfidence > 70
+              ? "#28a745"
+              : ad.aiConfidence > 40
+                ? "#ffc107"
+                : "#dc3545"
+          }; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; margin-left: 8px;">
         AI: ${ad.aiConfidence}%
       </span>`
-      : "";
+        : "";
 
     const hasEnhanced = ad.enhancedText && ad.enhancedText !== ad.text;
 
@@ -1692,16 +1778,17 @@ function renderAds(list, reset = true, pagination = {}) {
           </span>`;
 
     // Header styling based on status
-    const isRejected = ad.status === 'rejected';
-    const headerBgColor = '#5a67d8'; // Same normal color for all ads
-    
+    const isRejected = ad.status === "rejected";
+    const headerBgColor = "#5a67d8"; // Same normal color for all ads
+
     // Rejection reason badge for header - subtle amber/orange color that's easy on the eyes
-    const rejectionBadge = isRejected && ad.rejectionReason
-      ? `<div style="margin-top: 8px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; color: white;">
+    const rejectionBadge =
+      isRejected && ad.rejectionReason
+        ? `<div style="margin-top: 8px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; color: white;">
           <i class="fas fa-exclamation-triangle"></i>
-          <span style="direction: rtl;">سبب الرفض: ${escapeHtml(ad.rejectionReason.length > 60 ? ad.rejectionReason.substring(0, 60) + '...' : ad.rejectionReason)}</span>
+          <span style="direction: rtl;">سبب الرفض: ${escapeHtml(ad.rejectionReason.length > 60 ? ad.rejectionReason.substring(0, 60) + "..." : ad.rejectionReason)}</span>
         </div>`
-      : '';
+        : "";
 
     el.innerHTML = `
       <div class="card-body">
@@ -1724,19 +1811,19 @@ function renderAds(list, reset = true, pagination = {}) {
               }</strong>
               ${aiConfidenceBadge}
               ${websiteBadge}
-              ${isRejected ? '<span style="background: rgba(255,255,255,0.3); padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: bold;"><i class="fas fa-times-circle"></i> مرفوض</span>' : ''}
+              ${isRejected ? '<span style="background: rgba(255,255,255,0.3); padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: bold;"><i class="fas fa-times-circle"></i> مرفوض</span>' : ""}
             </div>
             <div style="display: flex; gap: 15px; align-items: center; font-size: 0.9rem; opacity: 0.95; flex-wrap: wrap;">
               <span><i class="fas fa-users"></i> From: ${
                 ad.fromGroupName || ad.fromGroup
               }</span>
               <span><i class="fas fa-clock"></i> ${new Date(
-                ad.timestamp
+                ad.timestamp,
               ).toLocaleString()}</span>
-              ${!isRejected ? `<span><i class="fas fa-tag"></i> ${ad.status}</span>` : ''}
+              ${!isRejected ? `<span><i class="fas fa-tag"></i> ${ad.status}</span>` : ""}
               <span style="color: ${catColor}; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 12px;"><i class="fas fa-folder"></i> ${
-      ad.category || "None"
-    }</span>
+                ad.category || "None"
+              }</span>
             </div>
             ${rejectionBadge}
           </div>
@@ -1771,7 +1858,7 @@ function renderAds(list, reset = true, pagination = {}) {
                 alt="Ad Image" 
                 style="max-width: 100%; max-height: 250px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); cursor: pointer;"
                 onclick="openAdImageFullView('${ad.id}')"
-                onerror="this.src='${ad.imageUrl.jpegThumbnail ? `data:image/jpeg;base64,${ad.imageUrl.jpegThumbnail}` : '/images/no-image-placeholder.png'}'"
+                onerror="this.src='${ad.imageUrl.jpegThumbnail ? `data:image/jpeg;base64,${ad.imageUrl.jpegThumbnail}` : "/images/no-image-placeholder.png"}'"
               />
               <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
                 <button class="btn btn-sm btn-primary" onclick="openAdImageFullView('${ad.id}')" style="display: flex; align-items: center; gap: 5px;">
@@ -1781,7 +1868,7 @@ function renderAds(list, reset = true, pagination = {}) {
                   <i class="fas fa-trash"></i> Remove Image
                 </button>
               </div>
-              <small style="color: #666;">${ad.imageUrl.mimetype || 'image/jpeg'} • ${ad.imageUrl.width || '?'}x${ad.imageUrl.height || '?'} px</small>
+              <small style="color: #666;">${ad.imageUrl.mimetype || "image/jpeg"} • ${ad.imageUrl.width || "?"}x${ad.imageUrl.height || "?"} px</small>
             </div>
           </div>
           `
@@ -1902,12 +1989,13 @@ function renderAds(list, reset = true, pagination = {}) {
                   <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #667eea;">
                     <div style="font-size: 0.75rem; color: #666; margin-bottom: 2px;">📁 Category</div>
                     <div style="font-weight: bold; color: #333; font-size: 0.9rem;">${escapeHtml(
-                      ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category
+                      ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category,
                     )}</div>
                     ${
                       ad.wpData.meta.sub_catt || ad.wpData.meta.arc_subcategory
                         ? `<div style=\"font-size: 0.8rem; color: #888;\">→ ${escapeHtml(
-                            ad.wpData.meta.sub_catt || ad.wpData.meta.arc_subcategory
+                            ad.wpData.meta.sub_catt ||
+                              ad.wpData.meta.arc_subcategory,
                           )}</div>`
                         : ""
                     }
@@ -1927,12 +2015,12 @@ function renderAds(list, reset = true, pagination = {}) {
                   <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #28a745;">
                     <div style="font-size: 0.75rem; color: #666; margin-bottom: 2px;">💰 Price</div>
                     <div style="font-weight: bold; color: #28a745; font-size: 0.9rem;">${escapeHtml(
-                      ad.wpData.meta.price_amount
+                      ad.wpData.meta.price_amount,
                     )}</div>
                     ${
                       ad.wpData.meta.price_type
                         ? `<div style="font-size: 0.8rem; color: #888;">${escapeHtml(
-                            ad.wpData.meta.price_type
+                            ad.wpData.meta.price_type,
                           )}</div>`
                         : ""
                     }
@@ -1947,7 +2035,7 @@ function renderAds(list, reset = true, pagination = {}) {
                   <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #17a2b8;">
                     <div style="font-size: 0.75rem; color: #666; margin-bottom: 2px;">📏 Space</div>
                     <div style="font-weight: bold; color: #17a2b8; font-size: 0.9rem;">${escapeHtml(
-                      ad.wpData.meta.arc_space
+                      ad.wpData.meta.arc_space,
                     )} m²</div>
                   </div>
                   `
@@ -1960,13 +2048,13 @@ function renderAds(list, reset = true, pagination = {}) {
                   <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #ffc107;">
                     <div style="font-size: 0.75rem; color: #666; margin-bottom: 2px;">📍 Location</div>
                     <div style="font-weight: bold; color: #333; font-size: 0.9rem;">${escapeHtml(
-                      ad.wpData.meta.City || ad.wpData.meta.location || "N/A"
+                      ad.wpData.meta.City || ad.wpData.meta.location || "N/A",
                     )}</div>
                     ${
                       ad.wpData.meta.location &&
                       ad.wpData.meta.location !== ad.wpData.meta.City
                         ? `<div style="font-size: 0.8rem; color: #888;">${escapeHtml(
-                            ad.wpData.meta.location
+                            ad.wpData.meta.location,
                           )}</div>`
                         : ""
                     }
@@ -1981,7 +2069,7 @@ function renderAds(list, reset = true, pagination = {}) {
                   <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #6c757d;">
                     <div style="font-size: 0.75rem; color: #666; margin-bottom: 2px;">📞 Contact</div>
                     <div style="font-weight: bold; color: #333; font-size: 0.9rem;">${escapeHtml(
-                      ad.wpData.meta.phone_number
+                      ad.wpData.meta.phone_number,
                     )}</div>
                   </div>
                   `
@@ -1996,7 +2084,7 @@ function renderAds(list, reset = true, pagination = {}) {
                     <div style="font-weight: bold; color: #e83e8c; font-size: 0.9rem;">${escapeHtml(
                       ad.wpData.meta.offer_type ||
                         ad.wpData.meta.order_type ||
-                        "N/A"
+                        "N/A",
                     )}</div>
                   </div>
                   `
@@ -2134,8 +2222,8 @@ function renderAds(list, reset = true, pagination = {}) {
     loadMoreBtn.innerHTML = `
       <i class="fas fa-chevron-down"></i> 
       Load More (${pagination.currentPage}/${pagination.totalPages} - Showing ${
-      adsList.querySelectorAll(".card").length
-    } of ${pagination.totalAds})
+        adsList.querySelectorAll(".card").length
+      } of ${pagination.totalAds})
     `;
     loadMoreBtn.style.cssText =
       "padding: 12px 30px; font-size: 1rem; border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; cursor: pointer; transition: all 0.3s;";
@@ -2286,9 +2374,9 @@ function closeRejectReasonModal() {
 
 async function handleConfirmReject() {
   if (!currentRejectAdId) return;
-  
+
   const reason = rejectReasonTextarea ? rejectReasonTextarea.value.trim() : "";
-  
+
   if (!reason) {
     if (rejectReasonMessage) {
       rejectReasonMessage.textContent = "⚠️ Please enter a rejection reason";
@@ -2297,10 +2385,10 @@ async function handleConfirmReject() {
     }
     return;
   }
-  
+
   const adId = currentRejectAdId;
   closeRejectReasonModal();
-  
+
   try {
     await updateAdStatus(adId, "rejected", reason);
     showInfo(adsInfo, "✅ Ad rejected successfully!");
@@ -2313,27 +2401,36 @@ async function handleConfirmReject() {
 
 // Move rejected ad to recycle bin
 async function handleMoveToRecycleBin(id) {
-  if (!confirm("هل أنت متأكد من نقل هذا الإعلان إلى سلة المحذوفات؟\n\nAre you sure you want to move this ad to the recycle bin?")) {
+  if (
+    !confirm(
+      "هل أنت متأكد من نقل هذا الإعلان إلى سلة المحذوفات؟\n\nAre you sure you want to move this ad to the recycle bin?",
+    )
+  ) {
     return;
   }
-  
+
   try {
     const response = await fetch(`/api/bot/ads/${id}/recycle-bin`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
     });
-    
+
     if (!response.ok) {
       throw new Error("Failed to move ad to recycle bin");
     }
-    
-    showInfo(adsInfo, "🗑️ تم نقل الإعلان إلى سلة المحذوفات / Ad moved to recycle bin");
+
+    showInfo(
+      adsInfo,
+      "🗑️ تم نقل الإعلان إلى سلة المحذوفات / Ad moved to recycle bin",
+    );
     setTimeout(() => hideMessage(adsInfo), 3000);
     fetchAndRenderAds(); // Refresh the ads list
   } catch (err) {
     console.error("Move to recycle bin error:", err);
-    alert("فشل نقل الإعلان إلى سلة المحذوفات / Failed to move ad to recycle bin");
+    alert(
+      "فشل نقل الإعلان إلى سلة المحذوفات / Failed to move ad to recycle bin",
+    );
   }
 }
 
@@ -2385,7 +2482,7 @@ async function postToWordPress(adId) {
 
     // Show success message
     alert(
-      `✅ تم نشر الإعلان على WordPress بنجاح!\n\nالرابط: ${data.wordpressPost.link}`
+      `✅ تم نشر الإعلان على WordPress بنجاح!\n\nالرابط: ${data.wordpressPost.link}`,
     );
 
     return data; // Return full data including extractedData
@@ -2469,7 +2566,7 @@ async function sendWordPressNotificationToGroups(groups, wpData) {
           number: groupId,
           message: message,
         }),
-      })
+      }),
     );
 
     await Promise.all(promises);
@@ -2638,7 +2735,7 @@ async function handlePreviewSendGroups() {
         "📝 [UPDATE] Marking ad as sent, adId:",
         adId,
         "groups:",
-        groups
+        groups,
       );
       const markResponse = await fetch(`/api/bot/ads/${adId}/mark-sent`, {
         method: "POST",
@@ -2714,7 +2811,7 @@ async function handlePreviewPostAndSend() {
         "📝 [UPDATE] Marking ad as sent, adId:",
         adId,
         "groups:",
-        groups
+        groups,
       );
       const markResponse = await fetch(`/api/bot/ads/${adId}/mark-sent`, {
         method: "POST",
@@ -2750,7 +2847,7 @@ async function handlePreviewPostAndSend() {
 async function handleRegenerateAd(id) {
   if (
     !confirm(
-      "Regenerate this ad with AI? This will replace the current enhanced version."
+      "Regenerate this ad with AI? This will replace the current enhanced version.",
     )
   )
     return;
@@ -2766,8 +2863,8 @@ async function handleRegenerateAd(id) {
       await fetchAndRenderAds();
       alert(
         `✨ Ad regenerated successfully!\n\nImprovements:\n${data.improvements.join(
-          "\n"
-        )}`
+          "\n",
+        )}`,
       );
     } else {
       const data = await response.json();
@@ -2881,7 +2978,7 @@ function renderGroupsCheckboxes() {
     item.className = "group-item";
     item.innerHTML = `
       <input type="checkbox" id="group-${escapeHtml(
-        group.jid
+        group.jid,
       )}" value="${escapeHtml(group.jid)}">
       <label for="group-${escapeHtml(group.jid)}">
         <span class="group-name">${escapeHtml(group.name)}</span>
@@ -2952,7 +3049,7 @@ async function handleSaveCollection() {
   if (selectedGroups.length === 0 && selectedCustomNumbers.length === 0) {
     showInfo(
       modalMessage,
-      "Please select at least one group or add a custom number"
+      "Please select at least one group or add a custom number",
     );
     return;
   }
@@ -2995,7 +3092,7 @@ async function handleConfirmResend() {
   if (selectedGroups.length === 0 && selectedCustomNumbers.length === 0) {
     showInfo(
       modalMessage,
-      "Please select at least one group or add a custom number"
+      "Please select at least one group or add a custom number",
     );
     return;
   }
@@ -3014,7 +3111,7 @@ async function handleConfirmResend() {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ preview: true }),
-        }
+        },
       );
 
       if (!previewResp.ok) {
@@ -3032,7 +3129,7 @@ async function handleConfirmResend() {
         previewData.extractedData,
         currentAdIdForResend,
         selectedGroups,
-        selectedCustomNumbers
+        selectedCustomNumbers,
       );
       // Reset button state (the actual actions are handled from the preview modal)
       confirmResendBtn.disabled = false;
@@ -3172,23 +3269,26 @@ async function loadCategories() {
 }
 
 function updateCategoryFilter() {
-  const websiteFilter = document.getElementById("ads-website-filter")?.value || "all";
-  
+  const websiteFilter =
+    document.getElementById("ads-website-filter")?.value || "all";
+
   categoryFilter.innerHTML =
     '<option value="all">📁 All Categories</option><option value="uncategorized">❓ Uncategorized</option>';
-  
+
   // Determine which categories to show based on selected website
   let categoriesToShow = [];
-  
+
   if (websiteFilter === "masaak") {
     categoriesToShow = masaakCategories;
   } else if (websiteFilter === "hasak") {
     categoriesToShow = hasakCategories;
   } else {
     // Show all unique categories from both websites
-    categoriesToShow = [...new Set([...masaakCategories, ...hasakCategories])].sort();
+    categoriesToShow = [
+      ...new Set([...masaakCategories, ...hasakCategories]),
+    ].sort();
   }
-  
+
   // Add predefined categories
   categoriesToShow.forEach((catName) => {
     const opt = document.createElement("option");
@@ -3196,7 +3296,7 @@ function updateCategoryFilter() {
     opt.textContent = catName;
     categoryFilter.appendChild(opt);
   });
-  
+
   // Add separator if there are custom categories
   if (allCategories.length > 0) {
     const separator = document.createElement("option");
@@ -3204,7 +3304,7 @@ function updateCategoryFilter() {
     separator.textContent = "── Custom Categories ──";
     categoryFilter.appendChild(separator);
   }
-  
+
   // Add user-defined custom categories
   allCategories.forEach((cat) => {
     // Skip if already in predefined list
@@ -3250,8 +3350,8 @@ function renderCategoriesManager() {
     item.innerHTML = `
       <div class="collection-info">
         <div class="collection-name" style="color:${cat.color};">● ${escapeHtml(
-      cat.name
-    )}</div>
+          cat.name,
+        )}</div>
       </div>
       <div class="collection-actions">
         <button class="btn btn-small btn-danger" data-action="delete" data-id="${
@@ -3336,7 +3436,7 @@ async function handleAddCategoryFromView() {
     showMessage(
       "categories-view-message",
       "Please enter a category name",
-      "error"
+      "error",
     );
     return;
   }
@@ -3359,7 +3459,7 @@ async function handleAddCategoryFromView() {
       showMessage(
         "categories-view-message",
         "Category added successfully!",
-        "success"
+        "success",
       );
     } else {
       showMessage("categories-view-message", "Failed to add category", "error");
@@ -3391,7 +3491,7 @@ async function loadSavedCustomNumbers() {
       console.log(
         "✅ Loaded saved custom numbers:",
         savedCustomNumbers.length,
-        savedCustomNumbers
+        savedCustomNumbers,
       );
       window.savedCustomNumbers = savedCustomNumbers; // Ensure global access
       updateSavedNumbersDropdown();
@@ -3448,7 +3548,7 @@ function handleAddCustomNumberToList() {
   // Basic phone validation (numbers only, optionally starting with +)
   if (!/^\+?\d+$/.test(phone)) {
     alert(
-      "Please enter a valid phone number (digits only, optionally starting with +)"
+      "Please enter a valid phone number (digits only, optionally starting with +)",
     );
     return;
   }
@@ -3487,7 +3587,7 @@ function renderCustomNumbersList() {
         <i class="fas fa-phone" style="color:#28a745;"></i>
         <span style="font-weight:500;">${escapeHtml(number.name)}</span>
         <span style="color:#666;font-size:0.9rem;">(${escapeHtml(
-          number.phone
+          number.phone,
         )})</span>
       </div>
       <button class="btn btn-small btn-danger" onclick="removeCustomNumber(${index})" style="padding:4px 8px;">
@@ -3545,15 +3645,15 @@ function renderSavedCustomNumbersList() {
         <i class="fas fa-phone" style="color:#28a745;font-size:1.2rem;"></i>
         <div>
           <div style="font-weight:600;color:#333;">${escapeHtml(
-            number.name
+            number.name,
           )}</div>
           <div style="color:#666;font-size:0.9rem;">${escapeHtml(
-            number.phone
+            number.phone,
           )}</div>
         </div>
       </div>
       <button class="btn btn-small btn-danger" onclick="handleDeleteCustomNumber('${escapeHtml(
-        number.phone
+        number.phone,
       )}')" style="padding:6px 12px;">
         <i class="fas fa-trash"></i> Delete
       </button>
@@ -3604,7 +3704,7 @@ async function handleSaveCustomNumber() {
       const error = await response.json();
       showInfo(
         customNumbersMessage,
-        error.error || "Failed to save custom number"
+        error.error || "Failed to save custom number",
       );
     }
   } catch (err) {
@@ -3637,7 +3737,7 @@ async function handleDeleteCustomNumber(phone) {
       const error = await response.json();
       showInfo(
         customNumbersMessage,
-        error.error || "Failed to delete custom number"
+        error.error || "Failed to delete custom number",
       );
     }
   } catch (err) {
@@ -3663,7 +3763,7 @@ async function handleGroupsPreviewAddCustomNumber() {
   // Basic phone validation
   if (!/^\+?\d+$/.test(phone)) {
     alert(
-      "⚠️ Please enter a valid phone number (digits only, optionally starting with +)"
+      "⚠️ Please enter a valid phone number (digits only, optionally starting with +)",
     );
     return;
   }
@@ -3711,7 +3811,7 @@ async function handleGroupsPreviewAddCustomNumber() {
         "⚠️ Save failed with status",
         response.status,
         "Error:",
-        errorData
+        errorData,
       );
 
       if (
@@ -3782,7 +3882,7 @@ function renderGroupsPreviewCustomNumbersList() {
           <div>
             <div style="font-weight: 600;">${escapeHtml(number.name)}</div>
             <div style="font-size: 0.85em; opacity: 0.9;"><i class="fas fa-phone"></i> ${escapeHtml(
-              number.phone
+              number.phone,
             )}</div>
           </div>
         </div>
@@ -3996,8 +4096,8 @@ function showMessage(elementId, message, type = "info") {
     type === "success"
       ? "success-message show"
       : type === "error"
-      ? "error-message show"
-      : "info-message show";
+        ? "error-message show"
+        : "info-message show";
   element.style.display = "block";
 
   setTimeout(() => {
@@ -4100,7 +4200,7 @@ function renderRecycleBin(items) {
           const date = new Date(item.rejectedAt);
           const daysAgo = Math.max(
             0,
-            Math.floor((Date.now() - item.rejectedAt) / (1000 * 60 * 60 * 24))
+            Math.floor((Date.now() - item.rejectedAt) / (1000 * 60 * 60 * 24)),
           );
 
           // Calculate urgency color based on days remaining using settings
@@ -4133,8 +4233,8 @@ function renderRecycleBin(items) {
                 </span>
                 <span style="opacity:0.9;font-size:0.9rem;">
                   <i class="fas fa-calendar-alt"></i> ${date.toLocaleDateString()} · ${timeAgo(
-            date
-          )}
+                    date,
+                  )}
                 </span>
                 <span style="opacity:0.9;font-size:0.9rem;">
                   <i class="fas fa-clock"></i> ${date.toLocaleTimeString()}
@@ -4189,7 +4289,7 @@ function renderRecycleBin(items) {
                 ${escapeHtml(
                   recycleBinState.compact
                     ? truncateText(item.text, 220)
-                    : item.text
+                    : item.text,
                 )}
               </div>
             </div>
@@ -4223,11 +4323,11 @@ function renderRecycleBin(items) {
     console.log(
       "🎨 HTML generated, length:",
       container.innerHTML.length,
-      "characters"
+      "characters",
     );
     console.log(
       "🎨 Number of .ad-card elements:",
-      container.querySelectorAll(".ad-card").length
+      container.querySelectorAll(".ad-card").length,
     );
   } catch (error) {
     console.error("🎨 ❌ Fatal error during rendering:", error);
@@ -4252,15 +4352,15 @@ function renderRecycleBin(items) {
     console.log("🎨 Container innerHTML length:", container.innerHTML.length);
     console.log(
       "🎨 Container display:",
-      window.getComputedStyle(container).display
+      window.getComputedStyle(container).display,
     );
     console.log(
       "🎨 Container visibility:",
-      window.getComputedStyle(container).visibility
+      window.getComputedStyle(container).visibility,
     );
     console.log(
       "🎨 Number of .ad-card elements:",
-      container.querySelectorAll(".ad-card").length
+      container.querySelectorAll(".ad-card").length,
     );
 
     // Check if cards are visible
@@ -4268,7 +4368,7 @@ function renderRecycleBin(items) {
     cards.forEach((card, idx) => {
       const style = window.getComputedStyle(card);
       console.log(
-        `🎨 Card ${idx} - display: ${style.display}, visibility: ${style.visibility}, height: ${style.height}`
+        `🎨 Card ${idx} - display: ${style.display}, visibility: ${style.visibility}, height: ${style.height}`,
       );
     });
   }, 100);
@@ -4278,7 +4378,7 @@ function populateRecycleGroupFilter(items) {
   const select = document.getElementById("recycle-group-filter");
   if (!select) return;
   const groups = Array.from(
-    new Set(items.map((i) => i.fromGroupName || "Unknown Group"))
+    new Set(items.map((i) => i.fromGroupName || "Unknown Group")),
   ).sort((a, b) => a.localeCompare(b));
   const current = select.value;
   // Reset options
@@ -4286,7 +4386,7 @@ function populateRecycleGroupFilter(items) {
     '<option value="all">All Groups</option>' +
     groups
       .map(
-        (g) => `<option value="${escapeHtmlAttr(g)}">${escapeHtml(g)}</option>`
+        (g) => `<option value="${escapeHtmlAttr(g)}">${escapeHtml(g)}</option>`,
       )
       .join("");
   // Restore previous selection if exists
@@ -4318,7 +4418,7 @@ function bindRecycleToolbarListeners() {
     });
   if (selectAll)
     selectAll.addEventListener("change", (e) =>
-      toggleSelectAll(e.target.checked)
+      toggleSelectAll(e.target.checked),
     );
   if (bulkRestore) bulkRestore.addEventListener("click", bulkRestoreSelected);
   if (bulkDelete) bulkDelete.addEventListener("click", bulkDeleteSelected);
@@ -4456,7 +4556,7 @@ async function bulkDeleteSelected() {
   if (recycleBinState.selected.size === 0) return;
   if (
     !confirm(
-      `Permanently delete ${recycleBinState.selected.size} selected message(s)? This cannot be undone!`
+      `Permanently delete ${recycleBinState.selected.size} selected message(s)? This cannot be undone!`,
     )
   )
     return;
@@ -4521,7 +4621,7 @@ async function handleRestoreFromRecycleBin(id) {
     showMessage(
       "recycle-bin-message",
       "Message restored successfully!",
-      "success"
+      "success",
     );
     loadRecycleBinView(); // Refresh the list
   } catch (error) {
@@ -4544,7 +4644,7 @@ async function handleDeleteFromRecycleBin(id) {
     showMessage(
       "recycle-bin-message",
       "Message deleted permanently",
-      "success"
+      "success",
     );
     loadRecycleBinView(); // Refresh the list
   } catch (error) {
@@ -4556,7 +4656,7 @@ async function handleDeleteFromRecycleBin(id) {
 async function handleEmptyRecycleBin() {
   if (
     !confirm(
-      "Are you sure you want to permanently delete ALL messages in the recycle bin? This cannot be undone!"
+      "Are you sure you want to permanently delete ALL messages in the recycle bin? This cannot be undone!",
     )
   )
     return;
@@ -4571,7 +4671,7 @@ async function handleEmptyRecycleBin() {
     showMessage(
       "recycle-bin-message",
       "Recycle bin emptied successfully",
-      "success"
+      "success",
     );
     loadRecycleBinView(); // Refresh the list
   } catch (error) {
@@ -4617,8 +4717,14 @@ async function loadSettingsView() {
     }
 
     // Load API keys (Combine both providers)
-    const geminiKeys = (data.settings.geminiApiKeys || []).map(k => ({ ...k, provider: 'gemini' }));
-    const gptKeys = (data.settings.gptApiKeys || []).map(k => ({ ...k, provider: 'gpt' }));
+    const geminiKeys = (data.settings.geminiApiKeys || []).map((k) => ({
+      ...k,
+      provider: "gemini",
+    }));
+    const gptKeys = (data.settings.gptApiKeys || []).map((k) => ({
+      ...k,
+      provider: "gpt",
+    }));
     renderApiKeys([...geminiKeys, ...gptKeys]);
 
     // Load category limits
@@ -4627,24 +4733,25 @@ async function loadSettingsView() {
     // Load WhatsApp message footers
     const hasakFooterInput = document.getElementById("hasak-footer");
     const masaakFooterInput = document.getElementById("masaak-footer");
-    
+
     // Default footers
     const defaultHasakFooter = `┈┉━🔰 *منصة 🌴حساك* 🔰━┅┄
 *✅إنضم في منصة حساك* 
 https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
  *✅للإعلانات في منصة حساك* 
 0507667103`;
-    
+
     const defaultMasaakFooter = `┈┉━━🔰 *مسعاك العقارية* 🔰━━┅┄
 ⭕ إبراء للذمة التواصل فقط مع مسعاك عند الشراء أو إذا عندك مشتري ✅ نتعاون مع جميع الوسطاء`;
-    
+
     if (hasakFooterInput) {
       hasakFooterInput.value = data.settings.hasakFooter || defaultHasakFooter;
     }
     if (masaakFooterInput) {
-      masaakFooterInput.value = data.settings.masaakFooter || defaultMasaakFooter;
+      masaakFooterInput.value =
+        data.settings.masaakFooter || defaultMasaakFooter;
     }
-    
+
     // Add reset footers button handler
     const resetFootersBtn = document.getElementById("reset-footers-btn");
     if (resetFootersBtn) {
@@ -4652,7 +4759,11 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
         if (confirm("Reset footers to default values?")) {
           if (hasakFooterInput) hasakFooterInput.value = defaultHasakFooter;
           if (masaakFooterInput) masaakFooterInput.value = defaultMasaakFooter;
-          showMessage("settings-message", "Footers reset to defaults. Click 'Save All Settings' to apply.", "success");
+          showMessage(
+            "settings-message",
+            "Footers reset to defaults. Click 'Save All Settings' to apply.",
+            "success",
+          );
         }
       };
     }
@@ -4666,7 +4777,7 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
         const collectionsData = await collectionsResp.json();
         allCollections = collectionsData.collections || [];
         console.log(
-          `✅ Loaded ${allCollections.length} collections in Settings`
+          `✅ Loaded ${allCollections.length} collections in Settings`,
         );
       }
     } catch (err) {
@@ -4712,7 +4823,7 @@ async function checkApiKeysStatus() {
             ? new Date(key.lastError.timestamp).toLocaleString()
             : "N/A";
           return `<div style="padding: 0.25rem 0;"><strong>${escapeHtml(
-            key.name
+            key.name,
           )}:</strong> ${
             key.requestCount
           } requests, Last error: ${lastError}</div>`;
@@ -4734,7 +4845,7 @@ async function checkApiKeysStatus() {
             ? new Date(key.lastError.timestamp).toLocaleString()
             : "N/A";
           return `<div style="padding: 0.25rem 0;"><strong>${escapeHtml(
-            key.name
+            key.name,
           )}:</strong> Exhausted at ${lastError}</div>`;
         })
         .join("");
@@ -4761,7 +4872,7 @@ async function checkAndShowApiKeysNotification() {
 
     const data = await response.json();
     const settingsNavItem = document.querySelector(
-      '.nav-item[data-view="settings"]'
+      '.nav-item[data-view="settings"]',
     );
 
     if (!settingsNavItem) return;
@@ -4831,15 +4942,15 @@ function renderApiKeys(apiKeys) {
     .sort((a, b) => a.priority - b.priority)
     .map(
       (key, index) => `
-      <div class="api-key-item" draggable="true" data-key-id="${key.id}" data-provider="${key.provider || 'gemini'}"
+      <div class="api-key-item" draggable="true" data-key-id="${key.id}" data-provider="${key.provider || "gemini"}"
            style="background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; cursor: move; border: 2px solid #ddd;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div style="flex: 1;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
               <span style="font-size: 1.2rem; cursor: grab;">☰</span>
               <strong>${escapeHtml(key.name)}</strong>
-              <span class="badge" style="background: ${key.provider === 'gpt' ? '#10a37f' : '#1a73e8'};">
-                ${key.provider === 'gpt' ? 'GPT' : 'Gemini'}
+              <span class="badge" style="background: ${key.provider === "gpt" ? "#10a37f" : "#1a73e8"};">
+                ${key.provider === "gpt" ? "GPT" : "Gemini"}
               </span>
               <span class="badge" style="background: ${
                 key.enabled ? "#28a745" : "#dc3545"
@@ -4852,15 +4963,15 @@ function renderApiKeys(apiKeys) {
             </div>
             <div style="font-family: monospace; font-size: 0.85rem; color: #666;">
               ${key.key.substring(0, 20)}...${key.key.substring(
-        key.key.length - 4
-      )}
+                key.key.length - 4,
+              )}
             </div>
             <div style="font-size: 0.85rem; color: #999; margin-top: 0.5rem;">
               Requests: ${key.requestCount || 0}
               ${
                 key.lastError
                   ? `| Last Error: ${new Date(
-                      key.lastError.timestamp
+                      key.lastError.timestamp,
                     ).toLocaleString()}`
                   : ""
               }
@@ -4870,17 +4981,17 @@ function renderApiKeys(apiKeys) {
             <button class="btn btn-sm ${
               key.enabled ? "btn-secondary" : "btn-success"
             }" 
-                    onclick="toggleApiKey('${key.id}', ${!key.enabled}, '${key.provider || 'gemini'}')">
+                    onclick="toggleApiKey('${key.id}', ${!key.enabled}, '${key.provider || "gemini"}')">
               <i class="fas fa-${key.enabled ? "ban" : "check"}"></i>
               ${key.enabled ? "Disable" : "Enable"}
             </button>
-            <button class="btn btn-sm btn-danger" onclick="deleteApiKey('${key.id}', '${key.provider || 'gemini'}')">
+            <button class="btn btn-sm btn-danger" onclick="deleteApiKey('${key.id}', '${key.provider || "gemini"}')">
               <i class="fas fa-trash"></i>
             </button>
           </div>
         </div>
       </div>
-    `
+    `,
     )
     .join("");
 
@@ -4953,10 +5064,10 @@ async function updateApiKeyPriorities() {
   items.forEach((item, index) => {
     const keyId = item.getAttribute("data-key-id");
     const provider = item.getAttribute("data-provider");
-    
+
     const targetList = provider === "gpt" ? gptKeys : geminiKeys;
     const key = targetList.find((k) => k.id === keyId);
-    
+
     if (key) {
       key.priority = index + 1;
     }
@@ -4967,9 +5078,9 @@ async function updateApiKeyPriorities() {
     const saveResponse = await fetch("/api/bot/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         geminiApiKeys: geminiKeys,
-        gptApiKeys: gptKeys
+        gptApiKeys: gptKeys,
       }),
     });
 
@@ -4980,7 +5091,6 @@ async function updateApiKeyPriorities() {
     showMessage("settings-message", "Failed to update priorities", "error");
   }
 }
-
 
 async function handleSaveApiKey() {
   const nameInput = document.getElementById("api-key-name");
@@ -4993,7 +5103,7 @@ async function handleSaveApiKey() {
     showMessage(
       "settings-message",
       "Please provide both name and API key",
-      "error"
+      "error",
     );
     return;
   }
@@ -5066,7 +5176,7 @@ async function toggleApiKey(keyId, enabled, provider = "gemini") {
     showMessage(
       "settings-message",
       `API key ${enabled ? "enabled" : "disabled"}!`,
-      "success"
+      "success",
     );
     loadSettingsView(); // Reload
   } catch (error) {
@@ -5158,7 +5268,7 @@ function renderCategoryLimits(categoryLimits) {
             </div>
           </div>
         </div>
-      `
+      `,
       )
       .join("");
   }
@@ -5176,7 +5286,7 @@ function showAddCategoryLimitModal() {
 
   const maxAds = prompt(
     "Enter maximum number of ads per day for this category:",
-    "50"
+    "50",
   );
   if (!maxAds || isNaN(maxAds) || parseInt(maxAds) < 1) {
     alert("Please enter a valid number greater than 0");
@@ -5217,7 +5327,7 @@ async function addCategoryLimit(category, maxAds) {
     }
 
     alert(
-      `✅ Category limit added for "${category}" (Max: ${maxAds} ads/day)!`
+      `✅ Category limit added for "${category}" (Max: ${maxAds} ads/day)!`,
     );
     await loadSettingsView(); // Reload to show new limit
   } catch (error) {
@@ -5249,7 +5359,7 @@ async function toggleCategoryLimit(index, enabled) {
       }
 
       alert(
-        `✅ "${category}" limit ${enabled ? "✔️ enabled" : "❌ disabled"}!`
+        `✅ "${category}" limit ${enabled ? "✔️ enabled" : "❌ disabled"}!`,
       );
 
       // Update the display inline without full reload
@@ -5398,7 +5508,7 @@ function renderCollectionsInSettings() {
         </div>
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 }
@@ -5440,10 +5550,10 @@ async function editCollectionInSettings(collectionId) {
 
           // Separate communities and groups
           const communities = sortedGroups.filter(
-            (g) => g.isCommunity || g.type === "Community"
+            (g) => g.isCommunity || g.type === "Community",
           );
           const regularGroups = sortedGroups.filter(
-            (g) => !g.isCommunity && g.type !== "Community"
+            (g) => !g.isCommunity && g.type !== "Community",
           );
 
           let groupsHTML = "";
@@ -5457,7 +5567,7 @@ async function editCollectionInSettings(collectionId) {
                 (group) => `
               <div class="group-item" style="padding: 8px; border-bottom: 1px solid #eee; padding-left: 20px;">
                 <input type="checkbox" id="coll-group-${escapeHtml(
-                  group.jid
+                  group.jid,
                 )}" value="${escapeHtml(group.jid)}"
                   ${
                     collection.groups && collection.groups.includes(group.jid)
@@ -5465,12 +5575,12 @@ async function editCollectionInSettings(collectionId) {
                       : ""
                   }>
                 <label for="coll-group-${escapeHtml(
-                  group.jid
+                  group.jid,
                 )}" style="margin-left: 8px; cursor: pointer;">
                   📢 ${escapeHtml(group.name)}
                 </label>
               </div>
-            `
+            `,
               )
               .join("");
           }
@@ -5484,7 +5594,7 @@ async function editCollectionInSettings(collectionId) {
                 (group) => `
               <div class="group-item" style="padding: 8px; border-bottom: 1px solid #eee; padding-left: 20px;">
                 <input type="checkbox" id="coll-group-${escapeHtml(
-                  group.jid
+                  group.jid,
                 )}" value="${escapeHtml(group.jid)}"
                   ${
                     collection.groups && collection.groups.includes(group.jid)
@@ -5492,12 +5602,12 @@ async function editCollectionInSettings(collectionId) {
                       : ""
                   }>
                 <label for="coll-group-${escapeHtml(
-                  group.jid
+                  group.jid,
                 )}" style="margin-left: 8px; cursor: pointer;">
                   👥 ${escapeHtml(group.name)}
                 </label>
               </div>
-            `
+            `,
               )
               .join("");
           }
@@ -5572,7 +5682,7 @@ async function saveEditedCollection(collectionId) {
     showMessage(
       "settings-message",
       "Collection updated successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error updating collection:", error);
@@ -5586,7 +5696,7 @@ async function deleteCollectionFromSettings(collectionId) {
 
   if (
     !confirm(
-      `Are you sure you want to delete the collection "${collection.name}"?`
+      `Are you sure you want to delete the collection "${collection.name}"?`,
     )
   )
     return;
@@ -5606,7 +5716,7 @@ async function deleteCollectionFromSettings(collectionId) {
     showMessage(
       "settings-message",
       "Collection deleted successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error deleting collection:", error);
@@ -5655,10 +5765,10 @@ function setupCollectionsManagementListeners() {
 
               // Separate communities and groups
               const communities = sortedGroups.filter(
-                (g) => g.isCommunity || g.type === "Community"
+                (g) => g.isCommunity || g.type === "Community",
               );
               const regularGroups = sortedGroups.filter(
-                (g) => !g.isCommunity && g.type !== "Community"
+                (g) => !g.isCommunity && g.type !== "Community",
               );
 
               let groupsHTML = "";
@@ -5672,15 +5782,15 @@ function setupCollectionsManagementListeners() {
                     (group) => `
                   <div class="group-item" style="padding: 8px; border-bottom: 1px solid #eee; padding-left: 20px;">
                     <input type="checkbox" id="coll-group-${escapeHtml(
-                      group.jid
+                      group.jid,
                     )}" value="${escapeHtml(group.jid)}">
                     <label for="coll-group-${escapeHtml(
-                      group.jid
+                      group.jid,
                     )}" style="margin-left: 8px; cursor: pointer;">
                       📢 ${escapeHtml(group.name)}
                     </label>
                   </div>
-                `
+                `,
                   )
                   .join("");
               }
@@ -5694,22 +5804,22 @@ function setupCollectionsManagementListeners() {
                     (group) => `
                   <div class="group-item" style="padding: 8px; border-bottom: 1px solid #eee; padding-left: 20px;">
                     <input type="checkbox" id="coll-group-${escapeHtml(
-                      group.jid
+                      group.jid,
                     )}" value="${escapeHtml(group.jid)}">
                     <label for="coll-group-${escapeHtml(
-                      group.jid
+                      group.jid,
                     )}" style="margin-left: 8px; cursor: pointer;">
                       👥 ${escapeHtml(group.name)}
                     </label>
                   </div>
-                `
+                `,
                   )
                   .join("");
               }
 
               groupsList.innerHTML = groupsHTML;
               console.log(
-                "📂 ✅ Groups rendered successfully in collections form"
+                "📂 ✅ Groups rendered successfully in collections form",
               );
             }
           } else {
@@ -5789,7 +5899,7 @@ async function saveNewCollection() {
     showMessage(
       "settings-message",
       "Collection created successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error creating collection:", error);
@@ -5815,7 +5925,7 @@ function renderCategoriesInSettings() {
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
           <div style="width: 30px; height: 30px; background: ${escapeHtml(
-            category.color
+            category.color,
           )}; border-radius: 4px;"></div>
           <strong>${escapeHtml(category.name)}</strong>
         </div>
@@ -5833,7 +5943,7 @@ function renderCategoriesInSettings() {
         </div>
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 }
@@ -5891,7 +6001,7 @@ async function saveEditedCategory(categoryId) {
     showMessage(
       "settings-message",
       "Category updated successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error updating category:", error);
@@ -5923,7 +6033,7 @@ async function deleteCategoryFromSettings(categoryId) {
     showMessage(
       "settings-message",
       "Category deleted successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error deleting category:", error);
@@ -5995,7 +6105,7 @@ async function saveNewCategory() {
     showMessage(
       "settings-message",
       "Category created successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error creating category:", error);
@@ -6012,7 +6122,7 @@ async function handleSaveAllSettings() {
     showMessage(
       "settings-message",
       "Please enter a valid number between 1 and 365",
-      "error"
+      "error",
     );
     return;
   }
@@ -6083,17 +6193,17 @@ async function testWordPressConnection() {
       alert(
         `✅ Connection successful!\n\nLogged in as: ${
           userData.name
-        }\nRole: ${userData.roles.join(", ")}`
+        }\nRole: ${userData.roles.join(", ")}`,
       );
     } else {
       alert(
-        `❌ Connection failed!\n\nStatus: ${response.status}\nMake sure the credentials are correct and WordPress REST API is enabled.`
+        `❌ Connection failed!\n\nStatus: ${response.status}\nMake sure the credentials are correct and WordPress REST API is enabled.`,
       );
     }
   } catch (error) {
     console.error("WordPress test error:", error);
     alert(
-      `❌ Connection failed!\n\nError: ${error.message}\n\nNote: Browser may block cross-origin requests. The connection will work from the server.`
+      `❌ Connection failed!\n\nError: ${error.message}\n\nNote: Browser may block cross-origin requests. The connection will work from the server.`,
     );
   } finally {
     testBtn.disabled = false;
@@ -6116,7 +6226,7 @@ async function updateAutoApproveWordPress(enabled) {
     showMessage(
       "settings-message",
       `Auto-approve & post to WordPress ${statusText} successfully!`,
-      "success"
+      "success",
     );
     console.log(`✅ Auto-approve WordPress ${statusText}`);
   } catch (error) {
@@ -6124,7 +6234,7 @@ async function updateAutoApproveWordPress(enabled) {
     showMessage(
       "settings-message",
       "Failed to update auto-approve setting",
-      "error"
+      "error",
     );
     // Revert the toggle on error
     const toggle = document.getElementById("auto-approve-wp-toggle");
@@ -6348,9 +6458,9 @@ function updateTopGroupsChart(groupStats) {
       return `
       <div class="chart-bar">
         <div class="chart-bar-label" title="${group.name}">${truncateText(
-        group.name,
-        15
-      )}</div>
+          group.name,
+          15,
+        )}</div>
         <div class="chart-bar-container">
           <div class="chart-bar-fill" style="width: ${percentage}%; background: ${color};">
             ${group.total}
@@ -6444,8 +6554,8 @@ function updateRecentActivity(recentAds) {
           <div class="activity-preview">${ad.preview}...</div>
         </div>
         <div class="activity-badge badge-${ad.status}">${getStatusText(
-        ad.status
-      )}</div>
+          ad.status,
+        )}</div>
       </div>
     `;
     })
@@ -6531,13 +6641,13 @@ function setupWhatsAppSearch() {
       if (!listContainer || !whatsappMessagesState.allMessages.length) return;
 
       const filteredMessages = applyWhatsAppFilters(
-        whatsappMessagesState.allMessages
+        whatsappMessagesState.allMessages,
       );
       updateWhatsAppMessagesCount(filteredMessages.length);
 
       const messagesToShow = filteredMessages.slice(
         0,
-        whatsappMessagesState.itemsPerPage
+        whatsappMessagesState.itemsPerPage,
       );
       listContainer.innerHTML = "";
       renderWhatsAppMessageCards(messagesToShow, listContainer);
@@ -6587,10 +6697,13 @@ async function loadWhatsAppMessagesView(append = false) {
     }
 
     // Use the optimized endpoint that pre-filters server-side
-    const response = await fetch(`/api/bot/ads/whatsapp-messages?${params.toString()}`, {
-      credentials: "include",
-      cache: "no-cache",
-    });
+    const response = await fetch(
+      `/api/bot/ads/whatsapp-messages?${params.toString()}`,
+      {
+        credentials: "include",
+        cache: "no-cache",
+      },
+    );
 
     if (response.status === 401 || response.status === 403) {
       currentUser = null;
@@ -6606,19 +6719,24 @@ async function loadWhatsAppMessagesView(append = false) {
     const ads = data.ads || [];
     const pagination = data.pagination || {};
 
-    console.log(`📦 WhatsApp messages loaded: ${ads.length} (page ${pagination.currentPage}/${pagination.totalPages}, total: ${pagination.totalAds})`);
+    console.log(
+      `📦 WhatsApp messages loaded: ${ads.length} (page ${pagination.currentPage}/${pagination.totalPages}, total: ${pagination.totalAds})`,
+    );
 
     // Store for search functionality
     if (!append) {
       whatsappMessagesState.allMessages = ads;
       whatsappMessagesState.totalMessages = pagination.totalAds;
-      
+
       // Populate filter dropdowns from server data
       populateWhatsAppCategoryFilterFromData(data.allCategories || []);
       populateWhatsAppGroupFilterFromData(data.allGroups || []);
     } else {
       // Append new messages
-      whatsappMessagesState.allMessages = [...whatsappMessagesState.allMessages, ...ads];
+      whatsappMessagesState.allMessages = [
+        ...whatsappMessagesState.allMessages,
+        ...ads,
+      ];
     }
 
     // Update count
@@ -6637,7 +6755,9 @@ async function loadWhatsAppMessagesView(append = false) {
       listContainer.innerHTML = "";
     } else {
       // Remove load more button if it exists
-      const loadMoreBtn = listContainer.querySelector(".load-more-whatsapp-container");
+      const loadMoreBtn = listContainer.querySelector(
+        ".load-more-whatsapp-container",
+      );
       if (loadMoreBtn) {
         loadMoreBtn.remove();
       }
@@ -6645,7 +6765,10 @@ async function loadWhatsAppMessagesView(append = false) {
 
     // Apply local search if any using SmartSearch (filters are server-side now)
     let messagesToRender = ads;
-    if (whatsappMessagesState.searchQuery && whatsappMessagesState.searchQuery.trim()) {
+    if (
+      whatsappMessagesState.searchQuery &&
+      whatsappMessagesState.searchQuery.trim()
+    ) {
       const query = whatsappMessagesState.searchQuery.trim();
       messagesToRender = SmartSearch.searchAds(ads, query);
     }
@@ -6698,12 +6821,14 @@ function populateWhatsAppGroupFilterFromData(groups) {
   const currentValue = groupSelect.value;
   groupSelect.innerHTML = '<option value="all">👥 All Groups</option>';
 
-  groups.sort((a, b) => a.name.localeCompare(b.name)).forEach((group) => {
-    const option = document.createElement("option");
-    option.value = group.id;
-    option.textContent = group.name;
-    groupSelect.appendChild(option);
-  });
+  groups
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .forEach((group) => {
+      const option = document.createElement("option");
+      option.value = group.id;
+      option.textContent = group.name;
+      groupSelect.appendChild(option);
+    });
 
   if (currentValue && currentValue !== "all") {
     groupSelect.value = currentValue;
@@ -6725,7 +6850,7 @@ function populateWhatsAppCategoryFilter(ads) {
           const meta = ad.wpData && ad.wpData.meta ? ad.wpData.meta : {};
           return meta.arc_category || meta.parent_catt || ad.category || null;
         })
-        .filter(Boolean)
+        .filter(Boolean),
     ),
   ];
   categories.sort();
@@ -6761,8 +6886,8 @@ function populateWhatsAppGroupFilter(ads) {
   groupSelect.innerHTML = '<option value="all">👥 All Groups</option>';
 
   // Add group options sorted alphabetically
-  const sortedGroups = Array.from(groupsMap.entries()).sort((a, b) => 
-    a[1].localeCompare(b[1])
+  const sortedGroups = Array.from(groupsMap.entries()).sort((a, b) =>
+    a[1].localeCompare(b[1]),
   );
 
   sortedGroups.forEach(([id, name]) => {
@@ -6793,7 +6918,9 @@ function applyWhatsAppFilters(messages) {
       const searchableText = SmartSearch.extractAdSearchableText(ad);
       return SmartSearch.matches(searchableText, query);
     });
-    console.log(`🔍 Smart Search (WhatsApp): "${query}" - Found ${filtered.length}/${messages.length} messages`);
+    console.log(
+      `🔍 Smart Search (WhatsApp): "${query}" - Found ${filtered.length}/${messages.length} messages`,
+    );
   }
 
   // Filter by status (sent vs pending)
@@ -6818,7 +6945,7 @@ function applyWhatsAppFilters(messages) {
     });
   }
   console.log(
-    `📊 [FILTER] Status: ${whatsappMessagesState.filterStatus}, Before: ${messages.length}, After: ${filtered.length}`
+    `📊 [FILTER] Status: ${whatsappMessagesState.filterStatus}, Before: ${messages.length}, After: ${filtered.length}`,
   );
   // "all" shows both sent and pending
 
@@ -6844,8 +6971,10 @@ function applyWhatsAppFilters(messages) {
   // Filter by group
   if (whatsappMessagesState.filterGroup !== "all") {
     filtered = filtered.filter((ad) => {
-      return ad.fromGroup === whatsappMessagesState.filterGroup || 
-             ad.fromGroupName === whatsappMessagesState.filterGroup;
+      return (
+        ad.fromGroup === whatsappMessagesState.filterGroup ||
+        ad.fromGroupName === whatsappMessagesState.filterGroup
+      );
     });
   }
 
@@ -6854,14 +6983,18 @@ function applyWhatsAppFilters(messages) {
     switch (whatsappMessagesState.sortBy) {
       case "accepted-desc": {
         // Sort by accepted/posted time (newest first)
-        const aAccepted = a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
-        const bAccepted = b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
+        const aAccepted =
+          a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
+        const bAccepted =
+          b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
         return new Date(bAccepted) - new Date(aAccepted);
       }
       case "accepted-asc": {
         // Sort by accepted/posted time (oldest first)
-        const aAccepted = a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
-        const bAccepted = b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
+        const aAccepted =
+          a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
+        const bAccepted =
+          b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
         return new Date(aAccepted) - new Date(bAccepted);
       }
       case "time-desc":
@@ -6876,8 +7009,10 @@ function applyWhatsAppFilters(messages) {
         return (a.aiConfidence || 0) - (b.aiConfidence || 0);
       default:
         // Default to accepted time (newest first)
-        const aDefault = a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
-        const bDefault = b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
+        const aDefault =
+          a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
+        const bDefault =
+          b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
         return new Date(bDefault) - new Date(aDefault);
     }
   });
@@ -6932,13 +7067,13 @@ function addLoadMoreWhatsAppButton(container, totalCount) {
 
   loadMoreBtn.addEventListener("click", async () => {
     console.log(
-      `🔄 Load More clicked! Current page: ${whatsappMessagesState.currentPage}`
+      `🔄 Load More clicked! Current page: ${whatsappMessagesState.currentPage}`,
     );
     loadMoreBtn.disabled = true;
     loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
     whatsappMessagesState.currentPage++;
     console.log(
-      `➡️ Incrementing to page: ${whatsappMessagesState.currentPage}`
+      `➡️ Incrementing to page: ${whatsappMessagesState.currentPage}`,
     );
     await loadWhatsAppMessagesView(true);
     loadMoreBtn.disabled = false;
@@ -6948,7 +7083,7 @@ function addLoadMoreWhatsAppButton(container, totalCount) {
   container.appendChild(loadMoreContainer);
 
   console.log(
-    `🔘 Load More button added (showing ${currentShowing} of ${totalCount})`
+    `🔘 Load More button added (showing ${currentShowing} of ${totalCount})`,
   );
 }
 
@@ -6970,7 +7105,7 @@ function renderWhatsAppMessageCards(ads, container) {
 
   ads.forEach((ad, index) => {
     console.log(
-      `  ➡️ Card ${index + 1}: ${ad.id} - ${ad.category || "No category"}`
+      `  ➡️ Card ${index + 1}: ${ad.id} - ${ad.category || "No category"}`,
     );
 
     // Determine target website (must be before using it)
@@ -6988,7 +7123,7 @@ function renderWhatsAppMessageCards(ads, container) {
         ad.postedToGroups
       }, sentToGroups: ${ad.sentToGroups}, selectedGroups: ${
         ad.selectedGroups?.length || 0
-      }, wasSent: ${wasSent}`
+      }, wasSent: ${wasSent}`,
     );
     card.dataset.adId = ad.id;
     card.dataset.status = wasSent ? "sent" : "pending";
@@ -7037,14 +7172,14 @@ function renderWhatsAppMessageCards(ads, container) {
             alt="Ad Image" 
             style="max-width: 100%; max-height: 150px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; object-fit: contain;"
             onclick="openAdImageFullView('${ad.id}')"
-            onerror="this.src='${ad.imageUrl.jpegThumbnail ? `data:image/jpeg;base64,${ad.imageUrl.jpegThumbnail}` : '/images/no-image-placeholder.png'}'"
+            onerror="this.src='${ad.imageUrl.jpegThumbnail ? `data:image/jpeg;base64,${ad.imageUrl.jpegThumbnail}` : "/images/no-image-placeholder.png"}'"
           />
           <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
             <button class="btn btn-sm btn-primary" onclick="openAdImageFullView('${ad.id}')" style="display: flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 0.75rem;">
               <i class="fas fa-expand"></i> Full View
             </button>
           </div>
-          <small style="color: #666; font-size: 0.7rem;">${ad.imageUrl.mimetype || 'image/jpeg'} ${ad.imageUrl.width && ad.imageUrl.height ? `• ${ad.imageUrl.width}x${ad.imageUrl.height} px` : ''}</small>
+          <small style="color: #666; font-size: 0.7rem;">${ad.imageUrl.mimetype || "image/jpeg"} ${ad.imageUrl.width && ad.imageUrl.height ? `• ${ad.imageUrl.width}x${ad.imageUrl.height} px` : ""}</small>
         </div>
       `;
     }
@@ -7090,15 +7225,15 @@ function renderWhatsAppMessageCards(ads, container) {
       ${
         ad.category
           ? `<span style="background: #f0f0f0; padding: 3px 8px; border-radius: 4px;"><i class="fas fa-folder"></i> ${escapeHtml(
-              ad.category
+              ad.category,
             )}</span>`
           : ""
       }
       <span><i class="fas fa-users"></i> ${escapeHtml(
-        ad.fromGroupName || ad.fromGroup
+        ad.fromGroupName || ad.fromGroup,
       )}</span>
       <span><i class="fas fa-clock"></i> ${new Date(
-        ad.timestamp
+        ad.timestamp,
       ).toLocaleString()}</span>
       ${
         ad.aiConfidence
@@ -7106,8 +7241,8 @@ function renderWhatsAppMessageCards(ads, container) {
               ad.aiConfidence > 70
                 ? "#28a745"
                 : ad.aiConfidence > 40
-                ? "#ffc107"
-                : "#dc3545"
+                  ? "#ffc107"
+                  : "#dc3545"
             }"><i class="fas fa-robot"></i> ${ad.aiConfidence}%</span>`
           : ""
       }
@@ -7130,7 +7265,8 @@ function renderWhatsAppMessageCards(ads, container) {
         margin-bottom: 8px;
         font-weight: 500;
       `;
-      label.innerHTML = '<i class="fas fa-folder"></i> Quick Send to Collection:';
+      label.innerHTML =
+        '<i class="fas fa-folder"></i> Quick Send to Collection:';
       collectionsSection.appendChild(label);
 
       const pillsWrapper = document.createElement("div");
@@ -7198,7 +7334,6 @@ function renderWhatsAppMessageCards(ads, container) {
       padding-top: 10px;
       border-top: 1px solid #e0e0e0;
     `;
-
 
     // View full ad button
     const viewButton = document.createElement("button");
@@ -7287,26 +7422,32 @@ function renderWhatsAppMessageCards(ads, container) {
 // Quick send to a collection - sends message to all groups in the collection
 async function quickSendToCollection(adId, ad, collection, cardElement) {
   const groups = collection.groups || [];
-  
+
   if (groups.length === 0) {
     alert(`Collection "${collection.name}" has no groups`);
     return;
   }
-  
+
   if (!ad.whatsappMessage) {
     alert("No WhatsApp message available. Please post to WordPress first.");
     return;
   }
 
   // Confirm action
-  if (!confirm(`Send message to all ${groups.length} groups in "${collection.name}"?`)) {
+  if (
+    !confirm(
+      `Send message to all ${groups.length} groups in "${collection.name}"?`,
+    )
+  ) {
     return;
   }
 
   // Update card UI to show sending status
-  const collectionsContainer = cardElement.querySelector(".collection-pills-container");
+  const collectionsContainer = cardElement.querySelector(
+    ".collection-pills-container",
+  );
   const originalContent = collectionsContainer.innerHTML;
-  
+
   collectionsContainer.innerHTML = `
     <div style="text-align: center; padding: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white;">
       <i class="fas fa-spinner fa-spin"></i> 
@@ -7324,7 +7465,7 @@ async function quickSendToCollection(adId, ad, collection, cardElement) {
   try {
     for (let i = 0; i < groups.length; i++) {
       const groupId = groups[i];
-      
+
       try {
         await fetch("/api/bot/send-message", {
           method: "POST",
@@ -7355,9 +7496,9 @@ async function quickSendToCollection(adId, ad, collection, cardElement) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           groupIds: groups,
-          collectionName: collection.name 
+          collectionName: collection.name,
         }),
       });
     } catch (err) {
@@ -7376,12 +7517,13 @@ async function quickSendToCollection(adId, ad, collection, cardElement) {
     // Update card status badge after 2 seconds
     setTimeout(() => {
       cardElement.dataset.status = "sent";
-      const statusBadge = cardElement.querySelector('[style*="background: #ffc107"]');
+      const statusBadge = cardElement.querySelector(
+        '[style*="background: #ffc107"]',
+      );
       if (statusBadge) {
         statusBadge.outerHTML = `<span style="background: #28a745; color: white; padding: 3px 8px; border-radius: 4px; font-weight: 500;"><i class="fas fa-check-circle"></i> Sent</span>`;
       }
     }, 2000);
-
   } catch (error) {
     console.error("Error in quickSendToCollection:", error);
     collectionsContainer.innerHTML = `
@@ -7389,7 +7531,7 @@ async function quickSendToCollection(adId, ad, collection, cardElement) {
         <i class="fas fa-exclamation-circle"></i> Error sending messages
       </div>
     `;
-    
+
     // Restore original content after 3 seconds
     setTimeout(() => {
       collectionsContainer.innerHTML = originalContent;
@@ -7435,7 +7577,7 @@ async function handleAcceptWhatsAppMessage(adId, ad, cardElement) {
     } else {
       // Need to post to WordPress first to get the link
       console.log(
-        "📝 Posting to WordPress first to generate message with link..."
+        "📝 Posting to WordPress first to generate message with link...",
       );
 
       // Update loading message
@@ -7456,7 +7598,7 @@ async function handleAcceptWhatsAppMessage(adId, ad, cardElement) {
 
         if (data.whatsappMessage) {
           console.log(
-            "✅ WordPress posted and WhatsApp message generated with link"
+            "✅ WordPress posted and WhatsApp message generated with link",
           );
 
           // Update loading message
@@ -7478,7 +7620,7 @@ async function handleAcceptWhatsAppMessage(adId, ad, cardElement) {
         if (loadingOverlay) loadingOverlay.style.display = "none";
         const errorData = await response.json();
         alert(
-          `Failed to post to WordPress: ${errorData.error || "Unknown error"}`
+          `Failed to post to WordPress: ${errorData.error || "Unknown error"}`,
         );
       }
     }
@@ -7499,7 +7641,7 @@ async function handleAcceptWhatsAppMessage(adId, ad, cardElement) {
 async function handleRejectWhatsAppMessage(adId, cardElement) {
   if (
     !confirm(
-      "Are you sure you want to reject this message? It will be moved to the recycle bin."
+      "Are you sure you want to reject this message? It will be moved to the recycle bin.",
     )
   ) {
     return;
@@ -7587,7 +7729,7 @@ let interestGroups = [];
 function toggleInterestGroupsSection() {
   const container = document.getElementById("interest-groups-container");
   const icon = document.getElementById("interest-groups-toggle-icon");
-  
+
   if (container.style.display === "none") {
     container.style.display = "block";
     icon.style.transform = "rotate(180deg)";
@@ -7603,15 +7745,16 @@ async function fetchInterestGroups() {
     const response = await fetch("/api/bot/interest-groups", {
       credentials: "include",
     });
-    
+
     if (!response.ok) {
       throw new Error("Failed to fetch interest groups");
     }
-    
+
     const data = await response.json();
     interestGroups = data.groups || [];
-    
-    document.getElementById("interest-groups-count").textContent = interestGroups.length;
+
+    document.getElementById("interest-groups-count").textContent =
+      interestGroups.length;
     renderInterestGroups(interestGroups);
   } catch (error) {
     console.error("Error fetching interest groups:", error);
@@ -7625,7 +7768,7 @@ async function fetchInterestGroups() {
 
 function renderInterestGroups(groups) {
   const container = document.getElementById("interest-groups-list");
-  
+
   if (!groups || groups.length === 0) {
     container.innerHTML = `
       <div style="text-align: center; padding: 30px; color: #666; grid-column: 1 / -1;">
@@ -7636,8 +7779,10 @@ function renderInterestGroups(groups) {
     `;
     return;
   }
-  
-  container.innerHTML = groups.map(group => `
+
+  container.innerHTML = groups
+    .map(
+      (group) => `
     <div class="interest-group-card" data-group-id="${group.id}">
       <div class="client-card-header">
         <span class="group-tag">${group.id}</span>
@@ -7657,27 +7802,34 @@ function renderInterestGroups(groups) {
       
       <div class="group-stats">
         <span><i class="fas fa-users" style="color: #667eea;"></i> ${group.members.length} عضو</span>
-        <span><i class="fas fa-calendar-alt" style="color: #667eea;"></i> ${new Date(group.createdAt).toLocaleDateString('en-GB')}</span>
+        <span><i class="fas fa-calendar-alt" style="color: #667eea;"></i> ${new Date(group.createdAt).toLocaleDateString("en-GB")}</span>
       </div>
       
       <div id="members-${group.id}" class="group-members-list" style="display: none;">
-        ${group.members.map((m, i) => `
+        ${group.members
+          .map(
+            (m, i) => `
           <div class="group-member-item">
-            <span style="font-weight: 500;">${i + 1}. ${escapeHtml(m.name || 'غير محدد')}</span>
+            <span style="font-weight: 500;">${i + 1}. ${escapeHtml(m.name || "غير محدد")}</span>
             <a href="https://wa.me/${m.phone}" target="_blank" style="color: #25D366; text-decoration: none; font-size: 0.85rem;">
                <i class="fab fa-whatsapp"></i> +${m.phone}
             </a>
           </div>
-        `).join('')}
+        `,
+          )
+          .join("")}
       </div>
     </div>
-  `).join('');
+  `,
+    )
+    .join("");
 }
 
 function toggleGroupMembers(groupId) {
   const membersDiv = document.getElementById(`members-${groupId}`);
   if (membersDiv) {
-    membersDiv.style.display = membersDiv.style.display === "none" ? "block" : "none";
+    membersDiv.style.display =
+      membersDiv.style.display === "none" ? "block" : "none";
   }
 }
 
@@ -7685,13 +7837,13 @@ async function deleteInterestGroup(groupId) {
   if (!confirm(`هل تريد حذف المجموعة ${groupId}؟`)) {
     return;
   }
-  
+
   try {
     const response = await fetch(`/api/bot/interest-groups/${groupId}`, {
       method: "DELETE",
       credentials: "include",
     });
-    
+
     if (response.ok) {
       await fetchInterestGroups();
     } else {
@@ -7705,38 +7857,41 @@ async function deleteInterestGroup(groupId) {
 
 // Filter interest groups by search term
 function filterInterestGroupsBySearch() {
-  const search = document.getElementById("pc-search-input")?.value?.toLowerCase().trim() || "";
-  
+  const search =
+    document.getElementById("pc-search-input")?.value?.toLowerCase().trim() ||
+    "";
+
   if (!interestGroups || interestGroups.length === 0) return;
-  
+
   if (!search) {
     // No search term - show all groups
     renderInterestGroups(interestGroups);
     return;
   }
-  
+
   // Filter groups by:
   // - Group ID (e.g., IG001)
   // - Interest text
   // - Member name
   // - Member phone
-  const filtered = interestGroups.filter(group => {
+  const filtered = interestGroups.filter((group) => {
     // Check group ID
     if (group.id.toLowerCase().includes(search)) return true;
-    
+
     // Check interest text
     if (group.interest.toLowerCase().includes(search)) return true;
-    
+
     // Check members
-    return group.members.some(member => {
-      if (member.name && member.name.toLowerCase().includes(search)) return true;
+    return group.members.some((member) => {
+      if (member.name && member.name.toLowerCase().includes(search))
+        return true;
       if (member.phone && member.phone.includes(search)) return true;
       return false;
     });
   });
-  
+
   renderInterestGroups(filtered);
-  
+
   // If search found results in groups, expand the section automatically
   if (filtered.length > 0) {
     const container = document.getElementById("interest-groups-container");
@@ -7755,12 +7910,16 @@ async function loadPrivateClientsView() {
     const countEl = document.getElementById("interest-groups-count");
     if (countEl) {
       try {
-        const resp = await fetch("/api/bot/interest-groups", { credentials: "include" });
+        const resp = await fetch("/api/bot/interest-groups", {
+          credentials: "include",
+        });
         if (resp.ok) {
           const data = await resp.json();
           countEl.textContent = data.count || 0;
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        /* ignore */
+      }
     }
   } catch (error) {
     console.error("Error loading private clients:", error);
@@ -7782,7 +7941,7 @@ async function fetchPrivateClients() {
       `/api/bot/private-clients?${params.toString()}`,
       {
         credentials: "include",
-      }
+      },
     );
 
     if (!response.ok) {
@@ -7856,19 +8015,19 @@ function renderPrivateClients(clients) {
   // Add event listeners
   clients.forEach((client) => {
     const expandBtn = document.getElementById(
-      `pc-expand-${client.phoneNumber}`
+      `pc-expand-${client.phoneNumber}`,
     );
     const viewBtn = document.getElementById(`pc-view-${client.phoneNumber}`);
     const deleteBtn = document.getElementById(
-      `pc-delete-${client.phoneNumber}`
+      `pc-delete-${client.phoneNumber}`,
     );
     const whatsappBtn = document.getElementById(
-      `pc-whatsapp-${client.phoneNumber}`
+      `pc-whatsapp-${client.phoneNumber}`,
     );
 
     if (expandBtn) {
       expandBtn.addEventListener("click", () =>
-        toggleClientDetails(client.phoneNumber)
+        toggleClientDetails(client.phoneNumber),
       );
     }
 
@@ -7878,7 +8037,7 @@ function renderPrivateClients(clients) {
 
     if (deleteBtn) {
       deleteBtn.addEventListener("click", () =>
-        deleteClient(client.phoneNumber)
+        deleteClient(client.phoneNumber),
       );
     }
 
@@ -7895,13 +8054,13 @@ function createClientCard(client) {
   const roleIcon = getRoleIcon(client.role);
   const stateClass = getStateClass(client.state);
   const stateText = getStateText(client.state);
-  
+
   // Map Arabic roles to English slugs for CSS classes
   const roleSlugMap = {
-    "باحث": "seeker",
-    "مالك": "owner",
-    "مستثمر": "investor",
-    "وسيط": "broker"
+    باحث: "seeker",
+    مالك: "owner",
+    مستثمر: "investor",
+    وسيط: "broker",
   };
   const roleSlug = roleSlugMap[client.role] || "other";
 
@@ -7911,17 +8070,23 @@ function createClientCard(client) {
 
   // Format requirements/offer preview - now supports multiple requests
   let requirementsPreview = "";
-  
+
   // Check if client has multiple requests (new format) or single requirements (legacy)
-  const requests = client.requests && Array.isArray(client.requests) && client.requests.length > 0
-    ? client.requests
-    : (client.requirements && client.requirements.propertyType ? [client.requirements] : []);
-  
+  const requests =
+    client.requests &&
+    Array.isArray(client.requests) &&
+    client.requests.length > 0
+      ? client.requests
+      : client.requirements && client.requirements.propertyType
+        ? [client.requirements]
+        : [];
+
   if (client.propertyOffer) {
     // Property offer (for مالك)
-    const offerText = typeof client.propertyOffer === "string" 
-      ? client.propertyOffer 
-      : JSON.stringify(client.propertyOffer, null, 2);
+    const offerText =
+      typeof client.propertyOffer === "string"
+        ? client.propertyOffer
+        : JSON.stringify(client.propertyOffer, null, 2);
     requirementsPreview = `
       <div class="detail-section" style="margin-top: 10px;">
         <strong style="display: block; margin-bottom: 5px;"><i class="fas fa-home"></i> Property Offer:</strong>
@@ -7935,29 +8100,29 @@ function createClientCard(client) {
         <strong><i class="fas fa-clipboard-list"></i> الطلبات (${requests.length}):</strong>
         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
     `;
-    
+
     requests.forEach((req, index) => {
-      const isReqActive = req.status !== 'inactive';
-      const statusBadge = isReqActive 
+      const isReqActive = req.status !== "inactive";
+      const statusBadge = isReqActive
         ? '<span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px;">نشط</span>'
         : '<span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px;">غير نشط</span>';
-      
+
       requirementsPreview += `
-        <div style="background: #ffffff; border-radius: 8px; padding: 10px; border: 1px solid #e2e8f0; border-right: 4px solid ${index === 0 ? '#667eea' : '#28a745'};">
+        <div style="background: #ffffff; border-radius: 8px; padding: 10px; border: 1px solid #e2e8f0; border-right: 4px solid ${index === 0 ? "#667eea" : "#28a745"};">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <strong style="color: #333; font-size: 13px;">📋 طلب ${index + 1}: ${escapeHtml(req.propertyType || 'غير محدد')}</strong>
+            <strong style="color: #333; font-size: 13px;">📋 طلب ${index + 1}: ${escapeHtml(req.propertyType || "غير محدد")}</strong>
             ${statusBadge}
           </div>
           <div style="display: grid; grid-template-columns: 1fr; gap: 4px; font-size: 12px; color: #4a5568;">
-            ${req.purpose ? `<div>📋 <strong>الغرض:</strong> ${escapeHtml(req.purpose)}</div>` : ''}
-            ${req.priceMin != null || req.priceMax != null ? `<div>💰 <strong>السعر:</strong> ${req.priceMin ? req.priceMin.toLocaleString() : '0'} - ${req.priceMax ? req.priceMax.toLocaleString() : '∞'} ريال</div>` : ''}
-            ${req.areaMin != null || req.areaMax != null ? `<div>📏 <strong>المساحة:</strong> ${req.areaMin || 0} - ${req.areaMax || '∞'} م²</div>` : ''}
-            ${req.neighborhoods && req.neighborhoods.length > 0 ? `<div style="margin-top: 2px;">📍 <strong>الأحياء:</strong> ${escapeHtml(req.neighborhoods.join('، '))}</div>` : ''}
+            ${req.purpose ? `<div>📋 <strong>الغرض:</strong> ${escapeHtml(req.purpose)}</div>` : ""}
+            ${req.priceMin != null || req.priceMax != null ? `<div>💰 <strong>السعر:</strong> ${req.priceMin ? req.priceMin.toLocaleString() : "0"} - ${req.priceMax ? req.priceMax.toLocaleString() : "∞"} ريال</div>` : ""}
+            ${req.areaMin != null || req.areaMax != null ? `<div>📏 <strong>المساحة:</strong> ${req.areaMin || 0} - ${req.areaMax || "∞"} م²</div>` : ""}
+            ${req.neighborhoods && req.neighborhoods.length > 0 ? `<div style="margin-top: 2px;">📍 <strong>الأحياء:</strong> ${escapeHtml(req.neighborhoods.join("، "))}</div>` : ""}
           </div>
         </div>
       `;
     });
-    
+
     requirementsPreview += `
         </div>
       </div>
@@ -8087,26 +8252,35 @@ function editClientDetails(client) {
 
   // Build editable form - now supports multiple requests
   let requirementsHTML = "";
-  
+
   // Get all requests (from requests array or legacy requirements)
-  const requests = client.requests && Array.isArray(client.requests) && client.requests.length > 0
-    ? client.requests
-    : (client.requirements && client.requirements.propertyType ? [client.requirements] : []);
-  
+  const requests =
+    client.requests &&
+    Array.isArray(client.requests) &&
+    client.requests.length > 0
+      ? client.requests
+      : client.requirements && client.requirements.propertyType
+        ? [client.requirements]
+        : [];
+
   if (client.role === "باحث" && requests.length > 0) {
     // Multiple requests editor
     requirementsHTML = `
       <div class="client-detail-section">
         <h3><i class="fas fa-clipboard-list"></i> Client Requests (${requests.length})</h3>
         <div id="requests-tabs" style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;">
-          ${requests.map((req, i) => `
-            <button type="button" class="request-tab ${i === 0 ? 'active' : ''}" data-index="${i}" 
-              style="padding: 8px 16px; border: 2px solid ${i === 0 ? '#667eea' : '#ddd'}; 
-              border-radius: 20px; background: ${i === 0 ? '#667eea' : 'white'}; 
-              color: ${i === 0 ? 'white' : '#333'}; cursor: pointer; font-weight: 500;">
-              📋 ${escapeHtml(req.propertyType || 'طلب ' + (i+1))}
+          ${requests
+            .map(
+              (req, i) => `
+            <button type="button" class="request-tab ${i === 0 ? "active" : ""}" data-index="${i}" 
+              style="padding: 8px 16px; border: 2px solid ${i === 0 ? "#667eea" : "#ddd"}; 
+              border-radius: 20px; background: ${i === 0 ? "#667eea" : "white"}; 
+              color: ${i === 0 ? "white" : "#333"}; cursor: pointer; font-weight: 500;">
+              📋 ${escapeHtml(req.propertyType || "طلب " + (i + 1))}
             </button>
-          `).join('')}
+          `,
+            )
+            .join("")}
           <button type="button" id="add-request-btn" 
             style="padding: 8px 16px; border: 2px dashed #28a745; border-radius: 20px; 
             background: white; color: #28a745; cursor: pointer; font-weight: bold;">
@@ -8114,28 +8288,34 @@ function editClientDetails(client) {
           </button>
         </div>
         
-        ${requests.map((req, i) => `
-          <div class="request-panel" data-index="${i}" style="display: ${i === 0 ? 'block' : 'none'};">
+        ${requests
+          .map(
+            (req, i) => `
+          <div class="request-panel" data-index="${i}" style="display: ${i === 0 ? "block" : "none"};">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-              <span style="font-size: 12px; color: #888;">ID: ${req.id || 'N/A'}</span>
+              <span style="font-size: 12px; color: #888;">ID: ${req.id || "N/A"}</span>
               <div style="display: flex; gap: 10px; align-items: center;">
                 <label style="display: flex; align-items: center; gap: 5px; font-size: 13px;">
-                  <input type="checkbox" id="edit-req-status-${i}" ${req.status !== 'inactive' ? 'checked' : ''}> 
+                  <input type="checkbox" id="edit-req-status-${i}" ${req.status !== "inactive" ? "checked" : ""}> 
                   نشط
                 </label>
-                ${requests.length > 1 ? `
+                ${
+                  requests.length > 1
+                    ? `
                   <button type="button" class="delete-request-btn" data-index="${i}" 
                     style="padding: 5px 10px; background: #dc3545; color: white; border: none; 
                     border-radius: 5px; cursor: pointer; font-size: 12px;">
                     <i class="fas fa-trash"></i> حذف
                   </button>
-                ` : ''}
+                `
+                    : ""
+                }
               </div>
             </div>
             <div class="requirements-edit-grid">
               <div class="req-field">
                 <label><i class="fas fa-home"></i> Property Type:</label>
-                <input type="text" id="edit-req-propertyType-${i}" class="edit-input" value="${escapeHtml(req.propertyType || '')}" placeholder="دبلكس، فيلا، شقة...">
+                <input type="text" id="edit-req-propertyType-${i}" class="edit-input" value="${escapeHtml(req.propertyType || "")}" placeholder="دبلكس، فيلا، شقة...">
               </div>
               <div class="req-field">
                 <label><i class="fas fa-tag"></i> Purpose:</label>
@@ -8152,7 +8332,7 @@ function editClientDetails(client) {
               </div>
               <div class="req-field">
                 <label><i class="fas fa-money-bill-wave"></i> Max Price (ريال):</label>
-                <input type="number" id="edit-req-priceMax-${i}" class="edit-input" value="${req.priceMax || ''}" placeholder="1000000">
+                <input type="number" id="edit-req-priceMax-${i}" class="edit-input" value="${req.priceMax || ""}" placeholder="1000000">
               </div>
               <div class="req-field">
                 <label><i class="fas fa-ruler-combined"></i> Min Area (م²):</label>
@@ -8160,19 +8340,21 @@ function editClientDetails(client) {
               </div>
               <div class="req-field">
                 <label><i class="fas fa-ruler-combined"></i> Max Area (م²):</label>
-                <input type="number" id="edit-req-areaMax-${i}" class="edit-input" value="${req.areaMax || ''}" placeholder="500">
+                <input type="number" id="edit-req-areaMax-${i}" class="edit-input" value="${req.areaMax || ""}" placeholder="500">
               </div>
               <div class="req-field full-width">
                 <label><i class="fas fa-map-marker-alt"></i> Neighborhoods:</label>
-                <input type="text" id="edit-req-neighborhoods-${i}" class="edit-input" value="${escapeHtml((req.neighborhoods || []).join(', '))}" placeholder="النزهة، الخالدية، العزيزية...">
+                <input type="text" id="edit-req-neighborhoods-${i}" class="edit-input" value="${escapeHtml((req.neighborhoods || []).join(", "))}" placeholder="النزهة، الخالدية، العزيزية...">
               </div>
               <div class="req-field full-width">
                 <label><i class="fas fa-phone"></i> Contact Number:</label>
-                <input type="text" id="edit-req-contactNumber-${i}" class="edit-input" value="${escapeHtml(req.contactNumber || '')}" placeholder="+966508007053">
+                <input type="text" id="edit-req-contactNumber-${i}" class="edit-input" value="${escapeHtml(req.contactNumber || "")}" placeholder="+966508007053">
               </div>
             </div>
           </div>
-        `).join('')}
+        `,
+          )
+          .join("")}
       </div>
     `;
   } else if (client.role === "مالك" && client.propertyOffer) {
@@ -8184,7 +8366,7 @@ function editClientDetails(client) {
       <div class="client-detail-section">
         <h3><i class="fas fa-home"></i> Property Offer</h3>
         <textarea id="edit-property-offer" class="edit-textarea" rows="10">${escapeHtml(
-          offerText
+          offerText,
         )}</textarea>
       </div>
     `;
@@ -8198,7 +8380,7 @@ function editClientDetails(client) {
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-user"></i> Name</div>
           <input type="text" id="edit-name" class="edit-input" value="${escapeHtml(
-            client.name || ""
+            client.name || "",
           )}" placeholder="Client Name">
         </div>
         <div class="detail-item">
@@ -8245,13 +8427,13 @@ function editClientDetails(client) {
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-calendar"></i> Created At</div>
           <div class="detail-item-value">${new Date(
-            client.createdAt
+            client.createdAt,
           ).toLocaleString("ar-EG")}</div>
         </div>
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-clock"></i> Last Updated</div>
           <div class="detail-item-value">${new Date(
-            client.lastUpdated
+            client.lastUpdated,
           ).toLocaleString("ar-EG")}</div>
         </div>
       </div>
@@ -8273,46 +8455,54 @@ function editClientDetails(client) {
   modal.style.display = "flex";
 
   // Tab switching for multiple requests
-  document.querySelectorAll('.request-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
+  document.querySelectorAll(".request-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
       const index = tab.dataset.index;
-      
+
       // Update tab styles
-      document.querySelectorAll('.request-tab').forEach(t => {
-        t.style.background = 'white';
-        t.style.color = '#333';
-        t.style.borderColor = '#ddd';
+      document.querySelectorAll(".request-tab").forEach((t) => {
+        t.style.background = "white";
+        t.style.color = "#333";
+        t.style.borderColor = "#ddd";
       });
-      tab.style.background = '#667eea';
-      tab.style.color = 'white';
-      tab.style.borderColor = '#667eea';
-      
+      tab.style.background = "#667eea";
+      tab.style.color = "white";
+      tab.style.borderColor = "#667eea";
+
       // Show corresponding panel
-      document.querySelectorAll('.request-panel').forEach(p => {
-        p.style.display = 'none';
+      document.querySelectorAll(".request-panel").forEach((p) => {
+        p.style.display = "none";
       });
-      const panel = document.querySelector(`.request-panel[data-index="${index}"]`);
-      if (panel) panel.style.display = 'block';
+      const panel = document.querySelector(
+        `.request-panel[data-index="${index}"]`,
+      );
+      if (panel) panel.style.display = "block";
     });
   });
 
   // Delete request buttons
-  document.querySelectorAll('.delete-request-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+  document.querySelectorAll(".delete-request-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
       const index = parseInt(btn.dataset.index);
-      if (confirm('هل أنت متأكد من حذف هذا الطلب؟')) {
+      if (confirm("هل أنت متأكد من حذف هذا الطلب؟")) {
         // Mark for deletion by hiding and adding a class
-        const panel = document.querySelector(`.request-panel[data-index="${index}"]`);
-        const tab = document.querySelector(`.request-tab[data-index="${index}"]`);
+        const panel = document.querySelector(
+          `.request-panel[data-index="${index}"]`,
+        );
+        const tab = document.querySelector(
+          `.request-tab[data-index="${index}"]`,
+        );
         if (panel) {
-          panel.classList.add('deleted');
-          panel.style.display = 'none';
+          panel.classList.add("deleted");
+          panel.style.display = "none";
         }
         if (tab) {
-          tab.style.display = 'none';
+          tab.style.display = "none";
         }
         // Switch to first visible tab
-        const firstVisibleTab = document.querySelector('.request-tab:not([style*="display: none"])');
+        const firstVisibleTab = document.querySelector(
+          '.request-tab:not([style*="display: none"])',
+        );
         if (firstVisibleTab) firstVisibleTab.click();
       }
     });
@@ -8326,37 +8516,55 @@ function editClientDetails(client) {
       name: document.getElementById("edit-name").value.trim(),
       role: document.getElementById("edit-role").value,
       state: document.getElementById("edit-state").value,
-      newPhoneNumber: newPhoneValue !== client.phoneNumber ? newPhoneValue : undefined,
+      newPhoneNumber:
+        newPhoneValue !== client.phoneNumber ? newPhoneValue : undefined,
     };
 
     // Get all requests from indexed fields if role is باحث
     if (updatedData.role === "باحث") {
-      const requestPanels = document.querySelectorAll('.request-panel:not(.deleted)');
+      const requestPanels = document.querySelectorAll(
+        ".request-panel:not(.deleted)",
+      );
       const updatedRequests = [];
-      
+
       requestPanels.forEach((panel) => {
         const index = panel.dataset.index;
-        const propertyTypeEl = document.getElementById(`edit-req-propertyType-${index}`);
+        const propertyTypeEl = document.getElementById(
+          `edit-req-propertyType-${index}`,
+        );
         const purposeEl = document.getElementById(`edit-req-purpose-${index}`);
-        const priceMinEl = document.getElementById(`edit-req-priceMin-${index}`);
-        const priceMaxEl = document.getElementById(`edit-req-priceMax-${index}`);
+        const priceMinEl = document.getElementById(
+          `edit-req-priceMin-${index}`,
+        );
+        const priceMaxEl = document.getElementById(
+          `edit-req-priceMax-${index}`,
+        );
         const areaMinEl = document.getElementById(`edit-req-areaMin-${index}`);
         const areaMaxEl = document.getElementById(`edit-req-areaMax-${index}`);
-        const neighborhoodsEl = document.getElementById(`edit-req-neighborhoods-${index}`);
-        const contactNumberEl = document.getElementById(`edit-req-contactNumber-${index}`);
+        const neighborhoodsEl = document.getElementById(
+          `edit-req-neighborhoods-${index}`,
+        );
+        const contactNumberEl = document.getElementById(
+          `edit-req-contactNumber-${index}`,
+        );
         const statusEl = document.getElementById(`edit-req-status-${index}`);
-        
+
         if (propertyTypeEl) {
-          const neighborhoodsText = neighborhoodsEl?.value?.trim() || '';
+          const neighborhoodsText = neighborhoodsEl?.value?.trim() || "";
           const neighborhoodsArray = neighborhoodsText
-            ? neighborhoodsText.split(/[،,]/).map(n => n.trim()).filter(n => n)
+            ? neighborhoodsText
+                .split(/[،,]/)
+                .map((n) => n.trim())
+                .filter((n) => n)
             : [];
-          
+
           // Get existing request info to preserve id
           const existingReq = requests[parseInt(index)] || {};
-          
+
           updatedRequests.push({
-            id: existingReq.id || `req_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            id:
+              existingReq.id ||
+              `req_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             clientName: updatedData.name,
             propertyType: propertyTypeEl.value.trim() || null,
             purpose: purposeEl?.value || null,
@@ -8366,18 +8574,20 @@ function editClientDetails(client) {
             areaMax: areaMaxEl?.value ? parseInt(areaMaxEl.value) : null,
             neighborhoods: neighborhoodsArray,
             contactNumber: contactNumberEl?.value?.trim() || null,
-            status: statusEl?.checked ? 'active' : 'inactive',
+            status: statusEl?.checked ? "active" : "inactive",
             createdAt: existingReq.createdAt || Date.now(),
             updatedAt: Date.now(),
           });
         }
       });
-      
+
       // Save as requests array
       updatedData.requests = updatedRequests;
-      
+
       // Also update legacy requirements field with first active request (treat undefined as active)
-      const activeRequest = updatedRequests.find(r => r.status !== 'inactive') || updatedRequests[0];
+      const activeRequest =
+        updatedRequests.find((r) => r.status !== "inactive") ||
+        updatedRequests[0];
       if (activeRequest) {
         updatedData.requirements = activeRequest;
       }
@@ -8401,7 +8611,7 @@ function editClientDetails(client) {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(updatedData),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to update client");
@@ -8491,7 +8701,7 @@ function viewClientDetails(client) {
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-user"></i> Name</div>
           <div class="detail-item-value">${escapeHtml(
-            client.name || "Unknown"
+            client.name || "Unknown",
           )}</div>
         </div>
         <div class="detail-item">
@@ -8502,28 +8712,28 @@ function viewClientDetails(client) {
           <div class="detail-item-label"><i class="fas fa-user-tag"></i> Role</div>
           <div class="detail-item-value">
             <span class="role-badge role-${client.role}">${escapeHtml(
-    client.role || "Unknown"
-  )}</span>
+              client.role || "Unknown",
+            )}</span>
           </div>
         </div>
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-flag"></i> State</div>
           <div class="detail-item-value">
             <span class="state-badge state-${client.state}">${getStateText(
-    client.state
-  )}</span>
+              client.state,
+            )}</span>
           </div>
         </div>
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-calendar"></i> Created At</div>
           <div class="detail-item-value">${new Date(
-            client.createdAt
+            client.createdAt,
           ).toLocaleString("ar-EG")}</div>
         </div>
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-clock"></i> Last Updated</div>
           <div class="detail-item-value">${new Date(
-            client.lastUpdated
+            client.lastUpdated,
           ).toLocaleString("ar-EG")}</div>
         </div>
       </div>
@@ -8561,7 +8771,7 @@ function viewClientDetails(client) {
 async function deleteClient(phoneNumber) {
   if (
     !confirm(
-      `Are you sure you want to delete client ${phoneNumber}?\n\nThis action cannot be undone.`
+      `Are you sure you want to delete client ${phoneNumber}?\n\nThis action cannot be undone.`,
     )
   ) {
     return;
@@ -8689,7 +8899,7 @@ function renderExcludedGroupsList() {
 
   // Sort groups by name
   const sortedGroups = [...allGroupsForExclusion].sort((a, b) =>
-    (a.name || a.jid).localeCompare(b.name || b.jid)
+    (a.name || a.jid).localeCompare(b.name || b.jid),
   );
 
   listContainer.innerHTML = sortedGroups
@@ -8801,7 +9011,7 @@ let smartSummaryFilters = {
   mainCategories: [],
   subCategories: [],
   sourceGroups: [],
-  includeCommercial: true
+  includeCommercial: true,
 };
 let availableFiltersData = null;
 
@@ -8819,7 +9029,7 @@ async function initSmartSummaryBuilder() {
   try {
     // Load available filters from API
     await loadAvailableFilters();
-    
+
     // Set default dates
     const today = new Date();
     const todayStr = today.toISOString().split("T")[0];
@@ -8827,7 +9037,6 @@ async function initSmartSummaryBuilder() {
     const endDateInput = document.getElementById("smart-end-date");
     if (startDateInput) startDateInput.value = todayStr;
     if (endDateInput) endDateInput.value = todayStr;
-    
   } catch (error) {
     console.error("Error initializing smart summary builder:", error);
   }
@@ -8838,14 +9047,14 @@ async function loadAvailableFilters() {
     const response = await fetch("/api/bot/daily-summaries/available-filters", {
       credentials: "include",
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       availableFiltersData = data.filters;
-      
+
       // Render category chips
       renderMainCategoryChips();
-      
+
       // Render source groups
       renderSourceGroups();
     }
@@ -8857,10 +9066,10 @@ async function loadAvailableFilters() {
 function renderMainCategoryChips() {
   const container = document.getElementById("main-category-chips");
   if (!container || !availableFiltersData) return;
-  
+
   const website = smartSummaryFilters.website;
   let categories = [];
-  
+
   if (website === "masaak") {
     categories = availableFiltersData.categories.masaak || [];
   } else if (website === "hasak") {
@@ -8869,24 +9078,29 @@ function renderMainCategoryChips() {
     // All - combine both
     categories = [
       ...(availableFiltersData.categories.masaak || []),
-      ...(availableFiltersData.categories.hasak || [])
+      ...(availableFiltersData.categories.hasak || []),
     ];
   }
-  
+
   if (categories.length === 0) {
-    container.innerHTML = '<span style="color: #999;">لا توجد تصنيفات متاحة</span>';
+    container.innerHTML =
+      '<span style="color: #999;">لا توجد تصنيفات متاحة</span>';
     return;
   }
-  
-  container.innerHTML = categories.map(cat => `
+
+  container.innerHTML = categories
+    .map(
+      (cat) => `
     <button type="button" 
-            class="category-chip ${smartSummaryFilters.mainCategories.includes(cat.name) ? 'active' : ''}" 
+            class="category-chip ${smartSummaryFilters.mainCategories.includes(cat.name) ? "active" : ""}" 
             data-category="${cat.name}"
             onclick="toggleMainCategory('${cat.name}')">
-      ${cat.icon || '📁'} ${cat.displayName || cat.name}
+      ${cat.icon || "📁"} ${cat.displayName || cat.name}
     </button>
-  `).join("");
-  
+  `,
+    )
+    .join("");
+
   updateSelectedCategoriesCount();
 }
 
@@ -8897,13 +9111,13 @@ function toggleMainCategory(categoryName) {
   } else {
     smartSummaryFilters.mainCategories.push(categoryName);
   }
-  
+
   // Update chip visual
   const chip = document.querySelector(`[data-category="${categoryName}"]`);
   if (chip) {
     chip.classList.toggle("active");
   }
-  
+
   updateSelectedCategoriesCount();
   updateSubcategories();
 }
@@ -8911,14 +9125,14 @@ function toggleMainCategory(categoryName) {
 function selectAllCategories() {
   const container = document.getElementById("main-category-chips");
   const chips = container.querySelectorAll(".category-chip");
-  
+
   smartSummaryFilters.mainCategories = [];
-  chips.forEach(chip => {
+  chips.forEach((chip) => {
     const catName = chip.dataset.category;
     smartSummaryFilters.mainCategories.push(catName);
     chip.classList.add("active");
   });
-  
+
   updateSelectedCategoriesCount();
   updateSubcategories();
 }
@@ -8926,12 +9140,12 @@ function selectAllCategories() {
 function clearAllCategories() {
   const container = document.getElementById("main-category-chips");
   const chips = container.querySelectorAll(".category-chip");
-  
+
   smartSummaryFilters.mainCategories = [];
-  chips.forEach(chip => {
+  chips.forEach((chip) => {
     chip.classList.remove("active");
   });
-  
+
   updateSelectedCategoriesCount();
   updateSubcategories();
 }
@@ -8947,13 +9161,13 @@ function updateSelectedCategoriesCount() {
 async function updateSubcategories() {
   const section = document.getElementById("subcategories-section");
   const container = document.getElementById("subcategory-chips");
-  
+
   if (smartSummaryFilters.mainCategories.length === 0) {
     section.style.display = "none";
     smartSummaryFilters.subCategories = [];
     return;
   }
-  
+
   try {
     const response = await fetch("/api/bot/daily-summaries/subcategories", {
       method: "POST",
@@ -8961,24 +9175,28 @@ async function updateSubcategories() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mainCategories: smartSummaryFilters.mainCategories,
-        website: smartSummaryFilters.website
-      })
+        website: smartSummaryFilters.website,
+      }),
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       const subcategories = data.subcategories || [];
-      
+
       if (subcategories.length > 0) {
         section.style.display = "block";
-        container.innerHTML = subcategories.map(sub => `
+        container.innerHTML = subcategories
+          .map(
+            (sub) => `
           <button type="button" 
-                  class="subcategory-chip ${smartSummaryFilters.subCategories.includes(sub) ? 'active' : ''}" 
+                  class="subcategory-chip ${smartSummaryFilters.subCategories.includes(sub) ? "active" : ""}" 
                   data-subcategory="${sub}"
                   onclick="toggleSubcategory('${sub}')">
             ${sub}
           </button>
-        `).join("");
+        `,
+          )
+          .join("");
       } else {
         section.style.display = "none";
       }
@@ -8996,7 +9214,7 @@ function toggleSubcategory(subName) {
   } else {
     smartSummaryFilters.subCategories.push(subName);
   }
-  
+
   const chip = document.querySelector(`[data-subcategory="${subName}"]`);
   if (chip) {
     chip.classList.toggle("active");
@@ -9009,11 +9227,11 @@ let selectedSourceGroups = [];
 function renderSourceGroups() {
   const listContainer = document.getElementById("source-groups-list");
   const select = document.getElementById("source-groups-filter");
-  
+
   if (!listContainer || !availableFiltersData) return;
-  
+
   const groups = availableFiltersData.sourceGroups || [];
-  
+
   if (groups.length === 0) {
     listContainer.innerHTML = `
       <div style="text-align: center; color: #888; padding: 20px;">
@@ -9023,15 +9241,17 @@ function renderSourceGroups() {
     `;
     return;
   }
-  
+
   // Sync hidden select
   if (select) {
-    select.innerHTML = groups.map(g => 
-      `<option value="${g.jid}">${g.name}</option>`
-    ).join("");
+    select.innerHTML = groups
+      .map((g) => `<option value="${g.jid}">${g.name}</option>`)
+      .join("");
   }
-  
-  listContainer.innerHTML = groups.map(g => `
+
+  listContainer.innerHTML = groups
+    .map(
+      (g) => `
     <label class="source-group-item" data-jid="${g.jid}" data-name="${g.name.toLowerCase()}" 
            style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; margin-bottom: 4px; 
                   background: #f8f9fa; border-radius: 6px; cursor: pointer; transition: background 0.2s;">
@@ -9041,8 +9261,10 @@ function renderSourceGroups() {
       <span style="flex: 1; font-size: 14px; color: #333;">${g.name}</span>
       <i class="fas fa-users" style="color: #667eea; font-size: 12px;"></i>
     </label>
-  `).join("");
-  
+  `,
+    )
+    .join("");
+
   updateSelectedGroupsCount();
 }
 
@@ -9053,7 +9275,7 @@ function toggleSourceGroup(jid) {
   } else {
     selectedSourceGroups.push(jid);
   }
-  
+
   updateSelectedGroupsCount();
   syncHiddenSelect();
 }
@@ -9061,14 +9283,14 @@ function toggleSourceGroup(jid) {
 function selectAllSourceGroups() {
   const checkboxes = document.querySelectorAll(".source-group-checkbox");
   selectedSourceGroups = [];
-  
-  checkboxes.forEach(cb => {
+
+  checkboxes.forEach((cb) => {
     cb.checked = true;
     if (!selectedSourceGroups.includes(cb.value)) {
       selectedSourceGroups.push(cb.value);
     }
   });
-  
+
   updateSelectedGroupsCount();
   syncHiddenSelect();
 }
@@ -9076,11 +9298,11 @@ function selectAllSourceGroups() {
 function clearAllSourceGroups() {
   const checkboxes = document.querySelectorAll(".source-group-checkbox");
   selectedSourceGroups = [];
-  
-  checkboxes.forEach(cb => {
+
+  checkboxes.forEach((cb) => {
     cb.checked = false;
   });
-  
+
   updateSelectedGroupsCount();
   syncHiddenSelect();
 }
@@ -9089,8 +9311,8 @@ function filterSourceGroups() {
   const searchInput = document.getElementById("source-groups-search");
   const searchTerm = (searchInput?.value || "").toLowerCase().trim();
   const items = document.querySelectorAll(".source-group-item");
-  
-  items.forEach(item => {
+
+  items.forEach((item) => {
     const name = item.dataset.name || "";
     const matches = name.includes(searchTerm) || searchTerm === "";
     item.style.display = matches ? "flex" : "none";
@@ -9108,7 +9330,7 @@ function updateSelectedGroupsCount() {
 function syncHiddenSelect() {
   const select = document.getElementById("source-groups-filter");
   if (select) {
-    Array.from(select.options).forEach(opt => {
+    Array.from(select.options).forEach((opt) => {
       opt.selected = selectedSourceGroups.includes(opt.value);
     });
   }
@@ -9116,12 +9338,12 @@ function syncHiddenSelect() {
 
 function selectDatePreset(preset) {
   smartSummaryFilters.presetPeriod = preset;
-  
+
   // Update button states
-  document.querySelectorAll(".date-preset-btn").forEach(btn => {
+  document.querySelectorAll(".date-preset-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.preset === preset);
   });
-  
+
   // Show/hide custom date range
   const customRange = document.getElementById("custom-date-range");
   if (customRange) {
@@ -9131,16 +9353,16 @@ function selectDatePreset(preset) {
 
 function selectWebsite(website) {
   smartSummaryFilters.website = website;
-  
+
   // Update chip states
-  document.querySelectorAll("#website-chips .chip-btn").forEach(btn => {
+  document.querySelectorAll("#website-chips .chip-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.website === website);
   });
-  
+
   // Reset categories when website changes
   smartSummaryFilters.mainCategories = [];
   smartSummaryFilters.subCategories = [];
-  
+
   // Re-render categories
   renderMainCategoryChips();
   updateSubcategories();
@@ -9149,7 +9371,7 @@ function selectWebsite(website) {
 function toggleSmartSummaryBuilder() {
   const builder = document.getElementById("smart-summary-builder");
   const icon = document.getElementById("smart-builder-toggle-icon");
-  
+
   if (builder.style.display === "none") {
     builder.style.display = "block";
     icon.style.transform = "rotate(0deg)";
@@ -9162,10 +9384,11 @@ function toggleSmartSummaryBuilder() {
 function getSmartSummaryFilters() {
   // Use the selectedSourceGroups array (managed by checkbox UI)
   const selectedGroups = selectedSourceGroups || [];
-  
+
   // Get commercial toggle
-  const includeCommercial = document.getElementById("include-commercial")?.checked ?? true;
-  
+  const includeCommercial =
+    document.getElementById("include-commercial")?.checked ?? true;
+
   // Get custom dates if preset is custom
   let startDate = null;
   let endDate = null;
@@ -9173,16 +9396,22 @@ function getSmartSummaryFilters() {
     startDate = document.getElementById("smart-start-date")?.value;
     endDate = document.getElementById("smart-end-date")?.value;
   }
-  
+
   return {
     presetPeriod: smartSummaryFilters.presetPeriod,
     startDate: startDate,
     endDate: endDate,
     website: smartSummaryFilters.website || undefined,
-    mainCategories: smartSummaryFilters.mainCategories.length > 0 ? smartSummaryFilters.mainCategories : undefined,
-    subCategories: smartSummaryFilters.subCategories.length > 0 ? smartSummaryFilters.subCategories : undefined,
+    mainCategories:
+      smartSummaryFilters.mainCategories.length > 0
+        ? smartSummaryFilters.mainCategories
+        : undefined,
+    subCategories:
+      smartSummaryFilters.subCategories.length > 0
+        ? smartSummaryFilters.subCategories
+        : undefined,
     sourceGroups: selectedGroups.length > 0 ? selectedGroups : undefined,
-    includeCommercial: includeCommercial
+    includeCommercial: includeCommercial,
   };
 }
 
@@ -9190,27 +9419,28 @@ async function previewSmartSummary() {
   const previewBtn = document.getElementById("preview-smart-summary-btn");
   const previewCount = document.getElementById("preview-count");
   const messageDiv = document.getElementById("smart-summary-message");
-  
+
   try {
     previewBtn.disabled = true;
-    previewBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري المعاينة...';
-    
+    previewBtn.innerHTML =
+      '<i class="fas fa-spinner fa-spin"></i> جاري المعاينة...';
+
     const filters = getSmartSummaryFilters();
-    
+
     const response = await fetch("/api/bot/daily-summaries/preview", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(filters)
+      body: JSON.stringify(filters),
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       const count = data.preview?.count || 0;
-      
+
       previewCount.textContent = count;
       previewCount.style.display = "inline";
-      
+
       if (count === 0) {
         messageDiv.textContent = "⚠️ لا توجد إعلانات تطابق الفلاتر المحددة";
         messageDiv.className = "info-message warning";
@@ -9219,7 +9449,7 @@ async function previewSmartSummary() {
         messageDiv.className = "info-message success";
       }
       messageDiv.style.display = "block";
-      
+
       setTimeout(() => {
         messageDiv.style.display = "none";
       }, 5000);
@@ -9231,42 +9461,46 @@ async function previewSmartSummary() {
     messageDiv.style.display = "block";
   } finally {
     previewBtn.disabled = false;
-    previewBtn.innerHTML = '<i class="fas fa-eye"></i> معاينة <span id="preview-count" style="background: #667eea; color: white; padding: 2px 8px; border-radius: 10px; margin-right: 5px;">' + (document.getElementById("preview-count")?.textContent || '0') + '</span>';
+    previewBtn.innerHTML =
+      '<i class="fas fa-eye"></i> معاينة <span id="preview-count" style="background: #667eea; color: white; padding: 2px 8px; border-radius: 10px; margin-right: 5px;">' +
+      (document.getElementById("preview-count")?.textContent || "0") +
+      "</span>";
   }
 }
 
 async function generateSmartSummary() {
   const generateBtn = document.getElementById("generate-smart-summary-btn");
   const messageDiv = document.getElementById("smart-summary-message");
-  
+
   try {
     generateBtn.disabled = true;
-    generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإنشاء...';
-    
+    generateBtn.innerHTML =
+      '<i class="fas fa-spinner fa-spin"></i> جاري الإنشاء...';
+
     const filters = getSmartSummaryFilters();
-    
+
     const response = await fetch("/api/bot/daily-summaries/generate-custom", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(filters)
+      body: JSON.stringify(filters),
     });
-    
+
     if (response.ok) {
       const data = await response.json();
-      
+
       if (data.count === 0) {
         messageDiv.textContent = "⚠️ لا توجد إعلانات تطابق الفلاتر المحددة";
         messageDiv.className = "info-message warning";
       } else {
         messageDiv.textContent = `✅ تم إنشاء ملخص يحتوي على ${data.count} إعلان(ات)`;
         messageDiv.className = "info-message success";
-        
+
         // Reload summaries list
         await loadDailySummaries();
       }
       messageDiv.style.display = "block";
-      
+
       setTimeout(() => {
         messageDiv.style.display = "none";
       }, 5000);
@@ -9492,19 +9726,19 @@ function displayDailySummaries(summaries, stats) {
                onclick="toggleDaySection('${dateId}')">
             <div style="display: flex; align-items: center; gap: 10px;">
               <i class="fas fa-chevron-down day-toggle-icon" id="toggle-${dateId}" style="transition: transform 0.3s; ${
-        isFirstDate ? "" : "transform: rotate(-90deg);"
-      }"></i>
+                isFirstDate ? "" : "transform: rotate(-90deg);"
+              }"></i>
               <span><i class="fas fa-calendar-day"></i> ${arabicDate}</span>
               <span style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 15px; font-size: 0.85rem;">
                 ${dateSummaries.length} ${
-        dateSummaries.length === 1 ? "summary" : "summaries"
-      }
+                  dateSummaries.length === 1 ? "summary" : "summaries"
+                }
               </span>
             </div>
           </div>
           <div class="day-content" id="${dateId}" style="display: ${
-        isFirstDate ? "block" : "none"
-      };">
+            isFirstDate ? "block" : "none"
+          };">
       `;
 
       dateSummaries.forEach((summary) => {
@@ -9540,7 +9774,7 @@ function displayDailySummaries(summaries, stats) {
                         summary.adsCount
                       } ads</span>
                       <span><i class="fas fa-clock"></i> ${new Date(
-                        summary.createdAt
+                        summary.createdAt,
                       ).toLocaleTimeString("ar-SA", {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -9548,7 +9782,7 @@ function displayDailySummaries(summaries, stats) {
                       ${
                         isSent
                           ? `<span><i class="fas fa-paper-plane"></i> Sent ${new Date(
-                              summary.sentAt
+                              summary.sentAt,
                             ).toLocaleTimeString("ar-SA", {
                               hour: "2-digit",
                               minute: "2-digit",
@@ -9884,13 +10118,13 @@ async function sendSummaryFromPreview() {
 
     // Get selected groups (includes both regular groups and saved custom numbers)
     const groupCheckboxes = document.querySelectorAll(
-      "#groups-preview-list .group-checkbox:checked"
+      "#groups-preview-list .group-checkbox:checked",
     );
     const selectedGroups = Array.from(groupCheckboxes).map((cb) => cb.value);
 
     // Get saved custom numbers that are checked
     const savedNumberCheckboxes = document.querySelectorAll(
-      "#groups-preview-list .custom-number-checkbox:checked"
+      "#groups-preview-list .custom-number-checkbox:checked",
     );
     const savedNumbers = Array.from(savedNumberCheckboxes).map((cb) => ({
       phone: cb.value,
@@ -9930,7 +10164,7 @@ async function sendSummaryFromPreview() {
     if (typeof showLoadingOverlay === "function") {
       showLoadingOverlay(
         `Sending daily summary to ${totalRecipients} recipient(s)...`,
-        "Sending Messages"
+        "Sending Messages",
       );
     }
 
@@ -10164,11 +10398,12 @@ function renderReminders() {
 
   // Apply search filter client-side
   if (remindersState.searchQuery) {
-    reminders = reminders.filter((r) =>
-      r.message.toLowerCase().includes(remindersState.searchQuery) ||
-      r.targetNumber.includes(remindersState.searchQuery) ||
-      (r.name && r.name.toLowerCase().includes(remindersState.searchQuery)) ||
-      (r.createdBy && r.createdBy.includes(remindersState.searchQuery))
+    reminders = reminders.filter(
+      (r) =>
+        r.message.toLowerCase().includes(remindersState.searchQuery) ||
+        r.targetNumber.includes(remindersState.searchQuery) ||
+        (r.name && r.name.toLowerCase().includes(remindersState.searchQuery)) ||
+        (r.createdBy && r.createdBy.includes(remindersState.searchQuery)),
     );
   }
 
@@ -10181,16 +10416,36 @@ function renderReminders() {
     return;
   }
 
-  list.innerHTML = reminders.map((reminder) => createReminderCard(reminder)).join("");
+  list.innerHTML = reminders
+    .map((reminder) => createReminderCard(reminder))
+    .join("");
   renderRemindersPagination();
 }
 
 // Create reminder card HTML
 function createReminderCard(reminder) {
   const statusColors = {
-    pending: { bg: "#fef3c7", border: "#f59e0b", text: "#92400e", icon: "clock", label: "Pending" },
-    sent: { bg: "#d1fae5", border: "#10b981", text: "#065f46", icon: "check-circle", label: "Sent" },
-    failed: { bg: "#fee2e2", border: "#ef4444", text: "#991b1b", icon: "times-circle", label: "Failed" },
+    pending: {
+      bg: "#fef3c7",
+      border: "#f59e0b",
+      text: "#92400e",
+      icon: "clock",
+      label: "Pending",
+    },
+    sent: {
+      bg: "#d1fae5",
+      border: "#10b981",
+      text: "#065f46",
+      icon: "check-circle",
+      label: "Sent",
+    },
+    failed: {
+      bg: "#fee2e2",
+      border: "#ef4444",
+      text: "#991b1b",
+      icon: "times-circle",
+      label: "Failed",
+    },
   };
 
   const status = statusColors[reminder.status] || statusColors.pending;
@@ -10222,11 +10477,15 @@ function createReminderCard(reminder) {
           <i class="fas fa-${status.icon}" style="margin-right: 4px;"></i>
           ${status.label}
         </span>
-        ${isPast && reminder.status === "pending" ? `
+        ${
+          isPast && reminder.status === "pending"
+            ? `
           <span style="color: #f39c12; font-size: 0.75rem;">
             <i class="fas fa-exclamation-triangle"></i> Overdue
           </span>
-        ` : ""}
+        `
+            : ""
+        }
       </div>
 
       <!-- Target Number -->
@@ -10237,7 +10496,9 @@ function createReminderCard(reminder) {
         <div style="font-weight: 600; font-size: 0.95rem;">+${reminder.targetNumber}</div>
       </div>
 
-      ${reminder.name ? `
+      ${
+        reminder.name
+          ? `
       <!-- Name -->
       <div style="margin-bottom: 10px;">
         <div style="font-size: 0.75rem; color: #888; margin-bottom: 2px;">
@@ -10245,7 +10506,9 @@ function createReminderCard(reminder) {
         </div>
         <div style="font-weight: 600; font-size: 0.95rem; color: #4f46e5;">${escapeHtml(reminder.name)}</div>
       </div>
-      ` : ""}
+      `
+          : ""
+      }
 
       <!-- Message -->
       <div style="margin-bottom: 12px;">
@@ -10271,14 +10534,17 @@ function createReminderCard(reminder) {
       <div style="display: flex; gap: 15px; font-size: 0.8rem; color: #666; margin-bottom: 12px;">
         <div>
           <i class="fas fa-calendar-alt" style="color: #3498db;"></i>
-          ${scheduledDate.toLocaleDateString("ar-SA", { 
-            year: "numeric", month: "short", day: "numeric" 
+          ${scheduledDate.toLocaleDateString("ar-SA", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
           })}
         </div>
         <div>
           <i class="fas fa-clock" style="color: #3498db;"></i>
-          ${scheduledDate.toLocaleTimeString("ar-SA", { 
-            hour: "2-digit", minute: "2-digit" 
+          ${scheduledDate.toLocaleTimeString("ar-SA", {
+            hour: "2-digit",
+            minute: "2-digit",
           })}
         </div>
       </div>
@@ -10292,7 +10558,9 @@ function createReminderCard(reminder) {
 
       <!-- Actions -->
       <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        ${reminder.status === "sent" ? `
+        ${
+          reminder.status === "sent"
+            ? `
           <button onclick="window.handleFollowUpReminder('${reminder.id}')" 
             class="reminder-action-btn" 
             style="display: inline-flex; align-items: center; gap: 6px; background: #fef3c7; color: #d97706; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;"
@@ -10310,7 +10578,8 @@ function createReminderCard(reminder) {
             <i class="fas fa-redo"></i>
             <span>Resend</span>
           </button>
-        ` : `
+        `
+            : `
           <button onclick="window.openEditReminderModal('${reminder.id}')" 
             class="reminder-action-btn" 
             style="display: inline-flex; align-items: center; gap: 6px; background: #eef2ff; color: #4f46e5; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;"
@@ -10319,7 +10588,8 @@ function createReminderCard(reminder) {
             <i class="fas fa-edit"></i>
             <span>Edit</span>
           </button>
-        `}
+        `
+        }
         <button onclick="window.handleDeleteReminderClick('${reminder.id}')" 
           class="reminder-action-btn" 
           style="display: inline-flex; align-items: center; gap: 6px; background: #fef2f2; color: #ef4444; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;"
@@ -10352,7 +10622,7 @@ function renderRemindersPagination() {
   }
 
   let html = "";
-  
+
   // Previous button
   if (currentPage > 1) {
     html += `<button onclick="goToRemindersPage(${currentPage - 1})" class="btn btn-secondary" style="padding: 8px 15px;">
@@ -10363,7 +10633,7 @@ function renderRemindersPagination() {
   // Page numbers
   for (let i = 1; i <= totalPages; i++) {
     const isActive = i === currentPage;
-    html += `<button onclick="goToRemindersPage(${i})" class="btn ${isActive ? 'btn-primary' : 'btn-secondary'}" 
+    html += `<button onclick="goToRemindersPage(${i})" class="btn ${isActive ? "btn-primary" : "btn-secondary"}" 
       style="padding: 8px 15px; min-width: 40px;">${i}</button>`;
   }
 
@@ -10386,7 +10656,7 @@ function goToRemindersPage(page) {
 // Open create reminder modal
 function openCreateReminderModal() {
   remindersState.editingId = null;
-  
+
   const modal = document.getElementById("reminder-modal");
   const title = document.getElementById("reminder-modal-title");
   const targetInput = document.getElementById("reminder-target-number");
@@ -10413,7 +10683,7 @@ function openCreateReminderModal() {
 // Open edit reminder modal
 function openEditReminderModal(reminder) {
   remindersState.editingId = reminder.id;
-  
+
   const modal = document.getElementById("reminder-modal");
   const title = document.getElementById("reminder-modal-title");
   const targetInput = document.getElementById("reminder-target-number");
@@ -10491,10 +10761,10 @@ async function handleSaveReminder() {
 
   try {
     const isEditing = !!remindersState.editingId;
-    const url = isEditing 
+    const url = isEditing
       ? `/api/bot/reminders/${remindersState.editingId}`
       : "/api/bot/reminders";
-    
+
     const response = await fetch(url, {
       method: isEditing ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
@@ -10514,14 +10784,16 @@ async function handleSaveReminder() {
 
     closeReminderModal();
     await fetchReminders();
-    
+
     // Show success message
     const msgEl = document.getElementById("reminders-message");
     if (msgEl) {
       msgEl.textContent = `✅ Reminder ${isEditing ? "updated" : "created"} successfully!`;
       msgEl.className = "info-message success";
       msgEl.style.display = "block";
-      setTimeout(() => { msgEl.style.display = "none"; }, 3000);
+      setTimeout(() => {
+        msgEl.style.display = "none";
+      }, 3000);
     }
   } catch (error) {
     console.error("Error saving reminder:", error);
@@ -10551,14 +10823,16 @@ async function handleDeleteReminder(id) {
     }
 
     await fetchReminders();
-    
+
     // Show success message
     const msgEl = document.getElementById("reminders-message");
     if (msgEl) {
       msgEl.textContent = "✅ Reminder deleted successfully!";
       msgEl.className = "info-message success";
       msgEl.style.display = "block";
-      setTimeout(() => { msgEl.style.display = "none"; }, 3000);
+      setTimeout(() => {
+        msgEl.style.display = "none";
+      }, 3000);
     }
   } catch (error) {
     console.error("Error deleting reminder:", error);
@@ -10570,16 +10844,16 @@ async function handleDeleteReminder(id) {
 window.goToRemindersPage = goToRemindersPage;
 
 // Global function to open edit modal by reminder ID
-window.openEditReminderModal = function(reminderId) {
-  const reminder = remindersState.reminders.find(r => r.id === reminderId);
+window.openEditReminderModal = function (reminderId) {
+  const reminder = remindersState.reminders.find((r) => r.id === reminderId);
   if (!reminder) {
     console.error("Reminder not found:", reminderId);
     alert("Reminder not found");
     return;
   }
-  
+
   remindersState.editingId = reminder.id;
-  
+
   const modal = document.getElementById("reminder-modal");
   const title = document.getElementById("reminder-modal-title");
   const targetInput = document.getElementById("reminder-target-number");
@@ -10602,13 +10876,13 @@ window.openEditReminderModal = function(reminderId) {
 };
 
 // Global function to handle delete click
-window.handleDeleteReminderClick = function(reminderId) {
+window.handleDeleteReminderClick = function (reminderId) {
   handleDeleteReminder(reminderId);
 };
 
 // Global function to handle resend for sent reminders
-window.handleResendReminder = async function(reminderId) {
-  const reminder = remindersState.reminders.find(r => r.id === reminderId);
+window.handleResendReminder = async function (reminderId) {
+  const reminder = remindersState.reminders.find((r) => r.id === reminderId);
   if (!reminder) {
     alert("Reminder not found");
     return;
@@ -10616,7 +10890,7 @@ window.handleResendReminder = async function(reminderId) {
 
   // Show custom dialog
   const choice = await showResendDialog(reminder);
-  
+
   if (choice === "edit") {
     // Open edit modal for user to modify before resending
     window.openEditReminderModal(reminderId);
@@ -10658,7 +10932,7 @@ function showResendDialog(reminder) {
             <strong>To:</strong> +${reminder.targetNumber}
           </p>
           <p style="color: #666; margin-bottom: 20px; background: #f8f9fa; padding: 10px; border-radius: 6px; font-size: 0.9rem;">
-            "${reminder.message.substring(0, 100)}${reminder.message.length > 100 ? '...' : ''}"
+            "${reminder.message.substring(0, 100)}${reminder.message.length > 100 ? "..." : ""}"
           </p>
           <p style="color: #555; margin-bottom: 20px;">
             Would you like to edit the reminder or resend the same message?
@@ -10696,25 +10970,25 @@ function showResendDialog(reminder) {
         </div>
       </div>
     `;
-    
-    document.body.insertAdjacentHTML('beforeend', dialogHtml);
-    
-    const overlay = document.getElementById('resend-dialog-overlay');
-    const cancelBtn = document.getElementById('resend-cancel');
-    const editBtn = document.getElementById('resend-edit');
-    const sameBtn = document.getElementById('resend-same');
-    
+
+    document.body.insertAdjacentHTML("beforeend", dialogHtml);
+
+    const overlay = document.getElementById("resend-dialog-overlay");
+    const cancelBtn = document.getElementById("resend-cancel");
+    const editBtn = document.getElementById("resend-edit");
+    const sameBtn = document.getElementById("resend-same");
+
     const cleanup = (result) => {
       overlay.remove();
       resolve(result);
     };
-    
-    overlay.addEventListener('click', (e) => {
+
+    overlay.addEventListener("click", (e) => {
       if (e.target === overlay) cleanup(null);
     });
-    cancelBtn.addEventListener('click', () => cleanup(null));
-    editBtn.addEventListener('click', () => cleanup('edit'));
-    sameBtn.addEventListener('click', () => cleanup('resend'));
+    cancelBtn.addEventListener("click", () => cleanup(null));
+    editBtn.addEventListener("click", () => cleanup("edit"));
+    sameBtn.addEventListener("click", () => cleanup("resend"));
   });
 }
 
@@ -10723,7 +10997,7 @@ async function createResendReminder(oldReminder) {
   // Set new scheduled time to 1 hour from now
   const newScheduledTime = new Date();
   newScheduledTime.setHours(newScheduledTime.getHours() + 1);
-  
+
   try {
     const response = await fetch("/api/bot/reminders", {
       method: "POST",
@@ -10743,14 +11017,16 @@ async function createResendReminder(oldReminder) {
     }
 
     await fetchReminders();
-    
+
     // Show success message
     const msgEl = document.getElementById("reminders-message");
     if (msgEl) {
       msgEl.textContent = `✅ New reminder created! Scheduled for ${newScheduledTime.toLocaleString()}`;
       msgEl.className = "info-message success";
       msgEl.style.display = "block";
-      setTimeout(() => { msgEl.style.display = "none"; }, 4000);
+      setTimeout(() => {
+        msgEl.style.display = "none";
+      }, 4000);
     }
   } catch (error) {
     console.error("Error creating resend reminder:", error);
@@ -10759,7 +11035,7 @@ async function createResendReminder(oldReminder) {
 }
 
 // Handle follow-up message for a reminder
-window.handleFollowUpReminder = async function(reminderId) {
+window.handleFollowUpReminder = async function (reminderId) {
   try {
     // First, get the preview (without confirm to check for missing links)
     const response = await fetch(`/api/bot/reminders/${reminderId}/followup`, {
@@ -10782,15 +11058,18 @@ window.handleFollowUpReminder = async function(reminderId) {
       if (!result.confirmed) return;
 
       // Send with confirmation and edited message
-      const confirmResponse = await fetch(`/api/bot/reminders/${reminderId}/followup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ 
-          confirm: true,
-          customMessage: result.editedMessage 
-        }),
-      });
+      const confirmResponse = await fetch(
+        `/api/bot/reminders/${reminderId}/followup`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            confirm: true,
+            customMessage: result.editedMessage,
+          }),
+        },
+      );
 
       if (!confirmResponse.ok) {
         const errorData = await confirmResponse.json();
@@ -10900,22 +11179,24 @@ function showFollowUpConfirmDialog(preview) {
       </div>
     `;
 
-    document.body.insertAdjacentHTML('beforeend', dialogHtml);
+    document.body.insertAdjacentHTML("beforeend", dialogHtml);
 
-    const overlay = document.getElementById('followup-dialog-overlay');
-    const cancelBtn = document.getElementById('followup-cancel');
-    const confirmBtn = document.getElementById('followup-confirm');
-    const messageTextarea = document.getElementById('followup-message-edit');
+    const overlay = document.getElementById("followup-dialog-overlay");
+    const cancelBtn = document.getElementById("followup-cancel");
+    const confirmBtn = document.getElementById("followup-confirm");
+    const messageTextarea = document.getElementById("followup-message-edit");
 
     function cleanup(result) {
       const editedMessage = messageTextarea ? messageTextarea.value : null;
       overlay.remove();
-      resolve(result ? { confirmed: true, editedMessage } : { confirmed: false });
+      resolve(
+        result ? { confirmed: true, editedMessage } : { confirmed: false },
+      );
     }
 
-    cancelBtn.addEventListener('click', () => cleanup(false));
-    confirmBtn.addEventListener('click', () => cleanup(true));
-    overlay.addEventListener('click', (e) => {
+    cancelBtn.addEventListener("click", () => cleanup(false));
+    confirmBtn.addEventListener("click", () => cleanup(true));
+    overlay.addEventListener("click", (e) => {
       if (e.target === overlay) cleanup(false);
     });
   });
@@ -10928,7 +11209,9 @@ function showFollowUpSuccess(data) {
     msgEl.innerHTML = `✅ ${data.message || "تم إرسال رسالة المتابعة بنجاح"} إلى +${data.sentTo}`;
     msgEl.className = "info-message success";
     msgEl.style.display = "block";
-    setTimeout(() => { msgEl.style.display = "none"; }, 5000);
+    setTimeout(() => {
+      msgEl.style.display = "none";
+    }, 5000);
   }
 }
 
@@ -10940,7 +11223,9 @@ let customMessagesState = {
   schedules: [],
   editingMessageId: null,
   editingScheduleId: null,
-  dynamicWords: { greeting: ["السلام عليكم", "مرحباً", "حياك الله", "أهلاً وسهلاً"] },
+  dynamicWords: {
+    greeting: ["السلام عليكم", "مرحباً", "حياك الله", "أهلاً وسهلاً"],
+  },
   availableVariables: [],
   // Schedule recipients state
   scheduleCustomNumbers: [],
@@ -10982,29 +11267,37 @@ function setupCustomMessagesEventListeners() {
   }
 
   // Message modal buttons
-  const closeMessageModal = document.getElementById("close-custom-message-modal");
+  const closeMessageModal = document.getElementById(
+    "close-custom-message-modal",
+  );
   const cancelMessageBtn = document.getElementById("cancel-custom-message-btn");
   const saveMessageBtn = document.getElementById("save-custom-message-btn");
   const refreshPreviewBtn = document.getElementById("refresh-preview-btn");
   const addDynamicVarBtn = document.getElementById("add-dynamic-var-btn");
 
-  if (closeMessageModal) closeMessageModal.addEventListener("click", closeCustomMessageModal);
-  if (cancelMessageBtn) cancelMessageBtn.addEventListener("click", closeCustomMessageModal);
+  if (closeMessageModal)
+    closeMessageModal.addEventListener("click", closeCustomMessageModal);
+  if (cancelMessageBtn)
+    cancelMessageBtn.addEventListener("click", closeCustomMessageModal);
   if (saveMessageBtn) {
     const newSaveBtn = saveMessageBtn.cloneNode(true);
     saveMessageBtn.parentNode.replaceChild(newSaveBtn, saveMessageBtn);
     newSaveBtn.addEventListener("click", handleSaveCustomMessage);
   }
-  if (refreshPreviewBtn) refreshPreviewBtn.addEventListener("click", updateMessagePreview);
-  if (addDynamicVarBtn) addDynamicVarBtn.addEventListener("click", addNewDynamicWordGroup);
+  if (refreshPreviewBtn)
+    refreshPreviewBtn.addEventListener("click", updateMessagePreview);
+  if (addDynamicVarBtn)
+    addDynamicVarBtn.addEventListener("click", addNewDynamicWordGroup);
 
   // Schedule modal buttons
   const closeScheduleModal = document.getElementById("close-schedule-modal");
   const cancelScheduleBtn = document.getElementById("cancel-schedule-btn");
   const saveScheduleBtn = document.getElementById("save-schedule-btn");
 
-  if (closeScheduleModal) closeScheduleModal.addEventListener("click", closeScheduleModal2);
-  if (cancelScheduleBtn) cancelScheduleBtn.addEventListener("click", closeScheduleModal2);
+  if (closeScheduleModal)
+    closeScheduleModal.addEventListener("click", closeScheduleModal2);
+  if (cancelScheduleBtn)
+    cancelScheduleBtn.addEventListener("click", closeScheduleModal2);
   if (saveScheduleBtn) {
     const newSaveBtn = saveScheduleBtn.cloneNode(true);
     saveScheduleBtn.parentNode.replaceChild(newSaveBtn, saveScheduleBtn);
@@ -11012,12 +11305,14 @@ function setupCustomMessagesEventListeners() {
   }
 
   // Variable tags click to insert
-  document.querySelectorAll("#available-variables-list .var-tag").forEach((tag) => {
-    tag.addEventListener("click", () => {
-      const varName = tag.dataset.var;
-      insertVariableToMessage(`{{${varName}}}`);
+  document
+    .querySelectorAll("#available-variables-list .var-tag")
+    .forEach((tag) => {
+      tag.addEventListener("click", () => {
+        const varName = tag.dataset.var;
+        insertVariableToMessage(`{{${varName}}}`);
+      });
     });
-  });
 
   // Message content change listener for preview
   const contentInput = document.getElementById("custom-msg-content");
@@ -11056,7 +11351,7 @@ function switchCustomMessagesTab(tabName) {
   });
 
   const activeContent = document.getElementById(
-    tabName === "messages" ? "custom-messages-tab" : "custom-schedules-tab"
+    tabName === "messages" ? "custom-messages-tab" : "custom-schedules-tab",
   );
   if (activeContent) activeContent.style.display = "block";
 }
@@ -11188,7 +11483,6 @@ function createMessageCard(message) {
   `;
 }
 
-
 // Render schedules list
 function renderSchedules() {
   const list = document.getElementById("custom-schedules-list");
@@ -11210,15 +11504,28 @@ function renderSchedules() {
 
 // Create schedule card HTML
 function createScheduleCard(schedule) {
-  const message = customMessagesState.messages.find((m) => m.id === schedule.messageId);
+  const message = customMessagesState.messages.find(
+    (m) => m.id === schedule.messageId,
+  );
   const messageName = message ? message.name : "رسالة غير موجودة";
-  const nextRun = schedule.nextRun ? new Date(schedule.nextRun).toLocaleString("ar-SA") : "غير محدد";
-  const lastRun = schedule.lastRun ? new Date(schedule.lastRun).toLocaleString("ar-SA") : "لم يتم التشغيل";
+  const nextRun = schedule.nextRun
+    ? new Date(schedule.nextRun).toLocaleString("ar-SA")
+    : "غير محدد";
+  const lastRun = schedule.lastRun
+    ? new Date(schedule.lastRun).toLocaleString("ar-SA")
+    : "لم يتم التشغيل";
   const daysArabic = {
-    sunday: "الأحد", monday: "الإثنين", tuesday: "الثلاثاء",
-    wednesday: "الأربعاء", thursday: "الخميس", friday: "الجمعة", saturday: "السبت"
+    sunday: "الأحد",
+    monday: "الإثنين",
+    tuesday: "الثلاثاء",
+    wednesday: "الأربعاء",
+    thursday: "الخميس",
+    friday: "الجمعة",
+    saturday: "السبت",
   };
-  const selectedDays = (schedule.schedule?.days || []).map((d) => daysArabic[d]).join(" • ");
+  const selectedDays = (schedule.schedule?.days || [])
+    .map((d) => daysArabic[d])
+    .join(" • ");
 
   // Get repeat type info
   const repeatType = schedule.schedule?.repeatType || "daily";
@@ -11227,14 +11534,28 @@ function createScheduleCard(schedule) {
     daily: { label: "📅 يومي", color: "#1565c0" },
     weekly: { label: "📆 أسبوعي", color: "#2e7d32" },
     monthly: { label: "🗓️ شهري", color: "#7b1fa2" },
-    yearly: { label: "🎂 سنوي", color: "#f57c00" }
+    yearly: { label: "🎂 سنوي", color: "#f57c00" },
   };
   const repeatInfo = repeatTypeLabels[repeatType] || repeatTypeLabels.daily;
 
   // Get schedule details based on type
   let scheduleDetails = "";
-  const monthNames = ["", "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
-  
+  const monthNames = [
+    "",
+    "يناير",
+    "فبراير",
+    "مارس",
+    "أبريل",
+    "مايو",
+    "يونيو",
+    "يوليو",
+    "أغسطس",
+    "سبتمبر",
+    "أكتوبر",
+    "نوفمبر",
+    "ديسمبر",
+  ];
+
   switch (repeatType) {
     case "once":
       scheduleDetails = `<div style="margin-bottom: 8px;"><strong>🎯 النوع:</strong> مرة واحدة فقط</div>`;
@@ -11305,12 +11626,12 @@ function createScheduleCard(schedule) {
   `;
 }
 
-
-
 // Open create message modal
 function openCreateMessageModal() {
   customMessagesState.editingMessageId = null;
-  customMessagesState.dynamicWords = { greeting: ["السلام عليكم", "مرحباً", "حياك الله", "أهلاً وسهلاً"] };
+  customMessagesState.dynamicWords = {
+    greeting: ["السلام عليكم", "مرحباً", "حياك الله", "أهلاً وسهلاً"],
+  };
 
   const modal = document.getElementById("custom-message-modal");
   const title = document.getElementById("custom-message-modal-title");
@@ -11318,14 +11639,17 @@ function openCreateMessageModal() {
   const contentInput = document.getElementById("custom-msg-content");
   const previewDiv = document.getElementById("custom-msg-preview");
 
-  if (title) title.innerHTML = '<i class="fas fa-envelope"></i> إنشاء رسالة مخصصة';
+  if (title)
+    title.innerHTML = '<i class="fas fa-envelope"></i> إنشاء رسالة مخصصة';
   if (nameInput) nameInput.value = "";
   if (contentInput) contentInput.value = "";
-  if (previewDiv) previewDiv.innerHTML = '<span style="color: #999;">المعاينة ستظهر هنا...</span>';
+  if (previewDiv)
+    previewDiv.innerHTML =
+      '<span style="color: #999;">المعاينة ستظهر هنا...</span>';
 
   // Reset image UI
   resetCustomMessageImageUI();
-  
+
   renderDynamicWordsUI();
   if (modal) modal.style.display = "flex";
 }
@@ -11350,21 +11674,30 @@ function renderDynamicWordsUI() {
   if (!container) return;
 
   container.innerHTML = Object.entries(customMessagesState.dynamicWords)
-    .map(([key, words]) => `
+    .map(
+      ([key, words]) => `
       <div class="dynamic-word-group" data-key="${key}" style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <label style="font-weight: bold; color: #1565c0;">{{${key}}}</label>
-          ${key !== "greeting" ? `<button type="button" onclick="window.removeDynamicWordGroup('${key}')" style="background: #fef2f2; color: #ef4444; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">
+          ${
+            key !== "greeting"
+              ? `<button type="button" onclick="window.removeDynamicWordGroup('${key}')" style="background: #fef2f2; color: #ef4444; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">
             <i class="fas fa-times"></i> حذف
-          </button>` : ""}
+          </button>`
+              : ""
+          }
         </div>
         <div class="dynamic-word-options" style="display: flex; flex-wrap: wrap; gap: 8px;">
-          ${words.map((word, index) => `
+          ${words
+            .map(
+              (word, index) => `
             <span class="dynamic-word-tag" style="background: #e3f2fd; padding: 6px 12px; border-radius: 20px; font-size: 0.9rem;">
               ${escapeHtml(word)} 
               <button type="button" onclick="window.removeWordFromGroup('${key}', ${index})" style="border: none; background: none; color: #e53935; cursor: pointer; margin-left: 5px;">×</button>
             </span>
-          `).join("")}
+          `,
+            )
+            .join("")}
         </div>
         <div style="display: flex; gap: 8px; margin-top: 10px;">
           <input type="text" class="form-control add-word-input" data-key="${key}" placeholder="أضف كلمة جديدة..." style="flex: 1;">
@@ -11373,7 +11706,8 @@ function renderDynamicWordsUI() {
           </button>
         </div>
       </div>
-    `)
+    `,
+    )
     .join("");
 }
 
@@ -11453,7 +11787,10 @@ function updateMessagePreview() {
     phone: "966501234567",
     role: "عميل",
     date: new Date().toLocaleDateString("ar-SA"),
-    time: new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
+    time: new Date().toLocaleTimeString("ar-SA", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
     day: new Date().toLocaleDateString("ar-SA", { weekday: "long" }),
   };
 
@@ -11461,19 +11798,23 @@ function updateMessagePreview() {
     preview = preview.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
   }
 
-  previewDiv.innerHTML = preview ? escapeHtml(preview) : '<span style="color: #999;">المعاينة ستظهر هنا...</span>';
+  previewDiv.innerHTML = preview
+    ? escapeHtml(preview)
+    : '<span style="color: #999;">المعاينة ستظهر هنا...</span>';
 }
 
 // Image preview and remove functions for custom messages
 function previewCustomMessageImage(input) {
-  const previewContainer = document.getElementById("custom-msg-image-preview-container");
+  const previewContainer = document.getElementById(
+    "custom-msg-image-preview-container",
+  );
   const previewImg = document.getElementById("custom-msg-image-preview");
   const filenameText = document.getElementById("custom-msg-image-filename");
   const removeBtn = document.getElementById("custom-msg-remove-image-btn");
 
   if (input.files && input.files[0]) {
     const file = input.files[0];
-    
+
     // Check file size (10MB max)
     if (file.size > 10 * 1024 * 1024) {
       alert("❌ حجم الصورة كبير جداً. الحد الأقصى 10 ميجابايت");
@@ -11482,7 +11823,7 @@ function previewCustomMessageImage(input) {
     }
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
       if (previewImg) previewImg.src = e.target.result;
       if (filenameText) filenameText.textContent = file.name;
       if (previewContainer) previewContainer.style.display = "block";
@@ -11494,7 +11835,9 @@ function previewCustomMessageImage(input) {
 
 function removeCustomMessageImage() {
   const input = document.getElementById("custom-msg-image-input");
-  const previewContainer = document.getElementById("custom-msg-image-preview-container");
+  const previewContainer = document.getElementById(
+    "custom-msg-image-preview-container",
+  );
   const previewImg = document.getElementById("custom-msg-image-preview");
   const filenameText = document.getElementById("custom-msg-image-filename");
   const removeBtn = document.getElementById("custom-msg-remove-image-btn");
@@ -11504,7 +11847,7 @@ function removeCustomMessageImage() {
   if (filenameText) filenameText.textContent = "";
   if (previewContainer) previewContainer.style.display = "none";
   if (removeBtn) removeBtn.style.display = "none";
-  
+
   // Mark for removal when editing
   customMessagesState.removeImage = true;
 }
@@ -11512,7 +11855,9 @@ function removeCustomMessageImage() {
 // Reset image UI for modal
 function resetCustomMessageImageUI() {
   const input = document.getElementById("custom-msg-image-input");
-  const previewContainer = document.getElementById("custom-msg-image-preview-container");
+  const previewContainer = document.getElementById(
+    "custom-msg-image-preview-container",
+  );
   const previewImg = document.getElementById("custom-msg-image-preview");
   const filenameText = document.getElementById("custom-msg-image-filename");
   const removeBtn = document.getElementById("custom-msg-remove-image-btn");
@@ -11529,20 +11874,22 @@ function resetCustomMessageImageUI() {
 // Show existing image in edit mode
 function showExistingImage(imagePath) {
   if (!imagePath) return;
-  
-  const previewContainer = document.getElementById("custom-msg-image-preview-container");
+
+  const previewContainer = document.getElementById(
+    "custom-msg-image-preview-container",
+  );
   const previewImg = document.getElementById("custom-msg-image-preview");
   const filenameText = document.getElementById("custom-msg-image-filename");
   const removeBtn = document.getElementById("custom-msg-remove-image-btn");
 
   // Extract filename from path
   const filename = imagePath.split(/[/\\]/).pop();
-  
+
   if (previewImg) previewImg.src = `/api/bot/custom-messages/image/${filename}`;
   if (filenameText) filenameText.textContent = filename;
   if (previewContainer) previewContainer.style.display = "block";
   if (removeBtn) removeBtn.style.display = "inline-block";
-  
+
   customMessagesState.existingImagePath = imagePath;
 }
 
@@ -11576,13 +11923,16 @@ async function handleSaveCustomMessage() {
     const formData = new FormData();
     formData.append("name", name);
     formData.append("content", content);
-    formData.append("dynamicWords", JSON.stringify(customMessagesState.dynamicWords));
-    
+    formData.append(
+      "dynamicWords",
+      JSON.stringify(customMessagesState.dynamicWords),
+    );
+
     // Add image if selected
     if (imageInput?.files?.length > 0) {
       formData.append("image", imageInput.files[0]);
     }
-    
+
     // Mark for image removal if in edit mode and user removed the image
     if (isEditing && customMessagesState.removeImage) {
       formData.append("removeImage", "true");
@@ -11674,24 +12024,34 @@ function openCreateScheduleModal() {
   customMessagesState.schedulePrivateClients = [];
   customMessagesState.schedulePrivateClientsExpanded = false;
   customMessagesState.scheduleInterestGroupsExpanded = false;
-  
+
   const modal = document.getElementById("schedule-modal");
   const title = document.getElementById("schedule-modal-title");
   const messageSelect = document.getElementById("schedule-message-select");
   const nameInput = document.getElementById("schedule-name");
 
-  if (title) title.innerHTML = '<i class="fas fa-calendar-alt"></i> إنشاء جدول جديد';
+  if (title)
+    title.innerHTML = '<i class="fas fa-calendar-alt"></i> إنشاء جدول جديد';
   if (nameInput) nameInput.value = "";
 
   // Populate message select
   if (messageSelect) {
-    messageSelect.innerHTML = '<option value="">-- اختر رسالة --</option>' +
-      customMessagesState.messages.map((m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join("");
+    messageSelect.innerHTML =
+      '<option value="">-- اختر رسالة --</option>' +
+      customMessagesState.messages
+        .map((m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`)
+        .join("");
   }
 
   // Reset day checkboxes to default
   document.querySelectorAll(".schedule-day").forEach((cb) => {
-    cb.checked = ["sunday", "monday", "tuesday", "wednesday", "thursday"].includes(cb.value);
+    cb.checked = [
+      "sunday",
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+    ].includes(cb.value);
   });
 
   // Reset time inputs
@@ -11703,16 +12063,26 @@ function openCreateScheduleModal() {
   if (delay) delay.value = "60";
 
   // Reset repeat type to daily
-  const dailyRadio = document.querySelector('input[name="schedule-repeat-type"][value="daily"]');
+  const dailyRadio = document.querySelector(
+    'input[name="schedule-repeat-type"][value="daily"]',
+  );
   if (dailyRadio) dailyRadio.checked = true;
   toggleRepeatTypeUI();
 
   // Reset sections visibility
-  const privateClientsContainer = document.getElementById("schedule-private-clients-container");
-  const interestGroupsContainer = document.getElementById("schedule-interest-groups-container");
-  const privateClientsIcon = document.getElementById("schedule-private-clients-toggle-icon");
-  const interestGroupsIcon = document.getElementById("schedule-interest-groups-toggle-icon");
-  
+  const privateClientsContainer = document.getElementById(
+    "schedule-private-clients-container",
+  );
+  const interestGroupsContainer = document.getElementById(
+    "schedule-interest-groups-container",
+  );
+  const privateClientsIcon = document.getElementById(
+    "schedule-private-clients-toggle-icon",
+  );
+  const interestGroupsIcon = document.getElementById(
+    "schedule-interest-groups-toggle-icon",
+  );
+
   if (privateClientsContainer) privateClientsContainer.style.display = "none";
   if (interestGroupsContainer) interestGroupsContainer.style.display = "none";
   if (privateClientsIcon) privateClientsIcon.style.transform = "rotate(0deg)";
@@ -11720,13 +12090,13 @@ function openCreateScheduleModal() {
 
   // Reset custom numbers display
   renderScheduleCustomNumbers();
-  
+
   // Setup event listeners for this modal
   setupScheduleModalListeners();
 
   // Load all recipient data
   loadScheduleRecipientsData();
-  
+
   if (modal) modal.style.display = "flex";
 }
 
@@ -11747,7 +12117,8 @@ function setupScheduleModalListeners() {
     refreshBtn.parentNode.replaceChild(newRefreshBtn, refreshBtn);
     newRefreshBtn.addEventListener("click", async () => {
       newRefreshBtn.disabled = true;
-      newRefreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحديث...';
+      newRefreshBtn.innerHTML =
+        '<i class="fas fa-spinner fa-spin"></i> جاري التحديث...';
       await loadScheduleRecipientsData(true);
       newRefreshBtn.disabled = false;
       newRefreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> تحديث';
@@ -11759,12 +12130,16 @@ function setupScheduleModalListeners() {
     cb.addEventListener("change", () => {
       if (cb.value === "all" && cb.checked) {
         // Uncheck others when "all" is selected
-        document.querySelectorAll(".schedule-client-role:not([value='all'])").forEach((other) => {
-          other.checked = false;
-        });
+        document
+          .querySelectorAll(".schedule-client-role:not([value='all'])")
+          .forEach((other) => {
+            other.checked = false;
+          });
       } else if (cb.value !== "all" && cb.checked) {
         // Uncheck "all" when specific role is selected
-        const allCheckbox = document.querySelector(".schedule-client-role[value='all']");
+        const allCheckbox = document.querySelector(
+          ".schedule-client-role[value='all']",
+        );
         if (allCheckbox) allCheckbox.checked = false;
       }
       filterSchedulePrivateClients();
@@ -11775,34 +12150,46 @@ function setupScheduleModalListeners() {
 // Load all schedule recipients data
 async function loadScheduleRecipientsData(forceRefresh = false) {
   const groupsList = document.getElementById("schedule-groups-list");
-  const privateClientsList = document.getElementById("schedule-private-clients-list");
-  const interestGroupsList = document.getElementById("schedule-interest-groups");
+  const privateClientsList = document.getElementById(
+    "schedule-private-clients-list",
+  );
+  const interestGroupsList = document.getElementById(
+    "schedule-interest-groups",
+  );
 
   // Show loading states
   if (groupsList) {
-    groupsList.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> جاري تحميل المجموعات...</p>';
+    groupsList.innerHTML =
+      '<p style="color: #888; text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> جاري تحميل المجموعات...</p>';
   }
 
   try {
     // Fetch groups (with optional refresh)
     let groupsResponse;
     if (forceRefresh) {
-      groupsResponse = await fetch("/api/bot/groups/refresh", { method: "POST", credentials: "include" });
+      groupsResponse = await fetch("/api/bot/groups/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
     } else {
-      groupsResponse = await fetch("/api/bot/groups", { credentials: "include" });
+      groupsResponse = await fetch("/api/bot/groups", {
+        credentials: "include",
+      });
     }
-    
+
     // Fetch collections
-    const collectionsResponse = await fetch("/api/bot/collections", { credentials: "include" });
-    
+    const collectionsResponse = await fetch("/api/bot/collections", {
+      credentials: "include",
+    });
+
     let groups = [];
     let collections = [];
-    
+
     if (groupsResponse.ok) {
       const data = await groupsResponse.json();
       groups = data.groups || [];
     }
-    
+
     if (collectionsResponse.ok) {
       const data = await collectionsResponse.json();
       collections = data.collections || [];
@@ -11813,17 +12200,17 @@ async function loadScheduleRecipientsData(forceRefresh = false) {
 
     // Load saved custom numbers
     const savedNumbers = window.savedCustomNumbers || [];
-    
+
     // Load private clients
     await loadSchedulePrivateClients();
-    
+
     // Load interest groups
     await loadScheduleInterestGroups();
-
   } catch (error) {
     console.error("Error loading schedule recipients:", error);
     if (groupsList) {
-      groupsList.innerHTML = '<p style="color: #e74c3c; text-align: center; padding: 20px;"><i class="fas fa-exclamation-circle"></i> فشل تحميل البيانات</p>';
+      groupsList.innerHTML =
+        '<p style="color: #e74c3c; text-align: center; padding: 20px;"><i class="fas fa-exclamation-circle"></i> فشل تحميل البيانات</p>';
     }
   }
 }
@@ -11840,8 +12227,9 @@ function renderScheduleGroupsAndCollections(groups, collections) {
   if (savedNumbers.length > 0) {
     const numbersSection = document.createElement("div");
     numbersSection.className = "saved-numbers-section";
-    numbersSection.innerHTML = '<div style="font-weight: bold; padding: 8px; background: #e8f5e9; margin-bottom: 5px; border-radius: 4px;"><i class="fas fa-phone" style="color: #4CAF50;"></i> 📱 أرقام محفوظة</div>';
-    
+    numbersSection.innerHTML =
+      '<div style="font-weight: bold; padding: 8px; background: #e8f5e9; margin-bottom: 5px; border-radius: 4px;"><i class="fas fa-phone" style="color: #4CAF50;"></i> 📱 أرقام محفوظة</div>';
+
     savedNumbers.forEach((num, index) => {
       const item = document.createElement("div");
       item.innerHTML = `
@@ -11852,9 +12240,9 @@ function renderScheduleGroupsAndCollections(groups, collections) {
       `;
       numbersSection.appendChild(item);
     });
-    
+
     container.appendChild(numbersSection);
-    
+
     // Add divider
     const divider = document.createElement("hr");
     divider.style.cssText = "margin: 15px 0; border-top: 2px dashed #ddd;";
@@ -11865,8 +12253,9 @@ function renderScheduleGroupsAndCollections(groups, collections) {
   if (collections.length > 0) {
     const collectionsSection = document.createElement("div");
     collectionsSection.className = "collections-section";
-    collectionsSection.innerHTML = '<div style="font-weight: bold; padding: 8px; background: #e3f2fd; margin-bottom: 5px; border-radius: 4px;"><i class="fas fa-folder" style="color: #2196F3;"></i> 📂 المجموعات المحفوظة (Collections)</div>';
-    
+    collectionsSection.innerHTML =
+      '<div style="font-weight: bold; padding: 8px; background: #e3f2fd; margin-bottom: 5px; border-radius: 4px;"><i class="fas fa-folder" style="color: #2196F3;"></i> 📂 المجموعات المحفوظة (Collections)</div>';
+
     collections.forEach((col) => {
       const groupCount = col.groups?.length || 0;
       const item = document.createElement("div");
@@ -11876,7 +12265,7 @@ function renderScheduleGroupsAndCollections(groups, collections) {
           <span style="flex: 1; color: #1565c0;">${escapeHtml(col.name)} <small style="color: #666;">(${groupCount} مجموعة)</small></span>
         </label>
       `;
-      
+
       // Add collection checkbox change handler
       const checkbox = item.querySelector("input");
       checkbox.addEventListener("change", (e) => {
@@ -11887,12 +12276,12 @@ function renderScheduleGroupsAndCollections(groups, collections) {
           }
         });
       });
-      
+
       collectionsSection.appendChild(item);
     });
-    
+
     container.appendChild(collectionsSection);
-    
+
     // Add divider
     const divider = document.createElement("hr");
     divider.style.cssText = "margin: 15px 0; border-top: 2px dashed #ddd;";
@@ -11903,8 +12292,9 @@ function renderScheduleGroupsAndCollections(groups, collections) {
   if (groups.length > 0) {
     const groupsSection = document.createElement("div");
     groupsSection.className = "groups-section";
-    groupsSection.innerHTML = '<div style="font-weight: bold; padding: 8px; background: #f3e5f5; margin-bottom: 5px; border-radius: 4px;"><i class="fas fa-users" style="color: #9c27b0;"></i> 👥 كل المجموعات</div>';
-    
+    groupsSection.innerHTML =
+      '<div style="font-weight: bold; padding: 8px; background: #f3e5f5; margin-bottom: 5px; border-radius: 4px;"><i class="fas fa-users" style="color: #9c27b0;"></i> 👥 كل المجموعات</div>';
+
     groups.forEach((g) => {
       // Use jid as the primary identifier (WhatsApp API returns jid, not id)
       const groupId = g.jid || g.id || g.groupId;
@@ -11918,12 +12308,17 @@ function renderScheduleGroupsAndCollections(groups, collections) {
       `;
       groupsSection.appendChild(item);
     });
-    
+
     container.appendChild(groupsSection);
   }
 
-  if (savedNumbers.length === 0 && collections.length === 0 && groups.length === 0) {
-    container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">لا توجد مجموعات متاحة</p>';
+  if (
+    savedNumbers.length === 0 &&
+    collections.length === 0 &&
+    groups.length === 0
+  ) {
+    container.innerHTML =
+      '<p style="color: #999; text-align: center; padding: 20px;">لا توجد مجموعات متاحة</p>';
   }
 }
 
@@ -11931,26 +12326,31 @@ function renderScheduleGroupsAndCollections(groups, collections) {
 async function loadSchedulePrivateClients() {
   const container = document.getElementById("schedule-private-clients-list");
   const countBadge = document.getElementById("schedule-private-clients-count");
-  
+
   if (!container) return;
-  
-  container.innerHTML = '<p style="text-align: center; color: #666; padding: 10px;"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</p>';
-  
+
+  container.innerHTML =
+    '<p style="text-align: center; color: #666; padding: 10px;"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</p>';
+
   try {
-    const response = await fetch("/api/bot/private-clients", { credentials: "include" });
+    const response = await fetch("/api/bot/private-clients", {
+      credentials: "include",
+    });
     if (response.ok) {
       const data = await response.json();
       customMessagesState.schedulePrivateClients = data.clients || [];
-      
+
       if (countBadge) {
-        countBadge.textContent = customMessagesState.schedulePrivateClients.length;
+        countBadge.textContent =
+          customMessagesState.schedulePrivateClients.length;
       }
-      
+
       renderSchedulePrivateClients();
     }
   } catch (error) {
     console.error("Error loading private clients:", error);
-    container.innerHTML = '<p style="color: #e74c3c; text-align: center;">فشل تحميل العملاء</p>';
+    container.innerHTML =
+      '<p style="color: #e74c3c; text-align: center;">فشل تحميل العملاء</p>';
   }
 }
 
@@ -11958,36 +12358,43 @@ async function loadSchedulePrivateClients() {
 function renderSchedulePrivateClients() {
   const container = document.getElementById("schedule-private-clients-list");
   if (!container) return;
-  
+
   const clients = customMessagesState.schedulePrivateClients;
-  
+
   if (clients.length === 0) {
-    container.innerHTML = '<p style="color: #999; text-align: center; padding: 10px;">لا يوجد عملاء خاصين</p>';
+    container.innerHTML =
+      '<p style="color: #999; text-align: center; padding: 10px;">لا يوجد عملاء خاصين</p>';
     return;
   }
-  
+
   // Get selected roles
   const selectedRoles = [];
   document.querySelectorAll(".schedule-client-role:checked").forEach((cb) => {
     selectedRoles.push(cb.value);
   });
-  
+
   const showAll = selectedRoles.includes("all") || selectedRoles.length === 0;
-  
-  const filteredClients = showAll 
-    ? clients 
+
+  const filteredClients = showAll
+    ? clients
     : clients.filter((c) => selectedRoles.includes(c.role || "عميل"));
-  
-  container.innerHTML = filteredClients.map((client) => `
+
+  container.innerHTML =
+    filteredClients
+      .map(
+        (client) => `
     <label style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; border-bottom: 1px solid #f0f0f0;">
-      <input type="checkbox" class="schedule-private-client" value="${client.phone}" data-name="${escapeHtml(client.name || 'غير معروف')}">
+      <input type="checkbox" class="schedule-private-client" value="${client.phone}" data-name="${escapeHtml(client.name || "غير معروف")}">
       <span style="flex: 1;">
-        <strong>${escapeHtml(client.name || 'غير معروف')}</strong>
+        <strong>${escapeHtml(client.name || "غير معروف")}</strong>
         <span style="font-size: 0.85rem; color: #888; margin-right: 8px;">${client.phone}</span>
-        ${client.role ? `<span style="background: #e3f2fd; color: #1565c0; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem;">${escapeHtml(client.role)}</span>` : ''}
+        ${client.role ? `<span style="background: #e3f2fd; color: #1565c0; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem;">${escapeHtml(client.role)}</span>` : ""}
       </span>
     </label>
-  `).join("") || '<p style="color: #999; text-align: center; padding: 10px;">لا نتائج للتصفية المحددة</p>';
+  `,
+      )
+      .join("") ||
+    '<p style="color: #999; text-align: center; padding: 10px;">لا نتائج للتصفية المحددة</p>';
 }
 
 // Filter private clients by role
@@ -11999,23 +12406,29 @@ function filterSchedulePrivateClients() {
 async function loadScheduleInterestGroups() {
   const container = document.getElementById("schedule-interest-groups");
   const countBadge = document.getElementById("schedule-interest-groups-count");
-  
+
   if (!container) return;
-  
-  container.innerHTML = '<p style="text-align: center; color: #666; padding: 10px;"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</p>';
-  
+
+  container.innerHTML =
+    '<p style="text-align: center; color: #666; padding: 10px;"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</p>';
+
   try {
-    const response = await fetch("/api/bot/interest-groups", { credentials: "include" });
+    const response = await fetch("/api/bot/interest-groups", {
+      credentials: "include",
+    });
     if (response.ok) {
       const data = await response.json();
       const groups = data.groups || [];
-      
+
       if (countBadge) {
         countBadge.textContent = groups.length;
       }
-      
-      container.innerHTML = groups.length > 0
-        ? groups.map((g) => `
+
+      container.innerHTML =
+        groups.length > 0
+          ? groups
+              .map(
+                (g) => `
             <label style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; border-bottom: 1px solid #f0f0f0;">
               <input type="checkbox" class="schedule-interest-group" value="${g.id}">
               <span style="flex: 1;">
@@ -12023,12 +12436,15 @@ async function loadScheduleInterestGroups() {
                 <span style="background: #e3f2fd; color: #1565c0; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-right: 8px;">${g.members?.length || 0} عضو</span>
               </span>
             </label>
-          `).join("")
-        : '<p style="color: #999; text-align: center; padding: 10px;">لا توجد مجموعات مهتمين</p>';
+          `,
+              )
+              .join("")
+          : '<p style="color: #999; text-align: center; padding: 10px;">لا توجد مجموعات مهتمين</p>';
     }
   } catch (error) {
     console.error("Error loading interest groups:", error);
-    container.innerHTML = '<p style="color: #999; text-align: center;">لا توجد مجموعات مهتمين</p>';
+    container.innerHTML =
+      '<p style="color: #999; text-align: center;">لا توجد مجموعات مهتمين</p>';
   }
 }
 
@@ -12036,31 +12452,33 @@ async function loadScheduleInterestGroups() {
 function addScheduleCustomNumber() {
   const nameInput = document.getElementById("schedule-custom-number-name");
   const phoneInput = document.getElementById("schedule-custom-number-phone");
-  
+
   const name = nameInput?.value?.trim();
   const phone = phoneInput?.value?.trim()?.replace(/\D/g, "");
-  
+
   if (!name || !phone) {
     alert("يرجى إدخال الاسم ورقم الهاتف");
     return;
   }
-  
+
   if (phone.length < 10) {
     alert("رقم الهاتف غير صحيح");
     return;
   }
-  
+
   // Check for duplicates
-  if (customMessagesState.scheduleCustomNumbers.some((n) => n.phone === phone)) {
+  if (
+    customMessagesState.scheduleCustomNumbers.some((n) => n.phone === phone)
+  ) {
     alert("هذا الرقم موجود بالفعل");
     return;
   }
-  
+
   customMessagesState.scheduleCustomNumbers.push({ name, phone });
-  
+
   nameInput.value = "";
   phoneInput.value = "";
-  
+
   renderScheduleCustomNumbers();
 }
 
@@ -12068,15 +12486,18 @@ function addScheduleCustomNumber() {
 function renderScheduleCustomNumbers() {
   const container = document.getElementById("schedule-custom-numbers-list");
   if (!container) return;
-  
+
   const numbers = customMessagesState.scheduleCustomNumbers;
-  
+
   if (numbers.length === 0) {
-    container.innerHTML = '<p style="color: #999; text-align: center; margin: 0; font-size: 0.9rem;"><i class="fas fa-phone-slash"></i> لم تتم إضافة أرقام بعد</p>';
+    container.innerHTML =
+      '<p style="color: #999; text-align: center; margin: 0; font-size: 0.9rem;"><i class="fas fa-phone-slash"></i> لم تتم إضافة أرقام بعد</p>';
     return;
   }
-  
-  container.innerHTML = numbers.map((num, index) => `
+
+  container.innerHTML = numbers
+    .map(
+      (num, index) => `
     <div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 6px; margin-bottom: 5px; color: white;">
       <div style="flex: 1;">
         <strong>${escapeHtml(num.name)}</strong>
@@ -12086,24 +12507,29 @@ function renderScheduleCustomNumbers() {
         <i class="fas fa-times"></i>
       </button>
     </div>
-  `).join("");
+  `,
+    )
+    .join("");
 }
 
 // Remove schedule custom number
-window.removeScheduleCustomNumber = function(index) {
+window.removeScheduleCustomNumber = function (index) {
   customMessagesState.scheduleCustomNumbers.splice(index, 1);
   renderScheduleCustomNumbers();
 };
 
 // Toggle private clients section
-window.toggleSchedulePrivateClientsSection = function() {
-  const container = document.getElementById("schedule-private-clients-container");
+window.toggleSchedulePrivateClientsSection = function () {
+  const container = document.getElementById(
+    "schedule-private-clients-container",
+  );
   const icon = document.getElementById("schedule-private-clients-toggle-icon");
-  
+
   if (!container) return;
-  
-  customMessagesState.schedulePrivateClientsExpanded = !customMessagesState.schedulePrivateClientsExpanded;
-  
+
+  customMessagesState.schedulePrivateClientsExpanded =
+    !customMessagesState.schedulePrivateClientsExpanded;
+
   if (customMessagesState.schedulePrivateClientsExpanded) {
     container.style.display = "block";
     if (icon) icon.style.transform = "rotate(180deg)";
@@ -12114,14 +12540,17 @@ window.toggleSchedulePrivateClientsSection = function() {
 };
 
 // Toggle interest groups section
-window.toggleScheduleInterestGroupsSection = function() {
-  const container = document.getElementById("schedule-interest-groups-container");
+window.toggleScheduleInterestGroupsSection = function () {
+  const container = document.getElementById(
+    "schedule-interest-groups-container",
+  );
   const icon = document.getElementById("schedule-interest-groups-toggle-icon");
-  
+
   if (!container) return;
-  
-  customMessagesState.scheduleInterestGroupsExpanded = !customMessagesState.scheduleInterestGroupsExpanded;
-  
+
+  customMessagesState.scheduleInterestGroupsExpanded =
+    !customMessagesState.scheduleInterestGroupsExpanded;
+
   if (customMessagesState.scheduleInterestGroupsExpanded) {
     container.style.display = "block";
     if (icon) icon.style.transform = "rotate(180deg)";
@@ -12141,18 +12570,20 @@ window.createScheduleForMessage = function (messageId) {
 };
 
 // Toggle repeat type UI - shows/hides relevant sections based on repeat type
-window.toggleRepeatTypeUI = function() {
-  const repeatType = document.querySelector('input[name="schedule-repeat-type"]:checked')?.value || "daily";
-  
+window.toggleRepeatTypeUI = function () {
+  const repeatType =
+    document.querySelector('input[name="schedule-repeat-type"]:checked')
+      ?.value || "daily";
+
   const daysSection = document.getElementById("schedule-days-section");
   const monthlySection = document.getElementById("schedule-monthly-section");
   const yearlySection = document.getElementById("schedule-yearly-section");
-  
+
   // Hide all first
   if (daysSection) daysSection.style.display = "none";
   if (monthlySection) monthlySection.style.display = "none";
   if (yearlySection) yearlySection.style.display = "none";
-  
+
   // Show based on repeat type
   switch (repeatType) {
     case "once":
@@ -12161,7 +12592,8 @@ window.toggleRepeatTypeUI = function() {
         daysSection.style.display = "block";
         // Update the label to indicate single selection
         const label = daysSection.querySelector("label");
-        if (label) label.innerHTML = `<i class="fas fa-calendar-check" style="color: #1565c0;"></i> 📅 اختر اليوم المحدد للإرسال:`;
+        if (label)
+          label.innerHTML = `<i class="fas fa-calendar-check" style="color: #1565c0;"></i> 📅 اختر اليوم المحدد للإرسال:`;
       }
       break;
     case "daily":
@@ -12170,7 +12602,8 @@ window.toggleRepeatTypeUI = function() {
         daysSection.style.display = "block";
         // Reset label for daily/weekly
         const label = daysSection.querySelector("label");
-        if (label) label.innerHTML = `<i class="fas fa-calendar-check" style="color: #1565c0;"></i> 📅 أيام الإرسال:`;
+        if (label)
+          label.innerHTML = `<i class="fas fa-calendar-check" style="color: #1565c0;"></i> 📅 أيام الإرسال:`;
       }
       break;
     case "monthly":
@@ -12180,9 +12613,9 @@ window.toggleRepeatTypeUI = function() {
       if (yearlySection) yearlySection.style.display = "block";
       break;
   }
-  
+
   // Update visual styling for selected repeat type option
-  document.querySelectorAll('.repeat-type-option').forEach((label) => {
+  document.querySelectorAll(".repeat-type-option").forEach((label) => {
     const radio = label.querySelector('input[type="radio"]');
     if (radio && radio.checked) {
       label.style.borderColor = "#ab47bc";
@@ -12192,7 +12625,7 @@ window.toggleRepeatTypeUI = function() {
       label.style.background = "white";
     }
   });
-  
+
   // Update description based on selected type
   const descriptionEl = document.getElementById("repeat-type-description");
   if (descriptionEl) {
@@ -12201,7 +12634,7 @@ window.toggleRepeatTypeUI = function() {
       daily: `💡 <strong>يومي:</strong> يرسل كل يوم في الأيام المختارة ويتكرر للأبد. إذا اخترت كل الأيام = إرسال يومي.`,
       weekly: `💡 <strong>أسبوعي:</strong> يرسل مرة واحدة أسبوعياً في الأيام المحددة. مثالي للتقارير الأسبوعية.`,
       monthly: `💡 <strong>شهري:</strong> يرسل مرة واحدة في الشهر في اليوم المحدد. مثالي للفواتير والتذكيرات الشهرية.`,
-      yearly: `💡 <strong>سنوي:</strong> يرسل مرة واحدة في السنة في التاريخ المحدد. مثالي لأعياد الميلاد والمناسبات السنوية.`
+      yearly: `💡 <strong>سنوي:</strong> يرسل مرة واحدة في السنة في التاريخ المحدد. مثالي لأعياد الميلاد والمناسبات السنوية.`,
     };
     descriptionEl.innerHTML = descriptions[repeatType] || descriptions.daily;
   }
@@ -12223,7 +12656,9 @@ async function handleSaveSchedule() {
   }
 
   // Get repeat type
-  const repeatType = document.querySelector('input[name="schedule-repeat-type"]:checked')?.value || "daily";
+  const repeatType =
+    document.querySelector('input[name="schedule-repeat-type"]:checked')
+      ?.value || "daily";
 
   // Get selected days (for daily/weekly/once)
   const days = [];
@@ -12232,11 +12667,14 @@ async function handleSaveSchedule() {
   });
 
   // Validate based on repeat type
-  if ((repeatType === "daily" || repeatType === "weekly") && days.length === 0) {
+  if (
+    (repeatType === "daily" || repeatType === "weekly") &&
+    days.length === 0
+  ) {
     alert("يرجى اختيار يوم واحد على الأقل");
     return;
   }
-  
+
   // For 'once', at least one day must be selected
   if (repeatType === "once" && days.length === 0) {
     alert("يرجى اختيار اليوم الذي تريد الإرسال فيه");
@@ -12247,10 +12685,10 @@ async function handleSaveSchedule() {
   const dayOfMonthEl = document.getElementById("schedule-day-of-month");
   const yearlyDayEl = document.getElementById("schedule-yearly-day");
   const yearlyMonthEl = document.getElementById("schedule-yearly-month");
-  
+
   let dayOfMonth = 15;
   let month = 1;
-  
+
   if (repeatType === "monthly") {
     dayOfMonth = parseInt(dayOfMonthEl?.value) || 15;
   } else if (repeatType === "yearly") {
@@ -12269,7 +12707,7 @@ async function handleSaveSchedule() {
   document.querySelectorAll(".schedule-saved-number:checked").forEach((cb) => {
     savedNumbers.push({
       phone: cb.value,
-      name: cb.dataset.name || ""
+      name: cb.dataset.name || "",
     });
   });
 
@@ -12278,25 +12716,30 @@ async function handleSaveSchedule() {
 
   // Get selected private clients
   const selectedPrivateClients = [];
-  document.querySelectorAll(".schedule-private-client:checked").forEach((cb) => {
-    selectedPrivateClients.push({
-      phone: cb.value,
-      name: cb.dataset.name || ""
+  document
+    .querySelectorAll(".schedule-private-client:checked")
+    .forEach((cb) => {
+      selectedPrivateClients.push({
+        phone: cb.value,
+        name: cb.dataset.name || "",
+      });
     });
-  });
 
   // Get selected interest groups
   const interestGroups = [];
-  document.querySelectorAll(".schedule-interest-group:checked").forEach((cb) => {
-    interestGroups.push(cb.value);
-  });
+  document
+    .querySelectorAll(".schedule-interest-group:checked")
+    .forEach((cb) => {
+      interestGroups.push(cb.value);
+    });
 
   // Check if at least one recipient is selected
-  const hasRecipients = groups.length > 0 || 
-                        savedNumbers.length > 0 || 
-                        customNumbers.length > 0 || 
-                        selectedPrivateClients.length > 0 || 
-                        interestGroups.length > 0;
+  const hasRecipients =
+    groups.length > 0 ||
+    savedNumbers.length > 0 ||
+    customNumbers.length > 0 ||
+    selectedPrivateClients.length > 0 ||
+    interestGroups.length > 0;
 
   if (!hasRecipients) {
     alert("يرجى اختيار مستلم واحد على الأقل");
@@ -12424,11 +12867,14 @@ window.editSchedule = async function (id) {
     if (startTime) startTime.value = schedule.schedule?.startTime || "09:00";
     if (endTime) endTime.value = schedule.schedule?.endTime || "17:00";
     if (delay) delay.value = schedule.settings?.delaySeconds || 60;
-    if (privateClients) privateClients.checked = schedule.recipients?.privateClients || false;
+    if (privateClients)
+      privateClients.checked = schedule.recipients?.privateClients || false;
 
     // Set repeat type
     const repeatType = schedule.schedule?.repeatType || "daily";
-    const repeatRadio = document.querySelector(`input[name="schedule-repeat-type"][value="${repeatType}"]`);
+    const repeatRadio = document.querySelector(
+      `input[name="schedule-repeat-type"][value="${repeatType}"]`,
+    );
     if (repeatRadio) {
       repeatRadio.checked = true;
       toggleRepeatTypeUI();
@@ -12511,4 +12957,3 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
-

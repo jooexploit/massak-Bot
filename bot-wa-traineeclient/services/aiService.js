@@ -2354,39 +2354,47 @@ ${adText}${contactHint}
     const currentCategory = wpData.meta.category || data.category || "";
     const currentParentCatt = wpData.meta.parent_catt || "";
     const currentArcCategory = wpData.meta.arc_category || "";
-    
-    const isHasakCategory = 
+
+    const isHasakCategory =
       hasakCategories.includes(currentCategory) ||
       hasakCategories.includes(currentParentCatt) ||
       hasakCategories.includes(currentArcCategory);
 
     // ⚠️ CRITICAL: If this is a Hasak category, enforce correct field usage
     if (isHasakCategory) {
-      console.log("\n🎪 Detected Hasak category - enforcing arc_category/arc_subcategory usage");
-      
-      // Find the Hasak category name from whichever field it's in
-      const hasakCategoryName = hasakCategories.find(cat => 
-        cat === currentCategory || cat === currentParentCatt || cat === currentArcCategory
+      console.log(
+        "\n🎪 Detected Hasak category - enforcing arc_category/arc_subcategory usage",
       );
-      
+
+      // Find the Hasak category name from whichever field it's in
+      const hasakCategoryName = hasakCategories.find(
+        (cat) =>
+          cat === currentCategory ||
+          cat === currentParentCatt ||
+          cat === currentArcCategory,
+      );
+
       if (hasakCategoryName) {
         // Set arc_category as the primary field for Hasak
         wpData.meta.arc_category = hasakCategoryName;
         wpData.meta.category = hasakCategoryName;
-        
+
         // Keep arc_subcategory if it exists
         if (!wpData.meta.arc_subcategory && wpData.meta.sub_catt) {
           wpData.meta.arc_subcategory = wpData.meta.sub_catt;
         }
-        
+
         // Clear parent_catt and sub_catt for Hasak categories
         // (they should use arc_category/arc_subcategory instead)
         delete wpData.meta.parent_catt;
         delete wpData.meta.sub_catt;
-        
+
         console.log("✅ Hasak category set:");
         console.log("   - arc_category:", wpData.meta.arc_category);
-        console.log("   - arc_subcategory:", wpData.meta.arc_subcategory || "(none)");
+        console.log(
+          "   - arc_subcategory:",
+          wpData.meta.arc_subcategory || "(none)",
+        );
         console.log("   - Removed parent_catt and sub_catt");
       }
     }

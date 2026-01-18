@@ -65,8 +65,8 @@ async function openAdDetailsModal(id, ad) {
           </div>
           <small style="color: #666; text-align: center;">
             ${ad.imageUrl.mimetype || "image/jpeg"} • ${
-      ad.imageUrl.width || "?"
-    }x${ad.imageUrl.height || "?"} px
+              ad.imageUrl.width || "?"
+            }x${ad.imageUrl.height || "?"} px
           </small>
         </div>
       </div>
@@ -117,26 +117,26 @@ ${escapeHtml(ad.text)}</div>
           <strong style="color: #1565C0;">🌐 Auto-Generated WordPress Data</strong>
           <div style="margin-top: 0.75rem; font-size: 0.9rem;">
             <div><strong>Title:</strong> ${escapeHtml(
-              ad.wpData.title || "N/A"
+              ad.wpData.title || "N/A",
             )}</div>
             ${
               ad.wpData.meta?.parent_catt || ad.wpData.meta?.arc_category
                 ? `<div><strong>Category:</strong> ${escapeHtml(
-                    ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category
+                    ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category,
                   )}</div>`
                 : ""
             }
             ${
               ad.wpData.meta?.City
                 ? `<div><strong>City:</strong> ${escapeHtml(
-                    ad.wpData.meta.City
+                    ad.wpData.meta.City,
                   )}</div>`
                 : ""
             }
             ${
               ad.wpData.meta?.price_amount
                 ? `<div><strong>Price:</strong> ${escapeHtml(
-                    ad.wpData.meta.price_amount
+                    ad.wpData.meta.price_amount,
                   )} ريال</div>`
                 : ""
             }
@@ -235,7 +235,7 @@ async function openAdImageFullView(adId) {
 async function removeAdImage(adId) {
   if (
     !confirm(
-      "Are you sure you want to remove this image from the ad? This action cannot be undone."
+      "Are you sure you want to remove this image from the ad? This action cannot be undone.",
     )
   ) {
     return;
@@ -350,7 +350,7 @@ async function openGroupsPreviewModal(adId, message) {
       await loadSavedCustomNumbers();
       console.log(
         "📱 Loaded saved custom numbers:",
-        window.savedCustomNumbers?.length || 0
+        window.savedCustomNumbers?.length || 0,
       );
     }
 
@@ -404,7 +404,7 @@ async function openGroupsPreviewModal(adId, message) {
 async function loadGroupsAndCollections(forceRefresh = false) {
   try {
     console.log(
-      `🔄 loadGroupsAndCollections called with forceRefresh=${forceRefresh}`
+      `🔄 loadGroupsAndCollections called with forceRefresh=${forceRefresh}`,
     );
 
     // Fetch groups and collections separately
@@ -444,7 +444,7 @@ async function loadGroupsAndCollections(forceRefresh = false) {
     } else {
       console.error(
         "❌ Collections response not OK:",
-        collectionsResponse.status
+        collectionsResponse.status,
       );
     }
 
@@ -454,7 +454,7 @@ async function loadGroupsAndCollections(forceRefresh = false) {
     renderGroupsCheckboxesInPreview("wp-groups-preview-list");
 
     console.log(
-      `✅ Loaded ${allGroups.length} groups and ${allCollections.length} collections`
+      `✅ Loaded ${allGroups.length} groups and ${allCollections.length} collections`,
     );
   } catch (err) {
     console.error("❌ Error loading groups:", err);
@@ -475,7 +475,7 @@ function renderGroupsCheckboxesInPreview(containerId) {
   // First, render saved custom numbers as checkboxes
   const savedNumbers = window.savedCustomNumbers || [];
   console.log(
-    `📋 Rendering ${containerId} with ${savedNumbers.length} saved numbers`
+    `📋 Rendering ${containerId} with ${savedNumbers.length} saved numbers`,
   );
 
   if (savedNumbers.length > 0) {
@@ -504,7 +504,7 @@ function renderGroupsCheckboxesInPreview(containerId) {
           <div>
             <div style="font-weight: 600;">${escapeHtml(number.name)}</div>
             <div style="font-size: 0.85em; opacity: 0.9;"><i class="fas fa-phone"></i> ${escapeHtml(
-              number.phone
+              number.phone,
             )}</div>
           </div>
         </label>
@@ -526,7 +526,7 @@ function renderGroupsCheckboxesInPreview(containerId) {
   console.log(`🎨 Rendering container: ${containerId}`);
   console.log(`📊 allGroups.length: ${allGroups.length}`);
   console.log(
-    `📊 allCollections.length: ${allCollections ? allCollections.length : 0}`
+    `📊 allCollections.length: ${allCollections ? allCollections.length : 0}`,
   );
   console.log(`📊 savedNumbers.length: ${savedNumbers.length}`);
 
@@ -602,7 +602,7 @@ function renderGroupsCheckboxesInPreview(containerId) {
       <label for="gp-${escapeHtml(group.jid)}">
         <span class="group-name">${typeIcon} ${escapeHtml(group.name)}</span>
         <span class="group-id">${escapeHtml(
-          group.jid
+          group.jid,
         )} <span class="group-type-badge">${typeLabel}</span></span>
       </label>
     `;
@@ -620,7 +620,7 @@ function renderGroupsCheckboxesInPreview(containerId) {
 
       groupJids.forEach((jid) => {
         const groupCheckbox = container.querySelector(
-          `.group-checkbox[data-jid="${jid}"]`
+          `.group-checkbox[data-jid="${jid}"]`,
         );
         if (groupCheckbox) {
           groupCheckbox.checked = isChecked;
@@ -652,7 +652,7 @@ function updateCollectionCheckboxStates(container) {
 
       groupJids.forEach((jid) => {
         const groupCheckbox = container.querySelector(
-          `.group-checkbox[data-jid="${jid}"]`
+          `.group-checkbox[data-jid="${jid}"]`,
         );
         if (groupCheckbox) {
           if (groupCheckbox.checked) {
@@ -685,7 +685,7 @@ async function handleGroupsPreviewSend() {
   const selectedCustomNumbersFromSaved = [];
   document
     .querySelectorAll(
-      "#groups-preview-list input.custom-number-checkbox:checked"
+      "#groups-preview-list input.custom-number-checkbox:checked",
     )
     .forEach((cb) => {
       selectedCustomNumbersFromSaved.push({
@@ -698,7 +698,7 @@ async function handleGroupsPreviewSend() {
   const selectedCustomNumbersFromManual = [];
   document
     .querySelectorAll(
-      "#groups-preview-custom-numbers-list input.custom-number-checkbox:checked"
+      "#groups-preview-custom-numbers-list input.custom-number-checkbox:checked",
     )
     .forEach((cb) => {
       selectedCustomNumbersFromManual.push({
@@ -715,7 +715,8 @@ async function handleGroupsPreviewSend() {
 
   // Remove duplicates based on phone number
   const customNumbers = allCustomNumbers.filter(
-    (num, index, self) => index === self.findIndex((n) => n.phone === num.phone)
+    (num, index, self) =>
+      index === self.findIndex((n) => n.phone === num.phone),
   );
 
   // Debug logging
@@ -724,12 +725,12 @@ async function handleGroupsPreviewSend() {
   console.log(
     "Custom Numbers (Saved):",
     selectedCustomNumbersFromSaved.length,
-    selectedCustomNumbersFromSaved
+    selectedCustomNumbersFromSaved,
   );
   console.log(
     "Custom Numbers (Manual):",
     selectedCustomNumbersFromManual.length,
-    selectedCustomNumbersFromManual
+    selectedCustomNumbersFromManual,
   );
   console.log("Total Custom Numbers:", customNumbers.length, customNumbers);
 
@@ -748,7 +749,7 @@ async function handleGroupsPreviewSend() {
   const delayMs = delaySeconds * 1000;
 
   showLoadingOverlay(
-    `📱 Sending to ${totalRecipients} recipient(s) with ${delaySeconds}s delay...`
+    `📱 Sending to ${totalRecipients} recipient(s) with ${delaySeconds}s delay...`,
   );
 
   try {
@@ -773,7 +774,7 @@ async function handleGroupsPreviewSend() {
 
         // Update loading message with progress
         showLoadingOverlay(
-          `📱 Sent ${successCount}/${totalRecipients} messages... (📢 Groups: ${groupsSent}, 📱 Private: ${numbersSent}) - ${delaySeconds}s delay`
+          `📱 Sent ${successCount}/${totalRecipients} messages... (📢 Groups: ${groupsSent}, 📱 Private: ${numbersSent}) - ${delaySeconds}s delay`,
         );
 
         // Wait before sending next message
@@ -846,7 +847,7 @@ async function handleGroupsPreviewSend() {
 
         // Update loading message with progress
         showLoadingOverlay(
-          `📱 Sent ${successCount}/${totalRecipients} messages... (📢 Groups: ${groupsSent}, 📱 Private: ${numbersSent}) - ${delaySeconds}s delay`
+          `📱 Sent ${successCount}/${totalRecipients} messages... (📢 Groups: ${groupsSent}, 📱 Private: ${numbersSent}) - ${delaySeconds}s delay`,
         );
 
         // Wait before sending next message (except for the last one)
@@ -856,7 +857,7 @@ async function handleGroupsPreviewSend() {
       } catch (err) {
         console.error(
           `❌ Failed to send to ${number.name} (${number.phone}):`,
-          err.message || err
+          err.message || err,
         );
         console.error("Error details:", err);
         failCount++;
@@ -873,7 +874,7 @@ async function handleGroupsPreviewSend() {
       "groups:",
       selectedGroups.length,
       "numbers:",
-      customNumbers.length
+      customNumbers.length,
     );
     try {
       const markResponse = await fetch(`/api/bot/ads/${adId}/mark-sent`, {
@@ -965,7 +966,7 @@ async function handleDirectPostToWordPress(id, ad) {
 
     hideLoadingOverlay();
     showSuccessStatus(
-      `✅ Posted to WordPress successfully!\n\nLink: ${shortLink}`
+      `✅ Posted to WordPress successfully!\n\nLink: ${shortLink}`,
     );
 
     // Copy link to clipboard for easy sharing
@@ -1012,7 +1013,7 @@ async function handleAdDetailsWpOnly(id, ad) {
         const error = await response.json();
         alert(
           "Failed to generate WordPress preview: " +
-            (error.error || "Unknown error")
+            (error.error || "Unknown error"),
         );
         return;
       }
@@ -1060,7 +1061,7 @@ async function handleAdDetailsBoth(id, ad) {
         const error = await response.json();
         alert(
           "Failed to generate WordPress preview: " +
-            (error.error || "Unknown error")
+            (error.error || "Unknown error"),
         );
         return;
       }
@@ -1107,7 +1108,7 @@ async function openWpPreviewModal(adId, extractedData, mode) {
   setVal("wp-preview-city", (ed.meta && ed.meta.City) || "");
   setVal(
     "wp-preview-google-location",
-    (ed.meta && ed.meta.google_location) || ""
+    (ed.meta && ed.meta.google_location) || "",
   );
 
   // Categories - Handle dropdowns specially
@@ -1133,7 +1134,7 @@ async function openWpPreviewModal(adId, extractedData, mode) {
   setVal("wp-preview-arc-category", (ed.meta && ed.meta.arc_category) || "");
   setVal(
     "wp-preview-arc-subcategory",
-    (ed.meta && ed.meta.arc_subcategory) || ""
+    (ed.meta && ed.meta.arc_subcategory) || "",
   );
 
   // Contact & Owner
@@ -1152,7 +1153,7 @@ async function openWpPreviewModal(adId, extractedData, mode) {
 
   // Set target website (auto-detected or from existing data)
   const targetWebsiteSelect = document.getElementById(
-    "wp-preview-target-website"
+    "wp-preview-target-website",
   );
   if (targetWebsiteSelect) {
     const targetWebsite = ed.targetWebsite || "masaak"; // Default to masaak
@@ -1169,7 +1170,7 @@ async function openWpPreviewModal(adId, extractedData, mode) {
   setVal("wp-preview-main-ad", (ed.meta && ed.meta.main_ad) || "");
   setVal(
     "wp-preview-payment-method",
-    (ed.meta && ed.meta.payment_method) || ""
+    (ed.meta && ed.meta.payment_method) || "",
   );
   setVal("wp-preview-youtube-link", (ed.meta && ed.meta.youtube_link) || "");
   setVal("wp-preview-tags", (ed.meta && ed.meta.tags) || "");
@@ -1193,7 +1194,7 @@ async function openWpPreviewModal(adId, extractedData, mode) {
     // Generate preview message (will be updated after posting with real link)
     const previewMsg = buildWpWhatsAppMessage(
       "(سيتم إضافة الرابط بعد النشر)",
-      ed
+      ed,
     );
     setVal("wp-preview-message", previewMsg);
   }
@@ -1438,7 +1439,7 @@ async function handleWpPreviewPostAndSend() {
       // Build message with the short WP link (preview will still work)
       finalMessage = buildWpWhatsAppMessage(
         wpLink,
-        data.extractedData || wpData
+        data.extractedData || wpData,
       );
     }
 
@@ -1462,7 +1463,7 @@ async function handleWpPreviewPostAndSend() {
 
     // Update loading message
     showLoadingOverlay(
-      `📱 Sending to ${selectedGroups.length} group(s) with ${delaySeconds}s delay...`
+      `📱 Sending to ${selectedGroups.length} group(s) with ${delaySeconds}s delay...`,
     );
 
     // Send messages with delay between each
@@ -1481,7 +1482,7 @@ async function handleWpPreviewPostAndSend() {
 
         // Update loading message with progress
         showLoadingOverlay(
-          `📱 Sent ${successCount}/${selectedGroups.length} messages... (${delaySeconds}s delay)`
+          `📱 Sent ${successCount}/${selectedGroups.length} messages... (${delaySeconds}s delay)`,
         );
 
         // Wait before sending next message (except for the last one)
@@ -1498,7 +1499,7 @@ async function handleWpPreviewPostAndSend() {
     await updateAdStatus(adId, "accepted");
 
     showSuccessStatus(
-      `✅ Posted to WordPress and sent to ${successCount}/${selectedGroups.length} group(s) successfully!`
+      `✅ Posted to WordPress and sent to ${successCount}/${selectedGroups.length} group(s) successfully!`,
     );
 
     closeWpPreviewModal();

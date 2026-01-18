@@ -60,7 +60,7 @@ const modalMessage = document.getElementById("modal-message");
 // Collections modal
 const collectionsModal = document.getElementById("collections-modal");
 const closeCollectionsModalBtn = document.getElementById(
-  "close-collections-modal"
+  "close-collections-modal",
 );
 const closeCollectionsBtn = document.getElementById("close-collections-btn");
 const collectionsList = document.getElementById("collections-list");
@@ -68,7 +68,7 @@ const collectionsList = document.getElementById("collections-list");
 // Categories modal
 const categoriesModal = document.getElementById("categories-modal");
 const closeCategoriesModalBtn = document.getElementById(
-  "close-categories-modal"
+  "close-categories-modal",
 );
 const closeCategoriesBtn = document.getElementById("close-categories-btn");
 const categoriesList = document.getElementById("categories-list");
@@ -85,39 +85,39 @@ const customNumberPhoneInput = document.getElementById("custom-number-phone");
 const addCustomNumberBtn = document.getElementById("add-custom-number-btn");
 const savedNumbersSelect = document.getElementById("saved-numbers-select");
 const manageCustomNumbersBtn = document.getElementById(
-  "manage-custom-numbers-btn"
+  "manage-custom-numbers-btn",
 );
 const customNumbersModal = document.getElementById("custom-numbers-modal");
 const closeCustomNumbersModalBtn = document.getElementById(
-  "close-custom-numbers-modal"
+  "close-custom-numbers-modal",
 );
 const closeManageCustomNumbersBtn = document.getElementById(
-  "close-manage-custom-numbers-btn"
+  "close-manage-custom-numbers-btn",
 );
 const manageCustomNumberNameInput = document.getElementById(
-  "manage-custom-number-name"
+  "manage-custom-number-name",
 );
 const manageCustomNumberPhoneInput = document.getElementById(
-  "manage-custom-number-phone"
+  "manage-custom-number-phone",
 );
 const saveCustomNumberBtn = document.getElementById("save-custom-number-btn");
 const savedCustomNumbersList = document.getElementById(
-  "saved-custom-numbers-list"
+  "saved-custom-numbers-list",
 );
 const customNumbersMessage = document.getElementById("custom-numbers-message");
 
 // Groups Preview Modal custom numbers elements (simplified)
 const groupsPreviewCustomNumbersList = document.getElementById(
-  "groups-preview-custom-numbers-list"
+  "groups-preview-custom-numbers-list",
 );
 const groupsPreviewCustomNumberNameInput = document.getElementById(
-  "groups-preview-custom-number-name"
+  "groups-preview-custom-number-name",
 );
 const groupsPreviewCustomNumberPhoneInput = document.getElementById(
-  "groups-preview-custom-number-phone"
+  "groups-preview-custom-number-phone",
 );
 const groupsPreviewAddCustomNumberBtn = document.getElementById(
-  "groups-preview-add-custom-number-btn"
+  "groups-preview-add-custom-number-btn",
 );
 
 // Edit Ad modal
@@ -217,7 +217,7 @@ function setupEventListeners() {
 
   // View-specific buttons
   const manageCollectionsBtnView = document.getElementById(
-    "manage-collections-btn-view"
+    "manage-collections-btn-view",
   );
   if (manageCollectionsBtnView) {
     manageCollectionsBtnView.addEventListener("click", openCollectionsManager);
@@ -225,12 +225,12 @@ function setupEventListeners() {
 
   // WhatsApp Messages refresh button
   const refreshWhatsAppMessagesBtn = document.getElementById(
-    "refresh-whatsapp-messages-btn"
+    "refresh-whatsapp-messages-btn",
   );
   if (refreshWhatsAppMessagesBtn) {
     refreshWhatsAppMessagesBtn.addEventListener(
       "click",
-      loadWhatsAppMessagesView
+      loadWhatsAppMessagesView,
     );
   }
 
@@ -245,7 +245,7 @@ function setupEventListeners() {
   }
 
   const whatsappFilterStatus = document.getElementById(
-    "whatsapp-filter-status"
+    "whatsapp-filter-status",
   );
   if (whatsappFilterStatus) {
     whatsappFilterStatus.addEventListener("change", (e) => {
@@ -256,7 +256,7 @@ function setupEventListeners() {
   }
 
   const whatsappFilterWebsite = document.getElementById(
-    "whatsapp-filter-website"
+    "whatsapp-filter-website",
   );
   if (whatsappFilterWebsite) {
     whatsappFilterWebsite.addEventListener("change", (e) => {
@@ -267,7 +267,7 @@ function setupEventListeners() {
   }
 
   const whatsappFilterCategory = document.getElementById(
-    "whatsapp-filter-category"
+    "whatsapp-filter-category",
   );
   if (whatsappFilterCategory) {
     whatsappFilterCategory.addEventListener("change", (e) => {
@@ -328,7 +328,7 @@ function setupEventListeners() {
 
   // Excluded Groups buttons
   const loadExcludedGroupsBtn = document.getElementById(
-    "load-excluded-groups-btn"
+    "load-excluded-groups-btn",
   );
   if (loadExcludedGroupsBtn) {
     loadExcludedGroupsBtn.addEventListener("click", loadExcludedGroups);
@@ -340,14 +340,14 @@ function setupEventListeners() {
   }
 
   const deselectAllGroupsBtn = document.getElementById(
-    "deselect-all-groups-btn"
+    "deselect-all-groups-btn",
   );
   if (deselectAllGroupsBtn) {
     deselectAllGroupsBtn.addEventListener("click", deselectAllExcludedGroups);
   }
 
   const excludedGroupsSearch = document.getElementById(
-    "excluded-groups-search"
+    "excluded-groups-search",
   );
   if (excludedGroupsSearch) {
     excludedGroupsSearch.addEventListener("input", filterExcludedGroups);
@@ -411,12 +411,12 @@ function setupEventListeners() {
   if (closeCustomNumbersModalBtn)
     closeCustomNumbersModalBtn.addEventListener(
       "click",
-      closeCustomNumbersManager
+      closeCustomNumbersManager,
     );
   if (closeManageCustomNumbersBtn)
     closeManageCustomNumbersBtn.addEventListener(
       "click",
-      closeCustomNumbersManager
+      closeCustomNumbersManager,
     );
   if (saveCustomNumberBtn)
     saveCustomNumberBtn.addEventListener("click", handleSaveCustomNumber);
@@ -427,7 +427,7 @@ function setupEventListeners() {
   if (groupsPreviewAddCustomNumberBtn)
     groupsPreviewAddCustomNumberBtn.addEventListener(
       "click",
-      handleGroupsPreviewAddCustomNumber
+      handleGroupsPreviewAddCustomNumber,
     );
 
   // Allow Enter key to add number
@@ -454,11 +454,11 @@ function setupEventListeners() {
     cancelAcceptBtn.addEventListener("click", closeAcceptOptionsModal);
   if (acceptGroupsOnlyBtn)
     acceptGroupsOnlyBtn.addEventListener("click", () =>
-      handleAcceptOption("groups")
+      handleAcceptOption("groups"),
     );
   if (acceptWpOnlyBtn)
     acceptWpOnlyBtn.addEventListener("click", () =>
-      handleAcceptOption("wordpress")
+      handleAcceptOption("wordpress"),
     );
   if (acceptBothBtn)
     acceptBothBtn.addEventListener("click", () => handleAcceptOption("both"));
@@ -929,7 +929,7 @@ async function loadCollectionsView() {
           </button>
         </div>
       </div>
-    `
+    `,
       )
       .join("");
   } catch (error) {
@@ -976,7 +976,7 @@ async function loadCategoriesView() {
           </button>
         </div>
       </div>
-    `
+    `,
       )
       .join("");
   } catch (error) {
@@ -1008,7 +1008,7 @@ function viewCollectionGroups(collectionName) {
 async function deleteCollectionFromView(collectionName) {
   if (
     !confirm(
-      `Are you sure you want to delete the collection "${collectionName}"?`
+      `Are you sure you want to delete the collection "${collectionName}"?`,
     )
   )
     return;
@@ -1018,7 +1018,7 @@ async function deleteCollectionFromView(collectionName) {
       `/api/bot/collections/${encodeURIComponent(collectionName)}`,
       {
         method: "DELETE",
-      }
+      },
     );
 
     if (!response.ok) throw new Error("Failed to delete collection");
@@ -1027,7 +1027,7 @@ async function deleteCollectionFromView(collectionName) {
     showMessage(
       "categories-view-message",
       "Collection deleted successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error deleting collection:", error);
@@ -1047,7 +1047,7 @@ async function deleteCategoryFromView(categoryName) {
       `/api/bot/categories/${encodeURIComponent(categoryName)}`,
       {
         method: "DELETE",
-      }
+      },
     );
 
     if (!response.ok) throw new Error("Failed to delete category");
@@ -1057,7 +1057,7 @@ async function deleteCategoryFromView(categoryName) {
     showMessage(
       "categories-view-message",
       "Category deleted successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error deleting category:", error);
@@ -1112,7 +1112,7 @@ async function loadUsersView() {
           </button>
         </div>
       </div>
-    `
+    `,
       )
       .join("");
   } catch (error) {
@@ -1146,7 +1146,7 @@ async function handleAddUser() {
     showMessage(
       "users-message",
       "Password must be at least 6 characters",
-      "error"
+      "error",
     );
     return;
   }
@@ -1180,12 +1180,12 @@ async function handleAddUser() {
 async function editUser(id, currentUsername, currentRole) {
   const newUsername = prompt(
     "Enter new username (leave blank to keep current):",
-    currentUsername
+    currentUsername,
   );
   if (newUsername === null) return; // User cancelled
 
   const newPassword = prompt(
-    "Enter new password (leave blank to keep current):"
+    "Enter new password (leave blank to keep current):",
   );
   if (newPassword === null) return; // User cancelled
 
@@ -1477,8 +1477,8 @@ function renderAds(list, reset = true, pagination = {}) {
           ad.aiConfidence > 70
             ? "#28a745"
             : ad.aiConfidence > 40
-            ? "#ffc107"
-            : "#dc3545"
+              ? "#ffc107"
+              : "#dc3545"
         }; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; margin-left: 8px;">
         AI: ${ad.aiConfidence}%
       </span>`
@@ -1525,12 +1525,12 @@ function renderAds(list, reset = true, pagination = {}) {
                 ad.fromGroupName || ad.fromGroup
               }</span>
               <span><i class="fas fa-clock"></i> ${new Date(
-                ad.timestamp
+                ad.timestamp,
               ).toLocaleString()}</span>
               <span><i class="fas fa-tag"></i> ${ad.status}</span>
               <span style="color: ${catColor}; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 12px;"><i class="fas fa-folder"></i> ${
-      ad.category || "None"
-    }</span>
+                ad.category || "None"
+              }</span>
             </div>
           </div>
         </div>
@@ -1585,8 +1585,8 @@ function renderAds(list, reset = true, pagination = {}) {
               <small style="color: #666;">${
                 ad.imageUrl.mimetype || "image/jpeg"
               } • ${ad.imageUrl.width || "?"}x${
-                  ad.imageUrl.height || "?"
-                } px</small>
+                ad.imageUrl.height || "?"
+              } px</small>
             </div>
           </div>
           `
@@ -1692,12 +1692,13 @@ function renderAds(list, reset = true, pagination = {}) {
                   <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #667eea;">
                     <div style="font-size: 0.75rem; color: #666; margin-bottom: 2px;">📁 Category</div>
                     <div style="font-weight: bold; color: #333; font-size: 0.9rem;">${escapeHtml(
-                      ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category
+                      ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category,
                     )}</div>
                     ${
                       ad.wpData.meta.sub_catt || ad.wpData.meta.arc_subcategory
                         ? `<div style=\"font-size: 0.8rem; color: #888;\">→ ${escapeHtml(
-                            ad.wpData.meta.sub_catt || ad.wpData.meta.arc_subcategory
+                            ad.wpData.meta.sub_catt ||
+                              ad.wpData.meta.arc_subcategory,
                           )}</div>`
                         : ""
                     }
@@ -1717,12 +1718,12 @@ function renderAds(list, reset = true, pagination = {}) {
                   <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #28a745;">
                     <div style="font-size: 0.75rem; color: #666; margin-bottom: 2px;">💰 Price</div>
                     <div style="font-weight: bold; color: #28a745; font-size: 0.9rem;">${escapeHtml(
-                      ad.wpData.meta.price_amount
+                      ad.wpData.meta.price_amount,
                     )}</div>
                     ${
                       ad.wpData.meta.price_type
                         ? `<div style="font-size: 0.8rem; color: #888;">${escapeHtml(
-                            ad.wpData.meta.price_type
+                            ad.wpData.meta.price_type,
                           )}</div>`
                         : ""
                     }
@@ -1737,7 +1738,7 @@ function renderAds(list, reset = true, pagination = {}) {
                   <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #17a2b8;">
                     <div style="font-size: 0.75rem; color: #666; margin-bottom: 2px;">📏 Space</div>
                     <div style="font-weight: bold; color: #17a2b8; font-size: 0.9rem;">${escapeHtml(
-                      ad.wpData.meta.arc_space
+                      ad.wpData.meta.arc_space,
                     )} m²</div>
                   </div>
                   `
@@ -1750,13 +1751,13 @@ function renderAds(list, reset = true, pagination = {}) {
                   <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #ffc107;">
                     <div style="font-size: 0.75rem; color: #666; margin-bottom: 2px;">📍 Location</div>
                     <div style="font-weight: bold; color: #333; font-size: 0.9rem;">${escapeHtml(
-                      ad.wpData.meta.City || ad.wpData.meta.location || "N/A"
+                      ad.wpData.meta.City || ad.wpData.meta.location || "N/A",
                     )}</div>
                     ${
                       ad.wpData.meta.location &&
                       ad.wpData.meta.location !== ad.wpData.meta.City
                         ? `<div style="font-size: 0.8rem; color: #888;">${escapeHtml(
-                            ad.wpData.meta.location
+                            ad.wpData.meta.location,
                           )}</div>`
                         : ""
                     }
@@ -1771,7 +1772,7 @@ function renderAds(list, reset = true, pagination = {}) {
                   <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #6c757d;">
                     <div style="font-size: 0.75rem; color: #666; margin-bottom: 2px;">📞 Contact</div>
                     <div style="font-weight: bold; color: #333; font-size: 0.9rem;">${escapeHtml(
-                      ad.wpData.meta.phone_number
+                      ad.wpData.meta.phone_number,
                     )}</div>
                   </div>
                   `
@@ -1786,7 +1787,7 @@ function renderAds(list, reset = true, pagination = {}) {
                     <div style="font-weight: bold; color: #e83e8c; font-size: 0.9rem;">${escapeHtml(
                       ad.wpData.meta.offer_type ||
                         ad.wpData.meta.order_type ||
-                        "N/A"
+                        "N/A",
                     )}</div>
                   </div>
                   `
@@ -1942,8 +1943,8 @@ function renderAds(list, reset = true, pagination = {}) {
     loadMoreBtn.innerHTML = `
       <i class="fas fa-chevron-down"></i> 
       Load More (${pagination.currentPage}/${pagination.totalPages} - Showing ${
-      adsList.querySelectorAll(".card").length
-    } of ${pagination.totalAds})
+        adsList.querySelectorAll(".card").length
+      } of ${pagination.totalAds})
     `;
     loadMoreBtn.style.cssText =
       "padding: 12px 30px; font-size: 1rem; border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; cursor: pointer; transition: all 0.3s;";
@@ -2123,7 +2124,7 @@ async function handleConfirmReject() {
 async function handleMoveToRecycleBin(id) {
   if (
     !confirm(
-      "هل أنت متأكد من نقل هذا الإعلان إلى سلة المحذوفات؟\n\nAre you sure you want to move this ad to the recycle bin?"
+      "هل أنت متأكد من نقل هذا الإعلان إلى سلة المحذوفات؟\n\nAre you sure you want to move this ad to the recycle bin?",
     )
   ) {
     return;
@@ -2142,14 +2143,14 @@ async function handleMoveToRecycleBin(id) {
 
     showInfo(
       adsInfo,
-      "🗑️ تم نقل الإعلان إلى سلة المحذوفات / Ad moved to recycle bin"
+      "🗑️ تم نقل الإعلان إلى سلة المحذوفات / Ad moved to recycle bin",
     );
     setTimeout(() => hideMessage(adsInfo), 3000);
     fetchAndRenderAds(); // Refresh the ads list
   } catch (err) {
     console.error("Move to recycle bin error:", err);
     alert(
-      "فشل نقل الإعلان إلى سلة المحذوفات / Failed to move ad to recycle bin"
+      "فشل نقل الإعلان إلى سلة المحذوفات / Failed to move ad to recycle bin",
     );
   }
 }
@@ -2202,7 +2203,7 @@ async function postToWordPress(adId) {
 
     // Show success message
     alert(
-      `✅ تم نشر الإعلان على WordPress بنجاح!\n\nالرابط: ${data.wordpressPost.link}`
+      `✅ تم نشر الإعلان على WordPress بنجاح!\n\nالرابط: ${data.wordpressPost.link}`,
     );
 
     return data; // Return full data including extractedData
@@ -2286,7 +2287,7 @@ async function sendWordPressNotificationToGroups(groups, wpData) {
           number: groupId,
           message: message,
         }),
-      })
+      }),
     );
 
     await Promise.all(promises);
@@ -2455,7 +2456,7 @@ async function handlePreviewSendGroups() {
         "📝 [UPDATE] Marking ad as sent, adId:",
         adId,
         "groups:",
-        groups
+        groups,
       );
       const markResponse = await fetch(`/api/bot/ads/${adId}/mark-sent`, {
         method: "POST",
@@ -2531,7 +2532,7 @@ async function handlePreviewPostAndSend() {
         "📝 [UPDATE] Marking ad as sent, adId:",
         adId,
         "groups:",
-        groups
+        groups,
       );
       const markResponse = await fetch(`/api/bot/ads/${adId}/mark-sent`, {
         method: "POST",
@@ -2567,7 +2568,7 @@ async function handlePreviewPostAndSend() {
 async function handleRegenerateAd(id) {
   if (
     !confirm(
-      "Regenerate this ad with AI? This will replace the current enhanced version."
+      "Regenerate this ad with AI? This will replace the current enhanced version.",
     )
   )
     return;
@@ -2583,8 +2584,8 @@ async function handleRegenerateAd(id) {
       await fetchAndRenderAds();
       alert(
         `✨ Ad regenerated successfully!\n\nImprovements:\n${data.improvements.join(
-          "\n"
-        )}`
+          "\n",
+        )}`,
       );
     } else {
       const data = await response.json();
@@ -2698,7 +2699,7 @@ function renderGroupsCheckboxes() {
     item.className = "group-item";
     item.innerHTML = `
       <input type="checkbox" id="group-${escapeHtml(
-        group.jid
+        group.jid,
       )}" value="${escapeHtml(group.jid)}">
       <label for="group-${escapeHtml(group.jid)}">
         <span class="group-name">${escapeHtml(group.name)}</span>
@@ -2769,7 +2770,7 @@ async function handleSaveCollection() {
   if (selectedGroups.length === 0 && selectedCustomNumbers.length === 0) {
     showInfo(
       modalMessage,
-      "Please select at least one group or add a custom number"
+      "Please select at least one group or add a custom number",
     );
     return;
   }
@@ -2812,7 +2813,7 @@ async function handleConfirmResend() {
   if (selectedGroups.length === 0 && selectedCustomNumbers.length === 0) {
     showInfo(
       modalMessage,
-      "Please select at least one group or add a custom number"
+      "Please select at least one group or add a custom number",
     );
     return;
   }
@@ -2831,7 +2832,7 @@ async function handleConfirmResend() {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ preview: true }),
-        }
+        },
       );
 
       if (!previewResp.ok) {
@@ -2849,7 +2850,7 @@ async function handleConfirmResend() {
         previewData.extractedData,
         currentAdIdForResend,
         selectedGroups,
-        selectedCustomNumbers
+        selectedCustomNumbers,
       );
       // Reset button state (the actual actions are handled from the preview modal)
       confirmResendBtn.disabled = false;
@@ -3032,8 +3033,8 @@ function renderCategoriesManager() {
     item.innerHTML = `
       <div class="collection-info">
         <div class="collection-name" style="color:${cat.color};">● ${escapeHtml(
-      cat.name
-    )}</div>
+          cat.name,
+        )}</div>
       </div>
       <div class="collection-actions">
         <button class="btn btn-small btn-danger" data-action="delete" data-id="${
@@ -3118,7 +3119,7 @@ async function handleAddCategoryFromView() {
     showMessage(
       "categories-view-message",
       "Please enter a category name",
-      "error"
+      "error",
     );
     return;
   }
@@ -3141,7 +3142,7 @@ async function handleAddCategoryFromView() {
       showMessage(
         "categories-view-message",
         "Category added successfully!",
-        "success"
+        "success",
       );
     } else {
       showMessage("categories-view-message", "Failed to add category", "error");
@@ -3173,7 +3174,7 @@ async function loadSavedCustomNumbers() {
       console.log(
         "✅ Loaded saved custom numbers:",
         savedCustomNumbers.length,
-        savedCustomNumbers
+        savedCustomNumbers,
       );
       window.savedCustomNumbers = savedCustomNumbers; // Ensure global access
       updateSavedNumbersDropdown();
@@ -3230,7 +3231,7 @@ function handleAddCustomNumberToList() {
   // Basic phone validation (numbers only, optionally starting with +)
   if (!/^\+?\d+$/.test(phone)) {
     alert(
-      "Please enter a valid phone number (digits only, optionally starting with +)"
+      "Please enter a valid phone number (digits only, optionally starting with +)",
     );
     return;
   }
@@ -3269,7 +3270,7 @@ function renderCustomNumbersList() {
         <i class="fas fa-phone" style="color:#28a745;"></i>
         <span style="font-weight:500;">${escapeHtml(number.name)}</span>
         <span style="color:#666;font-size:0.9rem;">(${escapeHtml(
-          number.phone
+          number.phone,
         )})</span>
       </div>
       <button class="btn btn-small btn-danger" onclick="removeCustomNumber(${index})" style="padding:4px 8px;">
@@ -3327,15 +3328,15 @@ function renderSavedCustomNumbersList() {
         <i class="fas fa-phone" style="color:#28a745;font-size:1.2rem;"></i>
         <div>
           <div style="font-weight:600;color:#333;">${escapeHtml(
-            number.name
+            number.name,
           )}</div>
           <div style="color:#666;font-size:0.9rem;">${escapeHtml(
-            number.phone
+            number.phone,
           )}</div>
         </div>
       </div>
       <button class="btn btn-small btn-danger" onclick="handleDeleteCustomNumber('${escapeHtml(
-        number.phone
+        number.phone,
       )}')" style="padding:6px 12px;">
         <i class="fas fa-trash"></i> Delete
       </button>
@@ -3386,7 +3387,7 @@ async function handleSaveCustomNumber() {
       const error = await response.json();
       showInfo(
         customNumbersMessage,
-        error.error || "Failed to save custom number"
+        error.error || "Failed to save custom number",
       );
     }
   } catch (err) {
@@ -3419,7 +3420,7 @@ async function handleDeleteCustomNumber(phone) {
       const error = await response.json();
       showInfo(
         customNumbersMessage,
-        error.error || "Failed to delete custom number"
+        error.error || "Failed to delete custom number",
       );
     }
   } catch (err) {
@@ -3445,7 +3446,7 @@ async function handleGroupsPreviewAddCustomNumber() {
   // Basic phone validation
   if (!/^\+?\d+$/.test(phone)) {
     alert(
-      "⚠️ Please enter a valid phone number (digits only, optionally starting with +)"
+      "⚠️ Please enter a valid phone number (digits only, optionally starting with +)",
     );
     return;
   }
@@ -3493,7 +3494,7 @@ async function handleGroupsPreviewAddCustomNumber() {
         "⚠️ Save failed with status",
         response.status,
         "Error:",
-        errorData
+        errorData,
       );
 
       if (
@@ -3564,7 +3565,7 @@ function renderGroupsPreviewCustomNumbersList() {
           <div>
             <div style="font-weight: 600;">${escapeHtml(number.name)}</div>
             <div style="font-size: 0.85em; opacity: 0.9;"><i class="fas fa-phone"></i> ${escapeHtml(
-              number.phone
+              number.phone,
             )}</div>
           </div>
         </div>
@@ -3778,8 +3779,8 @@ function showMessage(elementId, message, type = "info") {
     type === "success"
       ? "success-message show"
       : type === "error"
-      ? "error-message show"
-      : "info-message show";
+        ? "error-message show"
+        : "info-message show";
   element.style.display = "block";
 
   setTimeout(() => {
@@ -3882,7 +3883,7 @@ function renderRecycleBin(items) {
           const date = new Date(item.rejectedAt);
           const daysAgo = Math.max(
             0,
-            Math.floor((Date.now() - item.rejectedAt) / (1000 * 60 * 60 * 24))
+            Math.floor((Date.now() - item.rejectedAt) / (1000 * 60 * 60 * 24)),
           );
 
           // Calculate urgency color based on days remaining using settings
@@ -3915,8 +3916,8 @@ function renderRecycleBin(items) {
                 </span>
                 <span style="opacity:0.9;font-size:0.9rem;">
                   <i class="fas fa-calendar-alt"></i> ${date.toLocaleDateString()} · ${timeAgo(
-            date
-          )}
+                    date,
+                  )}
                 </span>
                 <span style="opacity:0.9;font-size:0.9rem;">
                   <i class="fas fa-clock"></i> ${date.toLocaleTimeString()}
@@ -3971,7 +3972,7 @@ function renderRecycleBin(items) {
                 ${escapeHtml(
                   recycleBinState.compact
                     ? truncateText(item.text, 220)
-                    : item.text
+                    : item.text,
                 )}
               </div>
             </div>
@@ -4005,11 +4006,11 @@ function renderRecycleBin(items) {
     console.log(
       "🎨 HTML generated, length:",
       container.innerHTML.length,
-      "characters"
+      "characters",
     );
     console.log(
       "🎨 Number of .ad-card elements:",
-      container.querySelectorAll(".ad-card").length
+      container.querySelectorAll(".ad-card").length,
     );
   } catch (error) {
     console.error("🎨 ❌ Fatal error during rendering:", error);
@@ -4034,15 +4035,15 @@ function renderRecycleBin(items) {
     console.log("🎨 Container innerHTML length:", container.innerHTML.length);
     console.log(
       "🎨 Container display:",
-      window.getComputedStyle(container).display
+      window.getComputedStyle(container).display,
     );
     console.log(
       "🎨 Container visibility:",
-      window.getComputedStyle(container).visibility
+      window.getComputedStyle(container).visibility,
     );
     console.log(
       "🎨 Number of .ad-card elements:",
-      container.querySelectorAll(".ad-card").length
+      container.querySelectorAll(".ad-card").length,
     );
 
     // Check if cards are visible
@@ -4050,7 +4051,7 @@ function renderRecycleBin(items) {
     cards.forEach((card, idx) => {
       const style = window.getComputedStyle(card);
       console.log(
-        `🎨 Card ${idx} - display: ${style.display}, visibility: ${style.visibility}, height: ${style.height}`
+        `🎨 Card ${idx} - display: ${style.display}, visibility: ${style.visibility}, height: ${style.height}`,
       );
     });
   }, 100);
@@ -4060,7 +4061,7 @@ function populateRecycleGroupFilter(items) {
   const select = document.getElementById("recycle-group-filter");
   if (!select) return;
   const groups = Array.from(
-    new Set(items.map((i) => i.fromGroupName || "Unknown Group"))
+    new Set(items.map((i) => i.fromGroupName || "Unknown Group")),
   ).sort((a, b) => a.localeCompare(b));
   const current = select.value;
   // Reset options
@@ -4068,7 +4069,7 @@ function populateRecycleGroupFilter(items) {
     '<option value="all">All Groups</option>' +
     groups
       .map(
-        (g) => `<option value="${escapeHtmlAttr(g)}">${escapeHtml(g)}</option>`
+        (g) => `<option value="${escapeHtmlAttr(g)}">${escapeHtml(g)}</option>`,
       )
       .join("");
   // Restore previous selection if exists
@@ -4100,7 +4101,7 @@ function bindRecycleToolbarListeners() {
     });
   if (selectAll)
     selectAll.addEventListener("change", (e) =>
-      toggleSelectAll(e.target.checked)
+      toggleSelectAll(e.target.checked),
     );
   if (bulkRestore) bulkRestore.addEventListener("click", bulkRestoreSelected);
   if (bulkDelete) bulkDelete.addEventListener("click", bulkDeleteSelected);
@@ -4238,7 +4239,7 @@ async function bulkDeleteSelected() {
   if (recycleBinState.selected.size === 0) return;
   if (
     !confirm(
-      `Permanently delete ${recycleBinState.selected.size} selected message(s)? This cannot be undone!`
+      `Permanently delete ${recycleBinState.selected.size} selected message(s)? This cannot be undone!`,
     )
   )
     return;
@@ -4303,7 +4304,7 @@ async function handleRestoreFromRecycleBin(id) {
     showMessage(
       "recycle-bin-message",
       "Message restored successfully!",
-      "success"
+      "success",
     );
     loadRecycleBinView(); // Refresh the list
   } catch (error) {
@@ -4326,7 +4327,7 @@ async function handleDeleteFromRecycleBin(id) {
     showMessage(
       "recycle-bin-message",
       "Message deleted permanently",
-      "success"
+      "success",
     );
     loadRecycleBinView(); // Refresh the list
   } catch (error) {
@@ -4338,7 +4339,7 @@ async function handleDeleteFromRecycleBin(id) {
 async function handleEmptyRecycleBin() {
   if (
     !confirm(
-      "Are you sure you want to permanently delete ALL messages in the recycle bin? This cannot be undone!"
+      "Are you sure you want to permanently delete ALL messages in the recycle bin? This cannot be undone!",
     )
   )
     return;
@@ -4353,7 +4354,7 @@ async function handleEmptyRecycleBin() {
     showMessage(
       "recycle-bin-message",
       "Recycle bin emptied successfully",
-      "success"
+      "success",
     );
     loadRecycleBinView(); // Refresh the list
   } catch (error) {
@@ -4402,12 +4403,12 @@ async function loadSettingsView() {
     renderApiKeysByProvider(
       "gemini",
       data.settings.geminiApiKeys || [],
-      "gemini-keys-list"
+      "gemini-keys-list",
     );
     renderApiKeysByProvider(
       "gpt",
       data.settings.gptApiKeys || [],
-      "gpt-keys-list"
+      "gpt-keys-list",
     );
 
     // Setup provider tab switching
@@ -4428,7 +4429,7 @@ async function loadSettingsView() {
         const collectionsData = await collectionsResp.json();
         allCollections = collectionsData.collections || [];
         console.log(
-          `✅ Loaded ${allCollections.length} collections in Settings`
+          `✅ Loaded ${allCollections.length} collections in Settings`,
         );
       }
     } catch (err) {
@@ -4533,7 +4534,7 @@ async function checkApiKeysStatus() {
               ? '<span style="background:#10a37f;color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;">GPT</span>'
               : '<span style="background:#4285f4;color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;">Gemini</span>';
           return `<div style="padding: 0.25rem 0;">${providerBadge} <strong>${escapeHtml(
-            key.name
+            key.name,
           )}:</strong> ${
             key.requestCount
           } requests, Last error: ${lastError}</div>`;
@@ -4555,7 +4556,7 @@ async function checkApiKeysStatus() {
             ? new Date(key.lastError.timestamp).toLocaleString()
             : "N/A";
           return `<div style="padding: 0.25rem 0;"><strong>${escapeHtml(
-            key.name
+            key.name,
           )}:</strong> Exhausted at ${lastError}</div>`;
         })
         .join("");
@@ -4582,7 +4583,7 @@ async function checkAndShowApiKeysNotification() {
 
     const data = await response.json();
     const settingsNavItem = document.querySelector(
-      '.nav-item[data-view="settings"]'
+      '.nav-item[data-view="settings"]',
     );
 
     if (!settingsNavItem) return;
@@ -4684,8 +4685,8 @@ function renderApiKeysByProvider(provider, apiKeys, containerId) {
             </div>
             <div style="font-family: monospace; font-size: 0.85rem; color: #666;">
               ${key.key.substring(0, 15)}...${key.key.substring(
-        key.key.length - 4
-      )}
+                key.key.length - 4,
+              )}
             </div>
             <div style="font-size: 0.85rem; color: #999; margin-top: 0.5rem;">
               <span style="margin-right: 1rem;">📊 Requests: ${
@@ -4694,14 +4695,14 @@ function renderApiKeysByProvider(provider, apiKeys, containerId) {
               ${
                 key.lastUsed
                   ? `<span style="margin-right: 1rem;">🕐 Last used: ${new Date(
-                      key.lastUsed
+                      key.lastUsed,
                     ).toLocaleString()}</span>`
                   : ""
               }
               ${
                 key.lastError
                   ? `<span style="color: #dc3545;">⚠️ Error: ${new Date(
-                      key.lastError.timestamp
+                      key.lastError.timestamp,
                     ).toLocaleString()}</span>`
                   : ""
               }
@@ -4713,26 +4714,26 @@ function renderApiKeysByProvider(provider, apiKeys, containerId) {
                 key.enabled ? "btn-secondary" : "btn-success"
               }" 
                       onclick="toggleApiKeyByProvider('${provider}', '${
-        key.id
-      }', ${!key.enabled})">
+                        key.id
+                      }', ${!key.enabled})">
                 <i class="fas fa-${key.enabled ? "pause" : "play"}"></i>
                 ${key.enabled ? "Pause" : "Activate"}
               </button>
               <button class="btn btn-sm btn-info" onclick="editApiKey('${provider}', '${
-        key.id
-      }')">
+                key.id
+              }')">
                 <i class="fas fa-edit"></i>
               </button>
               <button class="btn btn-sm btn-danger" onclick="deleteApiKeyByProvider('${provider}', '${
-        key.id
-      }')">
+                key.id
+              }')">
                 <i class="fas fa-trash"></i>
               </button>
             </div>
           </div>
         </div>
       </div>
-    `
+    `,
     )
     .join("");
 
@@ -4890,7 +4891,7 @@ async function handleSaveApiKey() {
     showMessage(
       "settings-message",
       "Please provide both name and API key",
-      "error"
+      "error",
     );
     return;
   }
@@ -4900,14 +4901,14 @@ async function handleSaveApiKey() {
     showMessage(
       "settings-message",
       "Gemini API keys typically start with 'AIza...'",
-      "warning"
+      "warning",
     );
   }
   if (provider === "gpt" && !key.startsWith("sk-")) {
     showMessage(
       "settings-message",
       "GPT API keys typically start with 'sk-...'",
-      "warning"
+      "warning",
     );
   }
 
@@ -4927,7 +4928,7 @@ async function handleSaveApiKey() {
     showMessage(
       "settings-message",
       `${provider.toUpperCase()} API key added successfully!`,
-      "success"
+      "success",
     );
     nameInput.value = "";
     valueInput.value = "";
@@ -4939,7 +4940,7 @@ async function handleSaveApiKey() {
     showMessage(
       "settings-message",
       error.message || "Failed to save API key",
-      "error"
+      "error",
     );
   }
 }
@@ -4958,7 +4959,7 @@ async function toggleApiKeyByProvider(provider, keyId, enabled) {
     showMessage(
       "settings-message",
       `API key ${enabled ? "activated" : "paused"}!`,
-      "success"
+      "success",
     );
     loadSettingsView(); // Reload
   } catch (error) {
@@ -5071,7 +5072,7 @@ function renderCategoryLimits(categoryLimits) {
             </div>
           </div>
         </div>
-      `
+      `,
       )
       .join("");
   }
@@ -5089,7 +5090,7 @@ function showAddCategoryLimitModal() {
 
   const maxAds = prompt(
     "Enter maximum number of ads per day for this category:",
-    "50"
+    "50",
   );
   if (!maxAds || isNaN(maxAds) || parseInt(maxAds) < 1) {
     alert("Please enter a valid number greater than 0");
@@ -5130,7 +5131,7 @@ async function addCategoryLimit(category, maxAds) {
     }
 
     alert(
-      `✅ Category limit added for "${category}" (Max: ${maxAds} ads/day)!`
+      `✅ Category limit added for "${category}" (Max: ${maxAds} ads/day)!`,
     );
     await loadSettingsView(); // Reload to show new limit
   } catch (error) {
@@ -5162,7 +5163,7 @@ async function toggleCategoryLimit(index, enabled) {
       }
 
       alert(
-        `✅ "${category}" limit ${enabled ? "✔️ enabled" : "❌ disabled"}!`
+        `✅ "${category}" limit ${enabled ? "✔️ enabled" : "❌ disabled"}!`,
       );
 
       // Update the display inline without full reload
@@ -5311,7 +5312,7 @@ function renderCollectionsInSettings() {
         </div>
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 }
@@ -5353,10 +5354,10 @@ async function editCollectionInSettings(collectionId) {
 
           // Separate communities and groups
           const communities = sortedGroups.filter(
-            (g) => g.isCommunity || g.type === "Community"
+            (g) => g.isCommunity || g.type === "Community",
           );
           const regularGroups = sortedGroups.filter(
-            (g) => !g.isCommunity && g.type !== "Community"
+            (g) => !g.isCommunity && g.type !== "Community",
           );
 
           let groupsHTML = "";
@@ -5370,7 +5371,7 @@ async function editCollectionInSettings(collectionId) {
                 (group) => `
               <div class="group-item" style="padding: 8px; border-bottom: 1px solid #eee; padding-left: 20px;">
                 <input type="checkbox" id="coll-group-${escapeHtml(
-                  group.jid
+                  group.jid,
                 )}" value="${escapeHtml(group.jid)}"
                   ${
                     collection.groups && collection.groups.includes(group.jid)
@@ -5378,12 +5379,12 @@ async function editCollectionInSettings(collectionId) {
                       : ""
                   }>
                 <label for="coll-group-${escapeHtml(
-                  group.jid
+                  group.jid,
                 )}" style="margin-left: 8px; cursor: pointer;">
                   📢 ${escapeHtml(group.name)}
                 </label>
               </div>
-            `
+            `,
               )
               .join("");
           }
@@ -5397,7 +5398,7 @@ async function editCollectionInSettings(collectionId) {
                 (group) => `
               <div class="group-item" style="padding: 8px; border-bottom: 1px solid #eee; padding-left: 20px;">
                 <input type="checkbox" id="coll-group-${escapeHtml(
-                  group.jid
+                  group.jid,
                 )}" value="${escapeHtml(group.jid)}"
                   ${
                     collection.groups && collection.groups.includes(group.jid)
@@ -5405,12 +5406,12 @@ async function editCollectionInSettings(collectionId) {
                       : ""
                   }>
                 <label for="coll-group-${escapeHtml(
-                  group.jid
+                  group.jid,
                 )}" style="margin-left: 8px; cursor: pointer;">
                   👥 ${escapeHtml(group.name)}
                 </label>
               </div>
-            `
+            `,
               )
               .join("");
           }
@@ -5485,7 +5486,7 @@ async function saveEditedCollection(collectionId) {
     showMessage(
       "settings-message",
       "Collection updated successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error updating collection:", error);
@@ -5499,7 +5500,7 @@ async function deleteCollectionFromSettings(collectionId) {
 
   if (
     !confirm(
-      `Are you sure you want to delete the collection "${collection.name}"?`
+      `Are you sure you want to delete the collection "${collection.name}"?`,
     )
   )
     return;
@@ -5519,7 +5520,7 @@ async function deleteCollectionFromSettings(collectionId) {
     showMessage(
       "settings-message",
       "Collection deleted successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error deleting collection:", error);
@@ -5568,10 +5569,10 @@ function setupCollectionsManagementListeners() {
 
               // Separate communities and groups
               const communities = sortedGroups.filter(
-                (g) => g.isCommunity || g.type === "Community"
+                (g) => g.isCommunity || g.type === "Community",
               );
               const regularGroups = sortedGroups.filter(
-                (g) => !g.isCommunity && g.type !== "Community"
+                (g) => !g.isCommunity && g.type !== "Community",
               );
 
               let groupsHTML = "";
@@ -5585,15 +5586,15 @@ function setupCollectionsManagementListeners() {
                     (group) => `
                   <div class="group-item" style="padding: 8px; border-bottom: 1px solid #eee; padding-left: 20px;">
                     <input type="checkbox" id="coll-group-${escapeHtml(
-                      group.jid
+                      group.jid,
                     )}" value="${escapeHtml(group.jid)}">
                     <label for="coll-group-${escapeHtml(
-                      group.jid
+                      group.jid,
                     )}" style="margin-left: 8px; cursor: pointer;">
                       📢 ${escapeHtml(group.name)}
                     </label>
                   </div>
-                `
+                `,
                   )
                   .join("");
               }
@@ -5607,22 +5608,22 @@ function setupCollectionsManagementListeners() {
                     (group) => `
                   <div class="group-item" style="padding: 8px; border-bottom: 1px solid #eee; padding-left: 20px;">
                     <input type="checkbox" id="coll-group-${escapeHtml(
-                      group.jid
+                      group.jid,
                     )}" value="${escapeHtml(group.jid)}">
                     <label for="coll-group-${escapeHtml(
-                      group.jid
+                      group.jid,
                     )}" style="margin-left: 8px; cursor: pointer;">
                       👥 ${escapeHtml(group.name)}
                     </label>
                   </div>
-                `
+                `,
                   )
                   .join("");
               }
 
               groupsList.innerHTML = groupsHTML;
               console.log(
-                "📂 ✅ Groups rendered successfully in collections form"
+                "📂 ✅ Groups rendered successfully in collections form",
               );
             }
           } else {
@@ -5702,7 +5703,7 @@ async function saveNewCollection() {
     showMessage(
       "settings-message",
       "Collection created successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error creating collection:", error);
@@ -5728,7 +5729,7 @@ function renderCategoriesInSettings() {
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
           <div style="width: 30px; height: 30px; background: ${escapeHtml(
-            category.color
+            category.color,
           )}; border-radius: 4px;"></div>
           <strong>${escapeHtml(category.name)}</strong>
         </div>
@@ -5746,7 +5747,7 @@ function renderCategoriesInSettings() {
         </div>
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 }
@@ -5804,7 +5805,7 @@ async function saveEditedCategory(categoryId) {
     showMessage(
       "settings-message",
       "Category updated successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error updating category:", error);
@@ -5836,7 +5837,7 @@ async function deleteCategoryFromSettings(categoryId) {
     showMessage(
       "settings-message",
       "Category deleted successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error deleting category:", error);
@@ -5908,7 +5909,7 @@ async function saveNewCategory() {
     showMessage(
       "settings-message",
       "Category created successfully!",
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Error creating category:", error);
@@ -5925,7 +5926,7 @@ async function handleSaveAllSettings() {
     showMessage(
       "settings-message",
       "Please enter a valid number between 1 and 365",
-      "error"
+      "error",
     );
     return;
   }
@@ -5990,17 +5991,17 @@ async function testWordPressConnection() {
       alert(
         `✅ Connection successful!\n\nLogged in as: ${
           userData.name
-        }\nRole: ${userData.roles.join(", ")}`
+        }\nRole: ${userData.roles.join(", ")}`,
       );
     } else {
       alert(
-        `❌ Connection failed!\n\nStatus: ${response.status}\nMake sure the credentials are correct and WordPress REST API is enabled.`
+        `❌ Connection failed!\n\nStatus: ${response.status}\nMake sure the credentials are correct and WordPress REST API is enabled.`,
       );
     }
   } catch (error) {
     console.error("WordPress test error:", error);
     alert(
-      `❌ Connection failed!\n\nError: ${error.message}\n\nNote: Browser may block cross-origin requests. The connection will work from the server.`
+      `❌ Connection failed!\n\nError: ${error.message}\n\nNote: Browser may block cross-origin requests. The connection will work from the server.`,
     );
   } finally {
     testBtn.disabled = false;
@@ -6023,7 +6024,7 @@ async function updateAutoApproveWordPress(enabled) {
     showMessage(
       "settings-message",
       `Auto-approve & post to WordPress ${statusText} successfully!`,
-      "success"
+      "success",
     );
     console.log(`✅ Auto-approve WordPress ${statusText}`);
   } catch (error) {
@@ -6031,7 +6032,7 @@ async function updateAutoApproveWordPress(enabled) {
     showMessage(
       "settings-message",
       "Failed to update auto-approve setting",
-      "error"
+      "error",
     );
     // Revert the toggle on error
     const toggle = document.getElementById("auto-approve-wp-toggle");
@@ -6255,9 +6256,9 @@ function updateTopGroupsChart(groupStats) {
       return `
       <div class="chart-bar">
         <div class="chart-bar-label" title="${group.name}">${truncateText(
-        group.name,
-        15
-      )}</div>
+          group.name,
+          15,
+        )}</div>
         <div class="chart-bar-container">
           <div class="chart-bar-fill" style="width: ${percentage}%; background: ${color};">
             ${group.total}
@@ -6351,8 +6352,8 @@ function updateRecentActivity(recentAds) {
           <div class="activity-preview">${ad.preview}...</div>
         </div>
         <div class="activity-badge badge-${ad.status}">${getStatusText(
-        ad.status
-      )}</div>
+          ad.status,
+        )}</div>
       </div>
     `;
     })
@@ -6438,13 +6439,13 @@ function setupWhatsAppSearch() {
       if (!listContainer || !whatsappMessagesState.allMessages.length) return;
 
       const filteredMessages = applyWhatsAppFilters(
-        whatsappMessagesState.allMessages
+        whatsappMessagesState.allMessages,
       );
       updateWhatsAppMessagesCount(filteredMessages.length);
 
       const messagesToShow = filteredMessages.slice(
         0,
-        whatsappMessagesState.itemsPerPage
+        whatsappMessagesState.itemsPerPage,
       );
       listContainer.innerHTML = "";
       renderWhatsAppMessageCards(messagesToShow, listContainer);
@@ -6514,22 +6515,22 @@ async function loadWhatsAppMessagesView(append = false) {
       ads.forEach((ad, i) => {
         console.log(
           `  ${i + 1}. ${ad.id} - ${ad.category || "No category"} - ${new Date(
-            ad.timestamp
-          ).toLocaleDateString()}`
+            ad.timestamp,
+          ).toLocaleDateString()}`,
         );
       });
     }
 
     // Calculate expected pagination
     const expectedPages = Math.ceil(
-      ads.length / whatsappMessagesState.itemsPerPage
+      ads.length / whatsappMessagesState.itemsPerPage,
     );
     console.log(`\n📄 Expected total pages: ${expectedPages}`);
     console.log(`Current page: ${whatsappMessagesState.currentPage}`);
     console.log(
       `Should show Load More? ${
         ads.length > whatsappMessagesState.itemsPerPage
-      }`
+      }`,
     );
     console.log("=".repeat(70));
 
@@ -6546,7 +6547,7 @@ async function loadWhatsAppMessagesView(append = false) {
 
     console.log(
       "✅ Total WhatsApp messages stored:",
-      whatsappMessagesState.allMessages.length
+      whatsappMessagesState.allMessages.length,
     );
     console.log("Current page:", whatsappMessagesState.currentPage);
     console.log("Items per page:", whatsappMessagesState.itemsPerPage);
@@ -6561,7 +6562,7 @@ async function loadWhatsAppMessagesView(append = false) {
 
     // Apply filters and sorting
     const filteredMessages = applyWhatsAppFilters(
-      whatsappMessagesState.allMessages
+      whatsappMessagesState.allMessages,
     );
 
     console.log("Filtered messages after filters:", filteredMessages.length);
@@ -6577,7 +6578,7 @@ async function loadWhatsAppMessagesView(append = false) {
     const hasMore = endIndex < filteredMessages.length;
 
     console.log(
-      `📄 Pagination: showing ${messagesToShow.length} items (${startIndex} to ${endIndex}), hasMore: ${hasMore}`
+      `📄 Pagination: showing ${messagesToShow.length} items (${startIndex} to ${endIndex}), hasMore: ${hasMore}`,
     );
 
     // Render messages
@@ -6586,7 +6587,7 @@ async function loadWhatsAppMessagesView(append = false) {
     } else {
       // Remove load more button if it exists
       const loadMoreBtn = listContainer.querySelector(
-        ".load-more-whatsapp-container"
+        ".load-more-whatsapp-container",
       );
       if (loadMoreBtn) {
         loadMoreBtn.remove();
@@ -6628,7 +6629,7 @@ function populateWhatsAppCategoryFilter(ads) {
           const meta = ad.wpData && ad.wpData.meta ? ad.wpData.meta : {};
           return meta.arc_category || meta.parent_catt || ad.category || null;
         })
-        .filter(Boolean)
+        .filter(Boolean),
     ),
   ];
   categories.sort();
@@ -6665,7 +6666,7 @@ function populateWhatsAppGroupFilter(ads) {
 
   // Add group options sorted alphabetically
   const sortedGroups = Array.from(groupsMap.entries()).sort((a, b) =>
-    a[1].localeCompare(b[1])
+    a[1].localeCompare(b[1]),
   );
 
   sortedGroups.forEach(([id, name]) => {
@@ -6729,7 +6730,7 @@ function applyWhatsAppFilters(messages) {
     });
   }
   console.log(
-    `📊 [FILTER] Status: ${whatsappMessagesState.filterStatus}, Before: ${messages.length}, After: ${filtered.length}`
+    `📊 [FILTER] Status: ${whatsappMessagesState.filterStatus}, Before: ${messages.length}, After: ${filtered.length}`,
   );
   // "all" shows both sent and pending
 
@@ -6828,13 +6829,13 @@ function addLoadMoreWhatsAppButton(container, totalCount) {
 
   loadMoreBtn.addEventListener("click", async () => {
     console.log(
-      `🔄 Load More clicked! Current page: ${whatsappMessagesState.currentPage}`
+      `🔄 Load More clicked! Current page: ${whatsappMessagesState.currentPage}`,
     );
     loadMoreBtn.disabled = true;
     loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
     whatsappMessagesState.currentPage++;
     console.log(
-      `➡️ Incrementing to page: ${whatsappMessagesState.currentPage}`
+      `➡️ Incrementing to page: ${whatsappMessagesState.currentPage}`,
     );
     await loadWhatsAppMessagesView(true);
     loadMoreBtn.disabled = false;
@@ -6844,7 +6845,7 @@ function addLoadMoreWhatsAppButton(container, totalCount) {
   container.appendChild(loadMoreContainer);
 
   console.log(
-    `🔘 Load More button added (showing ${currentShowing} of ${totalCount})`
+    `🔘 Load More button added (showing ${currentShowing} of ${totalCount})`,
   );
 }
 
@@ -6866,7 +6867,7 @@ function renderWhatsAppMessageCards(ads, container) {
 
   ads.forEach((ad, index) => {
     console.log(
-      `  ➡️ Card ${index + 1}: ${ad.id} - ${ad.category || "No category"}`
+      `  ➡️ Card ${index + 1}: ${ad.id} - ${ad.category || "No category"}`,
     );
 
     // Determine target website (must be before using it)
@@ -6884,7 +6885,7 @@ function renderWhatsAppMessageCards(ads, container) {
         ad.postedToGroups
       }, sentToGroups: ${ad.sentToGroups}, selectedGroups: ${
         ad.selectedGroups?.length || 0
-      }, wasSent: ${wasSent}`
+      }, wasSent: ${wasSent}`,
     );
     card.dataset.adId = ad.id;
     card.dataset.status = wasSent ? "sent" : "pending";
@@ -6953,15 +6954,15 @@ function renderWhatsAppMessageCards(ads, container) {
       ${
         ad.category
           ? `<span style="background: #f0f0f0; padding: 3px 8px; border-radius: 4px;"><i class="fas fa-folder"></i> ${escapeHtml(
-              ad.category
+              ad.category,
             )}</span>`
           : ""
       }
       <span><i class="fas fa-users"></i> ${escapeHtml(
-        ad.fromGroupName || ad.fromGroup
+        ad.fromGroupName || ad.fromGroup,
       )}</span>
       <span><i class="fas fa-clock"></i> ${new Date(
-        ad.timestamp
+        ad.timestamp,
       ).toLocaleString()}</span>
       ${
         ad.aiConfidence
@@ -6969,8 +6970,8 @@ function renderWhatsAppMessageCards(ads, container) {
               ad.aiConfidence > 70
                 ? "#28a745"
                 : ad.aiConfidence > 40
-                ? "#ffc107"
-                : "#dc3545"
+                  ? "#ffc107"
+                  : "#dc3545"
             }"><i class="fas fa-robot"></i> ${ad.aiConfidence}%</span>`
           : ""
       }
@@ -7101,7 +7102,7 @@ async function handleAcceptWhatsAppMessage(adId, ad, cardElement) {
     } else {
       // Need to post to WordPress first to get the link
       console.log(
-        "📝 Posting to WordPress first to generate message with link..."
+        "📝 Posting to WordPress first to generate message with link...",
       );
 
       // Update loading message
@@ -7122,7 +7123,7 @@ async function handleAcceptWhatsAppMessage(adId, ad, cardElement) {
 
         if (data.whatsappMessage) {
           console.log(
-            "✅ WordPress posted and WhatsApp message generated with link"
+            "✅ WordPress posted and WhatsApp message generated with link",
           );
 
           // Update loading message
@@ -7144,7 +7145,7 @@ async function handleAcceptWhatsAppMessage(adId, ad, cardElement) {
         if (loadingOverlay) loadingOverlay.style.display = "none";
         const errorData = await response.json();
         alert(
-          `Failed to post to WordPress: ${errorData.error || "Unknown error"}`
+          `Failed to post to WordPress: ${errorData.error || "Unknown error"}`,
         );
       }
     }
@@ -7165,7 +7166,7 @@ async function handleAcceptWhatsAppMessage(adId, ad, cardElement) {
 async function handleRejectWhatsAppMessage(adId, cardElement) {
   if (
     !confirm(
-      "Are you sure you want to reject this message? It will be moved to the recycle bin."
+      "Are you sure you want to reject this message? It will be moved to the recycle bin.",
     )
   ) {
     return;
@@ -7268,7 +7269,7 @@ async function fetchPrivateClients() {
       `/api/bot/private-clients?${params.toString()}`,
       {
         credentials: "include",
-      }
+      },
     );
 
     if (!response.ok) {
@@ -7356,19 +7357,19 @@ function renderPrivateClients(clients) {
   // Add event listeners
   clients.forEach((client) => {
     const expandBtn = document.getElementById(
-      `pc-expand-${client.phoneNumber}`
+      `pc-expand-${client.phoneNumber}`,
     );
     const viewBtn = document.getElementById(`pc-view-${client.phoneNumber}`);
     const deleteBtn = document.getElementById(
-      `pc-delete-${client.phoneNumber}`
+      `pc-delete-${client.phoneNumber}`,
     );
     const whatsappBtn = document.getElementById(
-      `pc-whatsapp-${client.phoneNumber}`
+      `pc-whatsapp-${client.phoneNumber}`,
     );
 
     if (expandBtn) {
       expandBtn.addEventListener("click", () =>
-        toggleClientDetails(client.phoneNumber)
+        toggleClientDetails(client.phoneNumber),
       );
     }
 
@@ -7378,7 +7379,7 @@ function renderPrivateClients(clients) {
 
     if (deleteBtn) {
       deleteBtn.addEventListener("click", () =>
-        deleteClient(client.phoneNumber)
+        deleteClient(client.phoneNumber),
       );
     }
 
@@ -7417,12 +7418,12 @@ function createClientRow(client) {
 
       if (dataToShow.propertyType) {
         displayHTML += `<div><strong>🏠 Type:</strong> ${escapeHtml(
-          dataToShow.propertyType
+          dataToShow.propertyType,
         )}</div>`;
       }
       if (dataToShow.purpose) {
         displayHTML += `<div><strong>📋 Purpose:</strong> ${escapeHtml(
-          dataToShow.purpose
+          dataToShow.purpose,
         )}</div>`;
       }
 
@@ -7439,7 +7440,7 @@ function createClientRow(client) {
         displayHTML += `<div><strong>💰 Price:</strong> من ${priceMin} ريال</div>`;
       } else if (dataToShow.priceRange) {
         displayHTML += `<div><strong>💰 Price:</strong> ${escapeHtml(
-          dataToShow.priceRange
+          dataToShow.priceRange,
         )}</div>`;
       }
 
@@ -7452,18 +7453,18 @@ function createClientRow(client) {
         displayHTML += `<div><strong>📏 Area:</strong> من ${dataToShow.areaMin} م²</div>`;
       } else if (dataToShow.area) {
         displayHTML += `<div><strong>📏 Area:</strong> ${escapeHtml(
-          dataToShow.area
+          dataToShow.area,
         )} متر</div>`;
       }
 
       if (dataToShow.neighborhoods && dataToShow.neighborhoods.length > 0) {
         displayHTML += `<div><strong>📍 Neighborhoods:</strong> ${escapeHtml(
-          dataToShow.neighborhoods.join(", ")
+          dataToShow.neighborhoods.join(", "),
         )}</div>`;
       }
       if (dataToShow.contactNumber) {
         displayHTML += `<div><strong>📞 Contact:</strong> ${escapeHtml(
-          dataToShow.contactNumber
+          dataToShow.contactNumber,
         )}</div>`;
       }
 
@@ -7471,12 +7472,12 @@ function createClientRow(client) {
     } else if (typeof dataToShow === "string") {
       // Display string as-is
       displayHTML = `<pre class="detail-content">${escapeHtml(
-        dataToShow
+        dataToShow,
       )}</pre>`;
     } else {
       // Fallback to JSON
       displayHTML = `<pre class="detail-content">${escapeHtml(
-        JSON.stringify(dataToShow, null, 2)
+        JSON.stringify(dataToShow, null, 2),
       )}</pre>`;
     }
 
@@ -7498,7 +7499,7 @@ function createClientRow(client) {
         </button>
       </td>
       <td class="col-name" data-label="Name">${escapeHtml(
-        client.name || "Unknown"
+        client.name || "Unknown",
       )}</td>
       <td class="col-phone" data-label="Phone">${client.phoneNumber}</td>
       <td class="col-role" data-label="Role">
@@ -7635,7 +7636,7 @@ function editClientDetails(client) {
           <div class="req-field">
             <label><i class="fas fa-home"></i> Property Type:</label>
             <input type="text" id="edit-req-propertyType" class="edit-input" value="${escapeHtml(
-              req.propertyType || ""
+              req.propertyType || "",
             )}" placeholder="دبلكس، فيلا، شقة...">
           </div>
           <div class="req-field">
@@ -7680,19 +7681,19 @@ function editClientDetails(client) {
           <div class="req-field full-width">
             <label><i class="fas fa-map-marker-alt"></i> Neighborhoods:</label>
             <input type="text" id="edit-req-neighborhoods" class="edit-input" value="${escapeHtml(
-              (req.neighborhoods || []).join(", ")
+              (req.neighborhoods || []).join(", "),
             )}" placeholder="النزهة، الخالدية، العزيزية...">
           </div>
           <div class="req-field full-width">
             <label><i class="fas fa-phone"></i> Contact Number:</label>
             <input type="text" id="edit-req-contactNumber" class="edit-input" value="${escapeHtml(
-              req.contactNumber || ""
+              req.contactNumber || "",
             )}" placeholder="+966508007053">
           </div>
           <div class="req-field full-width">
             <label><i class="fas fa-info-circle"></i> Additional Specs:</label>
             <textarea id="edit-req-additionalSpecs" class="edit-textarea" rows="3" placeholder="مواصفات إضافية...">${escapeHtml(
-              req.additionalSpecs || ""
+              req.additionalSpecs || "",
             )}</textarea>
           </div>
         </div>
@@ -7707,7 +7708,7 @@ function editClientDetails(client) {
       <div class="client-detail-section">
         <h3><i class="fas fa-home"></i> Property Offer</h3>
         <textarea id="edit-property-offer" class="edit-textarea" rows="10">${escapeHtml(
-          offerText
+          offerText,
         )}</textarea>
       </div>
     `;
@@ -7721,7 +7722,7 @@ function editClientDetails(client) {
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-user"></i> Name</div>
           <input type="text" id="edit-name" class="edit-input" value="${escapeHtml(
-            client.name || ""
+            client.name || "",
           )}" placeholder="Client Name">
         </div>
         <div class="detail-item">
@@ -7768,13 +7769,13 @@ function editClientDetails(client) {
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-calendar"></i> Created At</div>
           <div class="detail-item-value">${new Date(
-            client.createdAt
+            client.createdAt,
           ).toLocaleString("ar-EG")}</div>
         </div>
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-clock"></i> Last Updated</div>
           <div class="detail-item-value">${new Date(
-            client.lastUpdated
+            client.lastUpdated,
           ).toLocaleString("ar-EG")}</div>
         </div>
       </div>
@@ -7815,7 +7816,7 @@ function editClientDetails(client) {
       const neighborhoodsEl = document.getElementById("edit-req-neighborhoods");
       const contactNumberEl = document.getElementById("edit-req-contactNumber");
       const additionalSpecsEl = document.getElementById(
-        "edit-req-additionalSpecs"
+        "edit-req-additionalSpecs",
       );
 
       if (propertyTypeEl) {
@@ -7861,7 +7862,7 @@ function editClientDetails(client) {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(updatedData),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to update client");
@@ -7951,7 +7952,7 @@ function viewClientDetails(client) {
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-user"></i> Name</div>
           <div class="detail-item-value">${escapeHtml(
-            client.name || "Unknown"
+            client.name || "Unknown",
           )}</div>
         </div>
         <div class="detail-item">
@@ -7962,28 +7963,28 @@ function viewClientDetails(client) {
           <div class="detail-item-label"><i class="fas fa-user-tag"></i> Role</div>
           <div class="detail-item-value">
             <span class="role-badge role-${client.role}">${escapeHtml(
-    client.role || "Unknown"
-  )}</span>
+              client.role || "Unknown",
+            )}</span>
           </div>
         </div>
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-flag"></i> State</div>
           <div class="detail-item-value">
             <span class="state-badge state-${client.state}">${getStateText(
-    client.state
-  )}</span>
+              client.state,
+            )}</span>
           </div>
         </div>
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-calendar"></i> Created At</div>
           <div class="detail-item-value">${new Date(
-            client.createdAt
+            client.createdAt,
           ).toLocaleString("ar-EG")}</div>
         </div>
         <div class="detail-item">
           <div class="detail-item-label"><i class="fas fa-clock"></i> Last Updated</div>
           <div class="detail-item-value">${new Date(
-            client.lastUpdated
+            client.lastUpdated,
           ).toLocaleString("ar-EG")}</div>
         </div>
       </div>
@@ -8021,7 +8022,7 @@ function viewClientDetails(client) {
 async function deleteClient(phoneNumber) {
   if (
     !confirm(
-      `Are you sure you want to delete client ${phoneNumber}?\n\nThis action cannot be undone.`
+      `Are you sure you want to delete client ${phoneNumber}?\n\nThis action cannot be undone.`,
     )
   ) {
     return;
@@ -8146,7 +8147,7 @@ function renderExcludedGroupsList() {
 
   // Sort groups by name
   const sortedGroups = [...allGroupsForExclusion].sort((a, b) =>
-    (a.name || a.jid).localeCompare(b.name || b.jid)
+    (a.name || a.jid).localeCompare(b.name || b.jid),
   );
 
   listContainer.innerHTML = sortedGroups
@@ -8366,19 +8367,19 @@ function displayDailySummaries(summaries, stats) {
                onclick="toggleDaySection('${dateId}')">
             <div style="display: flex; align-items: center; gap: 10px;">
               <i class="fas fa-chevron-down day-toggle-icon" id="toggle-${dateId}" style="transition: transform 0.3s; ${
-        isFirstDate ? "" : "transform: rotate(-90deg);"
-      }"></i>
+                isFirstDate ? "" : "transform: rotate(-90deg);"
+              }"></i>
               <span><i class="fas fa-calendar-day"></i> ${arabicDate}</span>
               <span style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 15px; font-size: 0.85rem;">
                 ${dateSummaries.length} ${
-        dateSummaries.length === 1 ? "summary" : "summaries"
-      }
+                  dateSummaries.length === 1 ? "summary" : "summaries"
+                }
               </span>
             </div>
           </div>
           <div class="day-content" id="${dateId}" style="display: ${
-        isFirstDate ? "block" : "none"
-      };">
+            isFirstDate ? "block" : "none"
+          };">
       `;
 
       dateSummaries.forEach((summary) => {
@@ -8414,7 +8415,7 @@ function displayDailySummaries(summaries, stats) {
                         summary.adsCount
                       } ads</span>
                       <span><i class="fas fa-clock"></i> ${new Date(
-                        summary.createdAt
+                        summary.createdAt,
                       ).toLocaleTimeString("ar-SA", {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -8422,7 +8423,7 @@ function displayDailySummaries(summaries, stats) {
                       ${
                         isSent
                           ? `<span><i class="fas fa-paper-plane"></i> Sent ${new Date(
-                              summary.sentAt
+                              summary.sentAt,
                             ).toLocaleTimeString("ar-SA", {
                               hour: "2-digit",
                               minute: "2-digit",
@@ -8758,13 +8759,13 @@ async function sendSummaryFromPreview() {
 
     // Get selected groups (includes both regular groups and saved custom numbers)
     const groupCheckboxes = document.querySelectorAll(
-      "#groups-preview-list .group-checkbox:checked"
+      "#groups-preview-list .group-checkbox:checked",
     );
     const selectedGroups = Array.from(groupCheckboxes).map((cb) => cb.value);
 
     // Get saved custom numbers that are checked
     const savedNumberCheckboxes = document.querySelectorAll(
-      "#groups-preview-list .custom-number-checkbox:checked"
+      "#groups-preview-list .custom-number-checkbox:checked",
     );
     const savedNumbers = Array.from(savedNumberCheckboxes).map((cb) => ({
       phone: cb.value,
@@ -8800,7 +8801,7 @@ async function sendSummaryFromPreview() {
     if (typeof showLoadingOverlay === "function") {
       showLoadingOverlay(
         `Sending daily summary to ${totalRecipients} recipient(s)...`,
-        "Sending Messages"
+        "Sending Messages",
       );
     }
 

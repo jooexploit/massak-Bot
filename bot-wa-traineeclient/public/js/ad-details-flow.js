@@ -7,91 +7,103 @@ let currentAdDetails = null;
 // -------------------------
 // Copy Ad Content to Clipboard
 // -------------------------
-async function copyAdContentToClipboard(adId, type = 'enhanced') {
+async function copyAdContentToClipboard(adId, type = "enhanced") {
   // Declare textToCopy outside try block so it's accessible in catch block for fallback
-  let textToCopy = '';
-  
+  let textToCopy = "";
+
   try {
     // Try to get content from the ad details modal first
     let contentElement = document.getElementById(`ad-content-${type}-${adId}`);
-    
+
     // If not found, try the main ads list view
     if (!contentElement) {
       contentElement = document.getElementById(`ad-content-main-${adId}`);
     }
-    
+
     // If still not found, try to get from currentAdDetails
     if (contentElement) {
       textToCopy = contentElement.textContent || contentElement.innerText;
     } else if (currentAdDetails) {
-      textToCopy = type === 'enhanced' && currentAdDetails.enhancedText 
-        ? currentAdDetails.enhancedText 
-        : currentAdDetails.text;
+      textToCopy =
+        type === "enhanced" && currentAdDetails.enhancedText
+          ? currentAdDetails.enhancedText
+          : currentAdDetails.text;
     }
-    
-    if (!textToCopy || textToCopy.trim() === '') {
-      console.error('No content found to copy');
+
+    if (!textToCopy || textToCopy.trim() === "") {
+      console.error("No content found to copy");
       return;
     }
-    
+
     // Check if clipboard API is available (requires HTTPS or localhost)
-    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    if (
+      navigator.clipboard &&
+      typeof navigator.clipboard.writeText === "function"
+    ) {
       await navigator.clipboard.writeText(textToCopy.trim());
     } else {
       // Clipboard API not available, use fallback immediately
-      throw new Error('Clipboard API not available');
+      throw new Error("Clipboard API not available");
     }
-    
+
     // Find the button that was clicked and show success feedback
-    const buttons = document.querySelectorAll(`button[onclick*="copyAdContentToClipboard('${adId}'"]`);
-    buttons.forEach(button => {
+    const buttons = document.querySelectorAll(
+      `button[onclick*="copyAdContentToClipboard('${adId}'"]`,
+    );
+    buttons.forEach((button) => {
       const originalHTML = button.innerHTML;
       button.innerHTML = '<i class="fas fa-check"></i> Copied!';
-      button.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
-      
+      button.style.background =
+        "linear-gradient(135deg, #28a745 0%, #20c997 100%)";
+
       setTimeout(() => {
         button.innerHTML = originalHTML;
-        button.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        button.style.background =
+          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
       }, 2000);
     });
-    
-    console.log('✅ Ad content copied to clipboard');
+
+    console.log("✅ Ad content copied to clipboard");
   } catch (err) {
-    console.error('Failed to copy to clipboard:', err);
+    console.error("Failed to copy to clipboard:", err);
     // Fallback for older browsers or non-HTTPS contexts
     try {
-      const textArea = document.createElement('textarea');
+      const textArea = document.createElement("textarea");
       textArea.value = textToCopy.trim();
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-999999px';
-      textArea.style.top = '0';
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "0";
       document.body.appendChild(textArea);
       textArea.focus();
       textArea.select();
-      const successful = document.execCommand('copy');
+      const successful = document.execCommand("copy");
       document.body.removeChild(textArea);
-      
+
       if (!successful) {
-        throw new Error('execCommand copy failed');
+        throw new Error("execCommand copy failed");
       }
-      
+
       // Show success
-      const buttons = document.querySelectorAll(`button[onclick*="copyAdContentToClipboard('${adId}'"]`);
-      buttons.forEach(button => {
+      const buttons = document.querySelectorAll(
+        `button[onclick*="copyAdContentToClipboard('${adId}'"]`,
+      );
+      buttons.forEach((button) => {
         const originalHTML = button.innerHTML;
         button.innerHTML = '<i class="fas fa-check"></i> Copied!';
-        button.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
-        
+        button.style.background =
+          "linear-gradient(135deg, #28a745 0%, #20c997 100%)";
+
         setTimeout(() => {
           button.innerHTML = originalHTML;
-          button.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+          button.style.background =
+            "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
         }, 2000);
       });
-      
-      console.log('✅ Ad content copied to clipboard (using fallback)');
+
+      console.log("✅ Ad content copied to clipboard (using fallback)");
     } catch (fallbackErr) {
-      console.error('Fallback copy also failed:', fallbackErr);
-      alert('Failed to copy to clipboard. Please copy manually.');
+      console.error("Fallback copy also failed:", fallbackErr);
+      alert("Failed to copy to clipboard. Please copy manually.");
     }
   }
 }
@@ -109,17 +121,17 @@ async function openAdDetailsModal(id, ad) {
 
   // Build details view
   const hasEnhanced = ad.enhancedText && ad.enhancedText !== ad.text;
-  
+
   // Build image section HTML
   const hasImage = ad.imageUrl && typeof ad.imageUrl === "object";
   let imageSectionHtml = "";
-  
+
   if (hasImage) {
     // Use full-image API for better quality, with fallback to thumbnail
-    const thumbnailSrc = ad.imageUrl.jpegThumbnail 
+    const thumbnailSrc = ad.imageUrl.jpegThumbnail
       ? `data:image/jpeg;base64,${ad.imageUrl.jpegThumbnail}`
       : "/images/no-image-placeholder.png";
-    
+
     imageSectionHtml = `
       <div style="margin-bottom: 1.5rem; padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px;">
         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
@@ -156,7 +168,7 @@ async function openAdDetailsModal(id, ad) {
             </button>
           </div>
           <small style="color: #666; text-align: center;">
-            ${ad.imageUrl.mimetype || 'image/jpeg'} • ${ad.imageUrl.width || '?'}x${ad.imageUrl.height || '?'} px
+            ${ad.imageUrl.mimetype || "image/jpeg"} • ${ad.imageUrl.width || "?"}x${ad.imageUrl.height || "?"} px
           </small>
         </div>
       </div>
@@ -210,17 +222,21 @@ ${escapeHtml(ad.text)}</div>
       `
       }
       
-      ${ad.wpData ? `
+      ${
+        ad.wpData
+          ? `
         <div style="margin-bottom: 1rem; padding: 1rem; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196F3;">
           <strong style="color: #1565C0;">🌐 Auto-Generated WordPress Data</strong>
           <div style="margin-top: 0.75rem; font-size: 0.9rem;">
-            <div><strong>Title:</strong> ${escapeHtml(ad.wpData.title || 'N/A')}</div>
-            ${(ad.wpData.meta?.parent_catt || ad.wpData.meta?.arc_category) ? `<div><strong>Category:</strong> ${escapeHtml(ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category)}</div>` : ''}
-            ${ad.wpData.meta?.City ? `<div><strong>City:</strong> ${escapeHtml(ad.wpData.meta.City)}</div>` : ''}
-            ${ad.wpData.meta?.price_amount ? `<div><strong>Price:</strong> ${escapeHtml(ad.wpData.meta.price_amount)} ريال</div>` : ''}
+            <div><strong>Title:</strong> ${escapeHtml(ad.wpData.title || "N/A")}</div>
+            ${ad.wpData.meta?.parent_catt || ad.wpData.meta?.arc_category ? `<div><strong>Category:</strong> ${escapeHtml(ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category)}</div>` : ""}
+            ${ad.wpData.meta?.City ? `<div><strong>City:</strong> ${escapeHtml(ad.wpData.meta.City)}</div>` : ""}
+            ${ad.wpData.meta?.price_amount ? `<div><strong>Price:</strong> ${escapeHtml(ad.wpData.meta.price_amount)} ريال</div>` : ""}
           </div>
         </div>
-      ` : ''}
+      `
+          : ""
+      }
       
       <div style="margin-top: 1rem;">
         <strong>Status:</strong> <span style="padding: 4px 12px; background: #6c757d; color: white; border-radius: 12px;">${
@@ -251,12 +267,12 @@ ${escapeHtml(ad.text)}</div>
 // -------------------------
 async function openAdImageFullView(adId) {
   // Open a loading window first
-  const imgWindow = window.open('', '_blank');
+  const imgWindow = window.open("", "_blank");
   if (!imgWindow) {
     alert("Please allow popups to view the full image");
     return;
   }
-  
+
   imgWindow.document.write(`
     <html>
       <head><title>Ad Image - ${adId}</title></head>
@@ -268,13 +284,13 @@ async function openAdImageFullView(adId) {
       </body>
     </html>
   `);
-  
+
   // Use the full-image API endpoint - it handles everything server-side
   const fullImageUrl = `/api/bot/ads/${adId}/full-image`;
-  
+
   // Create an image element to test if the image loads
   const testImg = new Image();
-  testImg.onload = function() {
+  testImg.onload = function () {
     // Image loaded successfully, display it
     imgWindow.document.open();
     imgWindow.document.write(`
@@ -287,7 +303,7 @@ async function openAdImageFullView(adId) {
     `);
     imgWindow.document.close();
   };
-  testImg.onerror = function() {
+  testImg.onerror = function () {
     // Show error message
     console.warn("Failed to load full image for ad:", adId);
     imgWindow.document.open();
@@ -309,38 +325,42 @@ async function openAdImageFullView(adId) {
 }
 
 async function removeAdImage(adId) {
-  if (!confirm("Are you sure you want to remove this image from the ad? This action cannot be undone.")) {
+  if (
+    !confirm(
+      "Are you sure you want to remove this image from the ad? This action cannot be undone.",
+    )
+  ) {
     return;
   }
-  
+
   try {
     showLoadingOverlay("Removing image...");
-    
+
     const response = await fetch(`/api/bot/ads/${adId}/image`, {
       method: "DELETE",
       credentials: "include",
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || "Failed to remove image");
     }
-    
+
     hideLoadingOverlay();
-    
+
     // Update current ad details
     if (currentAdDetails) {
       currentAdDetails.imageUrl = null;
     }
-    
+
     // Refresh the modal content
     closeAdDetailsModal();
-    
+
     // Refresh ads list
-    if (typeof fetchAndRenderAds === 'function') {
+    if (typeof fetchAndRenderAds === "function") {
       fetchAndRenderAds();
     }
-    
+
     showSuccessStatus("✅ Image removed successfully!");
   } catch (err) {
     hideLoadingOverlay();
@@ -366,7 +386,7 @@ async function handleAdDetailsGroupsOnly(id, ad) {
   if (ad.whatsappMessage) {
     console.log("✅ Using pre-generated WhatsApp message from ad");
     message = ad.whatsappMessage;
-  } else {  
+  } else {
     // Generate formatted WhatsApp message (no link, emojis only)
     message = buildWhatsAppMessageNoLink(ad);
   }
@@ -422,7 +442,7 @@ async function openGroupsPreviewModal(adId, message) {
       await loadSavedCustomNumbers();
       console.log(
         "📱 Loaded saved custom numbers:",
-        window.savedCustomNumbers?.length || 0
+        window.savedCustomNumbers?.length || 0,
       );
     }
 
@@ -433,7 +453,7 @@ async function openGroupsPreviewModal(adId, message) {
     if (typeof renderGroupsPreviewCustomNumbersList === "function") {
       renderGroupsPreviewCustomNumbersList();
     }
-    
+
     // Load private clients and interest groups for the new sections
     await loadPrivateClientsForPreview();
     await loadInterestGroupsForPreview();
@@ -452,13 +472,13 @@ async function openGroupsPreviewModal(adId, message) {
     closeGroupsPreviewModal;
   document.getElementById("close-groups-preview-modal").onclick =
     closeGroupsPreviewModal;
-  
+
   // Wire schedule button
   const scheduleBtn = document.getElementById("groups-preview-schedule");
   if (scheduleBtn) {
     scheduleBtn.onclick = handleGroupsPreviewSchedule;
   }
-  
+
   // Reset schedule toggle to off when opening modal
   const scheduleToggle = document.getElementById("schedule-toggle");
   if (scheduleToggle) {
@@ -493,7 +513,7 @@ async function openGroupsPreviewModal(adId, message) {
 async function loadGroupsAndCollections(forceRefresh = false) {
   try {
     console.log(
-      `🔄 loadGroupsAndCollections called with forceRefresh=${forceRefresh}`
+      `🔄 loadGroupsAndCollections called with forceRefresh=${forceRefresh}`,
     );
 
     // Fetch groups and collections separately
@@ -533,7 +553,7 @@ async function loadGroupsAndCollections(forceRefresh = false) {
     } else {
       console.error(
         "❌ Collections response not OK:",
-        collectionsResponse.status
+        collectionsResponse.status,
       );
     }
 
@@ -543,7 +563,7 @@ async function loadGroupsAndCollections(forceRefresh = false) {
     renderGroupsCheckboxesInPreview("wp-groups-preview-list");
 
     console.log(
-      `✅ Loaded ${allGroups.length} groups and ${allCollections.length} collections`
+      `✅ Loaded ${allGroups.length} groups and ${allCollections.length} collections`,
     );
   } catch (err) {
     console.error("❌ Error loading groups:", err);
@@ -564,7 +584,7 @@ function renderGroupsCheckboxesInPreview(containerId) {
   // First, render saved custom numbers as checkboxes
   const savedNumbers = window.savedCustomNumbers || [];
   console.log(
-    `📋 Rendering ${containerId} with ${savedNumbers.length} saved numbers`
+    `📋 Rendering ${containerId} with ${savedNumbers.length} saved numbers`,
   );
 
   if (savedNumbers.length > 0) {
@@ -593,7 +613,7 @@ function renderGroupsCheckboxesInPreview(containerId) {
           <div>
             <div style="font-weight: 600;">${escapeHtml(number.name)}</div>
             <div style="font-size: 0.85em; opacity: 0.9;"><i class="fas fa-phone"></i> ${escapeHtml(
-              number.phone
+              number.phone,
             )}</div>
           </div>
         </label>
@@ -615,7 +635,7 @@ function renderGroupsCheckboxesInPreview(containerId) {
   console.log(`🎨 Rendering container: ${containerId}`);
   console.log(`📊 allGroups.length: ${allGroups.length}`);
   console.log(
-    `📊 allCollections.length: ${allCollections ? allCollections.length : 0}`
+    `📊 allCollections.length: ${allCollections ? allCollections.length : 0}`,
   );
   console.log(`📊 savedNumbers.length: ${savedNumbers.length}`);
 
@@ -691,7 +711,7 @@ function renderGroupsCheckboxesInPreview(containerId) {
       <label for="gp-${escapeHtml(group.jid)}">
         <span class="group-name">${typeIcon} ${escapeHtml(group.name)}</span>
         <span class="group-id">${escapeHtml(
-          group.jid
+          group.jid,
         )} <span class="group-type-badge">${typeLabel}</span></span>
       </label>
     `;
@@ -709,7 +729,7 @@ function renderGroupsCheckboxesInPreview(containerId) {
 
       groupJids.forEach((jid) => {
         const groupCheckbox = container.querySelector(
-          `.group-checkbox[data-jid="${jid}"]`
+          `.group-checkbox[data-jid="${jid}"]`,
         );
         if (groupCheckbox) {
           groupCheckbox.checked = isChecked;
@@ -741,7 +761,7 @@ function updateCollectionCheckboxStates(container) {
 
       groupJids.forEach((jid) => {
         const groupCheckbox = container.querySelector(
-          `.group-checkbox[data-jid="${jid}"]`
+          `.group-checkbox[data-jid="${jid}"]`,
         );
         if (groupCheckbox) {
           if (groupCheckbox.checked) {
@@ -774,7 +794,7 @@ async function handleGroupsPreviewSend() {
   const selectedCustomNumbersFromSaved = [];
   document
     .querySelectorAll(
-      "#groups-preview-list input.custom-number-checkbox:checked"
+      "#groups-preview-list input.custom-number-checkbox:checked",
     )
     .forEach((cb) => {
       selectedCustomNumbersFromSaved.push({
@@ -787,7 +807,7 @@ async function handleGroupsPreviewSend() {
   const selectedCustomNumbersFromManual = [];
   document
     .querySelectorAll(
-      "#groups-preview-custom-numbers-list input.custom-number-checkbox:checked"
+      "#groups-preview-custom-numbers-list input.custom-number-checkbox:checked",
     )
     .forEach((cb) => {
       selectedCustomNumbersFromManual.push({
@@ -798,7 +818,7 @@ async function handleGroupsPreviewSend() {
 
   // Get selected private clients (new)
   const selectedPrivateClients = getSelectedPrivateClients();
-  
+
   // Get selected interest group members (new - expands groups to individual members)
   const selectedInterestGroupMembers = getSelectedInterestGroupMembers();
 
@@ -806,13 +826,22 @@ async function handleGroupsPreviewSend() {
   const allCustomNumbers = [
     ...selectedCustomNumbersFromSaved,
     ...selectedCustomNumbersFromManual,
-    ...selectedPrivateClients.map(c => ({ name: c.name, phone: c.phone, source: "Private Client" })),
-    ...selectedInterestGroupMembers.map(m => ({ name: m.name, phone: m.phone, source: m.source })),
+    ...selectedPrivateClients.map((c) => ({
+      name: c.name,
+      phone: c.phone,
+      source: "Private Client",
+    })),
+    ...selectedInterestGroupMembers.map((m) => ({
+      name: m.name,
+      phone: m.phone,
+      source: m.source,
+    })),
   ];
 
   // Remove duplicates based on phone number
   const customNumbers = allCustomNumbers.filter(
-    (num, index, self) => index === self.findIndex((n) => n.phone === num.phone)
+    (num, index, self) =>
+      index === self.findIndex((n) => n.phone === num.phone),
   );
 
   // Debug logging
@@ -824,7 +853,9 @@ async function handleGroupsPreviewSend() {
 
   // Require at least one recipient (group OR custom number)
   if (selectedGroups.length === 0 && customNumbers.length === 0) {
-    alert("⚠️ Please select at least one group, private client, interest group, or custom phone number");
+    alert(
+      "⚠️ Please select at least one group, private client, interest group, or custom phone number",
+    );
     return;
   }
 
@@ -836,7 +867,7 @@ async function handleGroupsPreviewSend() {
   const delaySeconds = delayInput ? parseInt(delayInput.value) || 3 : 3;
 
   showLoadingOverlay(
-    `📱 Starting background send to ${totalRecipients} recipient(s)...`
+    `📱 Starting background send to ${totalRecipients} recipient(s)...`,
   );
 
   try {
@@ -860,7 +891,7 @@ async function handleGroupsPreviewSend() {
     }
 
     const result = await response.json();
-    
+
     console.log("✅ Bulk send started:", result);
 
     // Mark the ad as sent (stores groups/numbers info)
@@ -910,7 +941,6 @@ async function handleGroupsPreviewSend() {
   }
 }
 
-
 // -------------------------
 // Direct Post to WordPress (without opening preview modal)
 // -------------------------
@@ -949,7 +979,7 @@ async function handleDirectPostToWordPress(id, ad) {
 
     hideLoadingOverlay();
     showSuccessStatus(
-      `✅ Posted to WordPress successfully!\n\nLink: ${shortLink}`
+      `✅ Posted to WordPress successfully!\n\nLink: ${shortLink}`,
     );
 
     // Copy link to clipboard for easy sharing
@@ -996,7 +1026,7 @@ async function handleAdDetailsWpOnly(id, ad) {
         const error = await response.json();
         alert(
           "Failed to generate WordPress preview: " +
-            (error.error || "Unknown error")
+            (error.error || "Unknown error"),
         );
         return;
       }
@@ -1044,7 +1074,7 @@ async function handleAdDetailsBoth(id, ad) {
         const error = await response.json();
         alert(
           "Failed to generate WordPress preview: " +
-            (error.error || "Unknown error")
+            (error.error || "Unknown error"),
         );
         return;
       }
@@ -1091,7 +1121,7 @@ async function openWpPreviewModal(adId, extractedData, mode) {
   setVal("wp-preview-city", (ed.meta && ed.meta.City) || "");
   setVal(
     "wp-preview-google-location",
-    (ed.meta && ed.meta.google_location) || ""
+    (ed.meta && ed.meta.google_location) || "",
   );
 
   // Categories - Handle dropdowns specially
@@ -1117,7 +1147,7 @@ async function openWpPreviewModal(adId, extractedData, mode) {
   setVal("wp-preview-arc-category", (ed.meta && ed.meta.arc_category) || "");
   setVal(
     "wp-preview-arc-subcategory",
-    (ed.meta && ed.meta.arc_subcategory) || ""
+    (ed.meta && ed.meta.arc_subcategory) || "",
   );
 
   // Contact & Owner
@@ -1136,20 +1166,23 @@ async function openWpPreviewModal(adId, extractedData, mode) {
 
   // Set target website (auto-detected or from existing data)
   const targetWebsiteSelect = document.getElementById(
-    "wp-preview-target-website"
+    "wp-preview-target-website",
   );
   if (targetWebsiteSelect) {
     const targetWebsite = ed.targetWebsite || "masaak"; // Default to masaak
     targetWebsiteSelect.value = targetWebsite;
     console.log(`🌐 Target website set to: ${targetWebsite}`);
-    
+
     // Toggle category containers based on website
     if (typeof toggleCategoryContainersByWebsite === "function") {
       toggleCategoryContainersByWebsite(targetWebsite);
     }
-    
+
     // Initialize Hasak dropdown if it's Hasak website
-    if (targetWebsite === "hasak" && typeof initializeHasakCategoryFromArc === "function") {
+    if (
+      targetWebsite === "hasak" &&
+      typeof initializeHasakCategoryFromArc === "function"
+    ) {
       initializeHasakCategoryFromArc();
     }
   }
@@ -1163,7 +1196,7 @@ async function openWpPreviewModal(adId, extractedData, mode) {
   setVal("wp-preview-main-ad", (ed.meta && ed.meta.main_ad) || "");
   setVal(
     "wp-preview-payment-method",
-    (ed.meta && ed.meta.payment_method) || ""
+    (ed.meta && ed.meta.payment_method) || "",
   );
   setVal("wp-preview-youtube-link", (ed.meta && ed.meta.youtube_link) || "");
   setVal("wp-preview-tags", (ed.meta && ed.meta.tags) || "");
@@ -1187,7 +1220,7 @@ async function openWpPreviewModal(adId, extractedData, mode) {
     // Generate preview message (will be updated after posting with real link)
     const previewMsg = buildWpWhatsAppMessage(
       "(سيتم إضافة الرابط بعد النشر)",
-      ed
+      ed,
     );
     setVal("wp-preview-message", previewMsg);
   }
@@ -1284,20 +1317,25 @@ function getEditedWpDataFromWpModal() {
   let arcCategory = "";
   let arcSubcategory = "";
   let categoryId = null;
-  
+
   if (targetWebsite === "hasak") {
     // For Hasak, get from the Hasak dropdown
-    const hasakCategorySelect = document.getElementById("wp-preview-hasak-category");
-    const hasakSubcategoryInput = document.getElementById("wp-preview-hasak-subcategory");
-    
+    const hasakCategorySelect = document.getElementById(
+      "wp-preview-hasak-category",
+    );
+    const hasakSubcategoryInput = document.getElementById(
+      "wp-preview-hasak-subcategory",
+    );
+
     if (hasakCategorySelect) {
       arcCategory = hasakCategorySelect.value;
-      const selectedOption = hasakCategorySelect.options[hasakCategorySelect.selectedIndex];
+      const selectedOption =
+        hasakCategorySelect.options[hasakCategorySelect.selectedIndex];
       if (selectedOption && selectedOption.dataset.id) {
         categoryId = parseInt(selectedOption.dataset.id, 10);
       }
     }
-    
+
     if (hasakSubcategoryInput) {
       arcSubcategory = hasakSubcategoryInput.value.trim();
     }
@@ -1347,7 +1385,7 @@ function getEditedWpDataFromWpModal() {
     youtube_link: getVal("wp-preview-youtube-link"),
     tags: getVal("wp-preview-tags"),
   };
-  
+
   // Add category_id if we got it from Hasak dropdown
   if (categoryId !== null) {
     metaData.category_id = categoryId;
@@ -1466,7 +1504,7 @@ async function handleWpPreviewPostAndSend() {
       // Build message with the short WP link (preview will still work)
       finalMessage = buildWpWhatsAppMessage(
         wpLink,
-        data.extractedData || wpData
+        data.extractedData || wpData,
       );
     }
 
@@ -1490,7 +1528,7 @@ async function handleWpPreviewPostAndSend() {
 
     // Update loading message
     showLoadingOverlay(
-      `📱 Sending to ${selectedGroups.length} group(s) with ${delaySeconds}s delay...`
+      `📱 Sending to ${selectedGroups.length} group(s) with ${delaySeconds}s delay...`,
     );
 
     // Send messages with delay between each
@@ -1509,7 +1547,7 @@ async function handleWpPreviewPostAndSend() {
 
         // Update loading message with progress
         showLoadingOverlay(
-          `📱 Sent ${successCount}/${selectedGroups.length} messages... (${delaySeconds}s delay)`
+          `📱 Sent ${successCount}/${selectedGroups.length} messages... (${delaySeconds}s delay)`,
         );
 
         // Wait before sending next message (except for the last one)
@@ -1526,7 +1564,7 @@ async function handleWpPreviewPostAndSend() {
     await updateAdStatus(adId, "accepted");
 
     showSuccessStatus(
-      `✅ Posted to WordPress and sent to ${successCount}/${selectedGroups.length} group(s) successfully!`
+      `✅ Posted to WordPress and sent to ${successCount}/${selectedGroups.length} group(s) successfully!`,
     );
 
     closeWpPreviewModal();
@@ -1722,9 +1760,11 @@ let cachedInterestGroups = [];
  * Toggle Private Clients section visibility
  */
 function togglePrivateClientsSection() {
-  const container = document.getElementById("private-clients-preview-container");
+  const container = document.getElementById(
+    "private-clients-preview-container",
+  );
   const icon = document.getElementById("private-clients-toggle-icon");
-  
+
   if (container) {
     const isHidden = container.style.display === "none";
     container.style.display = isHidden ? "block" : "none";
@@ -1738,9 +1778,11 @@ function togglePrivateClientsSection() {
  * Toggle Interest Groups section visibility (in preview modal)
  */
 function toggleInterestGroupsPreviewSection() {
-  const container = document.getElementById("interest-groups-preview-container");
+  const container = document.getElementById(
+    "interest-groups-preview-container",
+  );
   const icon = document.getElementById("interest-groups-preview-toggle-icon");
-  
+
   if (container) {
     const isHidden = container.style.display === "none";
     container.style.display = isHidden ? "block" : "none";
@@ -1756,26 +1798,28 @@ function toggleInterestGroupsPreviewSection() {
 async function loadPrivateClientsForPreview() {
   try {
     const response = await fetch("/api/bot/private-clients", {
-      credentials: "include"
+      credentials: "include",
     });
-    
+
     if (!response.ok) {
       throw new Error("Failed to fetch private clients");
     }
-    
+
     const data = await response.json();
     cachedPrivateClients = data.clients || [];
-    console.log(`✅ Loaded ${cachedPrivateClients.length} private clients for preview`);
-    
+    console.log(
+      `✅ Loaded ${cachedPrivateClients.length} private clients for preview`,
+    );
+
     // Update count badge
     const countEl = document.getElementById("private-clients-preview-count");
     if (countEl) {
       countEl.textContent = cachedPrivateClients.length;
     }
-    
+
     // Render the list
     renderPrivateClientsPreview();
-    
+
     return cachedPrivateClients;
   } catch (error) {
     console.error("Error loading private clients:", error);
@@ -1790,26 +1834,28 @@ async function loadPrivateClientsForPreview() {
 async function loadInterestGroupsForPreview() {
   try {
     const response = await fetch("/api/bot/interest-groups", {
-      credentials: "include"
+      credentials: "include",
     });
-    
+
     if (!response.ok) {
       throw new Error("Failed to fetch interest groups");
     }
-    
+
     const data = await response.json();
     cachedInterestGroups = data.groups || [];
-    console.log(`✅ Loaded ${cachedInterestGroups.length} interest groups for preview`);
-    
+    console.log(
+      `✅ Loaded ${cachedInterestGroups.length} interest groups for preview`,
+    );
+
     // Update count badge
     const countEl = document.getElementById("interest-groups-preview-count");
     if (countEl) {
       countEl.textContent = cachedInterestGroups.length;
     }
-    
+
     // Render the list
     renderInterestGroupsPreview();
-    
+
     return cachedInterestGroups;
   } catch (error) {
     console.error("Error loading interest groups:", error);
@@ -1824,7 +1870,7 @@ async function loadInterestGroupsForPreview() {
 function renderPrivateClientsPreview() {
   const container = document.getElementById("private-clients-preview-list");
   if (!container) return;
-  
+
   if (cachedPrivateClients.length === 0) {
     container.innerHTML = `
       <p style="text-align: center; color: #999; padding: 15px;">
@@ -1833,27 +1879,32 @@ function renderPrivateClientsPreview() {
     `;
     return;
   }
-  
+
   // Define available roles
   const roles = [
     { key: "باحث", label: "باحث (Seeker)", emoji: "🔍", color: "#4CAF50" },
     { key: "مالك", label: "مالك (Owner)", emoji: "🏠", color: "#2196F3" },
-    { key: "مستثمر", label: "مستثمر (Investor)", emoji: "💰", color: "#FF9800" },
-    { key: "وسيط", label: "وسيط (Broker)", emoji: "🤝", color: "#9C27B0" }
+    {
+      key: "مستثمر",
+      label: "مستثمر (Investor)",
+      emoji: "💰",
+      color: "#FF9800",
+    },
+    { key: "وسيط", label: "وسيط (Broker)", emoji: "🤝", color: "#9C27B0" },
   ];
-  
+
   // Count clients per role
   const roleCounts = {};
-  roles.forEach(r => roleCounts[r.key] = 0);
-  cachedPrivateClients.forEach(client => {
+  roles.forEach((r) => (roleCounts[r.key] = 0));
+  cachedPrivateClients.forEach((client) => {
     const role = client.role || "";
     if (roleCounts.hasOwnProperty(role)) {
       roleCounts[role]++;
     }
   });
-  
+
   let html = "";
-  
+
   // Role selection header
   html += `
     <div class="role-filters-section" style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%); border-radius: 8px;">
@@ -1863,8 +1914,8 @@ function renderPrivateClientsPreview() {
       </div>
       <div style="display: flex; flex-wrap: wrap; gap: 8px;">
   `;
-  
-  roles.forEach(role => {
+
+  roles.forEach((role) => {
     const count = roleCounts[role.key] || 0;
     if (count > 0) {
       html += `
@@ -1879,7 +1930,7 @@ function renderPrivateClientsPreview() {
       `;
     }
   });
-  
+
   html += `
       </div>
       <small style="display: block; margin-top: 8px; color: #888;">
@@ -1887,21 +1938,21 @@ function renderPrivateClientsPreview() {
       </small>
     </div>
   `;
-  
+
   // Divider
   html += `<div style="height: 1px; background: linear-gradient(90deg, transparent, #ccc, transparent); margin: 10px 0;"></div>`;
-  
+
   // Individual clients section
   html += `<div class="clients-list-section">`;
-  
+
   cachedPrivateClients.forEach((client) => {
     const phone = client.phoneNumber || client.phone || "";
     const name = client.name || "Unknown";
     const role = client.role || "";
     const roleEmoji = getRoleEmoji(role);
-    const roleInfo = roles.find(r => r.key === role);
+    const roleInfo = roles.find((r) => r.key === role);
     const roleColor = roleInfo ? roleInfo.color : "#666";
-    
+
     html += `
       <div class="private-client-item" style="display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #e8f5e9; transition: background 0.2s;" data-role="${escapeHtml(role)}">
         <input type="checkbox" 
@@ -1927,27 +1978,31 @@ function renderPrivateClientsPreview() {
       </div>
     `;
   });
-  
+
   html += `</div>`;
-  
+
   container.innerHTML = html;
-  
+
   // Wire up role filter checkboxes
-  container.querySelectorAll(".role-filter-checkbox").forEach(roleCheckbox => {
-    roleCheckbox.addEventListener("change", function() {
-      const role = this.dataset.role;
-      const isChecked = this.checked;
-      
-      // Select/deselect all clients with this role
-      container.querySelectorAll(`.private-client-checkbox[data-role="${role}"]`).forEach(clientCb => {
-        clientCb.checked = isChecked;
+  container
+    .querySelectorAll(".role-filter-checkbox")
+    .forEach((roleCheckbox) => {
+      roleCheckbox.addEventListener("change", function () {
+        const role = this.dataset.role;
+        const isChecked = this.checked;
+
+        // Select/deselect all clients with this role
+        container
+          .querySelectorAll(`.private-client-checkbox[data-role="${role}"]`)
+          .forEach((clientCb) => {
+            clientCb.checked = isChecked;
+          });
       });
     });
-  });
-  
+
   // Wire up individual client checkboxes to update role filter state
-  container.querySelectorAll(".private-client-checkbox").forEach(clientCb => {
-    clientCb.addEventListener("change", function() {
+  container.querySelectorAll(".private-client-checkbox").forEach((clientCb) => {
+    clientCb.addEventListener("change", function () {
       updateRoleFilterCheckboxStates(container);
     });
   });
@@ -1957,25 +2012,31 @@ function renderPrivateClientsPreview() {
  * Update role filter checkbox states based on individual selections
  */
 function updateRoleFilterCheckboxStates(container) {
-  container.querySelectorAll(".role-filter-checkbox").forEach(roleCheckbox => {
-    const role = roleCheckbox.dataset.role;
-    const clientsWithRole = container.querySelectorAll(`.private-client-checkbox[data-role="${role}"]`);
-    const checkedClientsWithRole = container.querySelectorAll(`.private-client-checkbox[data-role="${role}"]:checked`);
-    
-    if (clientsWithRole.length === 0) {
-      roleCheckbox.checked = false;
-      roleCheckbox.indeterminate = false;
-    } else if (checkedClientsWithRole.length === clientsWithRole.length) {
-      roleCheckbox.checked = true;
-      roleCheckbox.indeterminate = false;
-    } else if (checkedClientsWithRole.length > 0) {
-      roleCheckbox.checked = false;
-      roleCheckbox.indeterminate = true;
-    } else {
-      roleCheckbox.checked = false;
-      roleCheckbox.indeterminate = false;
-    }
-  });
+  container
+    .querySelectorAll(".role-filter-checkbox")
+    .forEach((roleCheckbox) => {
+      const role = roleCheckbox.dataset.role;
+      const clientsWithRole = container.querySelectorAll(
+        `.private-client-checkbox[data-role="${role}"]`,
+      );
+      const checkedClientsWithRole = container.querySelectorAll(
+        `.private-client-checkbox[data-role="${role}"]:checked`,
+      );
+
+      if (clientsWithRole.length === 0) {
+        roleCheckbox.checked = false;
+        roleCheckbox.indeterminate = false;
+      } else if (checkedClientsWithRole.length === clientsWithRole.length) {
+        roleCheckbox.checked = true;
+        roleCheckbox.indeterminate = false;
+      } else if (checkedClientsWithRole.length > 0) {
+        roleCheckbox.checked = false;
+        roleCheckbox.indeterminate = true;
+      } else {
+        roleCheckbox.checked = false;
+        roleCheckbox.indeterminate = false;
+      }
+    });
 }
 
 /**
@@ -1984,7 +2045,7 @@ function updateRoleFilterCheckboxStates(container) {
 function renderInterestGroupsPreview() {
   const container = document.getElementById("interest-groups-preview-list");
   if (!container) return;
-  
+
   if (cachedInterestGroups.length === 0) {
     container.innerHTML = `
       <p style="text-align: center; color: #999; padding: 15px;">
@@ -1993,13 +2054,13 @@ function renderInterestGroupsPreview() {
     `;
     return;
   }
-  
+
   let html = "";
   cachedInterestGroups.forEach((group) => {
     const id = group.id || "";
     const interest = group.interest || "Unknown";
     const memberCount = group.members ? group.members.length : 0;
-    
+
     html += `
       <div class="interest-group-item" style="display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #bbdefb; transition: background 0.2s;">
         <input type="checkbox" 
@@ -2027,7 +2088,7 @@ function renderInterestGroupsPreview() {
       </div>
     `;
   });
-  
+
   container.innerHTML = html;
 }
 
@@ -2036,11 +2097,16 @@ function renderInterestGroupsPreview() {
  */
 function getRoleEmoji(role) {
   switch (role) {
-    case "باحث": return "🔍";
-    case "مالك": return "🏠";
-    case "مستثمر": return "💰";
-    case "وسيط": return "🤝";
-    default: return "👤";
+    case "باحث":
+      return "🔍";
+    case "مالك":
+      return "🏠";
+    case "مستثمر":
+      return "💰";
+    case "وسيط":
+      return "🤝";
+    default:
+      return "👤";
   }
 }
 
@@ -2049,12 +2115,15 @@ function getRoleEmoji(role) {
  */
 function getSelectedPrivateClients() {
   const selected = [];
-  document.querySelectorAll("#private-clients-preview-list .private-client-checkbox:checked")
+  document
+    .querySelectorAll(
+      "#private-clients-preview-list .private-client-checkbox:checked",
+    )
     .forEach((cb) => {
       selected.push({
         phone: cb.value,
         name: cb.dataset.name || "Unknown",
-        role: cb.dataset.role || ""
+        role: cb.dataset.role || "",
       });
     });
   return selected;
@@ -2066,13 +2135,16 @@ function getSelectedPrivateClients() {
 function getSelectedInterestGroupMembers() {
   const allMembers = [];
   const seenPhones = new Set();
-  
-  document.querySelectorAll("#interest-groups-preview-list .interest-group-checkbox:checked")
+
+  document
+    .querySelectorAll(
+      "#interest-groups-preview-list .interest-group-checkbox:checked",
+    )
     .forEach((cb) => {
       try {
         const members = JSON.parse(cb.dataset.members || "[]");
         const groupInterest = cb.dataset.interest || "Interest Group";
-        
+
         members.forEach((member) => {
           const phone = member.phone || "";
           if (phone && !seenPhones.has(phone)) {
@@ -2080,7 +2152,7 @@ function getSelectedInterestGroupMembers() {
             allMembers.push({
               phone: phone,
               name: member.name || "Member",
-              source: `Interest Group: ${groupInterest}`
+              source: `Interest Group: ${groupInterest}`,
             });
           }
         });
@@ -2088,7 +2160,7 @@ function getSelectedInterestGroupMembers() {
         console.error("Error parsing interest group members:", e);
       }
     });
-  
+
   return allMembers;
 }
 
@@ -2101,23 +2173,25 @@ function getSelectedInterestGroupMembers() {
  */
 function toggleScheduleOptions() {
   const toggle = document.getElementById("schedule-toggle");
-  const optionsContainer = document.getElementById("schedule-options-container");
+  const optionsContainer = document.getElementById(
+    "schedule-options-container",
+  );
   const sendNowBtn = document.getElementById("groups-preview-send");
   const scheduleBtn = document.getElementById("groups-preview-schedule");
   const slider = toggle?.parentElement?.querySelector(".slider");
-  
+
   if (!toggle || !optionsContainer) return;
-  
+
   const isScheduling = toggle.checked;
-  
+
   // Show/hide options
   optionsContainer.style.display = isScheduling ? "block" : "none";
-  
+
   // Update slider color
   if (slider) {
     slider.style.backgroundColor = isScheduling ? "#ff9800" : "#ccc";
   }
-  
+
   // Toggle buttons
   if (sendNowBtn) {
     sendNowBtn.style.display = isScheduling ? "none" : "flex";
@@ -2125,7 +2199,7 @@ function toggleScheduleOptions() {
   if (scheduleBtn) {
     scheduleBtn.style.display = isScheduling ? "flex" : "none";
   }
-  
+
   // Set minimum datetime to now if scheduling
   if (isScheduling) {
     const datetimeInput = document.getElementById("schedule-datetime");
@@ -2136,7 +2210,7 @@ function toggleScheduleOptions() {
       now.setMinutes(now.getMinutes() + 5);
       const formattedNow = now.toISOString().slice(0, 16);
       datetimeInput.min = formattedNow;
-      
+
       // Set default to 1 hour from now
       const defaultTime = new Date();
       defaultTime.setHours(defaultTime.getHours() + 1);
@@ -2153,17 +2227,17 @@ async function handleGroupsPreviewSchedule() {
   const adId = modal?.dataset.adId;
   const message = document.getElementById("groups-preview-message")?.value;
   const scheduleDatetime = document.getElementById("schedule-datetime")?.value;
-  
+
   if (!message) {
     alert("⚠️ Please enter a message to schedule");
     return;
   }
-  
+
   if (!scheduleDatetime) {
     alert("⚠️ Please select a date and time for the scheduled message");
     return;
   }
-  
+
   // Validate datetime is in the future
   const scheduledDate = new Date(scheduleDatetime);
   const now = new Date();
@@ -2171,72 +2245,87 @@ async function handleGroupsPreviewSchedule() {
     alert("⚠️ Please select a future date and time");
     return;
   }
-  
+
   // Get selected groups
   const selectedGroups = [];
-  document.querySelectorAll("#groups-preview-list input.group-checkbox:checked")
+  document
+    .querySelectorAll("#groups-preview-list input.group-checkbox:checked")
     .forEach((cb) => {
       selectedGroups.push(cb.value);
     });
-  
+
   // Get all custom numbers (from various sources)
   const selectedCustomNumbersFromSaved = [];
-  document.querySelectorAll("#groups-preview-list input.custom-number-checkbox:checked")
+  document
+    .querySelectorAll(
+      "#groups-preview-list input.custom-number-checkbox:checked",
+    )
     .forEach((cb) => {
       selectedCustomNumbersFromSaved.push({
         name: cb.dataset.name,
         phone: cb.value,
       });
     });
-  
+
   const selectedCustomNumbersFromManual = [];
-  document.querySelectorAll("#groups-preview-custom-numbers-list input.custom-number-checkbox:checked")
+  document
+    .querySelectorAll(
+      "#groups-preview-custom-numbers-list input.custom-number-checkbox:checked",
+    )
     .forEach((cb) => {
       selectedCustomNumbersFromManual.push({
         name: cb.dataset.name,
         phone: cb.value,
       });
     });
-  
+
   const selectedPrivateClients = getSelectedPrivateClients();
   const selectedInterestGroupMembers = getSelectedInterestGroupMembers();
-  
+
   // Combine all custom numbers
   const allCustomNumbers = [
     ...selectedCustomNumbersFromSaved,
     ...selectedCustomNumbersFromManual,
-    ...selectedPrivateClients.map(c => ({ name: c.name, phone: c.phone })),
-    ...selectedInterestGroupMembers.map(m => ({ name: m.name, phone: m.phone })),
+    ...selectedPrivateClients.map((c) => ({ name: c.name, phone: c.phone })),
+    ...selectedInterestGroupMembers.map((m) => ({
+      name: m.name,
+      phone: m.phone,
+    })),
   ];
-  
+
   // Remove duplicates
   const customNumbers = allCustomNumbers.filter(
-    (num, index, self) => index === self.findIndex((n) => n.phone === num.phone)
+    (num, index, self) =>
+      index === self.findIndex((n) => n.phone === num.phone),
   );
-  
+
   if (selectedGroups.length === 0 && customNumbers.length === 0) {
     alert("⚠️ Please select at least one group or recipient");
     return;
   }
-  
+
   const delayInput = document.getElementById("send-delay");
   const delaySeconds = delayInput ? parseInt(delayInput.value) || 3 : 3;
-  
+
   const totalRecipients = selectedGroups.length + customNumbers.length;
-  
+
   // Confirm scheduling
   const scheduledTimeStr = scheduledDate.toLocaleString("ar-SA", {
     dateStyle: "full",
     timeStyle: "short",
-    timeZone: "Asia/Riyadh"
+    timeZone: "Asia/Riyadh",
   });
-  
-  if (!confirm(`📅 Schedule message for:\n\n🕐 ${scheduledTimeStr}\n📊 ${totalRecipients} recipient(s)\n\nContinue?`)) {
+
+  if (
+    !confirm(
+      `📅 Schedule message for:\n\n🕐 ${scheduledTimeStr}\n📊 ${totalRecipients} recipient(s)\n\nContinue?`,
+    )
+  ) {
     return;
   }
-  
+
   showLoadingOverlay("📅 Scheduling message...");
-  
+
   try {
     const response = await fetch("/api/bot/scheduled-whatsapp", {
       method: "POST",
@@ -2251,18 +2340,18 @@ async function handleGroupsPreviewSchedule() {
         delaySeconds,
       }),
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.error || `HTTP ${response.status}`);
     }
-    
+
     const result = await response.json();
-    
+
     console.log("✅ Message scheduled:", result);
-    
+
     hideLoadingOverlay();
-    
+
     const successMessage = `✅ تم جدولة الرسالة بنجاح!
 
 📅 الموعد: ${scheduledTimeStr}
@@ -2272,17 +2361,16 @@ async function handleGroupsPreviewSchedule() {
 
 سيتم إرسال الرسالة تلقائياً في الموعد المحدد
 📲 ستصلك إشعار على واتساب عند الإرسال`;
-    
+
     showSuccessStatus(successMessage);
     closeGroupsPreviewModal();
-    
+
     // Reset the schedule toggle
     const scheduleToggle = document.getElementById("schedule-toggle");
     if (scheduleToggle) {
       scheduleToggle.checked = false;
       toggleScheduleOptions();
     }
-    
   } catch (err) {
     hideLoadingOverlay();
     console.error("Error scheduling message:", err);
@@ -2294,7 +2382,7 @@ async function handleGroupsPreviewSchedule() {
 (function addScheduleToggleStyles() {
   const styleId = "schedule-toggle-styles";
   if (document.getElementById(styleId)) return;
-  
+
   const style = document.createElement("style");
   style.id = styleId;
   style.textContent = `
