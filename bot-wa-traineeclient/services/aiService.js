@@ -1554,7 +1554,7 @@ module.exports = {
   getApiKeysStatus,
 };
 
-async function extractWordPressData(adText) {
+async function extractWordPressData(adText, isRegeneration = false) {
   // Extract phone numbers first using smart extraction
   const extractedPhones = extractPhoneNumbers(adText);
   console.log("📞 Extracted phone numbers:", extractedPhones);
@@ -1569,7 +1569,11 @@ async function extractWordPressData(adText) {
           )}\n\nيجب استخدام هذه الأرقام في حقول phone_number و contact.`
       : "";
 
-  const prompt = `أنت مساعد ذكاء اصطناعي مخصّص وخبير في تحليل إعلانات العقارات باللغة العربية. مهمتك الأساسية هي قراءة النص الوارد بدقة واستخلاص جميع الحقول المطلوبة وتحويلها إلى كائن JSON واحد صالح تماماً.
+  const regenerationContext = isRegeneration
+    ? `\n\n⚠️ ملاحظة هامة: هذا إعلان موجود مسبقاً يتم إعادة توليده. لذلك:\n- تأكد من أن IsItAd = true (لأنه إعلان موجود بالفعل)\n- ركز على استخلاص البيانات بدقة من النص\n- لا تقلق بشأن التحقق من صحة كونه إعلان أم لا`
+    : "";
+
+  const prompt = `أنت مساعد ذكاء اصطناعي مخصّص وخبير في تحليل إعلانات العقارات باللغة العربية. مهمتك الأساسية هي قراءة النص الوارد بدقة واستخلاص جميع الحقول المطلوبة وتحويلها إلى كائن JSON واحد صالح تماماً.${regenerationContext}
 
 نص الإعلان:
 ${adText}${contactHint}
@@ -2093,10 +2097,16 @@ ${adText}${contactHint}
     console.log("   - ad_type:", data.meta?.ad_type);
     console.log("✅ =========================");
 
-    // Check if AI returned valid ad data
-    if (!data.IsItAd || data.IsItAd === false) {
+    // Check if AI returned valid ad data (skip this check if regenerating)
+    if (!isRegeneration && (!data.IsItAd || data.IsItAd === false)) {
       console.log("⚠️ AI determined this is NOT an ad");
       throw new Error("AI determined this is not an advertisement");
+    }
+    
+    // Force IsItAd to true when regenerating
+    if (isRegeneration && (!data.IsItAd || data.IsItAd === false)) {
+      console.log("⚠️ IsItAd was false, but forcing to true because this is a regeneration");
+      data.IsItAd = true;
     }
 
     // Ensure status is set

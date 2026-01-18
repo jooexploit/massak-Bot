@@ -1957,8 +1957,8 @@ router.post(
       // Use original text for regeneration
       const textToEnhance = ad.text;
 
-      // Generate WordPress data
-      const wpData = await extractWordPressData(textToEnhance);
+      // Generate WordPress data (with isRegeneration flag)
+      const wpData = await extractWordPressData(textToEnhance, true);
 
       // Generate WhatsApp message
       const settings = getSettings();
