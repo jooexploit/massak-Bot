@@ -1897,17 +1897,17 @@ function renderAds(list, reset = true, pagination = {}) {
                   ad.wpData.meta
                     ? `
                   ${
-                    ad.wpData.meta.parent_catt
+                    ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category
                       ? `
                   <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #667eea;">
                     <div style="font-size: 0.75rem; color: #666; margin-bottom: 2px;">📁 Category</div>
                     <div style="font-weight: bold; color: #333; font-size: 0.9rem;">${escapeHtml(
-                      ad.wpData.meta.parent_catt
+                      ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category
                     )}</div>
                     ${
-                      ad.wpData.meta.sub_catt
+                      ad.wpData.meta.sub_catt || ad.wpData.meta.arc_subcategory
                         ? `<div style=\"font-size: 0.8rem; color: #888;\">→ ${escapeHtml(
-                            ad.wpData.meta.sub_catt
+                            ad.wpData.meta.sub_catt || ad.wpData.meta.arc_subcategory
                           )}</div>`
                         : ""
                     }

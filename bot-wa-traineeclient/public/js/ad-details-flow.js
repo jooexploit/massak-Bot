@@ -215,7 +215,7 @@ ${escapeHtml(ad.text)}</div>
           <strong style="color: #1565C0;">🌐 Auto-Generated WordPress Data</strong>
           <div style="margin-top: 0.75rem; font-size: 0.9rem;">
             <div><strong>Title:</strong> ${escapeHtml(ad.wpData.title || 'N/A')}</div>
-            ${ad.wpData.meta?.parent_catt ? `<div><strong>Category:</strong> ${escapeHtml(ad.wpData.meta.parent_catt)}</div>` : ''}
+            ${(ad.wpData.meta?.parent_catt || ad.wpData.meta?.arc_category) ? `<div><strong>Category:</strong> ${escapeHtml(ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category)}</div>` : ''}
             ${ad.wpData.meta?.City ? `<div><strong>City:</strong> ${escapeHtml(ad.wpData.meta.City)}</div>` : ''}
             ${ad.wpData.meta?.price_amount ? `<div><strong>Price:</strong> ${escapeHtml(ad.wpData.meta.price_amount)} ريال</div>` : ''}
           </div>

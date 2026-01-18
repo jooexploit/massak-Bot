@@ -1765,6 +1765,15 @@ ${adText}${contactHint}
    - توصيل سيارات (25): خدمات توصيل
    - مجتمع حساك (28): أخبار المجتمع
    
+   ⚠️ **هام جداً للفئات الحساك**:
+   - استخدم **arc_category** و **arc_subcategory** كالحقول الأساسية
+   - ضع اسم الفئة الحساك في **arc_category** (مثال: "حراج الحسا", "الفعاليات والانشطة")
+   - ضع الفئة الفرعية في **arc_subcategory** إن وجدت
+   - **لا تضع** فئات حساك في parent_catt أو sub_catt
+   - **لا تضع** "طلبات" كفئة لإعلانات حساك
+   - مثال صحيح: arc_category = "حراج الحسا", arc_subcategory = "سيارات"
+   - مثال خاطئ: parent_catt = "حراج الحسا" ❌
+   
    🏷️ للسلع المستعملة غير العقارية (مكيف، أثاث، إلكترونيات، سيارات، إلخ) - مسعاك:
    - category: "طلبات" (القيمة الثابتة)
    - category_id: 83 (القيمة الثابتة)
@@ -2367,8 +2376,46 @@ ${adText}${contactHint}
       "منتجعات وإستراحات",
     ];
 
+    // Check if current category is a Hasak category in ANY of these fields
     const currentCategory = wpData.meta.category || data.category || "";
-    const isHasakCategory = hasakCategories.includes(currentCategory);
+    const currentParentCatt = wpData.meta.parent_catt || "";
+    const currentArcCategory = wpData.meta.arc_category || "";
+    
+    const isHasakCategory = 
+      hasakCategories.includes(currentCategory) ||
+      hasakCategories.includes(currentParentCatt) ||
+      hasakCategories.includes(currentArcCategory);
+
+    // ⚠️ CRITICAL: If this is a Hasak category, enforce correct field usage
+    if (isHasakCategory) {
+      console.log("\n🎪 Detected Hasak category - enforcing arc_category/arc_subcategory usage");
+      
+      // Find the Hasak category name from whichever field it's in
+      const hasakCategoryName = hasakCategories.find(cat => 
+        cat === currentCategory || cat === currentParentCatt || cat === currentArcCategory
+      );
+      
+      if (hasakCategoryName) {
+        // Set arc_category as the primary field for Hasak
+        wpData.meta.arc_category = hasakCategoryName;
+        wpData.meta.category = hasakCategoryName;
+        
+        // Keep arc_subcategory if it exists
+        if (!wpData.meta.arc_subcategory && wpData.meta.sub_catt) {
+          wpData.meta.arc_subcategory = wpData.meta.sub_catt;
+        }
+        
+        // Clear parent_catt and sub_catt for Hasak categories
+        // (they should use arc_category/arc_subcategory instead)
+        delete wpData.meta.parent_catt;
+        delete wpData.meta.sub_catt;
+        
+        console.log("✅ Hasak category set:");
+        console.log("   - arc_category:", wpData.meta.arc_category);
+        console.log("   - arc_subcategory:", wpData.meta.arc_subcategory || "(none)");
+        console.log("   - Removed parent_catt and sub_catt");
+      }
+    }
 
     const isRequestCategory =
       !isHasakCategory &&

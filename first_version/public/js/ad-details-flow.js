@@ -120,9 +120,9 @@ ${escapeHtml(ad.text)}</div>
               ad.wpData.title || "N/A"
             )}</div>
             ${
-              ad.wpData.meta?.parent_catt
+              ad.wpData.meta?.parent_catt || ad.wpData.meta?.arc_category
                 ? `<div><strong>Category:</strong> ${escapeHtml(
-                    ad.wpData.meta.parent_catt
+                    ad.wpData.meta.parent_catt || ad.wpData.meta.arc_category
                   )}</div>`
                 : ""
             }
