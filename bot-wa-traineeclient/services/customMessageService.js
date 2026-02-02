@@ -21,6 +21,29 @@ const KSA_TIMEZONE = "Asia/Riyadh";
 let customMessages = [];
 let scheduledMessages = [];
 
+function normalizeTags(tags) {
+  const list = Array.isArray(tags)
+    ? tags
+    : typeof tags === "string"
+      ? tags.split(/[,\n،]/)
+      : [];
+  const normalized = [];
+  const seen = new Set();
+
+  for (const item of list) {
+    const cleaned = String(item || "")
+      .replace(/^#+/, "")
+      .trim();
+    if (!cleaned) continue;
+    const key = cleaned.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(cleaned);
+  }
+
+  return normalized;
+}
+
 // ========================================
 // DATA INITIALIZATION
 // ========================================
@@ -33,7 +56,11 @@ async function initDataFiles() {
     // Initialize custom_messages.json
     try {
       const data = await fs.readFile(CUSTOM_MESSAGES_FILE, "utf8");
-      customMessages = JSON.parse(data).messages || [];
+      const parsed = JSON.parse(data);
+      customMessages = (parsed.messages || []).map((message) => ({
+        ...message,
+        tags: normalizeTags(message.tags || []),
+      }));
     } catch (error) {
       // File doesn't exist, create it
       await fs.writeFile(
@@ -122,6 +149,7 @@ async function createMessage(data, createdBy = "admin") {
     content: data.content || "",
     imagePath: data.imagePath || null, // Image path for sending with message
     dynamicWords: data.dynamicWords || {},
+    tags: normalizeTags(data.tags || []),
     variables: extractVariables(data.content || ""),
     createdBy,
     createdAt: new Date().toISOString(),
@@ -157,6 +185,10 @@ async function updateMessage(id, data) {
       data.dynamicWords !== undefined
         ? data.dynamicWords
         : customMessages[index].dynamicWords,
+    tags:
+      data.tags !== undefined
+        ? normalizeTags(data.tags)
+        : customMessages[index].tags || [],
     variables: extractVariables(
       data.content !== undefined ? data.content : customMessages[index].content
     ),

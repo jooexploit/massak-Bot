@@ -4730,44 +4730,6 @@ async function loadSettingsView() {
     // Load category limits
     renderCategoryLimits(data.settings.categoryLimits || []);
 
-    // Load WhatsApp message footers
-    const hasakFooterInput = document.getElementById("hasak-footer");
-    const masaakFooterInput = document.getElementById("masaak-footer");
-
-    // Default footers
-    const defaultHasakFooter = `┈┉━🔰 *منصة 🌴حساك* 🔰━┅┄
-*✅إنضم في منصة حساك* 
-https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
- *✅للإعلانات في منصة حساك* 
-0507667103`;
-
-    const defaultMasaakFooter = `┈┉━━🔰 *مسعاك العقارية* 🔰━━┅┄
-⭕ إبراء للذمة التواصل فقط مع مسعاك عند الشراء أو إذا عندك مشتري ✅ نتعاون مع جميع الوسطاء`;
-
-    if (hasakFooterInput) {
-      hasakFooterInput.value = data.settings.hasakFooter || defaultHasakFooter;
-    }
-    if (masaakFooterInput) {
-      masaakFooterInput.value =
-        data.settings.masaakFooter || defaultMasaakFooter;
-    }
-
-    // Add reset footers button handler
-    const resetFootersBtn = document.getElementById("reset-footers-btn");
-    if (resetFootersBtn) {
-      resetFootersBtn.onclick = () => {
-        if (confirm("Reset footers to default values?")) {
-          if (hasakFooterInput) hasakFooterInput.value = defaultHasakFooter;
-          if (masaakFooterInput) masaakFooterInput.value = defaultMasaakFooter;
-          showMessage(
-            "settings-message",
-            "Footers reset to defaults. Click 'Save All Settings' to apply.",
-            "success",
-          );
-        }
-      };
-    }
-
     // Fetch and load collections
     try {
       const collectionsResp = await fetch("/api/bot/collections", {
@@ -4791,6 +4753,9 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
     // Wire up collection/category management buttons
     setupCollectionsManagementListeners();
     setupCategoriesManagementListeners();
+
+    // Setup footer groups management
+    setupFooterGroupsManagement();
   } catch (error) {
     console.error("Error loading settings:", error);
     showMessage("settings-message", "Failed to load settings", "error");
@@ -6113,6 +6078,577 @@ async function saveNewCategory() {
   }
 }
 
+// ==================== FOOTER GROUPS MANAGEMENT ====================
+
+// Global state for footer groups
+let footerGroupsState = {
+  currentWebsite: "masaak",
+  groups: [],
+  rotationState: {},
+  stats: null,
+  editingGroupId: null,
+  tempMessages: [], // Temporary messages while editing
+};
+
+/**
+ * Initialize footer groups management
+ */
+function setupFooterGroupsManagement() {
+  // Tab switching
+  const tabs = document.querySelectorAll(".footer-groups-tab");
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const website = tab.dataset.website;
+      switchFooterGroupsTab(website);
+    });
+  });
+
+  // Add group button
+  const addGroupBtn = document.getElementById("add-footer-group-btn");
+  if (addGroupBtn) {
+    addGroupBtn.addEventListener("click", showAddFooterGroupForm);
+  }
+
+  // Save group button
+  const saveGroupBtn = document.getElementById("save-footer-group-btn");
+  if (saveGroupBtn) {
+    saveGroupBtn.addEventListener("click", handleSaveFooterGroup);
+  }
+
+  // Cancel group button
+  const cancelGroupBtn = document.getElementById("cancel-footer-group-btn");
+  if (cancelGroupBtn) {
+    cancelGroupBtn.addEventListener("click", hideFooterGroupForm);
+  }
+
+  // Add message button
+  const addMessageBtn = document.getElementById("add-footer-message-btn");
+  if (addMessageBtn) {
+    addMessageBtn.addEventListener("click", addFooterMessageInput);
+  }
+
+  // Reset rotation button
+  const resetRotationBtn = document.getElementById("reset-rotation-btn");
+  if (resetRotationBtn) {
+    resetRotationBtn.addEventListener("click", handleResetRotation);
+  }
+
+  // Preview footer button
+  const previewFooterBtn = document.getElementById("preview-footer-btn");
+  if (previewFooterBtn) {
+    previewFooterBtn.addEventListener("click", handlePreviewFooter);
+  }
+
+  // Load initial data
+  loadFooterGroups(footerGroupsState.currentWebsite);
+}
+
+/**
+ * Switch between website tabs
+ */
+function switchFooterGroupsTab(website) {
+  footerGroupsState.currentWebsite = website;
+
+  // Update tab styles
+  const tabs = document.querySelectorAll(".footer-groups-tab");
+  tabs.forEach((tab) => {
+    if (tab.dataset.website === website) {
+      tab.classList.add("active");
+      tab.style.color = "#495057";
+      tab.style.borderBottomColor =
+        website === "masaak" ? "#667eea" : "#28a745";
+    } else {
+      tab.classList.remove("active");
+      tab.style.color = "#6c757d";
+      tab.style.borderBottomColor = "transparent";
+    }
+  });
+
+  // Hide form
+  hideFooterGroupForm();
+
+  // Load groups for the selected website
+  loadFooterGroups(website);
+}
+
+/**
+ * Load footer groups from API
+ */
+async function loadFooterGroups(website) {
+  try {
+    const response = await fetch(`/api/bot/footer-groups/${website}`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) throw new Error("Failed to load footer groups");
+
+    const data = await response.json();
+    footerGroupsState.groups = data.groups || [];
+    footerGroupsState.rotationState = data.rotationState || {};
+    footerGroupsState.stats = data.stats || null;
+
+    renderFooterGroups();
+    updateRotationStats();
+  } catch (error) {
+    console.error("Error loading footer groups:", error);
+    showMessage("settings-message", "Failed to load footer groups", "error");
+  }
+}
+
+/**
+ * Render footer groups list
+ */
+function renderFooterGroups() {
+  const container = document.getElementById("footer-groups-list");
+  if (!container) return;
+
+  const groups = footerGroupsState.groups;
+
+  if (groups.length === 0) {
+    container.innerHTML = `
+      <div class="footer-groups-empty" style="
+        text-align: center;
+        padding: 40px 20px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        color: #6c757d;">
+        <i class="fas fa-inbox" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+        <p>No footer groups yet. Create your first group to start rotating messages.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const html = groups
+    .map((group) => {
+      const messagesCount = group.messages.length;
+      const usedCount = group.usedMessages ? group.usedMessages.length : 0;
+      const lastUsed = group.lastUsedAt
+        ? timeAgo(new Date(group.lastUsedAt))
+        : "Never";
+      const enabledClass = group.enabled ? "" : "opacity: 0.6;";
+      const enabledBadge = group.enabled
+        ? '<span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;">Enabled</span>'
+        : '<span style="background: #6c757d; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;">Disabled</span>';
+
+      const messagesHtml = group.messages
+        .map(
+          (msg, idx) => `
+      <div style="
+        padding: 8px 12px;
+        background: white;
+        border-radius: 4px;
+        margin-bottom: 4px;
+        font-size: 0.85rem;
+        direction: rtl;
+        border-left: 3px solid ${group.usedMessages && group.usedMessages.includes(msg.id) ? "#28a745" : "#dee2e6"};">
+        <span style="color: #6c757d; margin-left: 8px;">${idx + 1}.</span>
+        ${escapeHtml(truncateText(msg.text, 80))}
+      </div>
+    `,
+        )
+        .join("");
+
+      return `
+      <div class="footer-group-item" data-group-id="${group.id}" style="
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+        ${enabledClass}">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+          <div>
+            <h4 style="margin: 0 0 4px 0; display: flex; align-items: center; gap: 8px;">
+              <i class="fas fa-folder" style="color: ${footerGroupsState.currentWebsite === "masaak" ? "#667eea" : "#28a745"};"></i>
+              ${escapeHtml(group.name)}
+              ${enabledBadge}
+            </h4>
+            <span style="color: #6c757d; font-size: 0.85rem;">
+              ${messagesCount} message${messagesCount !== 1 ? "s" : ""} • ${usedCount}/${messagesCount} used • Last used: ${lastUsed}
+            </span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm btn-outline-primary edit-footer-group-btn" data-group-id="${group.id}" title="Edit group">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger delete-footer-group-btn" data-group-id="${group.id}" title="Delete group">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+        <div class="footer-group-messages" style="
+          background: #f8f9fa;
+          border-radius: 6px;
+          padding: 8px;
+          max-height: 150px;
+          overflow-y: auto;">
+          ${messagesHtml || '<p style="color: #6c757d; text-align: center; margin: 0;">No messages in this group</p>'}
+        </div>
+      </div>
+    `;
+    })
+    .join("");
+
+  container.innerHTML = html;
+
+  // Attach event listeners
+  container.querySelectorAll(".edit-footer-group-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const groupId = btn.dataset.groupId;
+      showEditFooterGroupForm(groupId);
+    });
+  });
+
+  container.querySelectorAll(".delete-footer-group-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const groupId = btn.dataset.groupId;
+      handleDeleteFooterGroup(groupId);
+    });
+  });
+}
+
+/**
+ * Update rotation stats display
+ */
+function updateRotationStats() {
+  const stats = footerGroupsState.stats;
+  if (!stats) return;
+
+  const groupsCountEl = document.getElementById("stats-groups-count");
+  const messagesSentEl = document.getElementById("stats-messages-sent");
+
+  if (groupsCountEl) {
+    groupsCountEl.textContent = `${stats.usedGroupsInCycle}/${stats.enabledGroups}`;
+  }
+  if (messagesSentEl) {
+    messagesSentEl.textContent = stats.totalMessagesSent || 0;
+  }
+}
+
+/**
+ * Show add footer group form
+ */
+function showAddFooterGroupForm() {
+  footerGroupsState.editingGroupId = null;
+  footerGroupsState.tempMessages = [];
+
+  const form = document.getElementById("footer-group-form");
+  const formTitle = document.getElementById("footer-group-form-title");
+  const nameInput = document.getElementById("footer-group-name");
+  const enabledCheckbox = document.getElementById("footer-group-enabled");
+  const editingIdInput = document.getElementById("editing-footer-group-id");
+
+  if (form) form.style.display = "block";
+  if (formTitle)
+    formTitle.innerHTML = '<i class="fas fa-folder-plus"></i> Create New Group';
+  if (nameInput) nameInput.value = "";
+  if (enabledCheckbox) enabledCheckbox.checked = true;
+  if (editingIdInput) editingIdInput.value = "";
+
+  renderFooterMessageInputs();
+}
+
+/**
+ * Show edit footer group form
+ */
+function showEditFooterGroupForm(groupId) {
+  const group = footerGroupsState.groups.find((g) => g.id === groupId);
+  if (!group) return;
+
+  footerGroupsState.editingGroupId = groupId;
+  footerGroupsState.tempMessages = group.messages.map((m) => ({
+    id: m.id,
+    text: m.text,
+  }));
+
+  const form = document.getElementById("footer-group-form");
+  const formTitle = document.getElementById("footer-group-form-title");
+  const nameInput = document.getElementById("footer-group-name");
+  const enabledCheckbox = document.getElementById("footer-group-enabled");
+  const editingIdInput = document.getElementById("editing-footer-group-id");
+
+  if (form) form.style.display = "block";
+  if (formTitle) formTitle.innerHTML = '<i class="fas fa-edit"></i> Edit Group';
+  if (nameInput) nameInput.value = group.name;
+  if (enabledCheckbox) enabledCheckbox.checked = group.enabled;
+  if (editingIdInput) editingIdInput.value = groupId;
+
+  renderFooterMessageInputs();
+}
+
+/**
+ * Hide footer group form
+ */
+function hideFooterGroupForm() {
+  const form = document.getElementById("footer-group-form");
+  if (form) form.style.display = "none";
+  footerGroupsState.editingGroupId = null;
+  footerGroupsState.tempMessages = [];
+}
+
+/**
+ * Render message inputs in form
+ */
+function renderFooterMessageInputs() {
+  const container = document.getElementById("footer-group-messages-list");
+  if (!container) return;
+
+  const messages = footerGroupsState.tempMessages;
+
+  if (messages.length === 0) {
+    container.innerHTML = `
+      <p style="color: #6c757d; font-size: 0.9rem; text-align: center; padding: 10px;">
+        No messages yet. Click "Add Message" to add footer messages.
+      </p>
+    `;
+    return;
+  }
+
+  const html = messages
+    .map(
+      (msg, idx) => `
+    <div class="footer-message-input-row" data-index="${idx}" style="
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: flex-start;">
+      <span style="
+        background: #e9ecef;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        min-width: 30px;
+        text-align: center;">${idx + 1}</span>
+      <textarea class="form-control footer-message-textarea" data-index="${idx}"
+        rows="2" style="flex: 1; direction: rtl; font-size: 0.9rem;"
+        placeholder="Enter footer message...">${escapeHtml(msg.text || "")}</textarea>
+      <button type="button" class="btn btn-sm btn-outline-danger remove-footer-message-btn" data-index="${idx}" title="Remove message">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  `,
+    )
+    .join("");
+
+  container.innerHTML = html;
+
+  // Attach remove listeners
+  container.querySelectorAll(".remove-footer-message-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const index = parseInt(btn.dataset.index);
+      removeFooterMessageInput(index);
+    });
+  });
+
+  // Update temp messages on input change
+  container.querySelectorAll(".footer-message-textarea").forEach((textarea) => {
+    textarea.addEventListener("input", () => {
+      const index = parseInt(textarea.dataset.index);
+      if (footerGroupsState.tempMessages[index]) {
+        footerGroupsState.tempMessages[index].text = textarea.value;
+      }
+    });
+  });
+}
+
+/**
+ * Add a new message input
+ */
+function addFooterMessageInput() {
+  footerGroupsState.tempMessages.push({ id: null, text: "" });
+  renderFooterMessageInputs();
+
+  // Focus the new textarea
+  setTimeout(() => {
+    const textareas = document.querySelectorAll(".footer-message-textarea");
+    if (textareas.length > 0) {
+      textareas[textareas.length - 1].focus();
+    }
+  }, 50);
+}
+
+/**
+ * Remove a message input
+ */
+function removeFooterMessageInput(index) {
+  footerGroupsState.tempMessages.splice(index, 1);
+  renderFooterMessageInputs();
+}
+
+/**
+ * Save footer group
+ */
+async function handleSaveFooterGroup() {
+  const nameInput = document.getElementById("footer-group-name");
+  const enabledCheckbox = document.getElementById("footer-group-enabled");
+
+  const name = nameInput ? nameInput.value.trim() : "";
+  const enabled = enabledCheckbox ? enabledCheckbox.checked : true;
+  const messages = footerGroupsState.tempMessages.filter(
+    (m) => m.text && m.text.trim(),
+  );
+
+  if (!name) {
+    alert("Please enter a group name");
+    return;
+  }
+
+  if (messages.length === 0) {
+    alert("Please add at least one message to the group");
+    return;
+  }
+
+  const website = footerGroupsState.currentWebsite;
+  const groupId = footerGroupsState.editingGroupId;
+
+  try {
+    let response;
+
+    if (groupId) {
+      // Update existing group
+      response = await fetch(`/api/bot/footer-groups/${website}/${groupId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name, enabled, messages }),
+      });
+    } else {
+      // Create new group
+      response = await fetch(`/api/bot/footer-groups/${website}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name, enabled, messages }),
+      });
+    }
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to save group");
+    }
+
+    showMessage(
+      "settings-message",
+      `Group ${groupId ? "updated" : "created"} successfully!`,
+      "success",
+    );
+    hideFooterGroupForm();
+    loadFooterGroups(website);
+  } catch (error) {
+    console.error("Error saving footer group:", error);
+    alert(error.message || "Failed to save group");
+  }
+}
+
+/**
+ * Delete footer group
+ */
+async function handleDeleteFooterGroup(groupId) {
+  const group = footerGroupsState.groups.find((g) => g.id === groupId);
+  if (!group) return;
+
+  if (
+    !confirm(
+      `Are you sure you want to delete the group "${group.name}"? This cannot be undone.`,
+    )
+  ) {
+    return;
+  }
+
+  const website = footerGroupsState.currentWebsite;
+
+  try {
+    const response = await fetch(
+      `/api/bot/footer-groups/${website}/${groupId}`,
+      {
+        method: "DELETE",
+        credentials: "include",
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to delete group");
+    }
+
+    showMessage("settings-message", "Group deleted successfully!", "success");
+    loadFooterGroups(website);
+  } catch (error) {
+    console.error("Error deleting footer group:", error);
+    alert(error.message || "Failed to delete group");
+  }
+}
+
+/**
+ * Reset rotation
+ */
+async function handleResetRotation() {
+  if (
+    !confirm(
+      "Reset the rotation cycle? This will allow all groups and messages to be used again from the beginning.",
+    )
+  ) {
+    return;
+  }
+
+  const website = footerGroupsState.currentWebsite;
+
+  try {
+    const response = await fetch(
+      `/api/bot/footer-groups/${website}/reset-rotation`,
+      {
+        method: "POST",
+        credentials: "include",
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to reset rotation");
+    }
+
+    showMessage("settings-message", "Rotation reset successfully!", "success");
+    loadFooterGroups(website);
+  } catch (error) {
+    console.error("Error resetting rotation:", error);
+    alert("Failed to reset rotation");
+  }
+}
+
+/**
+ * Preview next footer
+ */
+async function handlePreviewFooter() {
+  const website = footerGroupsState.currentWebsite;
+
+  try {
+    const response = await fetch(
+      `/api/bot/footer-groups/${website}/next-footer?preview=true`,
+      {
+        credentials: "include",
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to get preview");
+    }
+
+    const data = await response.json();
+
+    // Show preview in a modal/alert
+    const previewText = data.isDefault
+      ? `(Using default footer - no groups configured)\n\n${data.footer}`
+      : `Group: ${data.groupName || "N/A"}\n\n${data.footer}`;
+
+    alert(`📝 Footer Preview:\n\n${previewText}`);
+  } catch (error) {
+    console.error("Error previewing footer:", error);
+    alert("Failed to preview footer");
+  }
+}
+
+// End of footer groups management
+
 async function handleSaveAllSettings() {
   const input = document.getElementById("recycle-bin-days-input");
   if (!input) return;
@@ -6132,10 +6668,6 @@ async function handleSaveAllSettings() {
   const wpUsername = document.getElementById("wp-username");
   const wpPassword = document.getElementById("wp-password");
 
-  // Get footer settings
-  const hasakFooterInput = document.getElementById("hasak-footer");
-  const masaakFooterInput = document.getElementById("masaak-footer");
-
   try {
     const settings = {
       recycleBinDays: days,
@@ -6143,8 +6675,6 @@ async function handleSaveAllSettings() {
       wordpressUsername: wpUsername ? wpUsername.value : "",
       wordpressPassword: wpPassword ? wpPassword.value : "",
       excludedGroups: currentExcludedGroups, // Include excluded groups
-      hasakFooter: hasakFooterInput ? hasakFooterInput.value : undefined,
-      masaakFooter: masaakFooterInput ? masaakFooterInput.value : undefined,
     };
 
     const response = await fetch("/api/bot/settings", {
@@ -11227,6 +11757,9 @@ let customMessagesState = {
     greeting: ["السلام عليكم", "مرحباً", "حياك الله", "أهلاً وسهلاً"],
   },
   availableVariables: [],
+  tags: [],
+  tagFilters: [],
+  sortMode: "newest",
   // Schedule recipients state
   scheduleCustomNumbers: [],
   schedulePrivateClients: [],
@@ -11289,6 +11822,38 @@ function setupCustomMessagesEventListeners() {
   if (addDynamicVarBtn)
     addDynamicVarBtn.addEventListener("click", addNewDynamicWordGroup);
 
+  // Tags input (custom message modal)
+  const addTagBtn = document.getElementById("custom-msg-add-tag-btn");
+  if (addTagBtn) {
+    const newAddTagBtn = addTagBtn.cloneNode(true);
+    addTagBtn.parentNode.replaceChild(newAddTagBtn, addTagBtn);
+    newAddTagBtn.addEventListener("click", handleAddCustomMessageTags);
+  }
+
+  const tagInput = document.getElementById("custom-msg-tag-input");
+  if (tagInput && !tagInput.dataset.bound) {
+    tagInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleAddCustomMessageTags();
+      }
+    });
+    tagInput.dataset.bound = "true";
+  }
+
+  const tagSuggestions = document.getElementById("custom-msg-tags-suggestions");
+  if (tagSuggestions && !tagSuggestions.dataset.bound) {
+    tagSuggestions.addEventListener("click", (e) => {
+      const tagBtn = e.target.closest("[data-tag-key]");
+      if (!tagBtn) return;
+      const { tagKey, tagLabel } = tagBtn.dataset;
+      if (addCustomMessageTag(tagLabel || tagKey)) {
+        renderCustomMessageTagsInput();
+      }
+    });
+    tagSuggestions.dataset.bound = "true";
+  }
+
   // Schedule modal buttons
   const closeScheduleModal = document.getElementById("close-schedule-modal");
   const cancelScheduleBtn = document.getElementById("cancel-schedule-btn");
@@ -11319,6 +11884,44 @@ function setupCustomMessagesEventListeners() {
   if (contentInput) {
     contentInput.addEventListener("input", debounce(updateMessagePreview, 500));
   }
+
+  // Tag filters & sorting
+  const tagFiltersContainer = document.getElementById("custom-msg-tag-filters");
+  if (tagFiltersContainer && !tagFiltersContainer.dataset.bound) {
+    tagFiltersContainer.addEventListener("click", (e) => {
+      const tagChip = e.target.closest("[data-tag-key]");
+      if (!tagChip) return;
+      const tagKey = tagChip.dataset.tagKey;
+      if (tagKey === "__all") {
+        customMessagesState.tagFilters = [];
+      } else {
+        const exists = customMessagesState.tagFilters.includes(tagKey);
+        customMessagesState.tagFilters = exists
+          ? customMessagesState.tagFilters.filter((key) => key !== tagKey)
+          : [...customMessagesState.tagFilters, tagKey];
+      }
+      renderCustomMessages();
+    });
+    tagFiltersContainer.dataset.bound = "true";
+  }
+
+  const clearFiltersBtn = document.getElementById("custom-msg-clear-filters");
+  if (clearFiltersBtn && !clearFiltersBtn.dataset.bound) {
+    clearFiltersBtn.addEventListener("click", () => {
+      customMessagesState.tagFilters = [];
+      renderCustomMessages();
+    });
+    clearFiltersBtn.dataset.bound = "true";
+  }
+
+  const sortSelect = document.getElementById("custom-msg-sort-select");
+  if (sortSelect && !sortSelect.dataset.bound) {
+    sortSelect.addEventListener("change", () => {
+      customMessagesState.sortMode = sortSelect.value || "newest";
+      renderCustomMessages();
+    });
+    sortSelect.dataset.bound = "true";
+  }
 }
 
 // Debounce helper
@@ -11332,6 +11935,271 @@ function debounce(func, wait) {
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
   };
+}
+
+// Tags helpers (custom messages)
+function normalizeTagKey(tag) {
+  return String(tag || "")
+    .trim()
+    .replace(/^#+/, "")
+    .toLowerCase();
+}
+
+function parseTagsInput(input) {
+  return String(input || "")
+    .split(/[,\n،]/)
+    .map((tag) => tag.replace(/^#+/, "").trim())
+    .filter(Boolean);
+}
+
+function getCustomMessageTagStats(messages) {
+  const map = new Map();
+  (messages || []).forEach((msg) => {
+    (msg.tags || []).forEach((tag) => {
+      const key = normalizeTagKey(tag);
+      if (!key) return;
+      if (!map.has(key)) {
+        map.set(key, { key, label: tag, count: 0 });
+      }
+      map.get(key).count += 1;
+    });
+  });
+
+  return Array.from(map.values()).sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.label.localeCompare(b.label, "ar");
+  });
+}
+
+function reconcileCustomMessageTagFilters() {
+  if (!customMessagesState.tagFilters.length) return;
+  const availableKeys = new Set(
+    getCustomMessageTagStats(customMessagesState.messages).map(
+      (tag) => tag.key,
+    ),
+  );
+  customMessagesState.tagFilters = customMessagesState.tagFilters.filter(
+    (key) => availableKeys.has(key),
+  );
+}
+
+function addCustomMessageTag(rawTag) {
+  const cleaned = String(rawTag || "")
+    .replace(/^#+/, "")
+    .trim();
+  if (!cleaned) return false;
+  const key = normalizeTagKey(cleaned);
+  const exists = customMessagesState.tags.some(
+    (tag) => normalizeTagKey(tag) === key,
+  );
+  if (exists) return false;
+  customMessagesState.tags.push(cleaned);
+  return true;
+}
+
+function handleAddCustomMessageTags() {
+  const input = document.getElementById("custom-msg-tag-input");
+  if (!input) return;
+  const tags = parseTagsInput(input.value);
+  if (!tags.length) return;
+  let added = false;
+  tags.forEach((tag) => {
+    if (addCustomMessageTag(tag)) added = true;
+  });
+  input.value = "";
+  if (added) {
+    renderCustomMessageTagsInput();
+  }
+}
+
+function renderCustomMessageTagsInput() {
+  const container = document.getElementById("custom-msg-tags-list");
+  if (!container) return;
+  const tags = customMessagesState.tags || [];
+
+  if (!tags.length) {
+    container.innerHTML =
+      '<span style="color: #94a3b8; font-size: 0.9rem;">لا توجد وسوم بعد</span>';
+    renderCustomMessageTagSuggestions();
+    return;
+  }
+
+  container.innerHTML = tags
+    .map(
+      (tag, index) => `
+      <span style="background: #eef2ff; color: #4338ca; padding: 6px 12px; border-radius: 999px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;">
+        #${escapeHtml(tag)}
+        <button type="button" onclick="window.removeCustomMessageTag(${index})" style="border: none; background: none; color: #ef4444; cursor: pointer; font-weight: bold; line-height: 1;">×</button>
+      </span>
+    `,
+    )
+    .join("");
+
+  renderCustomMessageTagSuggestions();
+}
+
+function renderCustomMessageTagSuggestions() {
+  const container = document.getElementById("custom-msg-tags-suggestions");
+  if (!container) return;
+
+  const currentKeys = new Set(
+    (customMessagesState.tags || []).map((tag) => normalizeTagKey(tag)),
+  );
+  const suggestions = getCustomMessageTagStats(customMessagesState.messages)
+    .filter((tag) => !currentKeys.has(tag.key))
+    .slice(0, 12);
+
+  if (!suggestions.length) {
+    container.style.display = "none";
+    container.innerHTML = "";
+    return;
+  }
+
+  container.style.display = "block";
+  container.innerHTML = `
+    <div style="font-weight: 600; color: #475569; margin-bottom: 6px;">وسوم مستخدمة:</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+      ${suggestions
+        .map(
+          (tag) => `
+        <button type="button" data-tag-key="${tag.key}" data-tag-label="${escapeHtmlAttr(tag.label)}"
+          style="background: #f1f5f9; border: 1px solid #e2e8f0; color: #334155; padding: 4px 10px; border-radius: 999px; font-size: 0.8rem; cursor: pointer;">
+          #${escapeHtml(tag.label)} (${tag.count})
+        </button>
+      `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+window.removeCustomMessageTag = function (index) {
+  customMessagesState.tags.splice(index, 1);
+  renderCustomMessageTagsInput();
+};
+
+window.clearCustomMessageFilters = function () {
+  customMessagesState.tagFilters = [];
+  renderCustomMessages();
+};
+
+function applyCustomMessageFilters(messages) {
+  const activeFilters = customMessagesState.tagFilters || [];
+  if (!activeFilters.length) return [...messages];
+
+  const filterSet = new Set(activeFilters);
+  return messages.filter((message) => {
+    const tagKeys = (message.tags || []).map((tag) => normalizeTagKey(tag));
+    return tagKeys.some((key) => filterSet.has(key));
+  });
+}
+
+function sortCustomMessages(messages) {
+  const sorted = [...messages];
+  const mode = customMessagesState.sortMode || "newest";
+
+  const getPrimaryTag = (message) => {
+    const tags = (message.tags || [])
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "ar"));
+    return tags[0] || "";
+  };
+
+  switch (mode) {
+    case "oldest":
+      sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      break;
+    case "name":
+      sorted.sort((a, b) => (a.name || "").localeCompare(b.name || "", "ar"));
+      break;
+    case "tag":
+      sorted.sort((a, b) => {
+        const tagA = getPrimaryTag(a);
+        const tagB = getPrimaryTag(b);
+        if (!tagA && tagB) return 1;
+        if (tagA && !tagB) return -1;
+        const compare = tagA.localeCompare(tagB, "ar");
+        if (compare !== 0) return compare;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+      break;
+    case "newest":
+    default:
+      sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      break;
+  }
+
+  return sorted;
+}
+
+function renderCustomMessagesToolbar(filteredCount, totalCount) {
+  const tagFiltersContainer = document.getElementById("custom-msg-tag-filters");
+  if (tagFiltersContainer) {
+    const tags = getCustomMessageTagStats(customMessagesState.messages);
+    const activeKeys = new Set(customMessagesState.tagFilters || []);
+
+    if (!tags.length) {
+      tagFiltersContainer.innerHTML =
+        '<span style="color: #94a3b8; font-size: 0.9rem;">لا توجد وسوم بعد</span>';
+    } else {
+      const chipBaseStyle =
+        "padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; border: 1px solid #e5e7eb; cursor: pointer;";
+      const activeStyle =
+        "background: #4f46e5; color: white; border-color: #4338ca;";
+      const inactiveStyle =
+        "background: #f3f4f6; color: #374151; border-color: #e5e7eb;";
+
+      const allActive = activeKeys.size === 0;
+      const allChip = `
+        <button type="button" data-tag-key="__all"
+          style="${chipBaseStyle} ${allActive ? activeStyle : inactiveStyle}">
+          الكل (${totalCount})
+        </button>
+      `;
+
+      tagFiltersContainer.innerHTML =
+        allChip +
+        tags
+          .map((tag) => {
+            const isActive = activeKeys.has(tag.key);
+            return `
+            <button type="button" data-tag-key="${tag.key}"
+              style="${chipBaseStyle} ${
+                isActive ? activeStyle : inactiveStyle
+              }">
+              #${escapeHtml(tag.label)} (${tag.count})
+            </button>
+          `;
+          })
+          .join("");
+    }
+  }
+
+  const clearFiltersBtn = document.getElementById("custom-msg-clear-filters");
+  if (clearFiltersBtn) {
+    clearFiltersBtn.style.display = customMessagesState.tagFilters.length
+      ? "inline-flex"
+      : "none";
+  }
+
+  const sortSelect = document.getElementById("custom-msg-sort-select");
+  if (sortSelect && sortSelect.value !== customMessagesState.sortMode) {
+    sortSelect.value = customMessagesState.sortMode;
+  }
+
+  const summary = document.getElementById("custom-msg-filter-summary");
+  if (summary) {
+    if (customMessagesState.tagFilters.length) {
+      const tags = getCustomMessageTagStats(customMessagesState.messages);
+      const selectedLabels = customMessagesState.tagFilters
+        .map((key) => tags.find((tag) => tag.key === key)?.label || key)
+        .join("، ");
+      summary.textContent = `عرض ${filteredCount} من ${totalCount} • الوسوم: ${selectedLabels}`;
+    } else {
+      summary.textContent = `إجمالي الرسائل: ${totalCount}`;
+    }
+  }
 }
 
 // Switch tabs
@@ -11374,9 +12242,13 @@ async function fetchCustomMessages() {
     if (!response.ok) throw new Error("Failed to fetch messages");
 
     const data = await response.json();
-    customMessagesState.messages = data.messages || [];
+    customMessagesState.messages = (data.messages || []).map((message) => ({
+      ...message,
+      tags: Array.isArray(message.tags) ? message.tags : [],
+    }));
     customMessagesState.availableVariables = data.availableVariables || [];
 
+    reconcileCustomMessageTagFilters();
     renderCustomMessages();
   } catch (error) {
     console.error("Error fetching custom messages:", error);
@@ -11429,6 +12301,7 @@ function renderCustomMessages() {
   const messages = customMessagesState.messages;
 
   if (messages.length === 0) {
+    renderCustomMessagesToolbar(0, 0);
     list.innerHTML = `<div style="text-align: center; padding: 40px; color: #999;">
       <i class="fas fa-envelope-open" style="font-size: 3rem; margin-bottom: 15px;"></i>
       <p>لا توجد رسائل مخصصة بعد</p>
@@ -11437,7 +12310,27 @@ function renderCustomMessages() {
     return;
   }
 
-  list.innerHTML = messages.map((msg) => createMessageCard(msg)).join("");
+  const filteredMessages = applyCustomMessageFilters(messages);
+  const sortedMessages = sortCustomMessages(filteredMessages);
+
+  renderCustomMessagesToolbar(sortedMessages.length, messages.length);
+
+  if (sortedMessages.length === 0) {
+    const clearBtn = customMessagesState.tagFilters.length
+      ? `<button type="button" class="btn btn-secondary btn-sm" onclick="window.clearCustomMessageFilters()" style="margin-top: 10px;">
+          مسح التصفية
+        </button>`
+      : "";
+
+    list.innerHTML = `<div style="text-align: center; padding: 40px; color: #999;">
+      <i class="fas fa-filter" style="font-size: 2.5rem; margin-bottom: 12px; color: #cbd5f5;"></i>
+      <p>لا توجد رسائل مطابقة للتصفية الحالية</p>
+      ${clearBtn}
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = sortedMessages.map((msg) => createMessageCard(msg)).join("");
 }
 
 // Create message card HTML
@@ -11445,6 +12338,22 @@ function createMessageCard(message) {
   const createdDate = new Date(message.createdAt).toLocaleDateString("ar-SA");
   const variablesCount = (message.variables || []).length;
   const dynamicWordsCount = Object.keys(message.dynamicWords || {}).length;
+  const tags = Array.isArray(message.tags) ? message.tags : [];
+  const tagsHtml = tags.length
+    ? `
+      <div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px;">
+        ${tags
+          .map(
+            (tag) => `
+          <span style="background: #eef2ff; color: #4338ca; padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600;">
+            #${escapeHtml(tag)}
+          </span>
+        `,
+          )
+          .join("")}
+      </div>
+    `
+    : "";
 
   return `
     <div class="custom-message-card">
@@ -11459,6 +12368,8 @@ function createMessageCard(message) {
       
       <!-- Content Preview -->
       <div class="card-content-preview">${escapeHtml(message.content.substring(0, 200))}${message.content.length > 200 ? "..." : ""}</div>
+
+      ${tagsHtml}
       
       <!-- Stats -->
       <div class="card-stats">
@@ -11632,17 +12543,20 @@ function openCreateMessageModal() {
   customMessagesState.dynamicWords = {
     greeting: ["السلام عليكم", "مرحباً", "حياك الله", "أهلاً وسهلاً"],
   };
+  customMessagesState.tags = [];
 
   const modal = document.getElementById("custom-message-modal");
   const title = document.getElementById("custom-message-modal-title");
   const nameInput = document.getElementById("custom-msg-name");
   const contentInput = document.getElementById("custom-msg-content");
+  const tagInput = document.getElementById("custom-msg-tag-input");
   const previewDiv = document.getElementById("custom-msg-preview");
 
   if (title)
     title.innerHTML = '<i class="fas fa-envelope"></i> إنشاء رسالة مخصصة';
   if (nameInput) nameInput.value = "";
   if (contentInput) contentInput.value = "";
+  if (tagInput) tagInput.value = "";
   if (previewDiv)
     previewDiv.innerHTML =
       '<span style="color: #999;">المعاينة ستظهر هنا...</span>';
@@ -11651,6 +12565,7 @@ function openCreateMessageModal() {
   resetCustomMessageImageUI();
 
   renderDynamicWordsUI();
+  renderCustomMessageTagsInput();
   if (modal) modal.style.display = "flex";
 }
 
@@ -11927,6 +12842,7 @@ async function handleSaveCustomMessage() {
       "dynamicWords",
       JSON.stringify(customMessagesState.dynamicWords),
     );
+    formData.append("tags", JSON.stringify(customMessagesState.tags || []));
 
     // Add image if selected
     if (imageInput?.files?.length > 0) {
@@ -11973,15 +12889,20 @@ window.editCustomMessage = async function (id) {
 
   customMessagesState.editingMessageId = id;
   customMessagesState.dynamicWords = message.dynamicWords || { greeting: [] };
+  customMessagesState.tags = Array.isArray(message.tags)
+    ? [...message.tags]
+    : [];
 
   const modal = document.getElementById("custom-message-modal");
   const title = document.getElementById("custom-message-modal-title");
   const nameInput = document.getElementById("custom-msg-name");
   const contentInput = document.getElementById("custom-msg-content");
+  const tagInput = document.getElementById("custom-msg-tag-input");
 
   if (title) title.innerHTML = '<i class="fas fa-edit"></i> تعديل الرسالة';
   if (nameInput) nameInput.value = message.name;
   if (contentInput) contentInput.value = message.content;
+  if (tagInput) tagInput.value = "";
 
   // Reset then show existing image if any
   resetCustomMessageImageUI();
@@ -11990,6 +12911,7 @@ window.editCustomMessage = async function (id) {
   }
 
   renderDynamicWordsUI();
+  renderCustomMessageTagsInput();
   updateMessagePreview();
   if (modal) modal.style.display = "flex";
 };

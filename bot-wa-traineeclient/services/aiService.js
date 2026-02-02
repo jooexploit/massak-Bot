@@ -1332,20 +1332,35 @@ function detectCategoryFallback(text) {
   return null;
 }
 
+// Import footer group service for rotation
+const footerGroupService = require("./footerGroupService");
+
 /**
  * Generate WhatsApp message from WordPress data
  * @param {object} wpData - WordPress data
  * @param {string} wpLink - WordPress post link
  * @param {string} website - Target website ('masaak' or 'hasak')
  * @param {object} settings - Optional settings object with custom footers
- * @returns {string} - Formatted WhatsApp message
+ * @param {boolean} useRotation - Whether to use footer rotation (default: false for backwards compatibility)
+ * @returns {string|Promise<string>} - Formatted WhatsApp message
  */
 function generateWhatsAppMessage(
   wpData,
   wpLink = null,
   website = "masaak",
   settings = null,
+  useRotation = false,
 ) {
+  // If rotation is enabled, use async version
+  if (useRotation) {
+    return generateWhatsAppMessageWithRotation(
+      wpData,
+      wpLink,
+      website,
+      settings,
+    );
+  }
+
   const meta = wpData.meta || {};
   let message = "";
 
@@ -1474,6 +1489,131 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
 }
 
 /**
+ * Generate WhatsApp message with footer rotation
+ * Uses the footer group service to get rotating footer messages
+ * @param {object} wpData - WordPress data
+ * @param {string} wpLink - WordPress post link
+ * @param {string} website - Target website ('masaak' or 'hasak')
+ * @param {object} settings - Optional settings object (used as fallback)
+ * @returns {Promise<string>} - Formatted WhatsApp message
+ */
+async function generateWhatsAppMessageWithRotation(
+  wpData,
+  wpLink = null,
+  website = "masaak",
+  settings = null,
+) {
+  const meta = wpData.meta || {};
+  let message = "";
+
+  // Get footer using rotation (or default if no groups configured)
+  let footer;
+  if (footerGroupService.hasEnabledGroups(website)) {
+    footer = await footerGroupService.getNextFooter(website);
+    console.log(`📝 Using rotated footer for ${website}`);
+  } else {
+    // Fall back to settings or default
+    const defaultHasakFooter = `┈┉━🔰 *منصة 🌴حساك* 🔰━┅┄
+*✅إنضم في منصة حساك* 
+https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
+ *✅للإعلانات في منصة حساك* 
+0507667103`;
+    const defaultMasaakFooter = `┈┉━━🔰 *مسعاك العقارية* 🔰━━┅┄
+⭕ إبراء للذمة التواصل فقط مع مسعاك عند الشراء أو إذا عندك مشتري ✅ نتعاون مع جميع الوسطاء`;
+
+    if (website === "hasak") {
+      footer = settings?.hasakFooter || defaultHasakFooter;
+    } else {
+      footer = settings?.masaakFooter || defaultMasaakFooter;
+    }
+    console.log(
+      `📝 Using default/settings footer for ${website} (no groups configured)`,
+    );
+  }
+
+  // Different format for Hasak vs Masaak
+  if (website === "hasak") {
+    // Hasak format: Title, Link, Footer
+    if (wpData.title) {
+      message += `*${wpData.title}*\n`;
+    }
+
+    if (wpLink) {
+      message += `\n👈 *للتفاصيل اضغط على الرابط👇*\n${wpLink}`;
+    }
+
+    message += `\n${footer}`;
+  } else {
+    // Masaak format: Title, Price, Space, Location, Contact, Link, Footer
+    if (wpData.title) {
+      message += `*${wpData.title}*\n\n`;
+    }
+
+    // Add price if available
+    if (meta.price_amount || meta.price || meta.price_type) {
+      const priceType = (meta.price_type || "").toLowerCase();
+      const isContactPrice = priceType.includes("عند التواصل");
+      const isNegotiable =
+        priceType.includes("على السوم") || priceType.includes("السوم وصل");
+      const hasNumericPrice = meta.price_amount || meta.price;
+
+      if (hasNumericPrice || isContactPrice || isNegotiable) {
+        message += `💰 *السعر:* `;
+
+        if (isContactPrice && !hasNumericPrice) {
+          message += `عند التواصل`;
+        } else if (isNegotiable && !hasNumericPrice) {
+          message += meta.price_type;
+        } else if (hasNumericPrice) {
+          if (meta.price_type) {
+            if (priceType.includes("متر") || priceType.includes("meter")) {
+              message += `${meta.price_amount || meta.price} ريال للمتر`;
+            } else if (
+              priceType.includes("صافي") ||
+              priceType.includes("total") ||
+              priceType.includes("إجمالي")
+            ) {
+              message += `${meta.price_amount || meta.price} ريال`;
+            } else if (isContactPrice || isNegotiable) {
+              message += `${meta.price_amount || meta.price} ريال (${meta.price_type})`;
+            } else {
+              message += `${meta.price_amount || meta.price} ريال (${meta.price_type})`;
+            }
+          } else if (meta.from_price && meta.to_price) {
+            message += `من ${meta.from_price} إلى ${meta.to_price} ريال`;
+          } else {
+            message += `${meta.price_amount || meta.price} ريال`;
+          }
+        }
+
+        message += `\n`;
+      }
+    }
+
+    if (meta.arc_space || meta.order_space) {
+      message += `📏 *المساحة:* ${meta.arc_space || meta.order_space} متر\n`;
+    }
+
+    if (meta.location || meta.City || meta.before_City) {
+      const location = [meta.location, meta.City, meta.before_City]
+        .filter(Boolean)
+        .join(" - ");
+      message += `📍 *الموقع:* ${location}\n`;
+    }
+
+    message += `📲 *للتواصل:* 0508001475\n`;
+
+    if (wpLink) {
+      message += `\n👈 *للتفاصيل اضغط على الرابط👇*\n${wpLink}`;
+    }
+
+    message += `\n${footer}`;
+  }
+
+  return message.trim();
+}
+
+/**
  * Process a message: detect if it's an ad and generate WordPress & WhatsApp data if it is
  * @param {string} text - The message text
  * @returns {Promise<{isAd: boolean, originalText: string, enhancedText: string, confidence: number, reason: string, improvements: string[], category: string|null, wpData: object|null, whatsappMessage: string|null}>}
@@ -1550,6 +1690,7 @@ module.exports = {
   processMessage,
   extractWordPressData,
   generateWhatsAppMessage,
+  generateWhatsAppMessageWithRotation,
   validateUserInput,
   getApiKeysStatus,
 };

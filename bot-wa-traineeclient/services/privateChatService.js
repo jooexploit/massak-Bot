@@ -38,10 +38,10 @@ async function searchWordPress(
   searchQuery,
   page = 1,
   perPage = 20,
-  excludeCategory83 = true
+  excludeCategory83 = true,
 ) {
   console.log(
-    `⚠️ searchWordPress is deprecated. Using new custom API instead.`
+    `⚠️ searchWordPress is deprecated. Using new custom API instead.`,
   );
   console.log(`🔍 Legacy search called with: "${searchQuery}", page: ${page}`);
 
@@ -66,17 +66,16 @@ async function searchWordPress(
 async function deepSearchWordPress(
   searchQuery,
   requirements = {},
-  maxPages = 1500
+  maxPages = 1500,
 ) {
   console.log(
-    `⚠️ deepSearchWordPress is deprecated. Using new custom API instead.`
+    `⚠️ deepSearchWordPress is deprecated. Using new custom API instead.`,
   );
   console.log(`🔎 Legacy deep search called for: "${searchQuery}"`);
 
   // Use the new API with requirements
-  const results = await masaakSearchService.searchWithRequirements(
-    requirements
-  );
+  const results =
+    await masaakSearchService.searchWithRequirements(requirements);
 
   return results;
 }
@@ -122,8 +121,12 @@ async function searchWordPressByRequirements(requirements) {
 
     // Sort by date (latest first) if date is available
     results.sort((a, b) => {
-      const dateA = a.meta?.post_date ? new Date(a.meta.post_date) : new Date(0);
-      const dateB = b.meta?.post_date ? new Date(b.meta.post_date) : new Date(0);
+      const dateA = a.meta?.post_date
+        ? new Date(a.meta.post_date)
+        : new Date(0);
+      const dateB = b.meta?.post_date
+        ? new Date(b.meta.post_date)
+        : new Date(0);
       return dateB - dateA;
     });
 
@@ -153,7 +156,7 @@ async function searchWordPressByRequirements(requirements) {
       }
       if (similarity.breakdown.location >= 80) {
         reasons.push(
-          `الموقع في منطقتك المفضلة (${similarity.breakdown.location}%)`
+          `الموقع في منطقتك المفضلة (${similarity.breakdown.location}%)`,
         );
       }
 
@@ -190,7 +193,7 @@ async function searchWordPressByRequirements(requirements) {
 
     console.log(`\n${"=".repeat(60)}`);
     console.log(
-      `✅ SEARCH COMPLETE - Returning ${topResults.length} properties`
+      `✅ SEARCH COMPLETE - Returning ${topResults.length} properties`,
     );
     console.log(`${"=".repeat(60)}\n`);
 
@@ -358,10 +361,22 @@ function isDuplicateByDetails(ad1, ad2) {
       ad1.wpData?.meta?.arc_subcategory ||
       "",
     price: ad1.meta?.price_amount || ad1.wpData?.meta?.price_amount || "",
-    area: ad1.meta?.arc_space || ad1.wpData?.meta?.arc_space || ad1.wpData?.meta?.area || "",
+    area:
+      ad1.meta?.arc_space ||
+      ad1.wpData?.meta?.arc_space ||
+      ad1.wpData?.meta?.area ||
+      "",
     neighborhood:
-      ad1.meta?.location || ad1.meta?.neighborhood || ad1.wpData?.meta?.location || ad1.wpData?.meta?.neighborhood || "",
-    city: ad1.meta?.City || ad1.wpData?.meta?.City || ad1.wpData?.meta?.subcity || "",
+      ad1.meta?.location ||
+      ad1.meta?.neighborhood ||
+      ad1.wpData?.meta?.location ||
+      ad1.wpData?.meta?.neighborhood ||
+      "",
+    city:
+      ad1.meta?.City ||
+      ad1.wpData?.meta?.City ||
+      ad1.wpData?.meta?.subcity ||
+      "",
   };
 
   const details2 = {
@@ -379,10 +394,22 @@ function isDuplicateByDetails(ad1, ad2) {
       ad2.wpData?.meta?.arc_subcategory ||
       "",
     price: ad2.meta?.price_amount || ad2.wpData?.meta?.price_amount || "",
-    area: ad2.meta?.arc_space || ad2.wpData?.meta?.arc_space || ad2.wpData?.meta?.area || "",
+    area:
+      ad2.meta?.arc_space ||
+      ad2.wpData?.meta?.arc_space ||
+      ad2.wpData?.meta?.area ||
+      "",
     neighborhood:
-      ad2.meta?.location || ad2.meta?.neighborhood || ad2.wpData?.meta?.location || ad2.wpData?.meta?.neighborhood || "",
-    city: ad2.meta?.City || ad2.wpData?.meta?.City || ad2.wpData?.meta?.subcity || "",
+      ad2.meta?.location ||
+      ad2.meta?.neighborhood ||
+      ad2.wpData?.meta?.location ||
+      ad2.wpData?.meta?.neighborhood ||
+      "",
+    city:
+      ad2.meta?.City ||
+      ad2.wpData?.meta?.City ||
+      ad2.wpData?.meta?.subcity ||
+      "",
   };
 
   // Normalize values for comparison
@@ -522,7 +549,7 @@ https://masaak.com/`,
 
   // Role 2: مالك
   OWNER_REQUIREMENTS: (
-    name
+    name,
   ) => `*تشرفنا فيك ${name}* ..معك أخوك عبدالرحمن السليم إذا ممكن ترسل لي تفاصيل العقار أو تكتب في نفس الرسالة وترسلها لي وابشر بالخير
 
 *نوع العقار:*
@@ -540,7 +567,7 @@ https://masaak.com/`,
 
   // Role 3: مستثمر
   INVESTOR_REQUIREMENTS: (
-    name
+    name,
   ) => `*تشرفنا فيك ${name}* ..معك أخوك عبدالرحمن السليم..عندنا فرص كثيرة للاستثمار إذا ممكن تكتب في نفس الرسالة عن ماذا تبحث وترسلها لي وابشر بالخير
 
 *نوع العقار المطلوب:*
@@ -569,7 +596,7 @@ https://masaak.com/`,
 عبدالرحمن السليم`,
 
   BROKER_CLIENT_REQUEST: (
-    name
+    name,
   ) => `*تشرفنا فيك ${name}* ..معك أخوك عبدالرحمن السليم إذا ممكن تكتب في نفس الرسالة عن ماذا تبحث وترسلها لي وابشر بالخير
 
 *نوع العقار المطلوب:*
@@ -595,7 +622,7 @@ async function handlePrivateMessage(
   phoneNumber,
   message,
   sendReply,
-  sendImageReply
+  sendImageReply,
 ) {
   try {
     // Get or create client session
@@ -607,7 +634,7 @@ async function handlePrivateMessage(
     console.log(
       `📱 Private chat from ${phoneNumber} [${
         client.state
-      }]: ${message.substring(0, 50)}...`
+      }]: ${message.substring(0, 50)}...`,
     );
 
     // State machine
@@ -638,7 +665,7 @@ async function handlePrivateMessage(
           phoneNumber,
           message,
           sendReply,
-          sendImageReply
+          sendImageReply,
         );
         break;
 
@@ -697,7 +724,7 @@ async function handleNameCollection(client, phoneNumber, message, sendReply) {
   // 1. Check if message is too long (likely not a name)
   if (name.length > 100) {
     console.log(
-      `❌ Name too long (${name.length} chars), rejecting without AI`
+      `❌ Name too long (${name.length} chars), rejecting without AI`,
     );
     if (client.nameValidationWarned) {
       console.log(`⏭️ Already warned, ignoring invalid input`);
@@ -731,7 +758,7 @@ async function handleNameCollection(client, phoneNumber, message, sendReply) {
   const asteriskCount = (name.match(/\*/g) || []).length;
   if (colonCount > 2 || asteriskCount > 4) {
     console.log(
-      `❌ Form-like structure detected (colons: ${colonCount}, asterisks: ${asteriskCount}), rejecting without AI`
+      `❌ Form-like structure detected (colons: ${colonCount}, asterisks: ${asteriskCount}), rejecting without AI`,
     );
     if (client.nameValidationWarned) {
       console.log(`⏭️ Already warned, ignoring invalid input`);
@@ -813,11 +840,11 @@ async function handleNameCollection(client, phoneNumber, message, sendReply) {
   ];
 
   const containsGreeting = greetingPatterns.some((pattern) =>
-    lowerName.includes(pattern)
+    lowerName.includes(pattern),
   );
   if (containsGreeting) {
     console.log(
-      `❌ Message contains greeting/form phrases, rejecting without AI`
+      `❌ Message contains greeting/form phrases, rejecting without AI`,
     );
     if (client.nameValidationWarned) {
       console.log(`⏭️ Already warned, ignoring invalid input`);
@@ -871,14 +898,14 @@ async function handleNameCollection(client, phoneNumber, message, sendReply) {
 
     if (!validation.isValid) {
       console.log(
-        `❌ AI rejected name: ${validation.reason} - ${validation.suggestion}`
+        `❌ AI rejected name: ${validation.reason} - ${validation.suggestion}`,
       );
 
       // Check if user already tried once (to avoid infinite loop)
       // Use a flag in client object instead of history (since history is no longer stored)
       if (client.nameValidationWarned) {
         console.log(
-          `⚠️ User already warned about name, accepting anyway: "${name}"`
+          `⚠️ User already warned about name, accepting anyway: "${name}"`,
         );
         // Accept the name and continue (reset flag)
         privateClient.updateClient(phoneNumber, {
@@ -930,7 +957,7 @@ async function handleRoleSelection(client, phoneNumber, message, sendReply) {
     for (let i = 0; i < arabicNumerals.length; i++) {
       result = result.replace(
         new RegExp(arabicNumerals[i], "g"),
-        westernNumerals[i]
+        westernNumerals[i],
       );
     }
     return result;
@@ -1015,7 +1042,7 @@ async function handleBrokerChoice(client, phoneNumber, message, sendReply) {
     for (let i = 0; i < arabicNumerals.length; i++) {
       result = result.replace(
         new RegExp(arabicNumerals[i], "g"),
-        westernNumerals[i]
+        westernNumerals[i],
       );
     }
     return result;
@@ -1081,7 +1108,7 @@ async function handleConfirmation(
   phoneNumber,
   message,
   sendReply,
-  sendImageReply
+  sendImageReply,
 ) {
   const msg = message.trim().toLowerCase();
 
@@ -1217,17 +1244,17 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
       (a) =>
         (a.senderPhone === phoneNumber || a.author === phoneNumber) &&
         a.timestamp > thirtyMinutesAgo &&
-        a.normalizedText === normalizedText
+        a.normalizedText === normalizedText,
     );
 
     if (exactMatch) {
       console.log(
-        `⚠️ Exact duplicate detected! Ad ${exactMatch.id} already exists from this phone number`
+        `⚠️ Exact duplicate detected! Ad ${exactMatch.id} already exists from this phone number`,
       );
       console.log(
         `   Source: ${
           exactMatch.source || "group"
-        } | Skipping AI processing & save`
+        } | Skipping AI processing & save`,
       );
       console.log(`   ✅ Saved AI tokens by detecting duplicate early`);
       return; // Don't process with AI or save duplicate
@@ -1242,7 +1269,7 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
     const aiResult = await processMessage(message);
 
     console.log(
-      `✅ AI processing complete: IsAd=${aiResult?.IsItAd}, Category=${aiResult?.category}`
+      `✅ AI processing complete: IsAd=${aiResult?.IsItAd}, Category=${aiResult?.category}`,
     );
 
     // ========================================
@@ -1260,10 +1287,10 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
 
       if (detailsDuplicate) {
         console.log(
-          `⚠️ Duplicate property detected! Ad ${detailsDuplicate.id} has same details`
+          `⚠️ Duplicate property detected! Ad ${detailsDuplicate.id} has same details`,
         );
         console.log(
-          `   Same category, area, neighborhood, and price - Skipping save`
+          `   Same category, area, neighborhood, and price - Skipping save`,
         );
         console.log(`   ✅ Prevented duplicate property listing`);
         return; // Don't save duplicate property
@@ -1273,12 +1300,12 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
     }
 
     console.log(
-      `✅ AI Result: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`
+      `✅ AI Result: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`,
     );
 
     if (!aiResult.isAd) {
       console.log(
-        `⚠️ Offer not classified as ad by AI, but saving anyway (from private chat)`
+        `⚠️ Offer not classified as ad by AI, but saving anyway (from private chat)`,
       );
     }
 
@@ -1325,7 +1352,7 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
       const settings = getSettings();
       if (settings.autoApproveWordPress === true && ad.wpData) {
         console.log(
-          "🚀 Auto-approve enabled, posting private chat ad to WordPress automatically..."
+          "🚀 Auto-approve enabled, posting private chat ad to WordPress automatically...",
         );
 
         // Auto-post to WordPress in background
@@ -1342,13 +1369,13 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
             }
 
             console.log(
-              "🔵 Starting WordPress auto-post for private chat ad..."
+              "🔵 Starting WordPress auto-post for private chat ad...",
             );
             console.log("🔵 Ad ID:", ad.id);
 
             const wpApiUrl = `${wpUrl}/wp-json/wp/v2/posts`;
             const auth = Buffer.from(`${wpUsername}:${wpPassword}`).toString(
-              "base64"
+              "base64",
             );
 
             // Prepare WordPress data
@@ -1388,7 +1415,7 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
             });
 
             console.log(
-              "✅ ✅ ✅ Private chat ad auto-posted successfully! ✅ ✅ ✅"
+              "✅ ✅ ✅ Private chat ad auto-posted successfully! ✅ ✅ ✅",
             );
             console.log("📌 Post ID:", wpResponse.data.id);
 
@@ -1400,10 +1427,24 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
             console.log("📌 Short Link:", shortLink);
             console.log("📌 Full Link:", fullLink);
 
+            // Generate WhatsApp message with footer rotation
             const {
+              generateWhatsAppMessageWithRotation,
               generateWhatsAppMessage,
             } = require("../services/aiService");
-            const whatsappMessage = generateWhatsAppMessage(wpData, shortLink);
+            const footerGroupSvc = require("../services/footerGroupService");
+
+            let whatsappMessage;
+            if (footerGroupSvc.hasEnabledGroups("masaak")) {
+              whatsappMessage = await generateWhatsAppMessageWithRotation(
+                wpData,
+                shortLink,
+                "masaak",
+                null,
+              );
+            } else {
+              whatsappMessage = generateWhatsAppMessage(wpData, shortLink);
+            }
 
             ad.status = "accepted";
             ad.wordpressPostId = wpResponse.data.id;
@@ -1417,7 +1458,7 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
           } catch (error) {
             console.error(
               "❌ Error during private chat ad auto-post:",
-              error.message
+              error.message,
             );
             console.error("Error details:", error.response?.data || error);
           }
@@ -1496,7 +1537,7 @@ async function handleCompletedState(client, phoneNumber, message, sendReply) {
       // User is no longer looking - mark request as inactive
       propertyMatchingService.markRequestAsInactive(
         phoneNumber,
-        "user_found_property"
+        "user_found_property",
       );
 
       const reply =
@@ -1653,7 +1694,9 @@ function parseRequirements(message) {
   if (recentRequestsCache.has(requestHash)) {
     const lastTime = recentRequestsCache.get(requestHash);
     if (now - lastTime < CACHE_TTL) {
-      console.log(`🚫 [DEDUPE] Skipping identical request received within ${CACHE_TTL}ms`);
+      console.log(
+        `🚫 [DEDUPE] Skipping identical request received within ${CACHE_TTL}ms`,
+      );
       return null;
     }
   }
@@ -1679,7 +1722,7 @@ function parseRequirements(message) {
     for (let i = 0; i < arabicNumerals.length; i++) {
       result = result.replace(
         new RegExp(arabicNumerals[i], "g"),
-        westernNumerals[i]
+        westernNumerals[i],
       );
     }
     return result;
@@ -1710,7 +1753,7 @@ function parseRequirements(message) {
       /(\d+\.?\d*)\s*(?:ألف|الف|آلاف|الاف)/gi,
       (match, num) => {
         return String(parseFloat(num) * 1000);
-      }
+      },
     );
 
     return result;
@@ -1727,19 +1770,19 @@ function parseRequirements(message) {
   // Debug: Check if مليون was converted
   if (message.includes("مليون") && !normalizedMessage.includes("1000000")) {
     console.log(
-      `⚠️  WARNING: 'مليون' found in original but not converted to 1000000!`
+      `⚠️  WARNING: 'مليون' found in original but not converted to 1000000!`,
     );
     console.log(
       `   Original: ${message.substring(
         message.indexOf("مليون") - 20,
-        message.indexOf("مليون") + 20
-      )}`
+        message.indexOf("مليون") + 20,
+      )}`,
     );
     console.log(
       `   After: ${normalizedMessage.substring(
         normalizedMessage.indexOf("مليون") - 20,
-        normalizedMessage.indexOf("مليون") + 20
-      )}`
+        normalizedMessage.indexOf("مليون") + 20,
+      )}`,
     );
   }
 
@@ -1803,10 +1846,14 @@ function parseRequirements(message) {
 
   // Sub-category detection (e.g., "صك")
   // First look for explicit label
-  const subCatMatch = normalizedMessage.match(/(?:التصنيف الفرعي|التصنيف فرعي|تصنيف فرعي)[:*\s]*([^\n]+)/i);
+  const subCatMatch = normalizedMessage.match(
+    /(?:التصنيف الفرعي|التصنيف فرعي|تصنيف فرعي)[:*\s]*([^\n]+)/i,
+  );
   if (subCatMatch) {
     requirements.subCategory = subCatMatch[1].trim();
-    console.log(`✅ Detected explicit sub-category: ${requirements.subCategory}`);
+    console.log(
+      `✅ Detected explicit sub-category: ${requirements.subCategory}`,
+    );
   } else {
     // Then look for keywords
     const subCategories = ["صك", "*صك"];
@@ -1846,7 +1893,7 @@ function parseRequirements(message) {
 
   // Extract price range - Enhanced with number extraction
   let priceLineMatch = normalizedMessage.match(
-    /(?:السعر|حدود السعر|السعر المطلوب|حدود كم السعر)[:\s*]*([^\n]+)/i
+    /(?:السعر|حدود السعر|السعر المطلوب|حدود كم السعر)[:\s*]*([^\n]+)/i,
   );
 
   // If not found, try alternative pattern
@@ -1867,7 +1914,7 @@ function parseRequirements(message) {
       requirements.priceMin = parseInt(rangeMatch[1]);
       requirements.priceMax = parseInt(rangeMatch[2]);
       console.log(
-        `✅ Detected price range: ${requirements.priceMin} - ${requirements.priceMax}`
+        `✅ Detected price range: ${requirements.priceMin} - ${requirements.priceMax}`,
       );
     } else {
       // Single price - try to extract it
@@ -1886,20 +1933,20 @@ function parseRequirements(message) {
 
   // Extract area - Enhanced patterns with range support
   let areaMatch = normalizedMessage.match(
-    /(?:المساحة|المساحه)[^:]*:[*\s]*(\d+(?:\s*(?:إلى|الى|-|حتى)\s*\d+)?)/i
+    /(?:المساحة|المساحه)[^:]*:[*\s]*(\d+(?:\s*(?:إلى|الى|-|حتى)\s*\d+)?)/i,
   );
 
   // Try to match area in parentheses
   if (!areaMatch) {
     areaMatch = normalizedMessage.match(
-      /(?:المساحة|المساحه)[^(]*\((\d+(?:\s*(?:إلى|الى|-|حتى)\s*\d+)?)/i
+      /(?:المساحة|المساحه)[^(]*\((\d+(?:\s*(?:إلى|الى|-|حتى)\s*\d+)?)/i,
     );
   }
 
   // Try to find numbers near "المساحة" keyword (more flexible)
   if (!areaMatch) {
     const areaSection = normalizedMessage.match(
-      /(?:المساحة|المساحه)[^\n]*?(\d{2,4}(?:\s*(?:إلى|الى|-|حتى)\s*\d{2,4})?)/i
+      /(?:المساحة|المساحه)[^\n]*?(\d{2,4}(?:\s*(?:إلى|الى|-|حتى)\s*\d{2,4})?)/i,
     );
     if (areaSection) {
       areaMatch = areaSection;
@@ -1927,7 +1974,7 @@ function parseRequirements(message) {
         console.log(`✅ Detected area range: ${min} - ${max} m²`);
       } else {
         console.log(
-          `⚠️  Invalid area range: ${min} - ${max} (out of bounds or min >= max)`
+          `⚠️  Invalid area range: ${min} - ${max} (out of bounds or min >= max)`,
         );
       }
     } else {
@@ -1944,7 +1991,7 @@ function parseRequirements(message) {
           console.log(`✅ Detected max area (legacy): ${area}m²`);
         } else {
           console.log(
-            `⚠️  Invalid area value: ${area} (out of reasonable bounds)`
+            `⚠️  Invalid area value: ${area} (out of reasonable bounds)`,
           );
         }
       }
@@ -1956,19 +2003,23 @@ function parseRequirements(message) {
   // Extract neighborhoods - Dynamic extraction from user input
   // Look for the "الأحياء المفضلة:" or "الحي:" or "الأحياء:" section
   const neighborhoodMatch = normalizedMessage.match(
-    /(?:الأحياء المفضلة|الأحياء المفضله|الأحياء|الحي)[:*\s]*([^\n]+)/i
+    /(?:الأحياء المفضلة|الأحياء المفضله|الأحياء|الحي)[:*\s]*([^\n]+)/i,
   );
 
   if (neighborhoodMatch) {
-    const neighborhoods = areaNormalizer.extractNeighborhoods(neighborhoodMatch[1]);
+    const neighborhoods = areaNormalizer.extractNeighborhoods(
+      neighborhoodMatch[1],
+    );
 
     if (neighborhoods.length > 0) {
       requirements.neighborhoods = neighborhoods;
-      console.log(`✅ Detected ${neighborhoods.length} neighborhood(s) via areaNormalizer:`);
+      console.log(
+        `✅ Detected ${neighborhoods.length} neighborhood(s) via areaNormalizer:`,
+      );
       neighborhoods.forEach((n, idx) => console.log(`   ${idx + 1}. ${n}`));
     } else {
       console.log(
-        `⚠️  Found neighborhood section but couldn't extract valid names`
+        `⚠️  Found neighborhood section but couldn't extract valid names`,
       );
     }
   } else {
@@ -1983,7 +2034,7 @@ function parseRequirements(message) {
   console.log(`${"=".repeat(60)}`);
   console.log(`Client Name: ${requirements.clientName || "❌ Not detected"}`);
   console.log(
-    `Property Type: ${requirements.propertyType || "❌ Not detected"}`
+    `Property Type: ${requirements.propertyType || "❌ Not detected"}`,
   );
   console.log(`Purpose: ${requirements.purpose || "❌ Not detected"}`);
   console.log(
@@ -1991,21 +2042,21 @@ function parseRequirements(message) {
       requirements.priceMin !== null && requirements.priceMax !== null
         ? `${requirements.priceMin.toLocaleString()} - ${requirements.priceMax.toLocaleString()} SAR`
         : "❌ Not detected"
-    }`
+    }`,
   );
   console.log(
     `Area Range: ${
       requirements.areaMin !== null && requirements.areaMax !== null
         ? `${requirements.areaMin} - ${requirements.areaMax} m²`
         : "❌ Not detected"
-    }`
+    }`,
   );
   console.log(
     `Neighborhoods: ${
       requirements.neighborhoods.length > 0
         ? requirements.neighborhoods.join(", ")
         : "❌ Not detected"
-    }`
+    }`,
   );
   console.log(`Contact: ${requirements.contactNumber || "❌ Not detected"}`);
   console.log(`${"=".repeat(60)}\n`);
@@ -2037,7 +2088,7 @@ function formatRequirementsSummary(requirements) {
 
   if (requirements.priceMin !== null && requirements.priceMax !== null) {
     summary.push(
-      `💰 السعر: من ${requirements.priceMin.toLocaleString()} إلى ${requirements.priceMax.toLocaleString()} ريال`
+      `💰 السعر: من ${requirements.priceMin.toLocaleString()} إلى ${requirements.priceMax.toLocaleString()} ريال`,
     );
   } else {
     summary.push(`💰 السعر: لم يتم تحديده (يمكن إضافته)`);
@@ -2045,7 +2096,7 @@ function formatRequirementsSummary(requirements) {
 
   if (requirements.areaMin !== null && requirements.areaMax !== null) {
     summary.push(
-      `📏 المساحة: من ${requirements.areaMin} إلى ${requirements.areaMax} متر مربع`
+      `📏 المساحة: من ${requirements.areaMin} إلى ${requirements.areaMax} متر مربع`,
     );
   } else {
     summary.push(`📏 المساحة: لم يتم تحديدها (يمكن إضافتها)`);
@@ -2093,7 +2144,7 @@ async function searchProperties(requirements) {
       (ad) =>
         ad.status === "approved" ||
         ad.status === "accepted" ||
-        ad.status === "sent"
+        ad.status === "sent",
     );
 
     // IMPORTANT: Filter out REQUESTS (طلب/مطلوب) - only keep OFFERS (عروض)
@@ -2120,7 +2171,7 @@ async function searchProperties(requirements) {
     });
 
     console.log(
-      `🔍 Searching from ${ads.length} available OFFERS (عروض) with WordPress URLs`
+      `🔍 Searching from ${ads.length} available OFFERS (عروض) with WordPress URLs`,
     );
     console.log(`📋 Requirements:`, requirements);
 
@@ -2192,7 +2243,7 @@ async function searchProperties(requirements) {
           if (text.includes(neighborhood.toLowerCase())) {
             score += 5;
             console.log(
-              `  ✅ ${ad.id}: Neighborhood match "${neighborhood}" (+5)`
+              `  ✅ ${ad.id}: Neighborhood match "${neighborhood}" (+5)`,
             );
             break;
           }
@@ -2212,7 +2263,7 @@ async function searchProperties(requirements) {
           if (ratio >= 0.3 && ratio <= 3) {
             score += 3;
             console.log(
-              `  ✅ ${ad.id}: Price range match ${adPrice} (~${reqPrice}) (+3)`
+              `  ✅ ${ad.id}: Price range match ${adPrice} (~${reqPrice}) (+3)`,
             );
           }
         } else {
@@ -2247,7 +2298,7 @@ async function searchProperties(requirements) {
           if (adArea >= reqArea * 0.5 && adArea <= reqArea * 2) {
             score += 2;
             console.log(
-              `  ✅ ${ad.id}: Area match ${adArea} (~${reqArea}m²) (+2)`
+              `  ✅ ${ad.id}: Area match ${adArea} (~${reqArea}m²) (+2)`,
             );
           }
         } else {
@@ -2278,7 +2329,7 @@ async function searchProperties(requirements) {
     // If still no results, just show recent ads of the same type
     if (results.length === 0 && requirements.propertyType) {
       console.log(
-        `⚠️ No scored matches, showing recent ads of type "${requirements.propertyType}"...`
+        `⚠️ No scored matches, showing recent ads of type "${requirements.propertyType}"...`,
       );
       results = scoredAds.filter((item) => item.score > 0);
     }

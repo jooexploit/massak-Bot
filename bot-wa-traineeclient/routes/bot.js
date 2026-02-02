@@ -45,8 +45,10 @@ const {
   enhanceAd,
   extractWordPressData,
   generateWhatsAppMessage,
+  generateWhatsAppMessageWithRotation,
   getApiKeysStatus,
 } = require("../services/aiService");
+const footerGroupService = require("../services/footerGroupService");
 const messageQueue = require("../services/messageQueue");
 const scheduledWhatsappService = require("../services/scheduledWhatsappService");
 const axios = require("axios");
@@ -266,13 +268,24 @@ async function postAdToWordPress(
 
     // If preview only, return early
     if (previewOnly) {
-      const settings = getSettings();
-      const whatsappMessage = generateWhatsAppMessage(
-        wpData,
-        null,
-        targetWebsite,
-        settings,
-      );
+      // Use rotation for preview if groups exist, otherwise fallback
+      let whatsappMessage;
+      if (footerGroupService.hasEnabledGroups(targetWebsite)) {
+        whatsappMessage = await generateWhatsAppMessageWithRotation(
+          wpData,
+          null,
+          targetWebsite,
+          null,
+        );
+      } else {
+        const settings = getSettings();
+        whatsappMessage = generateWhatsAppMessage(
+          wpData,
+          null,
+          targetWebsite,
+          settings,
+        );
+      }
       return {
         success: true,
         wordpressPost: null,
@@ -752,19 +765,32 @@ async function postAdToWordPress(
       }
     }
 
-    // Generate WhatsApp message with website parameter
+    // Generate WhatsApp message with website parameter and footer rotation
     console.log("\n🔵 GENERATING WHATSAPP MESSAGE 🔵");
     console.log("  - wpData exists:", !!wpData);
     console.log("  - shortLink:", shortLink);
     console.log("  - targetWebsite:", targetWebsite);
 
-    const settings = getSettings();
-    const whatsappMessage = generateWhatsAppMessage(
-      wpData,
-      shortLink,
-      targetWebsite,
-      settings,
-    );
+    // Use footer rotation if groups are configured
+    let whatsappMessage;
+    if (footerGroupService.hasEnabledGroups(targetWebsite)) {
+      console.log("  - Using footer rotation for:", targetWebsite);
+      whatsappMessage = await generateWhatsAppMessageWithRotation(
+        wpData,
+        shortLink,
+        targetWebsite,
+        null,
+      );
+    } else {
+      console.log("  - Using default footer (no groups configured)");
+      const settings = getSettings();
+      whatsappMessage = generateWhatsAppMessage(
+        wpData,
+        shortLink,
+        targetWebsite,
+        settings,
+      );
+    }
 
     console.log("  - whatsappMessage generated:", !!whatsappMessage);
     console.log("  - whatsappMessage length:", whatsappMessage?.length || 0);
@@ -1830,17 +1856,30 @@ router.post(
             console.log("📌 Short Link:", shortLink);
             console.log("📌 Full Link:", fullLink);
 
-            // Generate WhatsApp message with the SHORT link
+            // Generate WhatsApp message with footer rotation
             const {
+              generateWhatsAppMessageWithRotation,
               generateWhatsAppMessage,
             } = require("../services/aiService");
-            const settings = getSettings();
-            const whatsappMessage = generateWhatsAppMessage(
-              wpData,
-              shortLink,
-              "masaak",
-              settings,
-            );
+            const footerGroupSvc = require("../services/footerGroupService");
+
+            let whatsappMessage;
+            if (footerGroupSvc.hasEnabledGroups("masaak")) {
+              whatsappMessage = await generateWhatsAppMessageWithRotation(
+                wpData,
+                shortLink,
+                "masaak",
+                null,
+              );
+            } else {
+              const settings = getSettings();
+              whatsappMessage = generateWhatsAppMessage(
+                wpData,
+                shortLink,
+                "masaak",
+                settings,
+              );
+            }
 
             // Update ad with WordPress info - keep as "accepted" not "posted"
             ad.status = "accepted";
@@ -1963,14 +2002,24 @@ router.post(
       // Generate WordPress data (with isRegeneration flag)
       const wpData = await extractWordPressData(textToEnhance, true);
 
-      // Generate WhatsApp message
-      const settings = getSettings();
-      const whatsappMessage = generateWhatsAppMessage(
-        wpData,
-        null,
-        "masaak",
-        settings,
-      );
+      // Generate WhatsApp message with footer rotation
+      let whatsappMessage;
+      if (footerGroupService.hasEnabledGroups("masaak")) {
+        whatsappMessage = await generateWhatsAppMessageWithRotation(
+          wpData,
+          null,
+          "masaak",
+          null,
+        );
+      } else {
+        const settings = getSettings();
+        whatsappMessage = generateWhatsAppMessage(
+          wpData,
+          null,
+          "masaak",
+          settings,
+        );
+      }
 
       // Update the ad with new WordPress data and WhatsApp message
       const ok = updateAdWordPressData(id, wpData, whatsappMessage);
@@ -4194,6 +4243,25 @@ ${mapsLink}
 const customMessageService = require("../services/customMessageService");
 const messageSchedulerService = require("../services/messageSchedulerService");
 
+function parseCustomMessageTags(rawTags) {
+  if (rawTags === undefined) return undefined;
+  if (Array.isArray(rawTags)) return rawTags;
+
+  if (typeof rawTags === "string") {
+    const trimmed = rawTags.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (error) {
+      // fall through to delimiter-based parsing
+    }
+    return trimmed.split(/[,\n،]/);
+  }
+
+  return [];
+}
+
 // --- Custom Messages ---
 
 // List all custom messages
@@ -4251,7 +4319,7 @@ router.post(
   uploadCustomMessageImage.single("image"),
   async (req, res) => {
     try {
-      const { name, content, dynamicWords } = req.body;
+      const { name, content, dynamicWords, tags } = req.body;
 
       if (!name || !content) {
         return res.status(400).json({ error: "Name and content are required" });
@@ -4276,11 +4344,19 @@ router.post(
         }
       }
 
+      const parsedTags = parseCustomMessageTags(tags) || [];
+
       // Get image path if uploaded
       const imagePath = req.file ? req.file.path : null;
 
       const message = await customMessageService.createMessage(
-        { name, content, dynamicWords: parsedDynamicWords, imagePath },
+        {
+          name,
+          content,
+          dynamicWords: parsedDynamicWords,
+          imagePath,
+          tags: parsedTags,
+        },
         req.user.username,
       );
 
@@ -4304,7 +4380,7 @@ router.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, content, dynamicWords, removeImage } = req.body;
+      const { name, content, dynamicWords, removeImage, tags } = req.body;
 
       // Validate content if provided
       if (content) {
@@ -4326,6 +4402,8 @@ router.put(
           parsedDynamicWords = undefined;
         }
       }
+
+      const parsedTags = parseCustomMessageTags(tags);
 
       // Handle image: new upload, removal, or keep existing
       let imagePath = undefined;
@@ -4366,6 +4444,7 @@ router.put(
         content,
         dynamicWords: parsedDynamicWords,
         imagePath,
+        tags: parsedTags,
       });
 
       res.json({
@@ -4923,6 +5002,339 @@ router.delete(
       res
         .status(400)
         .json({ error: error.message || "Failed to delete scheduled message" });
+    }
+  },
+);
+
+// ============================================
+// FOOTER GROUPS MANAGEMENT
+// ============================================
+
+// Get all footer groups for a website
+router.get(
+  "/footer-groups/:website",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  (req, res) => {
+    try {
+      const { website } = req.params;
+      if (!["masaak", "hasak"].includes(website)) {
+        return res
+          .status(400)
+          .json({ error: "Invalid website. Must be 'masaak' or 'hasak'" });
+      }
+
+      const data = footerGroupService.getGroups(website);
+      const stats = footerGroupService.getRotationStats(website);
+
+      res.json({
+        success: true,
+        website,
+        ...data,
+        stats,
+      });
+    } catch (error) {
+      console.error("Error getting footer groups:", error);
+      res.status(500).json({ error: "Failed to get footer groups" });
+    }
+  },
+);
+
+// Create a new footer group
+router.post(
+  "/footer-groups/:website",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { website } = req.params;
+      if (!["masaak", "hasak"].includes(website)) {
+        return res
+          .status(400)
+          .json({ error: "Invalid website. Must be 'masaak' or 'hasak'" });
+      }
+
+      const { name, messages, enabled } = req.body;
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ error: "Group name is required" });
+      }
+
+      const group = await footerGroupService.createGroup(website, {
+        name,
+        messages: messages || [],
+        enabled,
+      });
+
+      res.json({
+        success: true,
+        group,
+      });
+    } catch (error) {
+      console.error("Error creating footer group:", error);
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to create footer group" });
+    }
+  },
+);
+
+// Update a footer group
+router.put(
+  "/footer-groups/:website/:groupId",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { website, groupId } = req.params;
+      if (!["masaak", "hasak"].includes(website)) {
+        return res
+          .status(400)
+          .json({ error: "Invalid website. Must be 'masaak' or 'hasak'" });
+      }
+
+      const { name, messages, enabled } = req.body;
+
+      const group = await footerGroupService.updateGroup(website, groupId, {
+        name,
+        messages,
+        enabled,
+      });
+
+      res.json({
+        success: true,
+        group,
+      });
+    } catch (error) {
+      console.error("Error updating footer group:", error);
+      res
+        .status(400)
+        .json({ error: error.message || "Failed to update footer group" });
+    }
+  },
+);
+
+// Delete a footer group
+router.delete(
+  "/footer-groups/:website/:groupId",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { website, groupId } = req.params;
+      if (!["masaak", "hasak"].includes(website)) {
+        return res
+          .status(400)
+          .json({ error: "Invalid website. Must be 'masaak' or 'hasak'" });
+      }
+
+      await footerGroupService.deleteGroup(website, groupId);
+
+      res.json({
+        success: true,
+        message: "Footer group deleted",
+      });
+    } catch (error) {
+      console.error("Error deleting footer group:", error);
+      res
+        .status(400)
+        .json({ error: error.message || "Failed to delete footer group" });
+    }
+  },
+);
+
+// Add a message to a group
+router.post(
+  "/footer-groups/:website/:groupId/messages",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { website, groupId } = req.params;
+      if (!["masaak", "hasak"].includes(website)) {
+        return res
+          .status(400)
+          .json({ error: "Invalid website. Must be 'masaak' or 'hasak'" });
+      }
+
+      const { text } = req.body;
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ error: "Message text is required" });
+      }
+
+      const message = await footerGroupService.addMessage(
+        website,
+        groupId,
+        text,
+      );
+
+      res.json({
+        success: true,
+        message,
+      });
+    } catch (error) {
+      console.error("Error adding message to footer group:", error);
+      res.status(400).json({ error: error.message || "Failed to add message" });
+    }
+  },
+);
+
+// Update a message in a group
+router.put(
+  "/footer-groups/:website/:groupId/messages/:messageId",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { website, groupId, messageId } = req.params;
+      if (!["masaak", "hasak"].includes(website)) {
+        return res
+          .status(400)
+          .json({ error: "Invalid website. Must be 'masaak' or 'hasak'" });
+      }
+
+      const { text } = req.body;
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ error: "Message text is required" });
+      }
+
+      const message = await footerGroupService.updateMessage(
+        website,
+        groupId,
+        messageId,
+        text,
+      );
+
+      res.json({
+        success: true,
+        message,
+      });
+    } catch (error) {
+      console.error("Error updating message:", error);
+      res
+        .status(400)
+        .json({ error: error.message || "Failed to update message" });
+    }
+  },
+);
+
+// Delete a message from a group
+router.delete(
+  "/footer-groups/:website/:groupId/messages/:messageId",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { website, groupId, messageId } = req.params;
+      if (!["masaak", "hasak"].includes(website)) {
+        return res
+          .status(400)
+          .json({ error: "Invalid website. Must be 'masaak' or 'hasak'" });
+      }
+
+      await footerGroupService.deleteMessage(website, groupId, messageId);
+
+      res.json({
+        success: true,
+        message: "Message deleted",
+      });
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      res
+        .status(400)
+        .json({ error: error.message || "Failed to delete message" });
+    }
+  },
+);
+
+// Reset rotation state for a website
+router.post(
+  "/footer-groups/:website/reset-rotation",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { website } = req.params;
+      if (!["masaak", "hasak"].includes(website)) {
+        return res
+          .status(400)
+          .json({ error: "Invalid website. Must be 'masaak' or 'hasak'" });
+      }
+
+      await footerGroupService.resetRotation(website);
+
+      res.json({
+        success: true,
+        message: "Rotation reset successfully",
+      });
+    } catch (error) {
+      console.error("Error resetting rotation:", error);
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to reset rotation" });
+    }
+  },
+);
+
+// Get next footer (for testing/preview)
+router.get(
+  "/footer-groups/:website/next-footer",
+  authenticateToken,
+  authorizeRole(["admin"]),
+  async (req, res) => {
+    try {
+      const { website } = req.params;
+      if (!["masaak", "hasak"].includes(website)) {
+        return res
+          .status(400)
+          .json({ error: "Invalid website. Must be 'masaak' or 'hasak'" });
+      }
+
+      const preview = req.query.preview === "true";
+
+      // If preview mode, don't actually advance the rotation
+      if (preview) {
+        const data = footerGroupService.getGroups(website);
+        const enabledGroups = data.groups.filter(
+          (g) => g.enabled && g.messages.length > 0,
+        );
+
+        if (enabledGroups.length === 0) {
+          return res.json({
+            success: true,
+            footer: footerGroupService.getDefaultFooter(website),
+            isDefault: true,
+          });
+        }
+
+        // Just pick a random message for preview without updating state
+        const randomGroup =
+          enabledGroups[Math.floor(Math.random() * enabledGroups.length)];
+        const randomMsg =
+          randomGroup.messages[
+            Math.floor(Math.random() * randomGroup.messages.length)
+          ];
+
+        return res.json({
+          success: true,
+          footer: randomMsg.text,
+          groupName: randomGroup.name,
+          isPreview: true,
+        });
+      }
+
+      const footer = await footerGroupService.getNextFooter(website);
+      const stats = footerGroupService.getRotationStats(website);
+
+      res.json({
+        success: true,
+        footer,
+        stats,
+      });
+    } catch (error) {
+      console.error("Error getting next footer:", error);
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to get next footer" });
     }
   },
 );

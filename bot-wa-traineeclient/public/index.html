@@ -1613,6 +1613,33 @@
                             <h2>📝 الرسائل المخصصة</h2>
                         </div>
                         <div class="card-body">
+                            <div id="custom-messages-toolbar"
+                                style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 15px;">
+                                <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                    <span style="font-weight: 600; color: #555;">🏷️ الوسوم:</span>
+                                    <div id="custom-msg-tag-filters" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                    </div>
+                                </div>
+                                <div
+                                    style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px; justify-content: space-between;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <label for="custom-msg-sort-select" style="font-weight: 600; color: #555;">🔀
+                                            الترتيب:</label>
+                                        <select id="custom-msg-sort-select" class="form-control"
+                                            style="max-width: 200px;">
+                                            <option value="newest">الأحدث</option>
+                                            <option value="oldest">الأقدم</option>
+                                            <option value="name">الاسم (أ-ي)</option>
+                                            <option value="tag">الوسم (أ-ي)</option>
+                                        </select>
+                                    </div>
+                                    <button id="custom-msg-clear-filters" class="btn btn-secondary btn-sm"
+                                        style="display: none;">
+                                        مسح التصفية
+                                    </button>
+                                </div>
+                                <div id="custom-msg-filter-summary" style="font-size: 0.85rem; color: #666;"></div>
+                            </div>
                             <div id="custom-messages-list" style="display: grid; gap: 15px;">
                                 <div style="text-align: center; padding: 40px; color: #999;">
                                     <i class="fas fa-envelope-open" style="font-size: 3rem; margin-bottom: 15px;"></i>
@@ -1664,6 +1691,29 @@
                                 </label>
                                 <input type="text" id="custom-msg-name" class="form-control"
                                     placeholder="مثال: رسالة ترحيب يومية" style="font-size: 1rem;">
+                            </div>
+
+                            <!-- Tags Section -->
+                            <div
+                                style="background: #f8fafc; padding: 18px; border-radius: 10px; border: 2px dashed #cbd5f5;">
+                                <label style="font-weight: bold; margin-bottom: 10px; display: block;">
+                                    🏷️ الوسوم (Tags):
+                                </label>
+                                <div id="custom-msg-tags-list"
+                                    style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                                    <span style="color: #94a3b8; font-size: 0.9rem;">لا توجد وسوم بعد</span>
+                                </div>
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <input type="text" id="custom-msg-tag-input" class="form-control"
+                                        placeholder="مثال: ترحيب، متابعة، VIP" style="flex: 1; min-width: 200px;">
+                                    <button type="button" id="custom-msg-add-tag-btn" class="btn btn-success btn-sm">
+                                        <i class="fas fa-plus"></i> إضافة
+                                    </button>
+                                </div>
+                                <div id="custom-msg-tags-suggestions" style="margin-top: 10px; display: none;"></div>
+                                <small style="color: #64748b; display: block; margin-top: 8px;">
+                                    💡 استخدم Enter أو الفاصلة لإضافة أكثر من وسم
+                                </small>
                             </div>
 
                             <!-- Image Upload Section -->
@@ -2250,43 +2300,137 @@
                     <p>Configure system preferences</p>
                 </div>
 
-                <!-- WhatsApp Message Footers -->
+                <!-- Footer Message Groups (Admin Only) -->
                 <div class="card admin-only" style="display: none; margin-top: 1rem;">
                     <div class="card-body">
-                        <h3><i class="fas fa-comment-dots"></i> WhatsApp Message Footers</h3>
+                        <h3><i class="fas fa-layer-group"></i> WhatsApp Footer Messages</h3>
                         <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
-                            Customize the footer text that appears at the bottom of all WhatsApp messages.
-                            Use line breaks for multi-line footers. Emojis and WhatsApp formatting (*bold*) are
-                            supported.
+                            Create groups of footer messages that will be automatically rotated in your WhatsApp
+                            messages.
+                            The system ensures all groups and all messages within each group are used before repeating,
+                            providing variety in your communications. Supports *bold*, emojis, and multi-line text.
                         </p>
 
-                        <div class="form-group" style="margin-bottom: 1.5rem;">
-                            <label for="hasak-footer" style="font-weight: bold;">
+                        <!-- Website Tabs -->
+                        <div class="footer-groups-tabs"
+                            style="display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #e9ecef;">
+                            <button class="footer-groups-tab active" data-website="masaak" style="
+                                padding: 10px 20px;
+                                border: none;
+                                background: none;
+                                cursor: pointer;
+                                font-weight: 600;
+                                color: #6c757d;
+                                border-bottom: 3px solid transparent;
+                                margin-bottom: -2px;
+                                transition: all 0.2s;">
                                 <span
-                                    style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px;">🌴
-                                    Hasak</span>
-                                Footer Text:
-                            </label>
-                            <textarea id="hasak-footer" class="form-control" rows="5"
-                                placeholder="Enter footer for Hasak messages..."
-                                style="font-family: inherit; line-height: 1.6; margin-top: 8px; direction: rtl;"></textarea>
+                                    style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px;">🔰</span>
+                                Masaak
+                            </button>
+                            <button class="footer-groups-tab" data-website="hasak" style="
+                                padding: 10px 20px;
+                                border: none;
+                                background: none;
+                                cursor: pointer;
+                                font-weight: 600;
+                                color: #6c757d;
+                                border-bottom: 3px solid transparent;
+                                margin-bottom: -2px;
+                                transition: all 0.2s;">
+                                <span
+                                    style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px;">🌴</span>
+                                Hasak
+                            </button>
                         </div>
 
-                        <div class="form-group" style="margin-bottom: 1.5rem;">
-                            <label for="masaak-footer" style="font-weight: bold;">
-                                <span
-                                    style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px;">🔰
-                                    Masaak</span>
-                                Footer Text:
-                            </label>
-                            <textarea id="masaak-footer" class="form-control" rows="4"
-                                placeholder="Enter footer for Masaak messages..."
-                                style="font-family: inherit; line-height: 1.6; margin-top: 8px; direction: rtl;"></textarea>
+                        <!-- Rotation Stats -->
+                        <div id="footer-rotation-stats" style="
+                            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+                            padding: 12px 16px;
+                            border-radius: 8px;
+                            margin-bottom: 1rem;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            flex-wrap: wrap;
+                            gap: 10px;">
+                            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                                <span><i class="fas fa-folder" style="color: #667eea;"></i> Groups: <strong
+                                        id="stats-groups-count">0/0</strong></span>
+                                <span><i class="fas fa-paper-plane" style="color: #28a745;"></i> Messages Sent: <strong
+                                        id="stats-messages-sent">0</strong></span>
+                            </div>
+                            <button id="reset-rotation-btn" class="btn btn-sm btn-outline-secondary"
+                                title="Reset rotation cycle">
+                                <i class="fas fa-redo"></i> Reset Rotation
+                            </button>
                         </div>
 
-                        <button id="reset-footers-btn" class="btn btn-secondary">
-                            <i class="fas fa-undo"></i> Reset to Defaults
+                        <!-- Groups List -->
+                        <div id="footer-groups-list" style="margin-bottom: 1rem;">
+                            <!-- Groups will be rendered here -->
+                            <div class="footer-groups-empty" style="
+                                text-align: center;
+                                padding: 40px 20px;
+                                background: #f8f9fa;
+                                border-radius: 8px;
+                                color: #6c757d;">
+                                <i class="fas fa-inbox"
+                                    style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                                <p>No footer groups yet. Create your first group to start rotating messages.</p>
+                            </div>
+                        </div>
+
+                        <!-- Add Group Button -->
+                        <button id="add-footer-group-btn" class="btn btn-success">
+                            <i class="fas fa-plus"></i> Create New Group
                         </button>
+
+                        <!-- Preview Footer Button -->
+                        <button id="preview-footer-btn" class="btn btn-outline-primary" style="margin-left: 8px;">
+                            <i class="fas fa-eye"></i> Preview Next Footer
+                        </button>
+
+                        <!-- Create/Edit Group Form -->
+                        <div id="footer-group-form"
+                            style="display: none; background: #f5f5f5; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                            <h4 id="footer-group-form-title"><i class="fas fa-folder-plus"></i> Create New Group</h4>
+                            <input type="hidden" id="editing-footer-group-id" value="">
+
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label for="footer-group-name">Group Name:</label>
+                                <input type="text" id="footer-group-name" class="form-control"
+                                    placeholder="e.g., مجموعة الترحيب" style="direction: rtl;">
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" id="footer-group-enabled" checked>
+                                    <span>Enabled (included in rotation)</span>
+                                </label>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label>Messages in this group:</label>
+                                <div id="footer-group-messages-list" style="margin-top: 8px;">
+                                    <!-- Messages will be rendered here -->
+                                </div>
+                                <button type="button" id="add-footer-message-btn" class="btn btn-sm btn-outline-primary"
+                                    style="margin-top: 8px;">
+                                    <i class="fas fa-plus"></i> Add Message
+                                </button>
+                            </div>
+
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                                <button id="save-footer-group-btn" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Save Group
+                                </button>
+                                <button id="cancel-footer-group-btn" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> Cancel
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2338,7 +2482,8 @@
                     <div class="card-body">
                         <h3><i class="fas fa-key"></i> AI API Keys Management</h3>
                         <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
-                            Add multiple API keys for Gemini or GPT. If one reaches its limit, the system will automatically switch to the
+                            Add multiple API keys for Gemini or GPT. If one reaches its limit, the system will
+                            automatically switch to the
                             next one. Drag to reorder priority.
                         </p>
                         <button id="add-api-key-btn" class="btn btn-success" style="margin-bottom: 1rem;">
@@ -2362,7 +2507,8 @@
                             </div>
                             <div class="form-group">
                                 <label for="api-key-value">API Key:</label>
-                                <input type="text" id="api-key-value" class="form-control" placeholder="AIzaSy... or sk-...">
+                                <input type="text" id="api-key-value" class="form-control"
+                                    placeholder="AIzaSy... or sk-...">
                             </div>
                             <div style="display: flex; gap: 0.5rem;">
                                 <button id="save-api-key-btn" class="btn btn-primary">
