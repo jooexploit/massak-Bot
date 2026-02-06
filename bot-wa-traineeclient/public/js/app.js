@@ -7214,6 +7214,7 @@ async function loadWhatsAppMessagesView(append = false) {
       page: whatsappMessagesState.currentPage,
       limit: whatsappMessagesState.itemsPerPage,
       status: whatsappMessagesState.filterStatus,
+      sortBy: whatsappMessagesState.sortBy,
     });
 
     if (whatsappMessagesState.filterWebsite !== "all") {

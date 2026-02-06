@@ -218,11 +218,13 @@ async function postAdToWordPress(
         targetWebsite = wpData.targetWebsite;
         console.log(`🌐 Using target website from wpData: ${targetWebsite}`);
       } else {
-        const category = meta.parent_catt || meta.category || "";
+        // ⚠️ CRITICAL: Check arc_category first (primary field for Hasak categories)
+        const category =
+          meta.arc_category || meta.parent_catt || meta.category || "";
         targetWebsite = websiteConfig.detectWebsite(
           ad.enhancedText || ad.enhanced_text || ad.text,
           category,
-          meta, // Pass meta object to check order_type
+          meta, // Pass meta object to check order_type/arc_category
         );
         console.log(`🌐 Auto-detected target website: ${targetWebsite}`);
       }
@@ -1396,6 +1398,7 @@ router.get(
         group,
         category,
         status,
+        sortBy = "accepted-desc",
       } = req.query;
 
       let ads = getFetchedAds();
@@ -1470,8 +1473,69 @@ router.get(
         });
       }
 
-      // Sort by timestamp descending (newest first)
-      ads.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      // Sort based on sortBy parameter
+      ads.sort((a, b) => {
+        switch (sortBy) {
+          case "accepted-desc": {
+            // Sort by accepted/posted time (newest first)
+            const aAccepted =
+              a.acceptedAt ||
+              a.postedAt ||
+              (a.wpData && a.wpData.postedAt) ||
+              a.timestamp ||
+              0;
+            const bAccepted =
+              b.acceptedAt ||
+              b.postedAt ||
+              (b.wpData && b.wpData.postedAt) ||
+              b.timestamp ||
+              0;
+            return new Date(bAccepted) - new Date(aAccepted);
+          }
+          case "accepted-asc": {
+            // Sort by accepted/posted time (oldest first)
+            const aAccepted =
+              a.acceptedAt ||
+              a.postedAt ||
+              (a.wpData && a.wpData.postedAt) ||
+              a.timestamp ||
+              0;
+            const bAccepted =
+              b.acceptedAt ||
+              b.postedAt ||
+              (b.wpData && b.wpData.postedAt) ||
+              b.timestamp ||
+              0;
+            return new Date(aAccepted) - new Date(bAccepted);
+          }
+          case "time-desc":
+            // Sort by collected time (newest first)
+            return (b.timestamp || 0) - (a.timestamp || 0);
+          case "time-asc":
+            // Sort by collected time (oldest first)
+            return (a.timestamp || 0) - (b.timestamp || 0);
+          case "confidence-desc":
+            return (b.aiConfidence || 0) - (a.aiConfidence || 0);
+          case "confidence-asc":
+            return (a.aiConfidence || 0) - (b.aiConfidence || 0);
+          default: {
+            // Default to accepted time (newest first)
+            const aDefault =
+              a.acceptedAt ||
+              a.postedAt ||
+              (a.wpData && a.wpData.postedAt) ||
+              a.timestamp ||
+              0;
+            const bDefault =
+              b.acceptedAt ||
+              b.postedAt ||
+              (b.wpData && b.wpData.postedAt) ||
+              b.timestamp ||
+              0;
+            return new Date(bDefault) - new Date(aDefault);
+          }
+        }
+      });
 
       // Calculate pagination
       const totalAds = ads.length;

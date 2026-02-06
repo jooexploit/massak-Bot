@@ -273,6 +273,15 @@ module.exports = {
     const orderType = (meta.order_type || "").toLowerCase();
     const offerType = (meta.offer_type || "").toLowerCase();
 
+    // ⚠️ CRITICAL: Also check arc_category - this is the primary field for Hasak categories
+    const arcCategory = meta.arc_category || "";
+    if (arcCategory && this.hasak.categories[arcCategory]) {
+      console.log(
+        `✅ arc_category "${arcCategory}" found in Hasak → Routing to Hasak`,
+      );
+      return "hasak";
+    }
+
     // ⚠️ PRIORITY CHECK 0: Check for car/حراج keywords - HIGHEST PRIORITY
     // Car ads should ALWAYS go to Hasak even if category is "طلبات"
     const carKeywords = [
@@ -292,7 +301,7 @@ module.exports = {
     const hasCarKeyword = carKeywords.some((kw) => lowerText.includes(kw));
     if (hasCarKeyword) {
       console.log(
-        `✅ Car/حراج keyword found in text → Forcing route to Hasak (حراج الحسا)`
+        `✅ Car/حراج keyword found in text → Forcing route to Hasak (حراج الحسا)`,
       );
       return "hasak";
     }
@@ -305,7 +314,7 @@ module.exports = {
       offerType === "فعاليات"
     ) {
       console.log(
-        `✅ order_type/offer_type is "فعالية" → Forcing route to Hasak`
+        `✅ order_type/offer_type is "فعالية" → Forcing route to Hasak`,
       );
       return "hasak";
     }
@@ -314,7 +323,7 @@ module.exports = {
     // Hasak categories should take priority over Masaak for events/activities
     if (this.hasak.categories[category]) {
       console.log(
-        `✅ Category "${category}" found in Hasak → Routing to Hasak`
+        `✅ Category "${category}" found in Hasak → Routing to Hasak`,
       );
       return "hasak";
     }
@@ -322,7 +331,7 @@ module.exports = {
     // Check if category exists in Masaak
     if (this.masaak.categories[category]) {
       console.log(
-        `✅ Category "${category}" found in Masaak → Routing to Masaak`
+        `✅ Category "${category}" found in Masaak → Routing to Masaak`,
       );
       return "masaak";
     }
@@ -344,7 +353,7 @@ module.exports = {
     });
 
     console.log(
-      `🔍 Website Detection Scores - Masaak: ${masaakScore}, Hasak: ${hasakScore}`
+      `🔍 Website Detection Scores - Masaak: ${masaakScore}, Hasak: ${hasakScore}`,
     );
 
     // If Hasak score is higher OR equal (give priority to Hasak for ties)
@@ -363,11 +372,11 @@ module.exports = {
         "مهرجان",
       ];
       const isEvent = eventKeywords.some(
-        (kw) => lowerText.includes(kw) || lowerCategory.includes(kw)
+        (kw) => lowerText.includes(kw) || lowerCategory.includes(kw),
       );
       if (isEvent) {
         console.log(
-          "⚠️ Tie detected but event keywords found → Routing to Hasak"
+          "⚠️ Tie detected but event keywords found → Routing to Hasak",
         );
         return "hasak";
       }

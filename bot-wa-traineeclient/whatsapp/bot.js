@@ -102,7 +102,7 @@ function setConnectionPhase(newPhase) {
   phaseStartedAt = Date.now();
 
   console.log(
-    `\n🎭 [PHASE] ${oldPhase.toUpperCase()} → ${newPhase.toUpperCase()}`
+    `\n🎭 [PHASE] ${oldPhase.toUpperCase()} → ${newPhase.toUpperCase()}`,
   );
 
   if (newPhase === ConnectionPhase.WARMING) {
@@ -110,7 +110,7 @@ function setConnectionPhase(newPhase) {
     console.log(`   🚫 Schedulers & queue PAUSED`);
   } else if (newPhase === ConnectionPhase.RECEIVING) {
     console.log(
-      `   🔍 Validating inbound capability - waiting for first message...`
+      `   🔍 Validating inbound capability - waiting for first message...`,
     );
     console.log(`   🚫 Queue & schedulers still PAUSED`);
   } else if (newPhase === ConnectionPhase.STABLE) {
@@ -121,7 +121,7 @@ function setConnectionPhase(newPhase) {
     prekeyBundleProcessing = false;
   } else if (newPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
     console.warn(
-      `   ⚠️ CRYPTO UNSTABLE - Sends ALLOWED with admin notification`
+      `   ⚠️ CRYPTO UNSTABLE - Sends ALLOWED with admin notification`,
     );
     console.warn(`   ⚠️ Reason: Bad MAC burst or PreKey rotation detected`);
     sendAdminAlert("CRYPTO_UNSTABLE", {
@@ -160,7 +160,7 @@ function handleCryptoError(errorType, details = {}) {
 
   console.error(`\n🔐 [CRYPTO ERROR] Type: ${errorType}`);
   console.error(
-    `   Count: ${cryptoErrorCount} within ${CRYPTO_ERROR_WINDOW_MS}ms window`
+    `   Count: ${cryptoErrorCount} within ${CRYPTO_ERROR_WINDOW_MS}ms window`,
   );
   console.error(`   Details:`, details);
 
@@ -177,7 +177,7 @@ function handleCryptoError(errorType, details = {}) {
  */
 function handlePrekeyBundle() {
   console.warn(
-    `\n🔑 [PREKEY] Incoming prekey bundle - Session rotation in progress`
+    `\n🔑 [PREKEY] Incoming prekey bundle - Session rotation in progress`,
   );
   prekeyBundleProcessing = true;
 
@@ -193,7 +193,7 @@ function handlePrekeyBundle() {
       prekeyBundleProcessing
     ) {
       console.log(
-        `\n🔑 [PREKEY] Bundle processing timeout - Attempting recovery`
+        `\n🔑 [PREKEY] Bundle processing timeout - Attempting recovery`,
       );
       prekeyBundleProcessing = false;
 
@@ -229,7 +229,7 @@ function isReadyToSend() {
   // ⚠️ CRYPTO_UNSTABLE: Allow sending but return warning to notify admin
   if (currentPhase === ConnectionPhase.CRYPTO_UNSTABLE) {
     console.warn(
-      `   ⚠️ isReadyToSend: CRYPTO_UNSTABLE - Will attempt send with admin notification`
+      `   ⚠️ isReadyToSend: CRYPTO_UNSTABLE - Will attempt send with admin notification`,
     );
     return { canSend: socketManager.isConnected(), warning: "crypto_unstable" };
   }
@@ -313,7 +313,7 @@ function isZombieConnection() {
   if (isZombie) {
     zombieDetectionCount++;
     console.error(
-      `🧟 [ZOMBIE] Detected! connectionStatus='connected' but WS state=${getWebSocketState()} (${wsState})`
+      `🧟 [ZOMBIE] Detected! connectionStatus='connected' but WS state=${getWebSocketState()} (${wsState})`,
     );
   }
 
@@ -332,7 +332,7 @@ function queueAdminNotification(message, jid = null) {
     if (fs.existsSync(PENDING_NOTIFICATIONS_FILE)) {
       try {
         pending = JSON.parse(
-          fs.readFileSync(PENDING_NOTIFICATIONS_FILE, "utf8") || "[]"
+          fs.readFileSync(PENDING_NOTIFICATIONS_FILE, "utf8") || "[]",
         );
       } catch (e) {
         pending = [];
@@ -354,10 +354,10 @@ function queueAdminNotification(message, jid = null) {
 
     fs.writeFileSync(
       PENDING_NOTIFICATIONS_FILE,
-      JSON.stringify(pending, null, 2)
+      JSON.stringify(pending, null, 2),
     );
     console.log(
-      `📝 [QUEUE] Admin notification queued for delivery after reconnection`
+      `📝 [QUEUE] Admin notification queued for delivery after reconnection`,
     );
   } catch (e) {
     console.error(`❌ [QUEUE] Failed to queue notification: ${e.message}`);
@@ -386,7 +386,7 @@ function sendAdminAlert(event, details = {}) {
       // Just count - don't send notification for each disconnect
       disconnectEventCount++;
       console.log(
-        `📊 [ADMIN] Disconnect event counted (total: ${disconnectEventCount})`
+        `📊 [ADMIN] Disconnect event counted (total: ${disconnectEventCount})`,
       );
 
       // Check if we should send 3-day summary
@@ -398,7 +398,7 @@ function sendAdminAlert(event, details = {}) {
       // Just count - don't send notification for each reconnect
       reconnectEventCount++;
       console.log(
-        `📊 [ADMIN] Reconnect event counted (total: ${reconnectEventCount})`
+        `📊 [ADMIN] Reconnect event counted (total: ${reconnectEventCount})`,
       );
 
       // Check if we should send 3-day summary
@@ -409,7 +409,7 @@ function sendAdminAlert(event, details = {}) {
     } else if (event === "PHASE_WARMING") {
       // During warmup phase - optional logging (no notification)
       console.log(
-        `🌡️ [ALERT] Entering WARMING phase for session stabilization`
+        `🌡️ [ALERT] Entering WARMING phase for session stabilization`,
       );
     } else if (event === "PHASE_STABLE") {
       // When bot becomes stable and ready (no notification)
@@ -418,7 +418,7 @@ function sendAdminAlert(event, details = {}) {
       // Count and log only
       cryptoUnstableEventCount++;
       console.log(
-        `📊 [ADMIN] Bad MAC storm event counted (total: ${cryptoUnstableEventCount})`
+        `📊 [ADMIN] Bad MAC storm event counted (total: ${cryptoUnstableEventCount})`,
       );
 
       if (shouldSendSummary) {
@@ -429,7 +429,7 @@ function sendAdminAlert(event, details = {}) {
       // Count and log only - don't spam admin
       cryptoUnstableEventCount++;
       console.log(
-        `📊 [ADMIN] Crypto unstable event counted (total: ${cryptoUnstableEventCount})`
+        `📊 [ADMIN] Crypto unstable event counted (total: ${cryptoUnstableEventCount})`,
       );
 
       if (shouldSendSummary) {
@@ -443,7 +443,7 @@ function sendAdminAlert(event, details = {}) {
         `⏰ الوقت: ${timestamp}\n` +
         `💀 السبب: Receive-Dead Session مؤكد\n` +
         `📊 آخر رسالة منذ: ${Math.floor(
-          (details.lastInboundAt || 0) / 60000
+          (details.lastInboundAt || 0) / 60000,
         )} دقيقة\n` +
         `📨 إجمالي الرسائل: ${details.totalMessages || 0}\n` +
         `🔄 سيتم إعادة الاتصال فوراً\n` +
@@ -474,7 +474,7 @@ function sendAdminSummaryNotification() {
       lastAdminSummaryNotificationAt > 0
         ? Math.floor(
             (Date.now() - lastAdminSummaryNotificationAt) /
-              (24 * 60 * 60 * 1000)
+              (24 * 60 * 60 * 1000),
           )
         : 3;
 
@@ -523,12 +523,12 @@ async function deliverPendingNotifications() {
     if (!fs.existsSync(PENDING_NOTIFICATIONS_FILE)) return;
 
     const pending = JSON.parse(
-      fs.readFileSync(PENDING_NOTIFICATIONS_FILE, "utf8") || "[]"
+      fs.readFileSync(PENDING_NOTIFICATIONS_FILE, "utf8") || "[]",
     );
     if (pending.length === 0) return;
 
     console.log(
-      `📬 [QUEUE] Waiting for STABLE phase before delivering ${pending.length} notification(s)...`
+      `📬 [QUEUE] Waiting for STABLE phase before delivering ${pending.length} notification(s)...`,
     );
 
     // 🌡️ Wait for STABLE or CRYPTO_UNSTABLE (allowed to send now) before sending
@@ -544,7 +544,7 @@ async function deliverPendingNotifications() {
       waitAttempts < maxWaitAttempts
     ) {
       console.log(
-        `   ⏳ Waiting for sendable phase (current: ${currentPhase})...`
+        `   ⏳ Waiting for sendable phase (current: ${currentPhase})...`,
       );
       await new Promise((resolve) => setTimeout(resolve, 500));
       waitAttempts++;
@@ -556,14 +556,14 @@ async function deliverPendingNotifications() {
     }
 
     console.log(
-      `✅ [QUEUE] Phase is ${currentPhase}. Delivering ${pending.length} pending notification(s)...`
+      `✅ [QUEUE] Phase is ${currentPhase}. Delivering ${pending.length} pending notification(s)...`,
     );
 
     for (const notification of pending) {
       try {
         // Add prefix to show it was queued
         const prefixedMessage = `📬 *[إشعار معلق]*\n⏰ ${new Date(
-          notification.queuedAt
+          notification.queuedAt,
         ).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })}\n\n${
           notification.message
         }`;
@@ -574,7 +574,7 @@ async function deliverPendingNotifications() {
         await new Promise((resolve) => setTimeout(resolve, 500));
       } catch (e) {
         console.error(
-          `  ❌ Failed to deliver notification ${notification.id}: ${e.message}`
+          `  ❌ Failed to deliver notification ${notification.id}: ${e.message}`,
         );
       }
     }
@@ -584,7 +584,7 @@ async function deliverPendingNotifications() {
     console.log(`✅ [QUEUE] All pending notifications delivered`);
   } catch (e) {
     console.error(
-      `❌ [QUEUE] Error delivering pending notifications: ${e.message}`
+      `❌ [QUEUE] Error delivering pending notifications: ${e.message}`,
     );
   }
 }
@@ -600,7 +600,7 @@ function logConnectionState(event, details = {}) {
   const wsReadyState = getWebSocketReadyState();
 
   console.log(
-    `\n╔═══════════════════════════════════════════════════════════╗`
+    `\n╔═══════════════════════════════════════════════════════════╗`,
   );
   console.log(`║ 🔌 CONNECTION STATE LOG                                   ║`);
   console.log(`╠═══════════════════════════════════════════════════════════╣`);
@@ -609,13 +609,13 @@ function logConnectionState(event, details = {}) {
   console.log(`║ Status: ${connectionStatus}`);
   console.log(`║ WebSocket: ${wsState} (readyState=${wsReadyState})`);
   console.log(
-    `║ Reconnect Attempts: ${reconnectAttempts}/${maxReconnectAttempts}`
+    `║ Reconnect Attempts: ${reconnectAttempts}/${maxReconnectAttempts}`,
   );
   console.log(`║ Is Reconnecting: ${isReconnecting}`);
   console.log(`║ Init In Progress: ${initInProgress}`);
   console.log(`║ Messages Processed: ${totalMessagesProcessed}`);
   console.log(
-    `║ Ping Failures: ${consecutivePingFailures}/${MAX_PING_FAILURES}`
+    `║ Ping Failures: ${consecutivePingFailures}/${MAX_PING_FAILURES}`,
   );
 
   if (details && Object.keys(details).length > 0) {
@@ -623,7 +623,7 @@ function logConnectionState(event, details = {}) {
   }
 
   console.log(
-    `╚═══════════════════════════════════════════════════════════╝\n`
+    `╚═══════════════════════════════════════════════════════════╝\n`,
   );
 }
 
@@ -650,19 +650,19 @@ const createDiagnosticLogger = (level = "silent") => {
         badMacDetectionCount++;
         lastBadMacAt = Date.now();
         console.error(
-          `🚨 [SESSION ISSUE] Decryption error detected! Count: ${badMacDetectionCount}`
+          `🚨 [SESSION ISSUE] Decryption error detected! Count: ${badMacDetectionCount}`,
         );
 
         // If we see too many Bad MACs, schedule a session repair/reset
         if (badMacDetectionCount >= 5 && !sessionResetScheduled) {
           sessionResetScheduled = true;
           console.error(
-            "🚨 [SESSION ISSUE] Persistent decryption errors detected."
+            "🚨 [SESSION ISSUE] Persistent decryption errors detected.",
           );
           console.error(
             `🔄 [SESSION ISSUE] Will auto-${
               softRepairAttempted ? "RESET" : "REPAIR"
-            } session on next health check...`
+            } session on next health check...`,
           );
         }
       }
@@ -891,7 +891,7 @@ function updateAllServicesSocket(newSock) {
   } catch (e) {
     console.warn(
       "  ⚠️ Error updating scheduled WhatsApp service socket:",
-      e.message
+      e.message,
     );
   }
 
@@ -928,10 +928,10 @@ function softRepairSessions() {
     }
 
     console.log(
-      `✅ [SOFT REPAIR] Deleted ${deletedCount} corrupted session/key files.`
+      `✅ [SOFT REPAIR] Deleted ${deletedCount} corrupted session/key files.`,
     );
     console.log(
-      "📋 Primary credentials preserved. No QR scan should be required."
+      "📋 Primary credentials preserved. No QR scan should be required.",
     );
     softRepairAttempted = true;
     return true;
@@ -972,7 +972,7 @@ function loadGroupsCache() {
         };
         lastGroupsCacheRefresh = groupsCacheData.lastRefreshed;
         console.log(
-          `📦 Groups cache loaded: ${groupsCacheData.groups.length} groups`
+          `📦 Groups cache loaded: ${groupsCacheData.groups.length} groups`,
         );
         return true;
       }
@@ -995,7 +995,7 @@ function saveGroupsCache(groups) {
     fs.writeFileSync(
       GROUPS_CACHE_FILE,
       JSON.stringify(cacheData, null, 2),
-      "utf8"
+      "utf8",
     );
     groupsCacheData = cacheData;
     lastGroupsCacheRefresh = cacheData.lastRefreshed;
@@ -1024,7 +1024,7 @@ function getCachedGroups() {
         groupsCacheData.groups.length
       } groups (age: ${ageHours}h ${ageMinutes}m, ${
         isStale ? "STALE" : "valid"
-      })`
+      })`,
     );
     return groupsCacheData.groups;
   }
@@ -1131,7 +1131,7 @@ function loadAds() {
           { id: "cat_default_17", name: "فعاليات", color: "#e74c3c" },
           { id: "cat_default_18", name: "خدمات", color: "#f39c12" },
           { id: "cat_default_19", name: "أخرى", color: "#95a5a6" },
-        ])
+        ]),
       );
     }
 
@@ -1157,12 +1157,12 @@ function loadAds() {
     if (!fs.existsSync(SETTINGS_FILE)) {
       fs.writeFileSync(
         SETTINGS_FILE,
-        JSON.stringify({ recycleBinDays: 7, excludedGroups: [] })
+        JSON.stringify({ recycleBinDays: 7, excludedGroups: [] }),
       );
     }
     const settingsRaw = fs.readFileSync(SETTINGS_FILE, "utf8");
     settings = JSON.parse(
-      settingsRaw || '{ "recycleBinDays": 7, "excludedGroups": [] }'
+      settingsRaw || '{ "recycleBinDays": 7, "excludedGroups": [] }',
     );
 
     // Ensure excludedGroups exists in settings (for backwards compatibility)
@@ -1225,7 +1225,7 @@ function extractAndNormalizePhoneNumbers(text) {
     .map((v) => v.replace(/^\+/, ""))
     // Deduplicate and normalize length to remove obvious invalids
     .filter(
-      (v, i, a) => a.indexOf(v) === i && v.length >= 11 && v.length <= 15
+      (v, i, a) => a.indexOf(v) === i && v.length >= 11 && v.length <= 15,
     );
 
   return normalized;
@@ -1255,7 +1255,7 @@ async function getGroupMetadataSafe(jid) {
   // Only load if STABLE phase
   if (currentPhase !== ConnectionPhase.STABLE) {
     console.log(
-      `⏸️ Skipping metadata load for ${jid} - phase: ${currentPhase}`
+      `⏸️ Skipping metadata load for ${jid} - phase: ${currentPhase}`,
     );
     return { jid, name: jid }; // Fallback to JID as name
   }
@@ -1286,7 +1286,7 @@ async function getGroupMetadataSafe(jid) {
  */
 async function backgroundLoadGroups() {
   console.log(
-    "🔄 [Background] Waiting for STABLE phase before loading groups..."
+    "🔄 [Background] Waiting for STABLE phase before loading groups...",
   );
 
   // Wait for STABLE phase
@@ -1330,7 +1330,7 @@ async function backgroundLoadGroups() {
     }
 
     console.log(
-      `✅ [Background] Loaded ${groupArray.length} groups successfully`
+      `✅ [Background] Loaded ${groupArray.length} groups successfully`,
     );
   } catch (e) {
     console.error(`❌ [Background] Group loading failed: ${e.message}`);
@@ -1505,7 +1505,7 @@ function isCategoryLimitReached(category) {
 
   const categoryLimits = settings.categoryLimits || [];
   const limitConfig = categoryLimits.find(
-    (limit) => limit.category === category && limit.enabled
+    (limit) => limit.category === category && limit.enabled,
   );
 
   if (!limitConfig) return false;
@@ -1520,11 +1520,11 @@ function isCategoryLimitReached(category) {
     (ad) =>
       ad.category === category &&
       ad.status !== "rejected" &&
-      ad.timestamp >= todayTimestamp
+      ad.timestamp >= todayTimestamp,
   ).length;
 
   console.log(
-    `📊 Category "${category}" TODAY: ${todayCount}/${limitConfig.maxAds} ads (limit per day)`
+    `📊 Category "${category}" TODAY: ${todayCount}/${limitConfig.maxAds} ads (limit per day)`,
   );
 
   return todayCount >= limitConfig.maxAds;
@@ -1572,10 +1572,10 @@ function cleanRecycleBin() {
       const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
       console.log(
         `  Item ${index + 1}: ${ageDays} days old, rejected at ${new Date(
-          item.rejectedAt
+          item.rejectedAt,
         ).toISOString()}, will ${
           item.rejectedAt > cutoffTime ? "KEEP" : "DELETE"
-        }`
+        }`,
       );
     });
 
@@ -1588,7 +1588,7 @@ function cleanRecycleBin() {
       console.log(
         `♻️ Cleaned ${
           beforeCount - recycleBin.length
-        } old items from recycle bin\n`
+        } old items from recycle bin\n`,
       );
     } else {
       console.log("♻️ No items removed\n");
@@ -1640,7 +1640,7 @@ async function processMessageFromQueue(messageData) {
   // ✅ CHECK FOR DUPLICATES FIRST (before using AI tokens!)
   const normalized = normalizeText(messageText);
   const isDuplicate = ads.some(
-    (a) => a.fromGroup === from && normalizeText(a.text) === normalized
+    (a) => a.fromGroup === from && normalizeText(a.text) === normalized,
   );
 
   if (isDuplicate) {
@@ -1653,7 +1653,7 @@ async function processMessageFromQueue(messageData) {
   const quickCategory = quickDetectCategory(messageText);
   if (quickCategory && isCategoryLimitReached(quickCategory)) {
     console.log(
-      `🚫 Category "${quickCategory}" has reached its limit. Blocking BEFORE AI processing.`
+      `🚫 Category "${quickCategory}" has reached its limit. Blocking BEFORE AI processing.`,
     );
 
     // Move to recycle bin without using AI
@@ -1678,7 +1678,7 @@ async function processMessageFromQueue(messageData) {
     saveRecycleBin();
 
     console.log(
-      `🗑️ Moved to recycle bin (category limit - no AI used): ${recycleBinItem.id}`
+      `🗑️ Moved to recycle bin (category limit - no AI used): ${recycleBinItem.id}`,
     );
     return {
       success: false,
@@ -1692,13 +1692,13 @@ async function processMessageFromQueue(messageData) {
     const aiResult = await processMessage(messageText);
 
     console.log(
-      `🔍 AI Result: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`
+      `🔍 AI Result: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`,
     );
 
     // If not detected as an ad, move to recycle bin
     if (!aiResult.isAd) {
       console.log(
-        `❌ Not an ad (confidence: ${aiResult.confidence}%): ${aiResult.reason}`
+        `❌ Not an ad (confidence: ${aiResult.confidence}%): ${aiResult.reason}`,
       );
 
       // Add to recycle bin - include image for later use
@@ -1725,13 +1725,13 @@ async function processMessageFromQueue(messageData) {
     }
 
     console.log(
-      `✅ Ad detected (confidence: ${aiResult.confidence}%): ${aiResult.reason}`
+      `✅ Ad detected (confidence: ${aiResult.confidence}%): ${aiResult.reason}`,
     );
 
     // Check if category limit is reached
     if (aiResult.category && isCategoryLimitReached(aiResult.category)) {
       console.log(
-        `🚫 Category "${aiResult.category}" has reached its limit. Ad blocked and moved to recycle bin.`
+        `🚫 Category "${aiResult.category}" has reached its limit. Ad blocked and moved to recycle bin.`,
       );
 
       // Move to recycle bin instead of saving - include image for later use
@@ -1756,7 +1756,7 @@ async function processMessageFromQueue(messageData) {
       saveRecycleBin();
 
       console.log(
-        `🗑️ Moved to recycle bin (category limit): ${recycleBinItem.id}`
+        `🗑️ Moved to recycle bin (category limit): ${recycleBinItem.id}`,
       );
       return {
         success: false,
@@ -1768,7 +1768,7 @@ async function processMessageFromQueue(messageData) {
     // Log extracted phone number if available
     if (aiResult.meta && aiResult.meta.phone_number) {
       console.log(
-        `📞 Phone number extracted from message: ${aiResult.meta.phone_number}`
+        `📞 Phone number extracted from message: ${aiResult.meta.phone_number}`,
       );
     }
 
@@ -1792,10 +1792,10 @@ async function processMessageFromQueue(messageData) {
 
     if (detailsDuplicate) {
       console.log(
-        `⚠️ Duplicate property detected! Ad ${detailsDuplicate.id} has same details`
+        `⚠️ Duplicate property detected! Ad ${detailsDuplicate.id} has same details`,
       );
       console.log(
-        `   Same category, area, neighborhood, and price - Skipping save`
+        `   Same category, area, neighborhood, and price - Skipping save`,
       );
       return { success: false, reason: "duplicate_by_details" };
     }
@@ -1813,24 +1813,26 @@ async function processMessageFromQueue(messageData) {
         aiResult.category ||
         "";
 
-      // Check if it's a Hasak category
+      // Check if it's a Hasak category (check both effectiveCategory and arc_category)
+      const arcCat = meta.arc_category || "";
       if (
-        effectiveCategory &&
-        websiteConfig.hasak.categories[effectiveCategory]
+        (effectiveCategory &&
+          websiteConfig.hasak.categories[effectiveCategory]) ||
+        (arcCat && websiteConfig.hasak.categories[arcCat])
       ) {
         targetWebsite = "hasak";
         console.log(
-          `🌐 Detected Hasak category "${effectiveCategory}" → Target: Hasak`
+          `🌐 Detected Hasak category "${effectiveCategory || arcCat}" → Target: Hasak`,
         );
       } else {
-        // Use detectWebsite for other cases
+        // Use detectWebsite for other cases (pass meta so it can check arc_category too)
         targetWebsite = websiteConfig.detectWebsite(
           messageText,
           effectiveCategory,
-          meta
+          meta,
         );
         console.log(
-          `🌐 Auto-detected target website: ${targetWebsite} (category: ${effectiveCategory})`
+          `🌐 Auto-detected target website: ${targetWebsite} (category: ${effectiveCategory})`,
         );
       }
     }
@@ -1867,14 +1869,14 @@ async function processMessageFromQueue(messageData) {
     saveAds();
 
     console.log(
-      `✨ Ad saved successfully! ID: ${ad.id}, Group: ${ad.fromGroupName}`
+      `✨ Ad saved successfully! ID: ${ad.id}, Group: ${ad.fromGroupName}`,
     );
 
     // Check if auto-approve is enabled and auto-post to WordPress
     const settings = getSettings();
     if (settings.autoApproveWordPress === true && ad.wpData) {
       console.log(
-        "🚀 Auto-approve enabled, posting new ad to WordPress automatically..."
+        "🚀 Auto-approve enabled, posting new ad to WordPress automatically...",
       );
 
       // Auto-post to WordPress using the SAME function as manual posting
@@ -1884,7 +1886,7 @@ async function processMessageFromQueue(messageData) {
           const { postAdToWordPress } = require("../routes/bot");
 
           console.log(
-            "🔵 Starting WordPress auto-post using manual posting function..."
+            "🔵 Starting WordPress auto-post using manual posting function...",
           );
           console.log("🔵 Ad ID:", ad.id);
 
@@ -1893,7 +1895,7 @@ async function processMessageFromQueue(messageData) {
 
           if (result.success) {
             console.log(
-              "✅ ✅ ✅ Auto-posted to WordPress successfully! ✅ ✅ ✅"
+              "✅ ✅ ✅ Auto-posted to WordPress successfully! ✅ ✅ ✅",
             );
             console.log("📌 Post ID:", result.wordpressPost.id);
             console.log("📌 Short Link:", result.wordpressPost.link);
@@ -1911,7 +1913,7 @@ async function processMessageFromQueue(messageData) {
             // Save updated ad
             saveAds();
             console.log(
-              "✅ Ad updated with WordPress info and marked as accepted"
+              "✅ Ad updated with WordPress info and marked as accepted",
             );
 
             // Send WhatsApp message to the group with the ad details
@@ -1924,7 +1926,7 @@ async function processMessageFromQueue(messageData) {
               } catch (msgError) {
                 console.error(
                   "❌ Failed to send WhatsApp message to group:",
-                  msgError
+                  msgError,
                 );
               }
             }
@@ -1933,7 +1935,7 @@ async function processMessageFromQueue(messageData) {
           }
         } catch (error) {
           console.error(
-            "❌ ❌ ❌ Error during auto-post to WordPress ❌ ❌ ❌"
+            "❌ ❌ ❌ Error during auto-post to WordPress ❌ ❌ ❌",
           );
           console.error("Error message:", error.message);
           console.error("Error details:", error.response?.data || error);
@@ -1941,7 +1943,7 @@ async function processMessageFromQueue(messageData) {
       })();
     } else if (settings.autoApproveWordPress === true && !ad.wpData) {
       console.log(
-        "⚠️ Auto-approve enabled but ad has no wpData, skipping auto-post"
+        "⚠️ Auto-approve enabled but ad has no wpData, skipping auto-post",
       );
     }
 
@@ -1962,13 +1964,13 @@ async function processMessageFromQueue(messageData) {
 
     if (isOverloadError || isRateLimitError) {
       console.log(
-        "⚠️ All API keys failed due to overload/rate limit. Ad will be saved for retry."
+        "⚠️ All API keys failed due to overload/rate limit. Ad will be saved for retry.",
       );
 
       // Fallback: save with retry flag
       const normalized = normalizeText(messageText);
       const isDuplicate = ads.some(
-        (a) => a.fromGroup === from && normalizeText(a.text) === normalized
+        (a) => a.fromGroup === from && normalizeText(a.text) === normalized,
       );
 
       if (!isDuplicate) {
@@ -2016,7 +2018,7 @@ async function processMessageFromQueue(messageData) {
     // For other errors, fallback: save without AI processing
     const normalized = normalizeText(messageText);
     const isDuplicate = ads.some(
-      (a) => a.fromGroup === from && normalizeText(a.text) === normalized
+      (a) => a.fromGroup === from && normalizeText(a.text) === normalized,
     );
 
     if (!isDuplicate) {
@@ -2068,7 +2070,7 @@ let inboundWatchdogInterval = null;
  */
 function startInboundValidation() {
   console.log(
-    "🔍 [Validation] Starting inbound validation - waiting for first message..."
+    "🔍 [Validation] Starting inbound validation - waiting for first message...",
   );
 
   // Clear any existing timeout
@@ -2080,10 +2082,10 @@ function startInboundValidation() {
   receiveValidationTimeout = setTimeout(() => {
     if (currentPhase === ConnectionPhase.RECEIVING) {
       console.error(
-        "🔴 [Validation] FAILED - No inbound messages received within 60s"
+        "🔴 [Validation] FAILED - No inbound messages received within 60s",
       );
       console.error(
-        "🔴 [Validation] Session may be receive-dead - forcing reconnect"
+        "🔴 [Validation] Session may be receive-dead - forcing reconnect",
       );
       setConnectionPhase(ConnectionPhase.RECEIVE_DEAD);
       forceReconnect("NO_INBOUND_VALIDATION");
@@ -2097,7 +2099,7 @@ function startInboundValidation() {
 function handleFirstInboundMessage() {
   if (currentPhase === ConnectionPhase.RECEIVING) {
     console.log(
-      "✅ [Validation] First inbound message received - session is bidirectional"
+      "✅ [Validation] First inbound message received - session is bidirectional",
     );
 
     // Clear validation timeout
@@ -2126,75 +2128,78 @@ function startInboundWatchdog() {
     clearInterval(inboundWatchdogInterval);
   }
 
-  inboundWatchdogInterval = setInterval(async () => {
-    if (currentPhase !== ConnectionPhase.STABLE) return;
-    if (inboundMessageCount === 0) return; // Still in initial phase
+  inboundWatchdogInterval = setInterval(
+    async () => {
+      if (currentPhase !== ConnectionPhase.STABLE) return;
+      if (inboundMessageCount === 0) return; // Still in initial phase
 
-    const now = Date.now();
-    const silenceDuration = now - lastInboundAt;
-    const silenceMinutes = Math.floor(silenceDuration / 60000);
+      const now = Date.now();
+      const silenceDuration = now - lastInboundAt;
+      const silenceMinutes = Math.floor(silenceDuration / 60000);
 
-    // Adaptive threshold: 3x longest historical silence (min 10 minutes)
-    const suspectThreshold = Math.max(
-      longestSilenceSinceLastMsg * 3,
-      10 * 60 * 1000 // Minimum 10 minutes
-    );
-
-    console.log(
-      `👁️ [Watchdog] Silence: ${silenceMinutes}min | Threshold: ${Math.floor(
-        suspectThreshold / 60000
-      )}min | Messages: ${inboundMessageCount}`
-    );
-
-    // If silence exceeds adaptive threshold, investigate
-    if (silenceDuration > suspectThreshold) {
-      console.warn(
-        `⚠️ [Watchdog] SUSPECT RECEIVE-DEAD: ${silenceMinutes}min silence`
-      );
-      console.warn(
-        `   Historical max silence: ${Math.floor(
-          longestSilenceSinceLastMsg / 60000
-        )}min`
-      );
-      console.warn(
-        `   Performing self-test to validate bidirectional capability...`
+      // Adaptive threshold: 3x longest historical silence (min 10 minutes)
+      const suspectThreshold = Math.max(
+        longestSilenceSinceLastMsg * 3,
+        10 * 60 * 1000, // Minimum 10 minutes
       );
 
-      // Send test message to self
-      const testJid = `${sock.user.id.split(":")[0]}@s.whatsapp.net`;
-      const testMsg = `[SelfTest-${Date.now()}]`;
-      const testSentAt = Date.now();
+      console.log(
+        `👁️ [Watchdog] Silence: ${silenceMinutes}min | Threshold: ${Math.floor(
+          suspectThreshold / 60000,
+        )}min | Messages: ${inboundMessageCount}`,
+      );
 
-      try {
-        await sock.sendMessage(testJid, { text: testMsg });
-        console.log("📤 [Watchdog] Self-test message sent");
+      // If silence exceeds adaptive threshold, investigate
+      if (silenceDuration > suspectThreshold) {
+        console.warn(
+          `⚠️ [Watchdog] SUSPECT RECEIVE-DEAD: ${silenceMinutes}min silence`,
+        );
+        console.warn(
+          `   Historical max silence: ${Math.floor(
+            longestSilenceSinceLastMsg / 60000,
+          )}min`,
+        );
+        console.warn(
+          `   Performing self-test to validate bidirectional capability...`,
+        );
 
-        // Wait 15 seconds for echo
-        await new Promise((r) => setTimeout(r, 15000));
+        // Send test message to self
+        const testJid = `${sock.user.id.split(":")[0]}@s.whatsapp.net`;
+        const testMsg = `[SelfTest-${Date.now()}]`;
+        const testSentAt = Date.now();
 
-        // Check if we received the echo
-        const timeSinceTest = Date.now() - testSentAt;
-        const receivedAfterTest = lastInboundAt > testSentAt;
+        try {
+          await sock.sendMessage(testJid, { text: testMsg });
+          console.log("📤 [Watchdog] Self-test message sent");
 
-        if (!receivedAfterTest && timeSinceTest > 15000) {
-          console.error(
-            "🔴 [Watchdog] CONFIRMED RECEIVE-DEAD: Self-test echo not received"
-          );
-          console.error(
-            "🔴 [Watchdog] Inbound channel is dead - forcing reconnect"
-          );
-          setConnectionPhase(ConnectionPhase.RECEIVE_DEAD);
-          await forceReconnect("RECEIVE_DEAD_CONFIRMED");
-        } else {
-          console.log("✅ [Watchdog] Self-test passed - receive is working");
-          console.log("   False alarm - silence is normal for this period");
+          // Wait 15 seconds for echo
+          await new Promise((r) => setTimeout(r, 15000));
+
+          // Check if we received the echo
+          const timeSinceTest = Date.now() - testSentAt;
+          const receivedAfterTest = lastInboundAt > testSentAt;
+
+          if (!receivedAfterTest && timeSinceTest > 15000) {
+            console.error(
+              "🔴 [Watchdog] CONFIRMED RECEIVE-DEAD: Self-test echo not received",
+            );
+            console.error(
+              "🔴 [Watchdog] Inbound channel is dead - forcing reconnect",
+            );
+            setConnectionPhase(ConnectionPhase.RECEIVE_DEAD);
+            await forceReconnect("RECEIVE_DEAD_CONFIRMED");
+          } else {
+            console.log("✅ [Watchdog] Self-test passed - receive is working");
+            console.log("   False alarm - silence is normal for this period");
+          }
+        } catch (e) {
+          console.error(`❌ [Watchdog] Self-test failed: ${e.message}`);
+          console.error("   Unable to validate - will retry on next check");
         }
-      } catch (e) {
-        console.error(`❌ [Watchdog] Self-test failed: ${e.message}`);
-        console.error("   Unable to validate - will retry on next check");
       }
-    }
-  }, 5 * 60 * 1000); // Check every 5 minutes
+    },
+    5 * 60 * 1000,
+  ); // Check every 5 minutes
 }
 
 /**
@@ -2220,7 +2225,7 @@ async function initializeBot() {
   }
   if (initInProgress) {
     console.log(
-      "⚠️ Bot initialization already in progress, skipping new attempt"
+      "⚠️ Bot initialization already in progress, skipping new attempt",
     );
     return null;
   }
@@ -2229,7 +2234,7 @@ async function initializeBot() {
   const haveLock = acquireInitLock();
   if (!haveLock) {
     console.log(
-      "🛡️ Init lock held by another process/instance. Skipping initializeBot."
+      "🛡️ Init lock held by another process/instance. Skipping initializeBot.",
     );
     initInProgress = false;
     return null;
@@ -2270,7 +2275,7 @@ async function initializeBot() {
     // This prevents race conditions where old handlers fire alongside new ones
     if (reconnectAttempts > 0) {
       console.log(
-        "⏳ Waiting 1 second for socket cleanup before creating new one..."
+        "⏳ Waiting 1 second for socket cleanup before creating new one...",
       );
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
@@ -2300,9 +2305,8 @@ async function initializeBot() {
       console.log("ℹ️ No existing session found, will generate QR code");
     }
 
-    const { state, saveCreds } = await useMultiFileAuthState(
-      "auth_info_baileys"
-    );
+    const { state, saveCreds } =
+      await useMultiFileAuthState("auth_info_baileys");
     const { version } = await fetchLatestBaileysVersion();
 
     sock = makeWASocket({
@@ -2356,7 +2360,7 @@ async function initializeBot() {
     // Track message reactions
     sock.ev.on("messages.reaction", (reactions) => {
       console.log(
-        `👍 [EVENT] messages.reaction - ${reactions.length} reaction(s)`
+        `👍 [EVENT] messages.reaction - ${reactions.length} reaction(s)`,
       );
     });
 
@@ -2371,14 +2375,14 @@ async function initializeBot() {
     // Track group updates
     sock.ev.on("groups.update", (updates) => {
       console.log(
-        `👥 [EVENT] groups.update - ${updates.length} group(s) updated`
+        `👥 [EVENT] groups.update - ${updates.length} group(s) updated`,
       );
     });
 
     // Track group participant updates
     sock.ev.on("group-participants.update", (update) => {
       console.log(
-        `👥 [EVENT] group-participants.update - ${update.action} in ${update.id}`
+        `👥 [EVENT] group-participants.update - ${update.action} in ${update.id}`,
       );
     });
 
@@ -2393,7 +2397,7 @@ async function initializeBot() {
       lastSuccessfulPing = Date.now();
 
       console.log(
-        `🏓 [KEEPALIVE] Starting ping monitor (interval: 90s, timeout: 5s)`
+        `🏓 [KEEPALIVE] Starting ping monitor (interval: 90s, timeout: 5s)`,
       );
 
       keepalivePingInterval = setInterval(async () => {
@@ -2411,7 +2415,7 @@ async function initializeBot() {
           if (wsState >= 2) {
             // CLOSING or CLOSED
             console.error(
-              `🧟 [KEEPALIVE] ZOMBIE DETECTED! WS state: ${wsStateName} (${wsState}) but status: ${connectionStatus}`
+              `🧟 [KEEPALIVE] ZOMBIE DETECTED! WS state: ${wsStateName} (${wsState}) but status: ${connectionStatus}`,
             );
             logConnectionState("ZOMBIE_DETECTED_PRE_PING", {
               wsState: wsStateName,
@@ -2423,7 +2427,7 @@ async function initializeBot() {
               `🧟 *اتصال ميت (Zombie)*\n\n` +
                 `⚠️ حالة WebSocket: ${wsStateName}\n` +
                 `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n` +
-                `🔄 جاري إعادة الاتصال تلقائياً...`
+                `🔄 جاري إعادة الاتصال تلقائياً...`,
             );
 
             // Clear interval and trigger reconnection
@@ -2447,13 +2451,13 @@ async function initializeBot() {
             await Promise.race([
               sock.presenceSubscribe(sock.user?.id),
               new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Ping timeout (5s)")), 5000)
+                setTimeout(() => reject(new Error("Ping timeout (5s)")), 5000),
               ),
             ]);
 
             const pingLatency = Date.now() - pingStart;
             console.log(
-              `🏓 [KEEPALIVE] Ping OK (${pingLatency}ms) | WS: ${wsStateName} | Messages: ${totalMessagesProcessed}`
+              `🏓 [KEEPALIVE] Ping OK (${pingLatency}ms) | WS: ${wsStateName} | Messages: ${totalMessagesProcessed}`,
             );
             lastSuccessfulPing = Date.now();
             consecutivePingFailures = 0;
@@ -2462,7 +2466,7 @@ async function initializeBot() {
             const wsStateAfterFail = getWebSocketState();
 
             console.warn(
-              `⚠️ [KEEPALIVE] Ping FAILED (${consecutivePingFailures}/${MAX_PING_FAILURES}): ${pingError.message} | WS: ${wsStateAfterFail}`
+              `⚠️ [KEEPALIVE] Ping FAILED (${consecutivePingFailures}/${MAX_PING_FAILURES}): ${pingError.message} | WS: ${wsStateAfterFail}`,
             );
             logConnectionState("PING_FAILED", {
               error: pingError.message,
@@ -2472,7 +2476,7 @@ async function initializeBot() {
 
             if (consecutivePingFailures >= MAX_PING_FAILURES) {
               console.error(
-                `🚨 [KEEPALIVE] ${MAX_PING_FAILURES} consecutive ping failures - TRIGGERING RECONNECT!`
+                `🚨 [KEEPALIVE] ${MAX_PING_FAILURES} consecutive ping failures - TRIGGERING RECONNECT!`,
               );
 
               // Queue notification for after reconnection (don't try to send now - might be dead)
@@ -2481,7 +2485,7 @@ async function initializeBot() {
                   `⚠️ فشل التحقق من الاتصال ${MAX_PING_FAILURES} مرات\n` +
                   `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n` +
                   `🔌 حالة WebSocket: ${wsStateAfterFail}\n` +
-                  `🔄 تم إعادة الاتصال تلقائياً`
+                  `🔄 تم إعادة الاتصال تلقائياً`,
               );
 
               // Clear interval
@@ -2516,17 +2520,17 @@ async function initializeBot() {
         lastReconnectAttempt > 0
       ) {
         const waitSeconds = Math.ceil(
-          (MIN_RECONNECT_INTERVAL_MS - timeSinceLastReconnect) / 1000
+          (MIN_RECONNECT_INTERVAL_MS - timeSinceLastReconnect) / 1000,
         );
         console.warn(
           `⏸️ [FORCE_RECONNECT] Cooldown active - last reconnect ${Math.floor(
-            timeSinceLastReconnect / 1000
-          )}s ago`
+            timeSinceLastReconnect / 1000,
+          )}s ago`,
         );
         console.warn(
           `   ⏳ Must wait ${waitSeconds}s more (cooldown: ${
             MIN_RECONNECT_INTERVAL_MS / 1000
-          }s)`
+          }s)`,
         );
         console.warn("   ⚠️ Skipping reconnect to prevent storm");
         return;
@@ -2573,7 +2577,7 @@ async function initializeBot() {
           console.log(`✅ [FORCE_RECONNECT] Reconnection completed!`);
         } catch (reinitError) {
           console.error(
-            `❌ [FORCE_RECONNECT] Reconnection failed: ${reinitError.message}`
+            `❌ [FORCE_RECONNECT] Reconnection failed: ${reinitError.message}`,
           );
           // Try again after 10 seconds
           setTimeout(() => forceReconnect("RETRY_AFTER_FAILURE"), 10000);
@@ -2601,7 +2605,7 @@ async function initializeBot() {
       // Detect prekey bundle processing
       if (
         errorMsg.includes(
-          "Closing open session in favor of incoming prekey bundle"
+          "Closing open session in favor of incoming prekey bundle",
         )
       ) {
         handlePrekeyBundle();
@@ -2634,7 +2638,7 @@ async function initializeBot() {
       phaseStartedAt = Date.now();
 
       console.log(
-        `\n🌡️ [PHASE] ${oldPhase.toUpperCase()} → ${newPhase.toUpperCase()}`
+        `\n🌡️ [PHASE] ${oldPhase.toUpperCase()} → ${newPhase.toUpperCase()}`,
       );
 
       if (newPhase === ConnectionPhase.INIT) {
@@ -2648,7 +2652,7 @@ async function initializeBot() {
         // Queue stays paused
       } else if (newPhase === ConnectionPhase.WARMING) {
         console.log(
-          `   └─ Signal protocol stabilizing (${SESSION_WARMUP_DURATION_MS}ms)...`
+          `   └─ Signal protocol stabilizing (${SESSION_WARMUP_DURATION_MS}ms)...`,
         );
         console.log(`   └─ Queue/Schedulers PAUSED during warmup`);
 
@@ -2759,7 +2763,7 @@ async function initializeBot() {
         console.log(`   🔌 WebSocket State: ${getWebSocketState()}`);
         console.log(`   📨 Messages Processed: ${totalMessagesProcessed}`);
         console.log(
-          `   🔄 Reconnect Attempts: ${reconnectAttempts}/${maxReconnectAttempts}`
+          `   🔄 Reconnect Attempts: ${reconnectAttempts}/${maxReconnectAttempts}`,
         );
         console.log(`${"=".repeat(60)}\n`);
         console.log("🔍 Reconnect attempts:", reconnectAttempts);
@@ -2798,11 +2802,11 @@ async function initializeBot() {
           console.log("   1. The bot is running in another process");
           console.log("   2. WhatsApp Web is open in a browser");
           console.log(
-            "   3. Multiple reconnection attempts happened simultaneously"
+            "   3. Multiple reconnection attempts happened simultaneously",
           );
           console.log("   4. Old socket handlers weren't cleaned up properly");
           console.log(
-            "🛑 Clearing session and stopping reconnection attempts..."
+            "🛑 Clearing session and stopping reconnection attempts...",
           );
 
           // Clear the corrupted session
@@ -2867,7 +2871,7 @@ async function initializeBot() {
 
           // IMPORTANT: Longer delay to ensure old socket is fully cleaned up
           console.log(
-            "🔄 Attempting fresh connection with QR code in 5 seconds..."
+            "🔄 Attempting fresh connection with QR code in 5 seconds...",
           );
           setTimeout(() => {
             initializeBot();
@@ -2889,7 +2893,7 @@ async function initializeBot() {
           console.log(
             `⏳ Scheduling reconnect in ${
               delay / 1000
-            }s (Attempt ${reconnectAttempts}/${maxReconnectAttempts})`
+            }s (Attempt ${reconnectAttempts}/${maxReconnectAttempts})`,
           );
 
           isReconnecting = true;
@@ -2898,7 +2902,7 @@ async function initializeBot() {
           // CRITICAL: Remove ALL event listeners before reconnect to prevent ghost handlers
           reconnectTimeout = setTimeout(async () => {
             console.log(
-              `🔄 Attempting reconnection #${reconnectAttempts} (statusCode=${statusCode})`
+              `🔄 Attempting reconnection #${reconnectAttempts} (statusCode=${statusCode})`,
             );
 
             // Clean up old socket completely
@@ -2994,14 +2998,14 @@ async function initializeBot() {
         // - Bad MAC errors during this period are expected and harmless
         // After SESSION_WARMUP_DURATION_MS, phase transitions to RECEIVING for validation
         console.log(
-          `⏳ Starting ${SESSION_WARMUP_DURATION_MS}ms session warmup...`
+          `⏳ Starting ${SESSION_WARMUP_DURATION_MS}ms session warmup...`,
         );
 
         // Auto-transition to RECEIVING phase after warmup
         setTimeout(() => {
           if (currentPhase === ConnectionPhase.WARMING) {
             console.log(
-              `\n✅ Warmup complete - entering RECEIVING validation phase`
+              `\n✅ Warmup complete - entering RECEIVING validation phase`,
             );
             setConnectionPhase(ConnectionPhase.RECEIVING);
             startInboundValidation();
@@ -3025,14 +3029,14 @@ async function initializeBot() {
             // If we still think we're connected, this is a zombie situation
             if (connectionStatus === "connected") {
               console.error(
-                `   🧟 ZOMBIE CONDITION: Status='connected' but WS closed!`
+                `   🧟 ZOMBIE CONDITION: Status='connected' but WS closed!`,
               );
               // Queue notification about unexpected close
               queueAdminNotification(
                 `🔌 *WebSocket مغلق بشكل غير متوقع*\n\n` +
                   `📊 Code: ${code}\n` +
                   `📝 السبب: ${reasonStr}\n` +
-                  `📨 الرسائل المعالجة: ${totalMessagesProcessed}`
+                  `📨 الرسائل المعالجة: ${totalMessagesProcessed}`,
               );
             }
           });
@@ -3070,7 +3074,7 @@ async function initializeBot() {
         scheduledWhatsappService.initScheduledMessages(
           sock,
           sendMessage,
-          sendImage
+          sendImage,
         );
         console.log("✅ Scheduled WhatsApp messages service initialized");
 
@@ -3091,7 +3095,7 @@ async function initializeBot() {
         deliverPendingNotifications().catch((e) => {
           console.error(
             "❌ Error delivering pending notifications:",
-            e.message
+            e.message,
           );
         });
 
@@ -3120,189 +3124,192 @@ async function initializeBot() {
         const connectionStartTime = Date.now();
         let hasReceivedFirstMessage = false;
 
-        messageHandlerHealthCheckInterval = setInterval(async () => {
-          if (connectionStatus !== "connected" || !sock) return;
+        messageHandlerHealthCheckInterval = setInterval(
+          async () => {
+            if (connectionStatus !== "connected" || !sock) return;
 
-          const timeSinceLastMessage = Date.now() - lastMessageReceivedAt;
-          const minutesSinceLastMessage = Math.floor(
-            timeSinceLastMessage / 60000
-          );
-          const minutesSinceConnectionStart = Math.floor(
-            (Date.now() - connectionStartTime) / 60000
-          );
-          const wsState = getWebSocketState();
-          const wsReadyState = getWebSocketReadyState();
-
-          // Log health status every check (enhanced with WS state)
-          console.log(
-            `📊 [HEALTH CHECK] Last msg: ${minutesSinceLastMessage}min ago | Processed: ${totalMessagesProcessed} | Age: ${minutesSinceConnectionStart}min | WS: ${wsState}`
-          );
-
-          // ============================================
-          // 🔍 ZOMBIE DETECTION: Check WebSocket state
-          // Only trigger if WebSocket is DEFINITELY dead (CLOSING=2 or CLOSED=3)
-          // wsReadyState -1 means sock.ws not accessible - NOT a zombie indicator
-          // ============================================
-          if (wsReadyState >= 2) {
-            // CLOSING or CLOSED
-            console.error(
-              `🧟 [HEALTH CHECK] ZOMBIE DETECTED! WS: ${wsState} (${wsReadyState}) but status: ${connectionStatus}`
+            const timeSinceLastMessage = Date.now() - lastMessageReceivedAt;
+            const minutesSinceLastMessage = Math.floor(
+              timeSinceLastMessage / 60000,
             );
-            logConnectionState("HEALTH_CHECK_ZOMBIE", {
-              wsState,
-              wsReadyState,
-            });
-
-            // Queue notification for after reconnection
-            queueAdminNotification(
-              `🧟 *اتصال ميت (Zombie)*\n\n` +
-                `⚠️ فحص الصحة كشف مشكلة\n` +
-                `🔌 WebSocket: ${wsState}\n` +
-                `📊 الرسائل: ${totalMessagesProcessed}\n` +
-                `⏱️ عمر الاتصال: ${minutesSinceConnectionStart} دقيقة\n` +
-                `🔄 جاري إعادة الاتصال...`
+            const minutesSinceConnectionStart = Math.floor(
+              (Date.now() - connectionStartTime) / 60000,
             );
+            const wsState = getWebSocketState();
+            const wsReadyState = getWebSocketReadyState();
 
-            // Clear interval
-            if (messageHandlerHealthCheckInterval) {
-              clearInterval(messageHandlerHealthCheckInterval);
-              messageHandlerHealthCheckInterval = null;
-            }
-
-            // Force reconnect
-            await forceReconnect("HEALTH_CHECK_ZOMBIE");
-            return;
-          }
-
-          // Update flag if we received any messages
-          if (totalMessagesProcessed > 0) {
-            hasReceivedFirstMessage = true;
-          }
-
-          // ============================================
-          // 🎯 PRODUCTION RECONNECT LOGIC (Multi-Signal)
-          // ============================================
-          // WhatsApp Web can be idle for HOURS - silence alone is NOT a failure signal.
-          // Only reconnect when MULTIPLE failure indicators are present:
-          //   1. Zombie WebSocket (already handled above)
-          //   2. Ping failures (handled by keepalive monitor)
-          //   3. Bad MAC storm (session corruption)
-          //   4. NEVER received messages after 30 min (initial connection failure)
-          //
-          // REMOVED: 8-minute message silence check (caused false positives)
-          // ============================================
-
-          const INITIAL_CONNECTION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes for first message
-
-          // Scenario A: Persistent Bad MAC errors (session corruption)
-          const scenarioA_PersistentBadMac = badMacDetectionCount >= 5;
-
-          // Scenario B: Initial connection NEVER received any messages for 30 minutes
-          // (This catches actual connection failures, not normal idle periods)
-          const scenarioB_InitialConnectionFailure =
-            !hasReceivedFirstMessage &&
-            totalMessagesProcessed === 0 &&
-            Date.now() - connectionStartTime > INITIAL_CONNECTION_TIMEOUT_MS;
-
-          const shouldAutoReconnect =
-            scenarioA_PersistentBadMac || scenarioB_InitialConnectionFailure;
-
-          if (shouldAutoReconnect) {
-            let reason = "UNKNOWN";
-            if (scenarioA_PersistentBadMac) reason = "BAD_MAC";
-            else if (scenarioB_InitialConnectionFailure)
-              reason = "INITIAL_CONNECTION_TIMEOUT";
-
-            console.warn(`\n🚨 ============================================`);
-            console.warn(`🚨 STALE/BROKEN CONNECTION DETECTED`);
-            console.warn(`🚨 Reason: ${reason}`);
-            console.warn(
-              `🚨 Last message: ${minutesSinceLastMessage} minutes ago`
+            // Log health status every check (enhanced with WS state)
+            console.log(
+              `📊 [HEALTH CHECK] Last msg: ${minutesSinceLastMessage}min ago | Processed: ${totalMessagesProcessed} | Age: ${minutesSinceConnectionStart}min | WS: ${wsState}`,
             );
-            console.warn(`🚨 Total processed: ${totalMessagesProcessed}`);
-            console.warn(`🚨 WebSocket: ${wsState}`);
-            console.warn(`🚨 ============================================\n`);
-
-            logConnectionState("AUTO_RECONNECT_TRIGGERED", {
-              reason,
-              minutesSinceLastMessage,
-              wsState,
-            });
-
-            // Queue notification for after reconnection (don't try to send now)
-            let alertMsg = `🔄 *إعادة اتصال تلقائية*\n\n`;
-            if (scenarioA_PersistentBadMac) {
-              alertMsg += `⚠️ مشاكل في فك تشفير الرسائل (Bad MAC)\n`;
-            } else if (scenarioB_InitialConnectionFailure) {
-              alertMsg += `⚠️ فشل الاتصال الأولي (30 دقيقة بدون رسائل)\n`;
-            }
-            alertMsg += `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n`;
-            alertMsg += `🔌 WebSocket: ${wsState}\n`;
-            alertMsg += `🔄 تم إعادة الاتصال تلقائياً`;
-
-            queueAdminNotification(alertMsg);
-
-            // Reset Bad MAC counter
-            badMacDetectionCount = 0;
-            sessionResetScheduled = false;
 
             // ============================================
-            // 🔄 SESSION REPAIR/RESET (LID Migration Fix)
-            // Fixes corrupted sessions using soft repair or full reset
+            // 🔍 ZOMBIE DETECTION: Check WebSocket state
+            // Only trigger if WebSocket is DEFINITELY dead (CLOSING=2 or CLOSED=3)
+            // wsReadyState -1 means sock.ws not accessible - NOT a zombie indicator
             // ============================================
-            if (scenarioA_PersistentBadMac) {
-              if (!softRepairAttempted) {
-                // FIRST ATTEMPT: Soft Repair (preserves QR)
-                softRepairSessions();
-              } else {
-                // SECOND ATTEMPT: Full Reset (requires QR)
-                console.log(
-                  "🗑️ [FULL RESET] Soft repair failed to fix errors. Clearing everything..."
-                );
-                try {
-                  const authPath = path.join(
-                    __dirname,
-                    "..",
-                    "auth_info_baileys"
-                  );
-                  if (fs.existsSync(authPath)) {
-                    fs.rmSync(authPath, { recursive: true, force: true });
-                    console.log("✅ Session files cleared successfully");
-                    console.log("📱 You will need to scan a new QR code");
-                  }
+            if (wsReadyState >= 2) {
+              // CLOSING or CLOSED
+              console.error(
+                `🧟 [HEALTH CHECK] ZOMBIE DETECTED! WS: ${wsState} (${wsReadyState}) but status: ${connectionStatus}`,
+              );
+              logConnectionState("HEALTH_CHECK_ZOMBIE", {
+                wsState,
+                wsReadyState,
+              });
 
-                  if (fs.existsSync(STORE_FILE)) {
-                    fs.rmSync(STORE_FILE, { force: true });
-                    console.log("✅ Message store cleared");
-                  }
+              // Queue notification for after reconnection
+              queueAdminNotification(
+                `🧟 *اتصال ميت (Zombie)*\n\n` +
+                  `⚠️ فحص الصحة كشف مشكلة\n` +
+                  `🔌 WebSocket: ${wsState}\n` +
+                  `📊 الرسائل: ${totalMessagesProcessed}\n` +
+                  `⏱️ عمر الاتصال: ${minutesSinceConnectionStart} دقيقة\n` +
+                  `🔄 جاري إعادة الاتصال...`,
+              );
 
-                  // Reset repair flag for future
-                  softRepairAttempted = false;
-                } catch (clearError) {
-                  console.error(
-                    "❌ Error during full reset:",
-                    clearError.message
+              // Clear interval
+              if (messageHandlerHealthCheckInterval) {
+                clearInterval(messageHandlerHealthCheckInterval);
+                messageHandlerHealthCheckInterval = null;
+              }
+
+              // Force reconnect
+              await forceReconnect("HEALTH_CHECK_ZOMBIE");
+              return;
+            }
+
+            // Update flag if we received any messages
+            if (totalMessagesProcessed > 0) {
+              hasReceivedFirstMessage = true;
+            }
+
+            // ============================================
+            // 🎯 PRODUCTION RECONNECT LOGIC (Multi-Signal)
+            // ============================================
+            // WhatsApp Web can be idle for HOURS - silence alone is NOT a failure signal.
+            // Only reconnect when MULTIPLE failure indicators are present:
+            //   1. Zombie WebSocket (already handled above)
+            //   2. Ping failures (handled by keepalive monitor)
+            //   3. Bad MAC storm (session corruption)
+            //   4. NEVER received messages after 30 min (initial connection failure)
+            //
+            // REMOVED: 8-minute message silence check (caused false positives)
+            // ============================================
+
+            const INITIAL_CONNECTION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes for first message
+
+            // Scenario A: Persistent Bad MAC errors (session corruption)
+            const scenarioA_PersistentBadMac = badMacDetectionCount >= 5;
+
+            // Scenario B: Initial connection NEVER received any messages for 30 minutes
+            // (This catches actual connection failures, not normal idle periods)
+            const scenarioB_InitialConnectionFailure =
+              !hasReceivedFirstMessage &&
+              totalMessagesProcessed === 0 &&
+              Date.now() - connectionStartTime > INITIAL_CONNECTION_TIMEOUT_MS;
+
+            const shouldAutoReconnect =
+              scenarioA_PersistentBadMac || scenarioB_InitialConnectionFailure;
+
+            if (shouldAutoReconnect) {
+              let reason = "UNKNOWN";
+              if (scenarioA_PersistentBadMac) reason = "BAD_MAC";
+              else if (scenarioB_InitialConnectionFailure)
+                reason = "INITIAL_CONNECTION_TIMEOUT";
+
+              console.warn(`\n🚨 ============================================`);
+              console.warn(`🚨 STALE/BROKEN CONNECTION DETECTED`);
+              console.warn(`🚨 Reason: ${reason}`);
+              console.warn(
+                `🚨 Last message: ${minutesSinceLastMessage} minutes ago`,
+              );
+              console.warn(`🚨 Total processed: ${totalMessagesProcessed}`);
+              console.warn(`🚨 WebSocket: ${wsState}`);
+              console.warn(`🚨 ============================================\n`);
+
+              logConnectionState("AUTO_RECONNECT_TRIGGERED", {
+                reason,
+                minutesSinceLastMessage,
+                wsState,
+              });
+
+              // Queue notification for after reconnection (don't try to send now)
+              let alertMsg = `🔄 *إعادة اتصال تلقائية*\n\n`;
+              if (scenarioA_PersistentBadMac) {
+                alertMsg += `⚠️ مشاكل في فك تشفير الرسائل (Bad MAC)\n`;
+              } else if (scenarioB_InitialConnectionFailure) {
+                alertMsg += `⚠️ فشل الاتصال الأولي (30 دقيقة بدون رسائل)\n`;
+              }
+              alertMsg += `📊 الرسائل المعالجة: ${totalMessagesProcessed}\n`;
+              alertMsg += `🔌 WebSocket: ${wsState}\n`;
+              alertMsg += `🔄 تم إعادة الاتصال تلقائياً`;
+
+              queueAdminNotification(alertMsg);
+
+              // Reset Bad MAC counter
+              badMacDetectionCount = 0;
+              sessionResetScheduled = false;
+
+              // ============================================
+              // 🔄 SESSION REPAIR/RESET (LID Migration Fix)
+              // Fixes corrupted sessions using soft repair or full reset
+              // ============================================
+              if (scenarioA_PersistentBadMac) {
+                if (!softRepairAttempted) {
+                  // FIRST ATTEMPT: Soft Repair (preserves QR)
+                  softRepairSessions();
+                } else {
+                  // SECOND ATTEMPT: Full Reset (requires QR)
+                  console.log(
+                    "🗑️ [FULL RESET] Soft repair failed to fix errors. Clearing everything...",
                   );
+                  try {
+                    const authPath = path.join(
+                      __dirname,
+                      "..",
+                      "auth_info_baileys",
+                    );
+                    if (fs.existsSync(authPath)) {
+                      fs.rmSync(authPath, { recursive: true, force: true });
+                      console.log("✅ Session files cleared successfully");
+                      console.log("📱 You will need to scan a new QR code");
+                    }
+
+                    if (fs.existsSync(STORE_FILE)) {
+                      fs.rmSync(STORE_FILE, { force: true });
+                      console.log("✅ Message store cleared");
+                    }
+
+                    // Reset repair flag for future
+                    softRepairAttempted = false;
+                  } catch (clearError) {
+                    console.error(
+                      "❌ Error during full reset:",
+                      clearError.message,
+                    );
+                  }
                 }
               }
+
+              // Clear the interval to prevent multiple reconnect attempts
+              if (messageHandlerHealthCheckInterval) {
+                clearInterval(messageHandlerHealthCheckInterval);
+                messageHandlerHealthCheckInterval = null;
+              }
+
+              // Use centralized forceReconnect function
+              await forceReconnect(reason);
+              return; // Exit this interval callback
             }
 
-            // Clear the interval to prevent multiple reconnect attempts
-            if (messageHandlerHealthCheckInterval) {
-              clearInterval(messageHandlerHealthCheckInterval);
-              messageHandlerHealthCheckInterval = null;
-            }
-
-            // Use centralized forceReconnect function
-            await forceReconnect(reason);
-            return; // Exit this interval callback
-          }
-
-          // No warning needed - WhatsApp Web can be idle for hours in production
-        }, 2 * 60 * 1000); // Check every 2 minutes
+            // No warning needed - WhatsApp Web can be idle for hours in production
+          },
+          2 * 60 * 1000,
+        ); // Check every 2 minutes
 
         console.log(
-          "✅ Auto-reconnect health monitor initialized (triggers on: Bad MAC storm, initial connection timeout)"
+          "✅ Auto-reconnect health monitor initialized (triggers on: Bad MAC storm, initial connection timeout)",
         );
       }
     });
@@ -3319,7 +3326,7 @@ async function initializeBot() {
       console.log(
         `🔔 [${new Date().toISOString()}] messages.upsert #${totalMessagesProcessed} - Messages count: ${
           messages.length
-        }`
+        }`,
       );
 
       // ============================================
@@ -3344,7 +3351,7 @@ async function initializeBot() {
       // ============================================
       if (connectionStatus !== "connected") {
         console.warn(
-          `⚠️ [HEALTH] Ignoring message - connection status: ${connectionStatus}`
+          `⚠️ [HEALTH] Ignoring message - connection status: ${connectionStatus}`,
         );
         return;
       }
@@ -3362,7 +3369,7 @@ async function initializeBot() {
           console.log(
             `📨 Message received - fromMe: ${
               msg.key.fromMe
-            }, hasMessage: ${!!msg.message}, remoteJid: ${msg.key.remoteJid}`
+            }, hasMessage: ${!!msg.message}, remoteJid: ${msg.key.remoteJid}`,
           );
 
           // ============================================
@@ -3448,7 +3455,7 @@ async function initializeBot() {
           // ============================================
           if (isPrivate && (messageText || isMediaOnly)) {
             console.log(
-              `💬 Private message from: ${senderName} (${senderPhone}), JID: ${from}`
+              `💬 Private message from: ${senderName} (${senderPhone}), JID: ${from}`,
             );
 
             try {
@@ -3468,14 +3475,14 @@ async function initializeBot() {
                   console.log(`🔗 Unregistered LID message ignored: ${from}`);
                 } else {
                   console.log(
-                    `🚫 Message ignored - sender is not an admin: ${senderName} (${senderPhone})`
+                    `🚫 Message ignored - sender is not an admin: ${senderName} (${senderPhone})`,
                   );
                 }
                 continue; // Don't respond to non-admins
               }
 
               console.log(
-                `✅ Admin message detected from: ${senderName} (${senderPhone})`
+                `✅ Admin message detected from: ${senderName} (${senderPhone})`,
               );
 
               // Admin commands to control bot responses (with confirmation)
@@ -3485,7 +3492,7 @@ async function initializeBot() {
                 const rawMain = commandParts[0] || "";
                 const mainCommand = rawMain.replace(
                   /[^\u0600-\u06FFa-zA-Z]/g,
-                  ""
+                  "",
                 );
 
                 // First check if admin is confirming or cancelling a pending action
@@ -3546,7 +3553,7 @@ async function initializeBot() {
                       }
                       await sendMessage(
                         from,
-                        responseMsg || "✅ لا تغييرات مطلوبة"
+                        responseMsg || "✅ لا تغييرات مطلوبة",
                       );
                       return;
                     } else if (action.type === "start") {
@@ -3566,7 +3573,7 @@ async function initializeBot() {
                           unblockedList.push(
                             `📱 +${targetPhone} (${
                               targetClient.name || "غير محدد"
-                            })`
+                            })`,
                           );
                         } else {
                           notBlockedCount++;
@@ -3584,7 +3591,7 @@ async function initializeBot() {
                       }
                       await sendMessage(
                         from,
-                        responseMsg || "✅ لا تغييرات مطلوبة"
+                        responseMsg || "✅ لا تغييرات مطلوبة",
                       );
                       return;
                     } else if (action.type === "waseet") {
@@ -3604,7 +3611,7 @@ async function initializeBot() {
                           });
                           successCount++;
                           waseetList.push(
-                            `📱 +${targetPhone} (${client.name || "غير محدد"})`
+                            `📱 +${targetPhone} (${client.name || "غير محدد"})`,
                           );
                         }
                       }
@@ -3619,7 +3626,7 @@ async function initializeBot() {
                       }
                       await sendMessage(
                         from,
-                        responseMsg || "✅ لا تغييرات مطلوبة"
+                        responseMsg || "✅ لا تغييرات مطلوبة",
                       );
                       return;
                     }
@@ -3638,15 +3645,15 @@ async function initializeBot() {
 
                 console.log(
                   `🔍 DEBUG - Admin command: ${mainCommand}, extracted phones: ${targetPhones.join(
-                    ", "
-                  )}`
+                    ", ",
+                  )}`,
                 );
 
                 if (mainCommand === "ايقاف" || mainCommand === "توقف") {
                   if (targetPhones.length === 0) {
                     await sendMessage(
                       from,
-                      `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتوقف +966508007053\n\nأو عدة أرقام:\nتوقف\n+966508007053\n+966508007054\n+966508007055`
+                      `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتوقف +966508007053\n\nأو عدة أرقام:\nتوقف\n+966508007053\n+966508007054\n+966508007055`,
                     );
                     return;
                   }
@@ -3662,14 +3669,14 @@ async function initializeBot() {
                     .join("\n");
                   await sendMessage(
                     from,
-                    `🛑 طلب إيقاف البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
+                    `🛑 طلب إيقاف البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`,
                   );
                   return;
                 } else if (mainCommand === "تشغيل" || mainCommand === "تفعيل") {
                   if (targetPhones.length === 0) {
                     await sendMessage(
                       from,
-                      `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتشغيل +966508007053\n\nأو عدة أرقام:\nتشغيل\n+966508007053\n+966508007054\n+966508007055`
+                      `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتشغيل +966508007053\n\nأو عدة أرقام:\nتشغيل\n+966508007053\n+966508007054\n+966508007055`,
                     );
                     return;
                   }
@@ -3683,14 +3690,14 @@ async function initializeBot() {
                     .join("\n");
                   await sendMessage(
                     from,
-                    `✅ طلب تشغيل البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
+                    `✅ طلب تشغيل البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`,
                   );
                   return;
                 } else if (mainCommand === "وسيط" || mainCommand === "وسطاء") {
                   if (targetPhones.length === 0) {
                     await sendMessage(
                       from,
-                      `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nوسيط +966508007053\n\nأو عدة أرقام:\nوسيط\n+966508007053\n+966508007054\n+966508007055`
+                      `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nوسيط +966508007053\n\nأو عدة أرقام:\nوسيط\n+966508007053\n+966508007054\n+966508007055`,
                     );
                     return;
                   }
@@ -3704,7 +3711,7 @@ async function initializeBot() {
                     .join("\n");
                   await sendMessage(
                     from,
-                    `🤝 طلب إضافة وسطاء للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
+                    `🤝 طلب إضافة وسطاء للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`,
                   );
                   return;
                 }
@@ -3717,7 +3724,7 @@ async function initializeBot() {
                 await adminCommandService.handleAdminCommand(
                   sock,
                   messageText,
-                  from
+                  from,
                 );
 
               // If it's an admin command, send response and return
@@ -3736,7 +3743,7 @@ async function initializeBot() {
                 // Skip media-only messages
                 if (isMediaOnly && !messageText) {
                   console.log(
-                    `⏭️ Ignoring media-only message from waseet ${senderName}`
+                    `⏭️ Ignoring media-only message from waseet ${senderName}`,
                   );
                   return;
                 }
@@ -3744,34 +3751,34 @@ async function initializeBot() {
                 // Stage 1: Quick local check (FREE - no tokens)
                 if (!waseetDetector.isLikelyAd(messageText)) {
                   console.log(
-                    `❌ Not likely an ad from waseet ${senderName}, ignoring...`
+                    `❌ Not likely an ad from waseet ${senderName}, ignoring...`,
                   );
                   return; // Don't send to dashboard or AI
                 }
 
                 // Stage 2: Only use AI if it passes basic check
                 console.log(
-                  `✅ Potential ad from waseet ${senderName}, processing with AI...`
+                  `✅ Potential ad from waseet ${senderName}, processing with AI...`,
                 );
 
                 // Process through AI
                 const aiResult = await processMessage(messageText);
 
                 console.log(
-                  `🔍 AI Result for waseet: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`
+                  `🔍 AI Result for waseet: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`,
                 );
 
                 // If not confirmed as ad, ignore
                 if (!aiResult.isAd) {
                   console.log(
-                    `❌ AI confirmed not an ad from waseet ${senderName} (confidence: ${aiResult.confidence}%)`
+                    `❌ AI confirmed not an ad from waseet ${senderName} (confidence: ${aiResult.confidence}%)`,
                   );
                   return;
                 }
 
                 // ✅ Confirmed ad from waseet - Add to dashboard
                 console.log(
-                  `✅ Confirmed ad from waseet ${senderName}, adding to dashboard...`
+                  `✅ Confirmed ad from waseet ${senderName}, adding to dashboard...`,
                 );
 
                 // Create ad object (similar to group ads)
@@ -3809,14 +3816,14 @@ async function initializeBot() {
                 waseetDetector.incrementAdCount(from);
 
                 console.log(
-                  `✨ Waseet ad saved successfully! ID: ${ad.id}, From: ${senderName}`
+                  `✨ Waseet ad saved successfully! ID: ${ad.id}, From: ${senderName}`,
                 );
 
                 // Check if auto-approve is enabled and auto-post to WordPress
                 const settings = getSettings();
                 if (settings.autoApproveWordPress === true && ad.wpData) {
                   console.log(
-                    "🚀 Auto-approve enabled, posting waseet ad to WordPress automatically..."
+                    "🚀 Auto-approve enabled, posting waseet ad to WordPress automatically...",
                   );
 
                   // Auto-post to WordPress using the SAME function as manual posting
@@ -3826,7 +3833,7 @@ async function initializeBot() {
                       const { postAdToWordPress } = require("../routes/bot");
 
                       console.log(
-                        "🔵 Starting WordPress auto-post for waseet ad using manual function..."
+                        "🔵 Starting WordPress auto-post for waseet ad using manual function...",
                       );
                       console.log("🔵 Ad ID:", ad.id);
 
@@ -3835,17 +3842,17 @@ async function initializeBot() {
                         ad,
                         sock,
                         ad.wpData,
-                        false
+                        false,
                       );
 
                       if (result.success) {
                         console.log(
-                          "✅ ✅ ✅ Waseet ad auto-posted to WordPress successfully! ✅ ✅ ✅"
+                          "✅ ✅ ✅ Waseet ad auto-posted to WordPress successfully! ✅ ✅ ✅",
                         );
                         console.log("📌 Post ID:", result.wordpressPost.id);
                         console.log(
                           "📌 Short Link:",
-                          result.wordpressPost.link
+                          result.wordpressPost.link,
                         );
 
                         // Update ad status to "accepted" (not "posted")
@@ -3859,21 +3866,21 @@ async function initializeBot() {
                         // Save updated ad
                         saveAds();
                         console.log(
-                          "✅ Waseet ad updated with WordPress info and marked as accepted"
+                          "✅ Waseet ad updated with WordPress info and marked as accepted",
                         );
                       } else {
                         console.error(
-                          "❌ WordPress posting returned unsuccessful result"
+                          "❌ WordPress posting returned unsuccessful result",
                         );
                       }
                     } catch (error) {
                       console.error(
-                        "❌ ❌ ❌ Error during waseet auto-post to WordPress ❌ ❌ ❌"
+                        "❌ ❌ ❌ Error during waseet auto-post to WordPress ❌ ❌ ❌",
                       );
                       console.error("Error message:", error.message);
                       console.error(
                         "Error details:",
-                        error.response?.data || error
+                        error.response?.data || error,
                       );
                     }
                   })();
@@ -3884,7 +3891,7 @@ async function initializeBot() {
                   from,
                   `✅ تم استلام إعلانك بنجاح وإضافته إلى قائمة الانتظار.\n\n📊 التصنيف: ${
                     aiResult.category || "غير محدد"
-                  }\n🎯 الدقة: ${aiResult.confidence}%\n\nشكراً لك! 🙏`
+                  }\n🎯 الدقة: ${aiResult.confidence}%\n\nشكراً لك! 🙏`,
                 );
 
                 return; // Don't process through regular private chat system
@@ -3901,7 +3908,7 @@ async function initializeBot() {
               // If it's media only without text, handle based on state
               if (isMediaOnly && !messageText) {
                 console.log(
-                  `📎 Media-only message detected from: ${senderName}`
+                  `📎 Media-only message detected from: ${senderName}`,
                 );
 
                 // Only warn if waiting for name or awaiting_requirements (when text is needed)
@@ -3914,7 +3921,7 @@ async function initializeBot() {
                   if (!clientData.mediaWarningShown) {
                     await sendMessage(
                       from,
-                      "عذراً، لا أستطيع معالجة الرسائل الصوتية أو الوسائط بدون نص حالياً. 📎\n\nمن فضلك اكتب رسالة نصية، أو تواصل معنا مباشرة:\n📱 *0508001475*"
+                      "عذراً، لا أستطيع معالجة الرسائل الصوتية أو الوسائط بدون نص حالياً. 📎\n\nمن فضلك اكتب رسالة نصية، أو تواصل معنا مباشرة:\n📱 *0508001475*",
                     );
                     // Mark that we've shown the warning
                     privateClientModel.updateClient(phoneNumber, {
@@ -3922,7 +3929,7 @@ async function initializeBot() {
                     });
                   } else {
                     console.log(
-                      `⏭️ Already warned about media, ignoring subsequent media from ${senderName}`
+                      `⏭️ Already warned about media, ignoring subsequent media from ${senderName}`,
                     );
                   }
                 } else {
@@ -3954,7 +3961,7 @@ async function initializeBot() {
                 phoneNumber,
                 messageText,
                 sendReply,
-                sendImageReply
+                sendImageReply,
               );
 
               console.log(`✅ Private chat response sent to ${senderName}`);
@@ -3963,7 +3970,7 @@ async function initializeBot() {
               console.error("❌ Private chat system error:", error);
               await sendMessage(
                 from,
-                "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى لاحقاً. 🙏"
+                "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى لاحقاً. 🙏",
               );
             }
           }
@@ -3978,7 +3985,7 @@ async function initializeBot() {
           // ============================================
           if (!ENABLE_AD_FETCHING) {
             console.log(
-              `🚫 Ad fetching is disabled (ENABLE_AD_FETCHING=false) - Skipping message from: ${from}`
+              `🚫 Ad fetching is disabled (ENABLE_AD_FETCHING=false) - Skipping message from: ${from}`,
             );
             continue; // Skip processing this message as an ad
           }
@@ -4050,7 +4057,7 @@ async function initializeBot() {
                 remoteJid: msg.key.remoteJid,
                 messageKey: msg.key,
               },
-              processMessageFromQueue
+              processMessageFromQueue,
             )
             .catch((error) => {
               console.error("❌ Failed to process message from queue:", error);
@@ -4059,7 +4066,7 @@ async function initializeBot() {
           messageHandlerErrors++;
           console.error("❌ ============================================");
           console.error(
-            `❌ CRITICAL ERROR in message handler (error #${messageHandlerErrors})`
+            `❌ CRITICAL ERROR in message handler (error #${messageHandlerErrors})`,
           );
           console.error(`❌ Time: ${new Date().toISOString()}`);
           console.error(`❌ Error:`, error.message || error);
@@ -4076,7 +4083,7 @@ async function initializeBot() {
               await sock.sendMessage(ADMIN_NOTIFICATION_JID, {
                 text: `⚠️ *تنبيه: خطأ في البوت*\n\n🕐 الوقت: ${new Date().toLocaleString(
                   "ar-EG",
-                  { timeZone: "Africa/Cairo" }
+                  { timeZone: "Africa/Cairo" },
                 )}\n❌ الخطأ: ${
                   error.message?.substring(0, 100) || "Unknown"
                 }\n📊 إجمالي الأخطاء: ${messageHandlerErrors}\n\nيرجى مراجعة سجلات الخادم.`,
@@ -4184,7 +4191,7 @@ function getMessageHandlerHealth() {
       maxFailures: MAX_PING_FAILURES,
       lastSuccessfulPing: lastSuccessfulPing,
       secondsSinceLastPing: Math.floor(
-        (Date.now() - lastSuccessfulPing) / 1000
+        (Date.now() - lastSuccessfulPing) / 1000,
       ),
     },
   };
@@ -4200,7 +4207,7 @@ async function disconnectBot() {
     } catch (error) {
       console.warn(
         "⚠️ Error during logout (connection likely already closed):",
-        error.message
+        error.message,
       );
     } finally {
       // Ensure all listeners are removed to prevent memory leaks
@@ -4227,7 +4234,7 @@ async function disconnectBot() {
       console.log("✅ auth_info_baileys folder deleted successfully");
     } else {
       console.log(
-        "ℹ️ auth_info_baileys folder does not exist, nothing to clear."
+        "ℹ️ auth_info_baileys folder does not exist, nothing to clear.",
       );
     }
   } catch (error) {
@@ -4248,7 +4255,7 @@ async function sendMessage(numberOrJid, message) {
   // Block only for non-crypto_unstable blocking states
   if (!readyStatus.canSend) {
     console.warn(
-      `❌ sendMessage: Not ready to send (phase: ${currentPhase}, reason: ${readyStatus.warning})`
+      `❌ sendMessage: Not ready to send (phase: ${currentPhase}, reason: ${readyStatus.warning})`,
     );
     return null;
   }
@@ -4257,7 +4264,7 @@ async function sendMessage(numberOrJid, message) {
   const sendingDuringCryptoUnstable = readyStatus.warning === "crypto_unstable";
   if (sendingDuringCryptoUnstable) {
     console.warn(
-      `⚠️ sendMessage: Attempting send during CRYPTO_UNSTABLE - will notify admin`
+      `⚠️ sendMessage: Attempting send during CRYPTO_UNSTABLE - will notify admin`,
     );
   }
 
@@ -4275,7 +4282,7 @@ async function sendMessage(numberOrJid, message) {
         return true;
       }
       console.log(
-        `⏳ Waiting for connection... (${socketManager.getConnectionStatus()}, phase: ${currentPhase})`
+        `⏳ Waiting for connection... (${socketManager.getConnectionStatus()}, phase: ${currentPhase})`,
       );
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
@@ -4315,7 +4322,7 @@ async function sendMessage(numberOrJid, message) {
         const errorMsg = sendError.message || String(sendError);
 
         console.warn(
-          `⚠️ Send attempt ${attempt}/${maxRetries} failed: ${errorMsg}`
+          `⚠️ Send attempt ${attempt}/${maxRetries} failed: ${errorMsg}`,
         );
 
         // Check if it's a retriable error
@@ -4341,7 +4348,7 @@ async function sendMessage(numberOrJid, message) {
             const connected = await waitForConnection(20000);
             if (!connected) {
               console.error(
-                `❌ Connection not restored after ${attempt} attempts`
+                `❌ Connection not restored after ${attempt} attempts`,
               );
               continue; // Try again anyway
             }
@@ -4376,7 +4383,7 @@ async function sendMessage(numberOrJid, message) {
 
   if (urls.length > 0) {
     console.log(
-      `🔗 Message contains ${urls.length} URL(s), generating link preview...`
+      `🔗 Message contains ${urls.length} URL(s), generating link preview...`,
     );
 
     try {
@@ -4411,7 +4418,7 @@ async function sendMessage(numberOrJid, message) {
             },
           };
           console.log(
-            `📎 Added thumbnail to link preview (${linkPreview.jpegThumbnail.length} bytes)`
+            `📎 Added thumbnail to link preview (${linkPreview.jpegThumbnail.length} bytes)`,
           );
         } else {
           // Fallback: Add link preview without thumbnail
@@ -4441,7 +4448,7 @@ async function sendMessage(numberOrJid, message) {
           return; // Exit after successful send
         } catch (sendError) {
           console.warn(
-            `⚠️ Failed to send with link preview after retries: ${sendError.message}`
+            `⚠️ Failed to send with link preview after retries: ${sendError.message}`,
           );
           console.warn(`⚠️ Falling back to plain text send...`);
           // Fall through to plain text send
@@ -4518,7 +4525,7 @@ function updateAdStatus(id, status, rejectionReason = null) {
     console.log(
       `❌ Ad marked as rejected: ${id} - Reason: ${
         rejectionReason || "Not specified"
-      }`
+      }`,
     );
     return true;
   }
@@ -4643,7 +4650,7 @@ async function retryFailedAd(adId) {
   }
 
   console.log(
-    `🔄 Retrying AI processing for ad ${adId} (attempt ${ad.retryCount + 1}/3)`
+    `🔄 Retrying AI processing for ad ${adId} (attempt ${ad.retryCount + 1}/3)`,
   );
 
   try {
@@ -4690,7 +4697,7 @@ async function retryFailedAd(adId) {
         saveAds();
 
         console.log(
-          `🗑️ Ad ${adId} moved to recycle bin after retry (not an ad)`
+          `🗑️ Ad ${adId} moved to recycle bin after retry (not an ad)`,
         );
       }
     }
@@ -4710,7 +4717,7 @@ async function retryFailedAd(adId) {
       // Schedule another retry after longer delay (exponential backoff)
       const delayMinutes = Math.pow(2, ad.retryCount) * 5; // 10, 20, 40 minutes
       console.log(
-        `⏳ Scheduling retry ${ad.retryCount + 1} after ${delayMinutes} minutes`
+        `⏳ Scheduling retry ${ad.retryCount + 1} after ${delayMinutes} minutes`,
       );
       setTimeout(() => retryFailedAd(adId), delayMinutes * 60 * 1000);
     } else {
@@ -4728,7 +4735,7 @@ function retryPendingAds() {
 
   if (pendingAds.length > 0) {
     console.log(
-      `🔄 Found ${pendingAds.length} ads pending retry. Starting retry process...`
+      `🔄 Found ${pendingAds.length} ads pending retry. Starting retry process...`,
     );
 
     // Stagger retries to avoid overwhelming the API
@@ -4837,11 +4844,11 @@ async function getGroupsWithMetadata(forceRefresh = false) {
       }
 
       console.log(
-        `✅ Found and saved ${groupsList.length} groups/communities total`
+        `✅ Found and saved ${groupsList.length} groups/communities total`,
       );
       console.log(`✅ seenGroups now has ${seenGroups.size} groups`);
       console.log(
-        `✅ groupsMetadata now has ${Object.keys(groupsMetadata).length} groups`
+        `✅ groupsMetadata now has ${Object.keys(groupsMetadata).length} groups`,
       );
 
       // STEP 3: Save to cache for future use
@@ -4858,7 +4865,7 @@ async function getGroupsWithMetadata(forceRefresh = false) {
   console.log(
     `📋 [FALLBACK] Returning from memory - seenGroups size: ${
       seenGroups.size
-    }, groupsMetadata keys: ${Object.keys(groupsMetadata).length}`
+    }, groupsMetadata keys: ${Object.keys(groupsMetadata).length}`,
   );
 
   const groupsList = [];
@@ -4911,7 +4918,7 @@ async function canSendInGroup(groupId, groupMetadata = null) {
 
     // Find bot in participants
     const botParticipant = metadata.participants?.find(
-      (p) => p.id.includes(botNumber) || p.id.split("@")[0] === botNumber
+      (p) => p.id.includes(botNumber) || p.id.split("@")[0] === botNumber,
     );
 
     if (!botParticipant) {
@@ -4939,7 +4946,7 @@ async function canSendInGroup(groupId, groupMetadata = null) {
 
 function getCollections() {
   console.log(
-    `📦 getCollections() called - returning ${collections.length} collections`
+    `📦 getCollections() called - returning ${collections.length} collections`,
   );
   return collections;
 }
@@ -5038,7 +5045,7 @@ function getRecycleBin() {
   console.log(
     "📋 getRecycleBin() called - returning",
     recycleBin.length,
-    "items"
+    "items",
   );
   return recycleBin;
 }
@@ -5100,7 +5107,7 @@ function restoreFromRecycleBin(id) {
   console.log(
     `♻️ Ad restored from recycle bin: ${
       ad.id
-    } with all data (wpData: ${!!item.wpData}, imageUrl: ${!!item.imageUrl})`
+    } with all data (wpData: ${!!item.wpData}, imageUrl: ${!!item.imageUrl})`,
   );
   return { success: true, ad };
 }
@@ -5171,12 +5178,12 @@ function startAdsFileWatcher() {
         if (ok) {
           console.log(
             `📥 Detected external ads update at ${new Date(
-              curr.mtime
-            ).toLocaleString("en-US", { hour12: false })}`
+              curr.mtime,
+            ).toLocaleString("en-US", { hour12: false })}`,
           );
         } else {
           console.warn(
-            "⚠️ Detected ads change but reload failed (will keep current in-memory ads)"
+            "⚠️ Detected ads change but reload failed (will keep current in-memory ads)",
           );
           // Try again shortly in case file was mid-write
           setTimeout(() => {
