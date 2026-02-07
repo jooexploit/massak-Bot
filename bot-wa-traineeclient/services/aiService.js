@@ -1476,7 +1476,7 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
       settings && settings.hasakFooter
         ? settings.hasakFooter
         : defaultHasakFooter;
-    message += `\n${hasakFooter}`;
+    message += `\n\n${hasakFooter}`;
   } else {
     // Masaak format: Title, Price, Space, Location, Contact, Link, Footer
     // Add title
@@ -1554,7 +1554,7 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
     }
 
     // Add fixed contact phone number (always 0508001475)
-    message += `📲 *للتواصل:* 0508001475\n`;
+    message += `📲 *للتواصل:* 0508001475`;
 
     // Add link if available
     if (wpLink) {
@@ -1566,7 +1566,7 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
       settings && settings.masaakFooter
         ? settings.masaakFooter
         : defaultMasaakFooter;
-    message += `\n${masaakFooter}`;
+    message += `\n\n${masaakFooter}`;
   }
 
   return message.trim();
@@ -1626,7 +1626,7 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
       message += `\n👈 *للتفاصيل اضغط على الرابط👇*\n${wpLink}`;
     }
 
-    message += `\n${footer}`;
+    message += `\n\n${footer}`;
   } else {
     // Masaak format: Title, Price, Space, Location, Contact, Link, Footer
     if (wpData.title) {
@@ -1685,13 +1685,13 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
       message += `📍 *الموقع:* ${location}\n`;
     }
 
-    message += `📲 *للتواصل:* 0508001475\n`;
+    message += `📲 *للتواصل:* 0508001475`;
 
     if (wpLink) {
       message += `\n👈 *للتفاصيل اضغط على الرابط👇*\n${wpLink}`;
     }
 
-    message += `\n${footer}`;
+    message += `\n\n${footer}`;
   }
 
   return message.trim();
@@ -1768,6 +1768,141 @@ async function processMessage(text) {
   }
 }
 
+/**
+ * Enhance HTML content with better styling and structure
+ * Ensures the content is well-formatted with proper HTML tags and styling
+ * @param {string} htmlContent - Raw HTML content from AI
+ * @param {string} adType - Type of ad: "عرض" or "طلب"
+ * @returns {string} Enhanced HTML content with proper formatting
+ */
+function enhanceHTMLContent(htmlContent, adType) {
+  if (!htmlContent || htmlContent.trim() === "") {
+    return htmlContent;
+  }
+
+  // Check if content already has proper structure
+  const hasHeadings = /<h[1-6]/.test(htmlContent);
+  const hasList = /<[ul|ol]/.test(htmlContent);
+  const hasStrong = /<strong|<b/.test(htmlContent);
+
+  // If content is too short or lacks styling, enhance it
+  if (htmlContent.length < 200 || !hasHeadings) {
+    console.log("⚠️ Enhancing minimal HTML content...");
+
+    // Extract text content
+    const textOnly = htmlContent
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (textOnly.length < 50) {
+      console.log("⚠️ WARNING: Content is too short even after cleaning");
+      return htmlContent;
+    }
+
+    // Split into sentences
+    const sentences = textOnly.split(/[۔\.]+/).filter((s) => s.trim().length > 0);
+
+    // Build enhanced HTML
+    let enhanced = "<div style=\"direction: rtl; text-align: right; padding: 15px; line-height: 1.8;\">\n";
+
+    // Add title if available
+    if (sentences.length > 0) {
+      enhanced += `<h1 style="color: #333; font-size: 1.5em; margin-bottom: 10px; border-bottom: 2px solid #007bff; padding-bottom: 10px;">${sentences[0].trim()}</h1>\n`;
+    }
+
+    // Add intro paragraph
+    if (sentences.length > 1) {
+      enhanced += `<p style="color: #555; font-size: 1.1em; margin: 15px 0;">${sentences.slice(1, 3).join(". ")}</p>\n`;
+    }
+
+    // Add description sections
+    if (sentences.length > 3) {
+      enhanced += `<h2 style="color: #444; font-size: 1.2em; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">التفاصيل</h2>\n`;
+      enhanced += `<ul style="color: #666; line-height: 1.9; padding-right: 20px;">\n`;
+
+      sentences.slice(3).forEach((sentence) => {
+        const trimmed = sentence.trim();
+        if (trimmed.length > 0) {
+          // Highlight numbers with <strong>
+          const withStrong = trimmed.replace(
+            /(\d+[\d\.,]*)/g,
+            "<strong style=\"color: #007bff;\">$1</strong>",
+          );
+          enhanced += `<li style="margin: 8px 0;">${withStrong}</li>\n`;
+        }
+      });
+
+      enhanced += `</ul>\n`;
+    }
+
+    enhanced += `</div>`;
+
+    console.log(
+      "✅ HTML content enhanced - new length:",
+      enhanced.length,
+    );
+    return enhanced;
+  }
+
+  // If content has structure but lacks styling, add CSS styles
+  let enhanced = htmlContent;
+
+  // Wrap in a styled div if not already wrapped
+  if (!enhanced.includes("direction: rtl") && !enhanced.includes("<div")) {
+    enhanced = `<div style="direction: rtl; text-align: right; padding: 15px; line-height: 1.8;">\n${enhanced}\n</div>`;
+  }
+
+  // Add styles to headings if they don't have them
+  enhanced = enhanced.replace(/<h1([^>]*)>/gi, (match, attrs) => {
+    if (attrs.includes("style")) return match;
+    return `<h1 style="color: #333; font-size: 1.5em; margin-top: 15px; margin-bottom: 10px; border-bottom: 2px solid #007bff; padding-bottom: 10px;"${attrs}>`;
+  });
+
+  enhanced = enhanced.replace(/<h2([^>]*)>/gi, (match, attrs) => {
+    if (attrs.includes("style")) return match;
+    return `<h2 style="color: #444; font-size: 1.2em; margin-top: 15px; margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 5px;"${attrs}>`;
+  });
+
+  enhanced = enhanced.replace(/<h3([^>]*)>/gi, (match, attrs) => {
+    if (attrs.includes("style")) return match;
+    return `<h3 style="color: #555; font-size: 1.1em; margin-top: 12px; margin-bottom: 8px;"${attrs}>`;
+  });
+
+  // Add styles to paragraphs
+  enhanced = enhanced.replace(/<p([^>]*)>/gi, (match, attrs) => {
+    if (attrs.includes("style")) return match;
+    return `<p style="color: #666; line-height: 1.8; margin: 10px 0; font-size: 1em;"${attrs}>`;
+  });
+
+  // Add styles to lists
+  enhanced = enhanced.replace(/<ul([^>]*)>/gi, (match, attrs) => {
+    if (attrs.includes("style")) return match;
+    return `<ul style="color: #666; line-height: 1.9; padding-right: 20px; margin: 10px 0;"${attrs}>`;
+  });
+
+  enhanced = enhanced.replace(/<li([^>]*)>/gi, (match, attrs) => {
+    if (attrs.includes("style")) return match;
+    return `<li style="margin: 8px 0;"${attrs}>`;
+  });
+
+  // Highlight numbers with bold and color
+  enhanced = enhanced.replace(/(\d+[\d\.,]*(?:\s*(?:ريال|الف|مليون|متر|سنة|سنوات|شهر|شهري|يوم|سوم|من|إلى|ل|غرف|غرفة|صالة|مطبخ))?)/gi, (match) => {
+    if (!match.includes("<")) {
+      return `<strong style="color: #007bff;">${match}</strong>`;
+    }
+    return match;
+  });
+
+  // Ensure there's a wrapper div if not present
+  if (!enhanced.includes("direction: rtl")) {
+    enhanced = `<div style="direction: rtl; text-align: right; padding: 15px; line-height: 1.8;">\n${enhanced}\n</div>`;
+  }
+
+  console.log("✅ HTML content styled - new length:", enhanced.length);
+  return enhanced;
+}
+
 module.exports = {
   detectAd,
   enhanceAd,
@@ -1778,6 +1913,7 @@ module.exports = {
   validateUserInput,
   getApiKeysStatus,
 };
+
 
 async function extractWordPressData(adText, isRegeneration = false) {
   // Extract phone numbers first using smart extraction
@@ -2102,20 +2238,44 @@ ${adText}${contactHint}
 
 9. المحتوى (content.rendered):
    🏢 للعقارات:
-   - وصف HTML (<h1>, <p>, <h2>, <ul>, <li>) صالح
-   - عرض: العنوان، فقرة افتتاحية، أقسام المواصفات والمميزات والسعر والموقع
+   - وصف HTML احترافي وملون (<h1>, <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <br>) صالح ومنسّق جيداً
+   - الهيكل الموصى به:
+     * <h1>العنوان الرئيسي الجاذب</h1>
+     * <p>فقرة افتتاحية جذابة (2-3 جمل)</p>
+     * <h2>المواصفات</h2>
+     * <ul><li>كل مواصفة بسطر منفصل</li>...</ul>
+     * <h2>المميزات</h2>
+     * <ul><li>كل ميزة بسطر منفصل</li>...</ul>
+     * <h2>السعر والدفع</h2>
+     * <p>معلومات السعر والدفع</p>
+     * <h2>الموقع</h2>
+     * <p>وصف تفصيلي للموقع والمنطقة</p>
+   - اكتب محتوى طويل وشامل (على الأقل 400-500 كلمة)
+   - استخدم <strong> لتمييز الكلمات المهمة والأرقام
    - ممنوع: أرقام اتصال، أسماء وسطاء، أسماء مكاتب، تراخيص، أسماء قروبات، روابط، ملاحظات، شروحات، استنتاجات
    - ⚠️ تذكر: نظف المحتوى من أي إشارة لمكاتب أو قروبات (إلا مسعاك وحساك)
    - اذكر كل الميزات: الدخل السنوي للعمارة، هل العقار مرهون، إلخ
    
    🏷️ للسلع غير العقارية (أثاث، إلكترونيات، سيارات، إلخ):
-   - وصف HTML بسيط: <h1>عنوان السلعة</h1><p>وصف تفصيلي للسلعة مع المميزات والحالة</p>
-   - عرض بيع: اذكر الحالة، المميزات، السعر، سبب البيع (إن وُجد)
-   - طلب شراء: اذكر المواصفات المطلوبة، الميزانية، الاستخدام المقصود
-   - طلب بيع: اذكر السلعة، حالتها، السعر المطلوب أو القابل للتفاوض
+   - وصف HTML محترف ومنسّق: <h1>عنوان السلعة</h1><p>وصف تفصيلي شامل 150+ كلمة</p>
+   - الهيكل الموصى به:
+     * <h1>عنوان جاذب للسلعة</h1>
+     * <p>فقرة افتتاحية (2-3 جمل وصفية)</p>
+     * <h2>تفاصيل السلعة</h2>
+     * <ul><li>كل تفصيل بسطر</li>...</ul>
+     * <h2>الحالة والمواصفات</h2>
+     * <p>وصف تفصيلي للحالة والمواصفات</p>
+     * <h2>السعر</h2>
+     * <p>معلومات السعر والتفاوض</p>
+     * <h2>سبب البيع</h2> (إن وُجد)
+     * <p>السبب والظروف</p>
+   - عرض بيع: اكتب وصفاً شاملاً (200+ كلمة) - اذكر الحالة، المميزات، السعر، سبب البيع (إن وُجد)، التفاصيل الفنية
+   - طلب شراء: اذكر المواصفات المطلوبة (تفصيلاً)، الميزانية، الاستخدام المقصود (150+ كلمة)
+   - طلب بيع: اذكر السلعة، حالتها، السعر المطلوب أو القابل للتفاوض، المرونة (150+ كلمة)
+   - استخدم <strong> للأرقام والتفاصيل المهمة
    - أمثلة:
-     * "<h1>مكيف سبليت 24 وحدة للبيع</h1><p>مكيف نظيف وبحالة ممتازة، تم الاستخدام لمدة سنتين فقط. السعر حسب الفاتورة المرفقة. السبب: الانتقال لمنزل جديد.</p>"
-     * "<h1>مطلوب غسالة ملابس مستعملة</h1><p>أبحث عن غسالة ملابس مستعملة بحالة جيدة، ماركة سامسونج أو LG. الميزانية: حتى 500 ريال.</p>"
+     * "<h1>مكيف سبليت 24 وحدة للبيع</h1><p>مكيف نظيف وبحالة ممتازة، تم الاستخدام لمدة سنتين فقط فقط في فترات الصيف المكثفة...</p><h2>المواصفات التقنية</h2><ul><li>الحجم: <strong>24 وحدة</strong></li><li>الكفاءة: عالية جداً</li>...</ul><p>السعر حسب الفاتورة المرفقة. السبب: الانتقال لمنزل جديد حيث يوجد مكيف مدمج.</p>"
+     * "<h1>أبحث عن غسالة ملابس</h1><p>أبحث عن غسالة ملابس مستعملة بحالة جيدة جداً. أفضلية للماركات العريقة مثل سامسونج أو LG...</p><h2>المواصفات المطلوبة</h2><ul><li>الماركة: سامسونج أو LG</li><li>السعة: <strong>8 كيلو فأعلى</strong></li>...</ul><p>الميزانية: حتى <strong>500 ريال</strong>، والتفاوض ممكن للعرض الجيد.</p>"
 
 10. حقول إضافية (meta - جميع الحقول مطلوبة):
     - owner_name: اسم المالك أو الوكالة
@@ -2377,6 +2537,10 @@ ${adText}${contactHint}
       status: "publish",
       meta: {},
     };
+
+    // 🎨 Enhance HTML content with proper styling and formatting
+    const adType = data.meta?.ad_type?.value || data.meta?.ad_type || "عرض";
+    wpData.content = enhanceHTMLContent(wpData.content, adType);
 
     // Warning if using fallback title
     if (wpData.title === "عقار للبيع") {

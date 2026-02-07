@@ -1474,65 +1474,49 @@ router.get(
       }
 
       // Sort based on sortBy parameter
+      // wordpressPostedAt = when the ad was posted to WordPress (accepted/posted time)
+      // timestamp = when the ad was collected from WhatsApp (collection time)
       ads.sort((a, b) => {
         switch (sortBy) {
           case "accepted-desc": {
-            // Sort by accepted/posted time (newest first)
-            const aAccepted =
-              a.acceptedAt ||
-              a.postedAt ||
-              (a.wpData && a.wpData.postedAt) ||
-              a.timestamp ||
-              0;
-            const bAccepted =
-              b.acceptedAt ||
-              b.postedAt ||
-              (b.wpData && b.wpData.postedAt) ||
-              b.timestamp ||
-              0;
-            return new Date(bAccepted) - new Date(aAccepted);
+            // Sort by WordPress posted time (newest first)
+            const aPosted = a.wordpressPostedAt
+              ? new Date(a.wordpressPostedAt).getTime()
+              : 0;
+            const bPosted = b.wordpressPostedAt
+              ? new Date(b.wordpressPostedAt).getTime()
+              : 0;
+            return bPosted - aPosted;
           }
           case "accepted-asc": {
-            // Sort by accepted/posted time (oldest first)
-            const aAccepted =
-              a.acceptedAt ||
-              a.postedAt ||
-              (a.wpData && a.wpData.postedAt) ||
-              a.timestamp ||
-              0;
-            const bAccepted =
-              b.acceptedAt ||
-              b.postedAt ||
-              (b.wpData && b.wpData.postedAt) ||
-              b.timestamp ||
-              0;
-            return new Date(aAccepted) - new Date(bAccepted);
+            // Sort by WordPress posted time (oldest first)
+            const aPosted = a.wordpressPostedAt
+              ? new Date(a.wordpressPostedAt).getTime()
+              : 0;
+            const bPosted = b.wordpressPostedAt
+              ? new Date(b.wordpressPostedAt).getTime()
+              : 0;
+            return aPosted - bPosted;
           }
           case "time-desc":
-            // Sort by collected time (newest first)
+            // Sort by collection time from WhatsApp (newest first)
             return (b.timestamp || 0) - (a.timestamp || 0);
           case "time-asc":
-            // Sort by collected time (oldest first)
+            // Sort by collection time from WhatsApp (oldest first)
             return (a.timestamp || 0) - (b.timestamp || 0);
           case "confidence-desc":
             return (b.aiConfidence || 0) - (a.aiConfidence || 0);
           case "confidence-asc":
             return (a.aiConfidence || 0) - (b.aiConfidence || 0);
           default: {
-            // Default to accepted time (newest first)
-            const aDefault =
-              a.acceptedAt ||
-              a.postedAt ||
-              (a.wpData && a.wpData.postedAt) ||
-              a.timestamp ||
-              0;
-            const bDefault =
-              b.acceptedAt ||
-              b.postedAt ||
-              (b.wpData && b.wpData.postedAt) ||
-              b.timestamp ||
-              0;
-            return new Date(bDefault) - new Date(aDefault);
+            // Default to WordPress posted time (newest first)
+            const aDefault = a.wordpressPostedAt
+              ? new Date(a.wordpressPostedAt).getTime()
+              : 0;
+            const bDefault = b.wordpressPostedAt
+              ? new Date(b.wordpressPostedAt).getTime()
+              : 0;
+            return bDefault - aDefault;
           }
         }
       });

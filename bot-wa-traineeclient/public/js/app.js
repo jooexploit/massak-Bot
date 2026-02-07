@@ -7510,41 +7510,50 @@ function applyWhatsAppFilters(messages) {
   }
 
   // Sort messages
+  // wordpressPostedAt = when the ad was posted to WordPress (accepted/posted time)
+  // timestamp = when the ad was collected from WhatsApp (collection time)
   filtered.sort((a, b) => {
     switch (whatsappMessagesState.sortBy) {
       case "accepted-desc": {
-        // Sort by accepted/posted time (newest first)
-        const aAccepted =
-          a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
-        const bAccepted =
-          b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
-        return new Date(bAccepted) - new Date(aAccepted);
+        // Sort by WordPress posted time (newest first)
+        const aPosted = a.wordpressPostedAt
+          ? new Date(a.wordpressPostedAt).getTime()
+          : 0;
+        const bPosted = b.wordpressPostedAt
+          ? new Date(b.wordpressPostedAt).getTime()
+          : 0;
+        return bPosted - aPosted;
       }
       case "accepted-asc": {
-        // Sort by accepted/posted time (oldest first)
-        const aAccepted =
-          a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
-        const bAccepted =
-          b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
-        return new Date(aAccepted) - new Date(bAccepted);
+        // Sort by WordPress posted time (oldest first)
+        const aPosted = a.wordpressPostedAt
+          ? new Date(a.wordpressPostedAt).getTime()
+          : 0;
+        const bPosted = b.wordpressPostedAt
+          ? new Date(b.wordpressPostedAt).getTime()
+          : 0;
+        return aPosted - bPosted;
       }
       case "time-desc":
-        // Sort by collected time (newest first)
-        return new Date(b.timestamp) - new Date(a.timestamp);
+        // Sort by collection time from WhatsApp (newest first)
+        return (b.timestamp || 0) - (a.timestamp || 0);
       case "time-asc":
-        // Sort by collected time (oldest first)
-        return new Date(a.timestamp) - new Date(b.timestamp);
+        // Sort by collection time from WhatsApp (oldest first)
+        return (a.timestamp || 0) - (b.timestamp || 0);
       case "confidence-desc":
         return (b.aiConfidence || 0) - (a.aiConfidence || 0);
       case "confidence-asc":
         return (a.aiConfidence || 0) - (b.aiConfidence || 0);
-      default:
-        // Default to accepted time (newest first)
-        const aDefault =
-          a.acceptedAt || a.postedAt || a.wpData?.postedAt || a.timestamp;
-        const bDefault =
-          b.acceptedAt || b.postedAt || b.wpData?.postedAt || b.timestamp;
-        return new Date(bDefault) - new Date(aDefault);
+      default: {
+        // Default to WordPress posted time (newest first)
+        const aDefault = a.wordpressPostedAt
+          ? new Date(a.wordpressPostedAt).getTime()
+          : 0;
+        const bDefault = b.wordpressPostedAt
+          ? new Date(b.wordpressPostedAt).getTime()
+          : 0;
+        return bDefault - aDefault;
+      }
     }
   });
 
@@ -7763,9 +7772,16 @@ function renderWhatsAppMessageCards(ads, container) {
       <span><i class="fas fa-users"></i> ${escapeHtml(
         ad.fromGroupName || ad.fromGroup,
       )}</span>
-      <span><i class="fas fa-clock"></i> ${new Date(
+      <span title="Collection time (from WhatsApp)"><i class="fas fa-download"></i> 📥 ${new Date(
         ad.timestamp,
       ).toLocaleString()}</span>
+      ${
+        ad.wordpressPostedAt
+          ? `<span title="Posted to WordPress" style="color: #28a745;"><i class="fas fa-globe"></i> ✅ ${new Date(
+              ad.wordpressPostedAt,
+            ).toLocaleString()}</span>`
+          : ""
+      }
       ${
         ad.aiConfidence
           ? `<span style="color: ${
