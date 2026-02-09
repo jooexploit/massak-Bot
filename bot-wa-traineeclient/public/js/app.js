@@ -3964,12 +3964,38 @@ function showDashboard() {
       adminOnlyItems.forEach((item) => {
         item.style.display = "flex";
       });
+
+      // Show admin/author shared menu items
+      const adminAuthorItems = document.querySelectorAll(".admin-author");
+      adminAuthorItems.forEach((item) => {
+        item.style.display = "flex";
+      });
+    } else if (currentUser.role === "author") {
+      if (adminControls) adminControls.style.display = "none";
+
+      // Hide admin-only menu items
+      const adminOnlyItems = document.querySelectorAll(".admin-only");
+      adminOnlyItems.forEach((item) => {
+        item.style.display = "none";
+      });
+
+      // Show admin/author shared menu items
+      const adminAuthorItems = document.querySelectorAll(".admin-author");
+      adminAuthorItems.forEach((item) => {
+        item.style.display = "flex";
+      });
     } else {
       if (adminControls) adminControls.style.display = "none";
 
       // Hide admin-only menu items
       const adminOnlyItems = document.querySelectorAll(".admin-only");
       adminOnlyItems.forEach((item) => {
+        item.style.display = "none";
+      });
+
+      // Hide admin/author shared menu items
+      const adminAuthorItems = document.querySelectorAll(".admin-author");
+      adminAuthorItems.forEach((item) => {
         item.style.display = "none";
       });
     }

@@ -4316,7 +4316,7 @@ function parseCustomMessageTags(rawTags) {
 router.get(
   "/custom-messages",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   (req, res) => {
     try {
       const messages = customMessageService.getAllMessages();
@@ -4338,7 +4338,7 @@ router.get(
 router.get(
   "/custom-messages/:id",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   (req, res) => {
     try {
       const { id } = req.params;
@@ -4363,7 +4363,7 @@ router.get(
 router.post(
   "/custom-messages",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   uploadCustomMessageImage.single("image"),
   async (req, res) => {
     try {
@@ -4423,7 +4423,7 @@ router.post(
 router.put(
   "/custom-messages/:id",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   uploadCustomMessageImage.single("image"),
   async (req, res) => {
     try {
@@ -4512,7 +4512,7 @@ router.put(
 router.delete(
   "/custom-messages/:id",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -4576,7 +4576,7 @@ router.get(
 router.post(
   "/custom-messages/:id/preview",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   (req, res) => {
     try {
       const { id } = req.params;
@@ -4601,7 +4601,7 @@ router.post(
 router.post(
   "/custom-messages/:id/send",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -4651,7 +4651,7 @@ router.post(
 router.get(
   "/schedules",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   (req, res) => {
     try {
       const schedules = customMessageService.getAllSchedules();
@@ -4673,7 +4673,7 @@ router.get(
 router.get(
   "/schedules/:id",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   (req, res) => {
     try {
       const { id } = req.params;
@@ -4698,7 +4698,7 @@ router.get(
 router.post(
   "/schedules",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { messageId, name, schedule, recipients, settings, enabled } =
@@ -4733,7 +4733,7 @@ router.post(
 router.put(
   "/schedules/:id",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -4769,7 +4769,7 @@ router.put(
 router.delete(
   "/schedules/:id",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -4796,7 +4796,7 @@ router.delete(
 router.post(
   "/schedules/:id/toggle",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -4826,7 +4826,7 @@ router.post(
 router.post(
   "/schedules/:id/run-now",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -4853,7 +4853,7 @@ router.post(
 router.get(
   "/schedules/:id/history",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   (req, res) => {
     try {
       const { id } = req.params;
