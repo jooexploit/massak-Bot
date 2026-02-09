@@ -5062,7 +5062,7 @@ router.delete(
 router.get(
   "/footer-groups/:website",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   (req, res) => {
     try {
       const { website } = req.params;
@@ -5092,7 +5092,7 @@ router.get(
 router.post(
   "/footer-groups/:website",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { website } = req.params;
@@ -5130,7 +5130,7 @@ router.post(
 router.put(
   "/footer-groups/:website/:groupId",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { website, groupId } = req.params;
@@ -5165,7 +5165,7 @@ router.put(
 router.delete(
   "/footer-groups/:website/:groupId",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { website, groupId } = req.params;
@@ -5194,7 +5194,7 @@ router.delete(
 router.post(
   "/footer-groups/:website/:groupId/messages",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { website, groupId } = req.params;
@@ -5230,7 +5230,7 @@ router.post(
 router.put(
   "/footer-groups/:website/:groupId/messages/:messageId",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { website, groupId, messageId } = req.params;
@@ -5269,7 +5269,7 @@ router.put(
 router.delete(
   "/footer-groups/:website/:groupId/messages/:messageId",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { website, groupId, messageId } = req.params;
@@ -5298,7 +5298,7 @@ router.delete(
 router.post(
   "/footer-groups/:website/reset-rotation",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { website } = req.params;
@@ -5327,7 +5327,7 @@ router.post(
 router.get(
   "/footer-groups/:website/next-footer",
   authenticateToken,
-  authorizeRole(["admin"]),
+  authorizeRole(["admin", "author"]),
   async (req, res) => {
     try {
       const { website } = req.params;
