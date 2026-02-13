@@ -3663,6 +3663,50 @@ router.post("/daily-summaries/subcategories", authenticateToken, (req, res) => {
   }
 });
 
+// Mark specific summary as sent manually (used with Open in WhatsApp flow)
+router.post(
+  "/daily-summaries/:id/mark-sent",
+  authenticateToken,
+  (req, res) => {
+    try {
+      const { id } = req.params;
+      const { selectedGroups, customNumbers } = req.body || {};
+      const { getSummaries, saveSummaries } = require("../services/dailySummaryService");
+
+      const summaries = getSummaries();
+      const summaryIndex = summaries.findIndex((s) => s.id === id);
+
+      if (summaryIndex === -1) {
+        return res.status(404).json({ error: "Summary not found" });
+      }
+
+      const groups = Array.isArray(selectedGroups) ? selectedGroups : [];
+      const numbers = Array.isArray(customNumbers) ? customNumbers : [];
+
+      summaries[summaryIndex].sent = true;
+      summaries[summaryIndex].sentAt = new Date().toISOString();
+      summaries[summaryIndex].sentToGroups = groups;
+      summaries[summaryIndex].sentToNumbers = numbers;
+      summaries[summaryIndex].sendStats = {
+        sentCount: groups.length + numbers.length,
+        failedCount: 0,
+        totalRecipients: groups.length + numbers.length,
+        manual: true,
+      };
+
+      saveSummaries(summaries);
+
+      res.json({
+        success: true,
+        message: "Summary marked as sent successfully",
+      });
+    } catch (error) {
+      console.error("Error marking summary as sent:", error);
+      res.status(500).json({ error: "Failed to mark summary as sent" });
+    }
+  },
+);
+
 // Send specific summary to groups
 router.post(
   "/daily-summaries/:id/send",

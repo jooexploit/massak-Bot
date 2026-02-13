@@ -416,6 +416,7 @@ async function openGroupsPreviewModal(adId, message) {
   if (textarea) textarea.value = message;
 
   modal.dataset.adId = adId;
+  delete modal.dataset.summaryId;
 
   // Reset custom numbers selection
   if (typeof selectedCustomNumbers !== "undefined") {
@@ -468,6 +469,12 @@ async function openGroupsPreviewModal(adId, message) {
   // Wire buttons
   document.getElementById("groups-preview-send").onclick =
     handleGroupsPreviewSend;
+  const openWhatsAppBtn = document.getElementById(
+    "groups-preview-open-whatsapp",
+  );
+  if (openWhatsAppBtn && typeof handleOpenGroupsPreviewInWhatsApp === "function") {
+    openWhatsAppBtn.onclick = handleOpenGroupsPreviewInWhatsApp;
+  }
   document.getElementById("groups-preview-cancel").onclick =
     closeGroupsPreviewModal;
   document.getElementById("close-groups-preview-modal").onclick =

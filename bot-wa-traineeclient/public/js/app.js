@@ -10,6 +10,166 @@ let savedCustomNumbers = []; // Saved custom phone numbers with names
 let selectedCustomNumbers = []; // Currently selected custom numbers for sending
 let initialDataLoaded = false; // Track if initial data has been loaded
 
+// ==================== WHATSAPP LINK HELPERS ====================
+function normalizeWhatsAppPhone(phone) {
+  if (!phone) return "";
+  return String(phone).replace(/[^\d]/g, "");
+}
+
+function buildWhatsAppComposeUrl(message, phone = "") {
+  const cleanMessage = (message || "").trim();
+  if (!cleanMessage) return "";
+
+  const encodedMessage = encodeURIComponent(cleanMessage);
+  const normalizedPhone = normalizeWhatsAppPhone(phone);
+
+  if (normalizedPhone) {
+    return `https://wa.me/${normalizedPhone}?text=${encodedMessage}`;
+  }
+
+  return `https://api.whatsapp.com/send?text=${encodedMessage}`;
+}
+
+function openWhatsAppWithMessage(message, phone = "") {
+  const url = buildWhatsAppComposeUrl(message, phone);
+  if (!url) return false;
+
+  const popup = window.open(url, "_blank");
+  if (!popup) {
+    window.location.href = url;
+  }
+
+  return true;
+}
+
+async function handleOpenGroupsPreviewInWhatsApp() {
+  const modal = document.getElementById("groups-preview-modal");
+  const openBtn = document.getElementById("groups-preview-open-whatsapp");
+  const messageTextarea = document.getElementById("groups-preview-message");
+  const message = messageTextarea ? messageTextarea.value.trim() : "";
+
+  if (!message) {
+    alert("Please enter a message first.");
+    return;
+  }
+
+  const selectedGroups = Array.from(
+    document.querySelectorAll("#groups-preview-list .group-checkbox:checked"),
+  ).map((cb) => cb.value);
+
+  const selectedPhones = new Set();
+  document
+    .querySelectorAll(
+      "#groups-preview-list .custom-number-checkbox:checked, #groups-preview-custom-numbers-list .custom-number-checkbox:checked, #private-clients-preview-list .private-client-checkbox:checked",
+    )
+    .forEach((cb) => {
+      const normalizedPhone = normalizeWhatsAppPhone(cb.value);
+      if (normalizedPhone) selectedPhones.add(normalizedPhone);
+    });
+
+  // Include interest-group expanded members if available
+  if (typeof getSelectedInterestGroupMembers === "function") {
+    getSelectedInterestGroupMembers().forEach((member) => {
+      const normalizedPhone = normalizeWhatsAppPhone(member.phone);
+      if (normalizedPhone) selectedPhones.add(normalizedPhone);
+    });
+  }
+
+  const customNumbers = Array.from(selectedPhones);
+
+  // If exactly one number is selected (and no groups), open that chat directly.
+  const targetPhone =
+    customNumbers.length === 1 && selectedGroups.length === 0
+      ? customNumbers[0]
+      : "";
+
+  if (openBtn) {
+    openBtn.disabled = true;
+    openBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Opening...';
+  }
+
+  try {
+    const opened = openWhatsAppWithMessage(message, targetPhone);
+    if (!opened) {
+      throw new Error("Could not open WhatsApp link.");
+    }
+
+    const adId = modal?.dataset?.adId;
+    const summaryId = modal?.dataset?.summaryId;
+
+    // Mark ad summary/card as sent (same behavior as Send Now status update)
+    if (adId) {
+      const markResponse = await fetch(`/api/bot/ads/${adId}/mark-sent`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selectedGroups }),
+      });
+
+      if (!markResponse.ok) {
+        const errorData = await markResponse
+          .json()
+          .catch(() => ({ error: "Failed to update ad status" }));
+        throw new Error(errorData.error || "Failed to update ad status");
+      }
+    } else if (summaryId) {
+      const markResponse = await fetch(
+        `/api/bot/daily-summaries/${summaryId}/mark-sent`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            selectedGroups,
+            customNumbers,
+          }),
+        },
+      );
+
+      if (!markResponse.ok) {
+        const errorData = await markResponse
+          .json()
+          .catch(() => ({ error: "Failed to update summary status" }));
+        throw new Error(errorData.error || "Failed to update summary status");
+      }
+    }
+
+    if (modal) {
+      modal.style.display = "none";
+    }
+
+    if (window.location.hash === "#whatsapp-messages") {
+      await loadWhatsAppMessagesView();
+    } else if (window.location.hash === "#daily-summaries") {
+      await loadDailySummariesView();
+    } else if (typeof fetchAndRenderAds === "function") {
+      await fetchAndRenderAds();
+    }
+
+    let infoMessage =
+      "✅ WhatsApp opened and status updated to Sent.\n\nSelect the target group/contact in WhatsApp, then press Send.";
+
+    if (targetPhone) {
+      infoMessage =
+        "✅ WhatsApp opened in the selected chat and status updated to Sent.\n\nPress Send in WhatsApp to deliver it.";
+    } else if (selectedGroups.length > 0) {
+      infoMessage +=
+        "\n\nNote: WhatsApp links cannot auto-open a specific group, so group selection is done inside WhatsApp.";
+    }
+
+    alert(infoMessage);
+  } catch (error) {
+    console.error("Error opening WhatsApp link:", error);
+    alert(`❌ ${error.message}`);
+  } finally {
+    if (openBtn) {
+      openBtn.disabled = false;
+      openBtn.innerHTML =
+        '<i class="fab fa-whatsapp"></i> Open in WhatsApp';
+    }
+  }
+}
+
 // ==================== SMART SEARCH UTILITY ====================
 /**
  * Smart search utility for Arabic and English text
@@ -10595,6 +10755,7 @@ async function openGroupsPreviewModalForSummary(summary) {
 
     // Store summary ID on modal
     modal.dataset.summaryId = summary.id;
+    delete modal.dataset.adId;
 
     // Reset selections
     if (typeof selectedCustomNumbers !== "undefined") {
@@ -10638,6 +10799,12 @@ async function openGroupsPreviewModalForSummary(summary) {
     // Wire send button
     document.getElementById("groups-preview-send").onclick =
       sendSummaryFromPreview;
+    const openWhatsAppBtn = document.getElementById(
+      "groups-preview-open-whatsapp",
+    );
+    if (openWhatsAppBtn) {
+      openWhatsAppBtn.onclick = handleOpenGroupsPreviewInWhatsApp;
+    }
     document.getElementById("groups-preview-cancel").onclick = () => {
       modal.style.display = "none";
     };
