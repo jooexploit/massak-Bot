@@ -7,6 +7,31 @@ const https = require("https");
 const areaNormalizer = require("./areaNormalizer");
 
 /**
+ * Run async tasks with bounded concurrency
+ * @param {Array<any>} items
+ * @param {number} limit
+ * @param {Function} worker
+ * @returns {Promise<Array<any>>}
+ */
+async function runWithConcurrency(items, limit, worker) {
+  const results = [];
+  let currentIndex = 0;
+
+  async function runner() {
+    while (true) {
+      const idx = currentIndex++;
+      if (idx >= items.length) break;
+      results[idx] = await worker(items[idx], idx);
+    }
+  }
+
+  const concurrency = Math.max(1, Math.min(limit || 1, items.length));
+  const workers = Array.from({ length: concurrency }, () => runner());
+  await Promise.all(workers);
+  return results;
+}
+
+/**
  * Search using the custom Masaak API
  * @param {Object} params - Search parameters
  * @param {string} params.property_type - Property type (e.g., "بيت", "شقة", "أرض")
@@ -294,12 +319,25 @@ async function searchWithMultiWordSplit(params) {
     `🔍 Performing ${searchTerms.length} searches for multi-word terms...`
   );
 
-  // Execute all searches
-  for (const searchTerm of searchTerms) {
-    console.log(`  → Searching with ${searchTerm.field}="${searchTerm.word}"`);
-    const response = await searchMasaak(searchTerm.params);
+  // Execute searches in parallel with bounded concurrency
+  const responses = await runWithConcurrency(
+    searchTerms,
+    4,
+    async (searchTerm) => {
+      console.log(
+        `  → Searching with ${searchTerm.field}="${searchTerm.word}" (parallel)`
+      );
+      const response = await searchMasaak(searchTerm.params);
+      const count = Array.isArray(response.posts) ? response.posts.length : 0;
+      console.log(
+        `    ↳ term "${searchTerm.word}" returned ${count} result(s) before merge`
+      );
+      return response;
+    }
+  );
 
-    // Add results to map (automatically deduplicates by ID)
+  // Merge and deduplicate
+  responses.forEach((response) => {
     if (response.posts && Array.isArray(response.posts)) {
       response.posts.forEach((post) => {
         if (post.ID && !results.has(post.ID)) {
@@ -307,10 +345,12 @@ async function searchWithMultiWordSplit(params) {
         }
       });
     }
-  }
+  });
 
   const uniqueResults = Array.from(results.values());
-  console.log(`✅ Combined results: ${uniqueResults.length} unique properties`);
+  console.log(
+    `✅ Combined results: ${uniqueResults.length} unique properties (from ${searchTerms.length} parallel term searches)`
+  );
 
   return {
     filters: params,
@@ -372,11 +412,18 @@ async function searchWithRequirements(requirements) {
 
   if (hasMultipleNeighborhoods) {
     const balancedResults = new Map();
-    for (const neighborhood of neighborhoods) {
-      const singleReq = { ...requirements, neighborhoods: [neighborhood] };
-      const params = mapRequirementsToApiParams(singleReq);
-      const response = await searchWithMultiWordSplit(params);
+    const neighborhoodResponses = await runWithConcurrency(
+      neighborhoods,
+      4,
+      async (neighborhood) => {
+        const singleReq = { ...requirements, neighborhoods: [neighborhood] };
+        const params = mapRequirementsToApiParams(singleReq);
+        console.log(`🏘️ Parallel neighborhood search: ${neighborhood}`);
+        return searchWithMultiWordSplit(params);
+      }
+    );
 
+    neighborhoodResponses.forEach((response) => {
       if (response.posts && response.posts.length > 0) {
         // Take top 5 from each neighborhood for balance
         response.posts.slice(0, 5).forEach((post) => {
@@ -385,7 +432,8 @@ async function searchWithRequirements(requirements) {
           }
         });
       }
-    }
+    });
+
     return Array.from(balancedResults.values());
   } else {
     // Single or no neighborhood

@@ -6,9 +6,12 @@
 
 const fs = require("fs").promises;
 const path = require("path");
+const axios = require("axios");
 const waseetDetector = require("./waseetDetector");
 const interestGroupService = require("./interestGroupService");
 const wordpressPostService = require("./wordpressPostService");
+const areaNormalizer = require("./areaNormalizer");
+const websiteConfig = require("../config/website.config");
 const { getDataPath } = require("../config/dataPath");
 
 // KSA Timezone configuration
@@ -35,6 +38,10 @@ const pendingAdminConfirmations = {};
 const pendingInterestConfirmations = {};
 // Pending WordPress post actions: { [adminJid]: { website, post, action, createdAt } }
 const pendingWordPressActions = {};
+const WP_AXIOS_TIMEOUT = 30000;
+
+// City fallback aliases for request metadata
+const AHSA_CITY_ALIASES = new Set(["الأحساء", "الاحساء", "الهفوف", "المبرز"]);
 
 /**
  * Normalize phone number to standard format
@@ -73,6 +80,301 @@ function normalizePhoneNumber(phone) {
   }
 
   return cleaned;
+}
+
+/**
+ * Normalize property type labels to WordPress-expected values
+ * @param {string} propertyType
+ * @returns {string}
+ */
+function normalizePropertyTypeForWordPress(propertyType) {
+  if (!propertyType) return "";
+  const normalized = String(propertyType).trim();
+  const lower = normalized.toLowerCase();
+
+  if (lower.includes("منزل")) return "بيت";
+  if (lower.includes("شقة دبلكس") || lower.includes("شقه دبلكس"))
+    return "شقة دبلكسية";
+  if (lower === "شقه") return "شقة";
+  if (lower === "فيله") return "فيلا";
+  if (lower === "ارض") return "أرض";
+  if (lower === "استراحه") return "استراحة";
+  if (lower === "شاليه") return "شالية";
+
+  return normalized;
+}
+
+/**
+ * Format numeric price value for WordPress custom fields
+ * @param {number|null|undefined} value
+ * @returns {string}
+ */
+function formatWordPressPrice(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return "";
+  return num.toFixed(2);
+}
+
+/**
+ * Parse an explicitly mentioned city from admin request text
+ * @param {string} text
+ * @returns {string}
+ */
+function extractCityFromRequestText(text) {
+  if (!text) return "";
+
+  const cityMatch = text.match(
+    /(?:المدينة|المدينه|المدينة المطلوبة|المدينة المفضلة|مدينة)[:*\s]*([^\n]+)/i,
+  );
+  if (!cityMatch || !cityMatch[1]) return "";
+
+  const city = cityMatch[1].split(/[،,]/)[0].trim();
+  if (!city) return "";
+
+  if (city === "الاحساء") return "الأحساء";
+  return city;
+}
+
+/**
+ * Infer city from neighborhoods using area normalizer dataset
+ * @param {Array<string>} neighborhoods
+ * @returns {string}
+ */
+function inferCityFromNeighborhoods(neighborhoods = []) {
+  if (!Array.isArray(neighborhoods) || neighborhoods.length === 0) return "";
+
+  const cityMap = areaNormalizer.CITY_NEIGHBORHOODS || {};
+  const normalizedAreas = neighborhoods.map((n) =>
+    areaNormalizer.normalizeAreaName(n),
+  );
+
+  for (const [city, cityNeighborhoods] of Object.entries(cityMap)) {
+    const normalizedCityNeighborhoods = cityNeighborhoods.map((n) =>
+      areaNormalizer.normalizeAreaName(n),
+    );
+    const hasMatch = normalizedAreas.some((area) =>
+      normalizedCityNeighborhoods.includes(area),
+    );
+    if (hasMatch) {
+      if (city === "الاحساء") return "الأحساء";
+      return city;
+    }
+  }
+
+  return "";
+}
+
+/**
+ * Parse payment method from request text (defaults to cash)
+ * @param {string} text
+ * @returns {string}
+ */
+function extractPaymentMethodFromText(text) {
+  if (!text) return "كاش";
+
+  const paymentMatch = text.match(
+    /(?:طريقة\s*الدفع|طريقة\s*السداد|الدفع|السداد)[:*\s]*([^\n]+)/i,
+  );
+  if (!paymentMatch || !paymentMatch[1]) return "كاش";
+
+  const raw = paymentMatch[1].split(/[،,]/)[0].trim();
+  if (!raw) return "كاش";
+
+  if (/كاش|نقد|نقدي/i.test(raw)) return "كاش";
+  if (/تقسيط|اقساط|أقساط/i.test(raw)) return "تقسيط";
+  return raw;
+}
+
+/**
+ * Build WP payload for admin "طلب" command with request-specific metadata
+ * @param {Object} requirements
+ * @param {string} rawText
+ * @param {string} normalizedPhone
+ * @returns {Object}
+ */
+function buildWordPressRequestPayload(requirements, rawText, normalizedPhone) {
+  const propertyType = normalizePropertyTypeForWordPress(
+    requirements?.propertyType || "",
+  );
+  const subCategory = (requirements?.subCategory || "").trim();
+
+  const neighborhoods = Array.isArray(requirements?.neighborhoods)
+    ? requirements.neighborhoods.map((n) => areaNormalizer.normalizeAreaName(n))
+    : [];
+
+  const cityFromText = extractCityFromRequestText(rawText);
+  const cityFromNeighborhoods = inferCityFromNeighborhoods(neighborhoods);
+  const city = cityFromText || cityFromNeighborhoods || "";
+
+  const beforeCity = city && !AHSA_CITY_ALIASES.has(city) ? city : "الأحساء";
+  const paymentMethod = extractPaymentMethodFromText(rawText);
+
+  const orderType =
+    requirements?.purpose && requirements.purpose.includes("إيجار")
+      ? "إيجار"
+      : "شراء";
+
+  const hasPriceMin =
+    requirements?.priceMin !== null &&
+    requirements?.priceMin !== undefined &&
+    Number(requirements.priceMin) > 0;
+  const hasPriceMax =
+    requirements?.priceMax !== null &&
+    requirements?.priceMax !== undefined &&
+    Number(requirements.priceMax) > 0;
+
+  const priceAmount = hasPriceMin
+    ? formatWordPressPrice(requirements.priceMin)
+    : hasPriceMax
+      ? formatWordPressPrice(requirements.priceMax)
+      : "";
+  const priceMax = hasPriceMax ? formatWordPressPrice(requirements.priceMax) : "";
+
+  const hasAreaMin =
+    requirements?.areaMin !== null &&
+    requirements?.areaMin !== undefined &&
+    Number(requirements.areaMin) > 0;
+  const hasAreaMax =
+    requirements?.areaMax !== null &&
+    requirements?.areaMax !== undefined &&
+    Number(requirements.areaMax) > 0;
+
+  const location1 = neighborhoods[0] || "";
+  const location2 = neighborhoods[1] || "";
+  const location3 = neighborhoods[2] || "";
+  const location4 = neighborhoods[3] || "";
+
+  const cleanRequestText = String(rawText || "")
+    .replace(/^طلب\s*/i, "")
+    .trim();
+
+  const titleTarget = location1 || city || beforeCity;
+  const requestTitle = `طلب ${orderType} ${propertyType || "عقار"}${
+    titleTarget ? ` في ${titleTarget}` : ""
+  }`;
+
+  return {
+    title: requestTitle,
+    content: cleanRequestText || "طلب عقاري جديد",
+    status: "publish",
+    categories: [83], // طلبات
+    meta: {
+      ad_type: "طلب",
+      owner_name: "غير متوفر",
+      phone_number: `+${normalizedPhone}`,
+      phone: `+${normalizedPhone}`,
+      contact: [
+        {
+          value: `+${normalizedPhone}`,
+          type: "phone",
+          confidence: 1,
+        },
+      ],
+      price: hasPriceMin || hasPriceMax ? "سعر محدد" : "عند التواصل",
+      Price: hasPriceMin || hasPriceMax ? "سعر محدد" : "عند التواصل",
+      price_amount: priceAmount,
+      price_max: priceMax,
+      from_price: hasPriceMin ? formatWordPressPrice(requirements.priceMin) : "",
+      to_price: hasPriceMax ? formatWordPressPrice(requirements.priceMax) : "",
+      price_method: paymentMethod,
+      Price_method: paymentMethod,
+      payment_method: paymentMethod,
+      arc_space: hasAreaMin ? String(requirements.areaMin) : "",
+      order_space: hasAreaMin ? String(requirements.areaMin) : "",
+      order_space_max: hasAreaMax ? String(requirements.areaMax) : "",
+      arc_category: propertyType,
+      arc_subcategory: subCategory,
+      parent_catt: propertyType,
+      sub_catt: subCategory,
+      before_City: beforeCity,
+      before_city: beforeCity,
+      City: city,
+      City2: "",
+      City3: "",
+      City4: "",
+      location: location1,
+      location2: location2,
+      location3: location3,
+      location4: location4,
+      order_status: "طلب جديد",
+      offer_status: "طلب جديد",
+      order_type: orderType,
+      offer_type: orderType,
+      order_owner: "زبون",
+      offer_owner: "زبون",
+      owner_type: "زبون",
+      main_ad: "",
+      tags: "",
+      category_id: 83,
+      category: "طلبات",
+      google_location: "",
+      youtube_link: "",
+    },
+  };
+}
+
+/**
+ * Post admin "طلب" payload to WordPress (Masaak)
+ * @param {Object} requirements
+ * @param {string} rawText
+ * @param {string} normalizedPhone
+ * @returns {Promise<{id:number, shortLink:string, fullLink:string}>}
+ */
+async function postRequestToWordPress(requirements, rawText, normalizedPhone) {
+  const website = websiteConfig.getWebsite("masaak");
+  const wpApiUrl = `${website.url}/wp-json/wp/v2/posts`;
+  const auth = Buffer.from(`${website.username}:${website.password}`).toString(
+    "base64",
+  );
+
+  const payload = buildWordPressRequestPayload(
+    requirements,
+    rawText,
+    normalizedPhone,
+  );
+
+  const maxRetries = 3;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await axios.post(wpApiUrl, payload, {
+        timeout: WP_AXIOS_TIMEOUT,
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const postId = response.data.id;
+      return {
+        id: postId,
+        shortLink: `${website.url}/?p=${postId}`,
+        fullLink: response.data.link || response.data.guid?.rendered || "",
+      };
+    } catch (error) {
+      lastError = error;
+      const retryableCodes = [
+        "ETIMEDOUT",
+        "ENETUNREACH",
+        "ECONNRESET",
+        "ECONNREFUSED",
+        "ENOTFOUND",
+        "EAI_AGAIN",
+      ];
+      const code = error.code || error.cause?.code;
+      const shouldRetry = retryableCodes.includes(code) && attempt < maxRetries;
+
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      const waitMs = 1000 * Math.pow(2, attempt - 1);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+
+  throw lastError || new Error("Unknown WordPress request posting failure");
 }
 
 /**
@@ -1538,9 +1840,29 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           message: requestResult.message,
         };
 
-        // Perform deep search immediately
+        // Post request to WordPress as "طلب" with request-specific metadata
+        let wordpressPostResult = null;
+        let wordpressPostError = null;
+        try {
+          wordpressPostResult = await postRequestToWordPress(
+            requirements,
+            text,
+            normalizedPhone,
+          );
+          console.log(
+            `✅ Request posted to WordPress: ${wordpressPostResult.shortLink}`,
+          );
+        } catch (wpError) {
+          wordpressPostError = wpError;
+          const wpErrorMsg =
+            wpError?.response?.data?.message || wpError.message || "Unknown";
+          console.error(`❌ Failed to post request to WordPress: ${wpErrorMsg}`);
+        }
+
+        // Perform deep search with timeout + quick fallback (best UX for admins)
         console.log("🔍 Starting deep search...");
         let results = [];
+        let searchWarning = "";
 
         try {
           results = await Promise.race([
@@ -1550,8 +1872,8 @@ async function handleAdminCommand(sock, message, phoneNumber) {
             }),
             new Promise((_, reject) =>
               setTimeout(
-                () => reject(new Error("Search timeout after 30s")),
-                30000,
+                () => reject(new Error("Search timeout after 45s")),
+                45000,
               ),
             ),
           ]);
@@ -1571,16 +1893,41 @@ async function handleAdminCommand(sock, message, phoneNumber) {
             `📊 Deep search completed: Found ${results.length} properties (sorted by date)`,
           );
         } catch (searchError) {
-          console.error("❌ Deep search failed:", searchError.message);
-          // Include multi-request info in error response
-          let errorMsg = "";
-          if (multiRequestInfo.isUpdate) {
-            errorMsg += `🔄 *تم تحديث الطلب الحالي* (نوع العقار: ${requirements.propertyType})\n\n`;
-          } else if (multiRequestInfo.totalRequests > 1) {
-            errorMsg += `➕ *طلب جديد - العميل لديه الآن ${multiRequestInfo.totalRequests} طلبات*\n\n`;
+          console.error("⚠️ Deep search did not complete in time:", searchError.message);
+
+          // Fallback to a faster exact search instead of returning hard failure
+          try {
+            const quickResults = await Promise.race([
+              deepSearchService.performQuickSearch(requirements),
+              new Promise((_, reject) =>
+                setTimeout(
+                  () => reject(new Error("Quick search timeout after 15s")),
+                  15000,
+                ),
+              ),
+            ]);
+
+            results = Array.isArray(quickResults) ? quickResults : [];
+            results.sort((a, b) => {
+              const dateA = a.meta?.post_date
+                ? new Date(a.meta.post_date)
+                : new Date(0);
+              const dateB = b.meta?.post_date
+                ? new Date(b.meta.post_date)
+                : new Date(0);
+              return dateB - dateA;
+            });
+
+            searchWarning =
+              "⚠️ *ملاحظة:* البحث العميق استغرق وقتاً أطول من المتوقع، وتم عرض نتائج البحث السريع.";
+            console.log(
+              `✅ Quick search fallback succeeded: ${results.length} result(s)`,
+            );
+          } catch (quickError) {
+            console.error("❌ Quick search fallback failed:", quickError.message);
+            searchWarning =
+              "⚠️ *ملاحظة:* تعذر إكمال البحث الفوري حالياً، لكن الطلب محفوظ وستستمر التنبيهات التلقائية.";
           }
-          errorMsg += `✅ *تم حفظ الطلب بنجاح*\n\n❌ فشل البحث: ${searchError.message}\n\n📱 رقم العميل: +${normalizedPhone}\n🔔 سيتم إرسال التنبيهات التلقائية عند توفر عقارات جديدة`;
-          return errorMsg;
         }
 
         // Build response with results
@@ -1615,6 +1962,21 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           } م²\n• الأحياء: ${
             requirements.neighborhoods?.join("، ") || "غير محدد"
           }\n\n📱 رقم العميل: +${normalizedPhone}\n🔔 سيتم إرسال التنبيهات التلقائية للعميل`;
+
+          if (searchWarning) {
+            noResultsMsg += `\n\n${searchWarning}`;
+          }
+
+          if (wordpressPostResult) {
+            noResultsMsg += `\n\n🌐 *تم نشر الطلب في WordPress*\n🔗 ${wordpressPostResult.shortLink}`;
+          } else if (wordpressPostError) {
+            const wpErrorMsg =
+              wordpressPostError?.response?.data?.message ||
+              wordpressPostError.message ||
+              "خطأ غير معروف";
+            noResultsMsg += `\n\n⚠️ *تعذر نشر الطلب في WordPress*\n${wpErrorMsg}`;
+          }
+
           return noResultsMsg;
         }
 
@@ -1631,6 +1993,20 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         adminMsg += `✅ *تم حفظ الطلب وإيجاد ${results.length} عقار مطابق*\n\n`;
         adminMsg += `👤 *اسم العميل:* ${clientName}\n`;
         adminMsg += `📱 *رقم العميل:* +${normalizedPhone}\n`;
+
+        if (searchWarning) {
+          adminMsg += `${searchWarning}\n`;
+        }
+
+        if (wordpressPostResult) {
+          adminMsg += `🌐 *طلب WordPress:* ${wordpressPostResult.shortLink}\n`;
+        } else if (wordpressPostError) {
+          const wpErrorMsg =
+            wordpressPostError?.response?.data?.message ||
+            wordpressPostError.message ||
+            "خطأ غير معروف";
+          adminMsg += `⚠️ *WordPress:* تعذر النشر (${wpErrorMsg})\n`;
+        }
 
         // Show total requests if more than one
         if (multiRequestInfo.totalRequests > 1) {
