@@ -124,11 +124,14 @@ function extractCityFromRequestText(text) {
   if (!text) return "";
 
   const cityMatch = text.match(
-    /(?:المدينة|المدينه|المدينة المطلوبة|المدينة المفضلة|مدينة)[:*\s]*([^\n]+)/i,
+    /(?:المدينة\s*المطلوبة|المدينة\s*المفضلة|المدينه\s*المطلوبه|المدينه\s*المفضله|المدينة|المدينه|مدينة)[:*\s]*([^\n]+)/i,
   );
   if (!cityMatch || !cityMatch[1]) return "";
 
-  const city = cityMatch[1].split(/[،,]/)[0].trim();
+  const city = cityMatch[1]
+    .replace(/^(?:المطلوبة|المطلوبه|المفضلة|المفضله)\s*[:\-]?\s*/i, "")
+    .split(/[،,]/)[0]
+    .trim();
   if (!city) return "";
 
   if (city === "الاحساء") return "الأحساء";
@@ -204,40 +207,61 @@ function buildWordPressRequestPayload(requirements, rawText, normalizedPhone) {
 
   const cityFromText = extractCityFromRequestText(rawText);
   const cityFromNeighborhoods = inferCityFromNeighborhoods(neighborhoods);
-  const city = cityFromText || cityFromNeighborhoods || "";
+  const city = cityFromText || cityFromNeighborhoods || "الأحساء";
 
   const beforeCity = city && !AHSA_CITY_ALIASES.has(city) ? city : "الأحساء";
   const paymentMethod = extractPaymentMethodFromText(rawText);
 
+  const purpose = String(requirements?.purpose || "");
   const orderType =
-    requirements?.purpose && requirements.purpose.includes("إيجار")
+    purpose.includes("إيجار") || purpose.includes("ايجار")
       ? "إيجار"
-      : "شراء";
+      : purpose.includes("بيع")
+        ? "بيع"
+        : "شراء";
 
-  const hasPriceMin =
-    requirements?.priceMin !== null &&
-    requirements?.priceMin !== undefined &&
-    Number(requirements.priceMin) > 0;
-  const hasPriceMax =
-    requirements?.priceMax !== null &&
-    requirements?.priceMax !== undefined &&
-    Number(requirements.priceMax) > 0;
+  const priceMinRaw = Number(requirements?.priceMin);
+  const priceMaxRaw = Number(requirements?.priceMax);
+  const hasPriceMinField =
+    requirements?.priceMin !== null && requirements?.priceMin !== undefined;
+  const hasPriceMin = Number.isFinite(priceMinRaw) && priceMinRaw > 0;
+  const hasPriceMax = Number.isFinite(priceMaxRaw) && priceMaxRaw > 0;
 
-  const priceAmount = hasPriceMin
-    ? formatWordPressPrice(requirements.priceMin)
-    : hasPriceMax
-      ? formatWordPressPrice(requirements.priceMax)
+  // Always map price as range: min -> price_amount, max -> price_max
+  // If min is missing but max exists, send 0.00 as min.
+  const wpPriceMin = hasPriceMin
+    ? formatWordPressPrice(priceMinRaw)
+    : hasPriceMax && hasPriceMinField
+      ? "0.00"
       : "";
-  const priceMax = hasPriceMax ? formatWordPressPrice(requirements.priceMax) : "";
+  const wpPriceMax = hasPriceMax
+    ? formatWordPressPrice(priceMaxRaw)
+    : hasPriceMin
+      ? formatWordPressPrice(priceMinRaw)
+      : "";
 
-  const hasAreaMin =
-    requirements?.areaMin !== null &&
-    requirements?.areaMin !== undefined &&
-    Number(requirements.areaMin) > 0;
-  const hasAreaMax =
-    requirements?.areaMax !== null &&
-    requirements?.areaMax !== undefined &&
-    Number(requirements.areaMax) > 0;
+  const areaMinRaw = Number(requirements?.areaMin);
+  const areaMaxRaw = Number(requirements?.areaMax);
+  const hasAreaMinField =
+    requirements?.areaMin !== null && requirements?.areaMin !== undefined;
+  const hasAreaMaxField =
+    requirements?.areaMax !== null && requirements?.areaMax !== undefined;
+  const hasAreaMin = Number.isFinite(areaMinRaw) && areaMinRaw > 0;
+  const hasAreaMax = Number.isFinite(areaMaxRaw) && areaMaxRaw > 0;
+
+  // Always map area as range: min -> order_space, max -> order_space_max
+  // If min is missing but max exists, send 0 as min.
+  const wpAreaMinForRange = hasAreaMin
+    ? String(Math.trunc(areaMinRaw))
+    : hasAreaMax && hasAreaMinField
+      ? "0"
+      : "";
+  const wpAreaMaxForRange = hasAreaMax
+    ? String(Math.trunc(areaMaxRaw))
+    : hasAreaMin
+      ? String(Math.trunc(areaMinRaw))
+      : "";
+  const wpArcSpace = hasAreaMin ? String(Math.trunc(areaMinRaw)) : "";
 
   const location1 = neighborhoods[0] || "";
   const location2 = neighborhoods[1] || "";
@@ -272,16 +296,16 @@ function buildWordPressRequestPayload(requirements, rawText, normalizedPhone) {
       ],
       price: hasPriceMin || hasPriceMax ? "سعر محدد" : "عند التواصل",
       Price: hasPriceMin || hasPriceMax ? "سعر محدد" : "عند التواصل",
-      price_amount: priceAmount,
-      price_max: priceMax,
-      from_price: hasPriceMin ? formatWordPressPrice(requirements.priceMin) : "",
-      to_price: hasPriceMax ? formatWordPressPrice(requirements.priceMax) : "",
+      price_amount: wpPriceMin,
+      price_max: wpPriceMax,
+      from_price: wpPriceMin,
+      to_price: wpPriceMax,
       price_method: paymentMethod,
       Price_method: paymentMethod,
       payment_method: paymentMethod,
-      arc_space: hasAreaMin ? String(requirements.areaMin) : "",
-      order_space: hasAreaMin ? String(requirements.areaMin) : "",
-      order_space_max: hasAreaMax ? String(requirements.areaMax) : "",
+      arc_space: wpArcSpace,
+      order_space: wpAreaMinForRange,
+      order_space_max: wpAreaMaxForRange,
       arc_category: propertyType,
       arc_subcategory: subCategory,
       parent_catt: propertyType,
@@ -333,6 +357,22 @@ async function postRequestToWordPress(requirements, rawText, normalizedPhone) {
     normalizedPhone,
   );
 
+  console.log(
+    "📤 WordPress طلب payload (range fields):",
+    JSON.stringify(
+      {
+        phone_number: payload?.meta?.phone_number || "",
+        price_amount: payload?.meta?.price_amount || "",
+        price_max: payload?.meta?.price_max || "",
+        order_space: payload?.meta?.order_space || "",
+        order_space_max: payload?.meta?.order_space_max || "",
+        arc_space: payload?.meta?.arc_space || "",
+      },
+      null,
+      2,
+    ),
+  );
+
   const maxRetries = 3;
   let lastError = null;
 
@@ -345,6 +385,12 @@ async function postRequestToWordPress(requirements, rawText, normalizedPhone) {
           "Content-Type": "application/json",
         },
       });
+
+      console.log(
+        `✅ WordPress طلب created: id=${response.data.id}, link=${
+          response.data.link || response.data.guid?.rendered || ""
+        }`,
+      );
 
       const postId = response.data.id;
       return {
