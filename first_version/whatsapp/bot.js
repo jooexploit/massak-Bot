@@ -2382,6 +2382,9 @@ function updateAdWordPressData(id, wpData, whatsappMessage) {
   ads[idx].wpData = wpData;
   ads[idx].whatsappMessage = whatsappMessage;
   ads[idx].isEdited = false; // Reset edited flag when regenerated
+  ads[idx].wpDataManuallyEdited = false;
+  delete ads[idx].wpDataEditedAt;
+  delete ads[idx].wpDataEditedBy;
   saveAds();
   return true;
 }

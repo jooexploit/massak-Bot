@@ -3,6 +3,171 @@
 // ========================================================================================
 
 let currentAdDetails = null;
+let wpPreviewDirtyWatchersBound = false;
+
+function formatWpPreviewSavedTime(timestamp) {
+  if (!timestamp) return "";
+  const numericTs = Number(timestamp);
+  if (Number.isNaN(numericTs)) return "";
+  return new Date(numericTs).toLocaleString();
+}
+
+function serializeWpPreviewData(data) {
+  try {
+    return JSON.stringify(data || {});
+  } catch (error) {
+    console.warn("Failed to serialize WP preview data:", error);
+    return "{}";
+  }
+}
+
+function setWpPreviewSaveStatus(type, text) {
+  const statusEl = document.getElementById("wp-preview-save-status");
+  if (!statusEl) return;
+
+  const styles = {
+    info: { bg: "#f1f3f5", color: "#495057" },
+    edited: { bg: "#fff3cd", color: "#8a5700" },
+    success: { bg: "#d1e7dd", color: "#0f5132" },
+    error: { bg: "#f8d7da", color: "#842029" },
+  };
+
+  const style = styles[type] || styles.info;
+  statusEl.style.background = style.bg;
+  statusEl.style.color = style.color;
+  statusEl.textContent = text;
+}
+
+function updateWpPreviewDirtyStatus() {
+  const modal = document.getElementById("wp-preview-modal");
+  if (!modal) return;
+
+  const savedSnapshot = modal.dataset.lastSavedSnapshot || "";
+  const currentSnapshot = serializeWpPreviewData(getEditedWpDataFromWpModal());
+  const isDirty = savedSnapshot !== currentSnapshot;
+
+  modal.dataset.wpDirty = isDirty ? "true" : "false";
+
+  if (isDirty) {
+    setWpPreviewSaveStatus("edited", "Edited (not saved)");
+    return;
+  }
+
+  if (modal.dataset.lastSavedAt) {
+    setWpPreviewSaveStatus(
+      "success",
+      `Saved • ${formatWpPreviewSavedTime(modal.dataset.lastSavedAt)}`,
+    );
+    return;
+  }
+
+  setWpPreviewSaveStatus("info", "No unsaved changes");
+}
+
+function initializeWpPreviewSaveState(lastSavedAt = null) {
+  const modal = document.getElementById("wp-preview-modal");
+  if (!modal) return;
+
+  modal.dataset.lastSavedSnapshot = serializeWpPreviewData(
+    getEditedWpDataFromWpModal(),
+  );
+  modal.dataset.wpDirty = "false";
+  modal.dataset.lastSavedAt = lastSavedAt ? String(lastSavedAt) : "";
+
+  if (lastSavedAt) {
+    setWpPreviewSaveStatus(
+      "success",
+      `Saved • ${formatWpPreviewSavedTime(lastSavedAt)}`,
+    );
+  } else {
+    setWpPreviewSaveStatus("info", "No unsaved changes");
+  }
+}
+
+function bindWpPreviewDirtyWatchers() {
+  if (wpPreviewDirtyWatchersBound) return;
+
+  const modal = document.getElementById("wp-preview-modal");
+  if (!modal) return;
+
+  const fields = modal.querySelectorAll('[id^="wp-preview-"]');
+  fields.forEach((field) => {
+    if (
+      field.id === "wp-preview-link" ||
+      field.id === "wp-preview-message" ||
+      field.id === "wp-preview-save-edits"
+    ) {
+      return;
+    }
+    field.addEventListener("input", updateWpPreviewDirtyStatus);
+    field.addEventListener("change", updateWpPreviewDirtyStatus);
+  });
+
+  wpPreviewDirtyWatchersBound = true;
+}
+
+async function handleWpPreviewSaveEdits(silent = false) {
+  const modal = document.getElementById("wp-preview-modal");
+  if (!modal) return false;
+
+  const adId = modal.dataset.adId;
+  if (!adId) return false;
+
+  const currentWpData = getEditedWpDataFromWpModal();
+  const currentSnapshot = serializeWpPreviewData(currentWpData);
+
+  if ((modal.dataset.lastSavedSnapshot || "") === currentSnapshot) {
+    if (!silent) {
+      setWpPreviewSaveStatus("info", "No unsaved changes");
+    }
+    modal.dataset.wpDirty = "false";
+    return true;
+  }
+
+  const saveBtn = document.getElementById("wp-preview-save-edits");
+  const originalBtnHtml = saveBtn ? saveBtn.innerHTML : "";
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  }
+  setWpPreviewSaveStatus("info", "Saving...");
+
+  try {
+    const response = await fetch(`/api/bot/ads/${adId}/wp-data`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wpData: currentWpData }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to save edits");
+    }
+
+    modal.dataset.lastSavedSnapshot = currentSnapshot;
+    modal.dataset.wpDirty = "false";
+    modal.dataset.lastSavedAt = String(data.wpDataEditedAt || Date.now());
+
+    setWpPreviewSaveStatus(
+      "success",
+      `Saved • ${formatWpPreviewSavedTime(modal.dataset.lastSavedAt)}`,
+    );
+    return true;
+  } catch (error) {
+    console.error("Failed to save WordPress edits:", error);
+    setWpPreviewSaveStatus("error", "Save failed");
+    if (!silent) {
+      alert(error.message || "Failed to save edits");
+    }
+    return false;
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = originalBtnHtml || '<i class="fas fa-save"></i> Save Edits';
+    }
+  }
+}
 
 // -------------------------
 // Ad Details Modal
@@ -1025,7 +1190,7 @@ async function handleAdDetailsWpOnly(id, ad) {
       console.log("✅ Using pre-generated WordPress data from ad");
     }
 
-    await openWpPreviewModal(id, wpData, "wp-only");
+    await openWpPreviewModal(id, wpData, "wp-only", ad);
   } catch (err) {
     hideLoadingOverlay();
     console.error("Error generating WP preview:", err);
@@ -1073,7 +1238,7 @@ async function handleAdDetailsBoth(id, ad) {
       console.log("✅ Using pre-generated WordPress data from ad");
     }
 
-    await openWpPreviewModal(id, wpData, "both");
+    await openWpPreviewModal(id, wpData, "both", ad);
   } catch (err) {
     hideLoadingOverlay();
     console.error("Error generating WP preview:", err);
@@ -1081,7 +1246,7 @@ async function handleAdDetailsBoth(id, ad) {
   }
 }
 
-async function openWpPreviewModal(adId, extractedData, mode) {
+async function openWpPreviewModal(adId, extractedData, mode, sourceAd = null) {
   const modal = document.getElementById("wp-preview-modal");
   if (!modal) return;
 
@@ -1177,6 +1342,10 @@ async function openWpPreviewModal(adId, extractedData, mode) {
 
   modal.dataset.adId = adId;
   modal.dataset.mode = mode;
+  bindWpPreviewDirtyWatchers();
+
+  const lastSavedAt = sourceAd?.wpDataEditedAt || null;
+  initializeWpPreviewSaveState(lastSavedAt);
 
   // Show/hide sections based on mode
   document.getElementById("wp-preview-link-section").style.display = "none";
@@ -1201,7 +1370,17 @@ async function openWpPreviewModal(adId, extractedData, mode) {
 
   modal.style.display = "block";
 
+  // Re-initialize once subcategory delayed set is applied
+  setTimeout(() => {
+    if (modal.dataset.wpDirty === "true") return;
+    initializeWpPreviewSaveState(lastSavedAt);
+  }, 80);
+
   // Wire buttons
+  const saveEditsBtn = document.getElementById("wp-preview-save-edits");
+  if (saveEditsBtn) {
+    saveEditsBtn.onclick = () => handleWpPreviewSaveEdits(false);
+  }
   document.getElementById("wp-preview-post-only").onclick =
     handleWpPreviewPostOnly;
   document.getElementById("wp-preview-post-and-send").onclick =
@@ -1228,7 +1407,11 @@ async function openWpPreviewModal(adId, extractedData, mode) {
 
 function closeWpPreviewModal() {
   const modal = document.getElementById("wp-preview-modal");
-  if (modal) modal.style.display = "none";
+  if (modal) {
+    modal.style.display = "none";
+    modal.dataset.wpDirty = "false";
+  }
+  setWpPreviewSaveStatus("info", "No unsaved changes");
 }
 
 function buildWpWhatsAppMessage(link, extractedData) {
@@ -1337,6 +1520,14 @@ function getEditedWpDataFromWpModal() {
 async function handleWpPreviewPostOnly() {
   const modal = document.getElementById("wp-preview-modal");
   const adId = modal.dataset.adId;
+
+  // Persist edits first so the ad keeps the latest saved version
+  const saved = await handleWpPreviewSaveEdits(true);
+  if (!saved) {
+    alert("Failed to save edits before posting");
+    return;
+  }
+
   const wpData = getEditedWpDataFromWpModal();
 
   showLoadingOverlay("📤 Posting to WordPress...");
@@ -1386,6 +1577,14 @@ async function handleWpPreviewPostOnly() {
 async function handleWpPreviewPostAndSend() {
   const modal = document.getElementById("wp-preview-modal");
   const adId = modal.dataset.adId;
+
+  // Persist edits first so posting/sending always uses saved data
+  const saved = await handleWpPreviewSaveEdits(true);
+  if (!saved) {
+    alert("Failed to save edits before posting");
+    return;
+  }
+
   const wpData = getEditedWpDataFromWpModal();
 
   // Get selected groups

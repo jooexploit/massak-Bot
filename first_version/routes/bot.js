@@ -102,6 +102,23 @@ async function axiosWithRetry(
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableWordPressPostError(error) {
+  if (isRetryableError(error)) return true;
+
+  const statusCode = error?.response?.status;
+  return (
+    statusCode === 408 ||
+    statusCode === 409 ||
+    statusCode === 425 ||
+    statusCode === 429 ||
+    (typeof statusCode === "number" && statusCode >= 500)
+  );
+}
+
 // Default axios timeout for WordPress requests (30 seconds)
 const WP_AXIOS_TIMEOUT = 30000;
 const AUTO_POST_FIXED_CATEGORY_IDS = [131];
@@ -1476,6 +1493,71 @@ router.post(
   },
 );
 
+// Save manually edited WordPress data (admin and author)
+router.post(
+  "/ads/:id/wp-data",
+  authenticateToken,
+  authorizeRole(["admin", "author"]),
+  (req, res) => {
+    try {
+      const { id } = req.params;
+      const { wpData } = req.body || {};
+
+      if (!wpData || typeof wpData !== "object") {
+        return res.status(400).json({ error: "wpData object is required" });
+      }
+
+      const ads = getFetchedAds();
+      const adIndex = ads.findIndex((a) => a.id === id);
+
+      if (adIndex === -1) {
+        return res.status(404).json({ error: "Ad not found" });
+      }
+
+      const safeWpData = {
+        ...wpData,
+        meta:
+          wpData.meta && typeof wpData.meta === "object"
+            ? { ...wpData.meta }
+            : {},
+      };
+
+      const currentAd = ads[adIndex];
+      const linkForMessage =
+        currentAd.wordpressUrl || currentAd.wordpressFullUrl || null;
+      const targetWebsite =
+        safeWpData.targetWebsite ||
+        currentAd.targetWebsite ||
+        currentAd.wpData?.targetWebsite ||
+        "masaak";
+      const editedAt = Date.now();
+
+      currentAd.wpData = safeWpData;
+      currentAd.targetWebsite = targetWebsite;
+      currentAd.whatsappMessage = generateWhatsAppMessage(
+        safeWpData,
+        linkForMessage,
+        targetWebsite,
+      );
+      currentAd.wpDataManuallyEdited = true;
+      currentAd.wpDataEditedAt = editedAt;
+      currentAd.wpDataEditedBy =
+        req.user?.username || req.user?.id || "unknown";
+
+      dataSync.writeDataSync("ADS", ads);
+
+      res.json({
+        success: true,
+        adId: id,
+        wpDataEditedAt: editedAt,
+      });
+    } catch (err) {
+      console.error("Error saving manual WordPress data:", err);
+      res.status(500).json({ error: "Failed to save WordPress data" });
+    }
+  },
+);
+
 // Move rejected ad to recycle bin (admin and author)
 router.post(
   "/ads/:id/recycle-bin",
@@ -2264,6 +2346,132 @@ router.put(
     } catch (err) {
       console.error("Error updating settings:", err);
       res.status(500).json({ error: "Failed to update settings" });
+    }
+  },
+);
+
+// Bulk post ads to WordPress (admin and author)
+router.post(
+  "/ads/bulk-post-to-wordpress",
+  authenticateToken,
+  authorizeRole(["admin", "author"]),
+  async (req, res) => {
+    try {
+      const rawAdIds = Array.isArray(req.body?.adIds) ? req.body.adIds : [];
+      const adIds = [...new Set(
+        rawAdIds
+          .filter((id) => typeof id === "string")
+          .map((id) => id.trim())
+          .filter(Boolean),
+      )];
+
+      if (adIds.length === 0) {
+        return res.status(400).json({ error: "adIds array is required" });
+      }
+
+      const delaySecondsRaw = parseInt(req.body?.delaySeconds, 10);
+      const retryAttemptsRaw = parseInt(req.body?.retryAttempts, 10);
+      const delaySeconds = Number.isNaN(delaySecondsRaw)
+        ? 2
+        : Math.max(0, Math.min(120, delaySecondsRaw));
+      const retryAttempts = Number.isNaN(retryAttemptsRaw)
+        ? 3
+        : Math.max(1, Math.min(5, retryAttemptsRaw));
+
+      const sock = req.app.get("whatsappSock");
+      const results = [];
+
+      for (let index = 0; index < adIds.length; index++) {
+        const adId = adIds[index];
+        let success = false;
+        let attemptsUsed = 0;
+        let lastError = null;
+        let wpResult = null;
+
+        for (let attempt = 1; attempt <= retryAttempts; attempt++) {
+          attemptsUsed = attempt;
+          try {
+            reloadAds();
+            const ad = getAdById(adId);
+            if (!ad) {
+              throw new Error("Ad not found");
+            }
+
+            wpResult = await postAdToWordPress(
+              ad,
+              sock,
+              ad.wpData || null,
+              false,
+              null,
+              [131],
+            );
+
+            if (!wpResult || wpResult.success !== true) {
+              throw new Error(wpResult?.error || "Failed to post ad");
+            }
+
+            updateAdStatus(adId, "accepted");
+            success = true;
+            break;
+          } catch (err) {
+            lastError = err;
+            const shouldRetry =
+              attempt < retryAttempts && isRetryableWordPressPostError(err);
+            if (shouldRetry) {
+              const backoffMs = Math.min(5000, 1000 * attempt);
+              await sleep(backoffMs);
+              continue;
+            }
+            break;
+          }
+        }
+
+        if (success) {
+          results.push({
+            id: adId,
+            success: true,
+            attempts: attemptsUsed,
+            link: wpResult?.wordpressPost?.link || null,
+            postId: wpResult?.wordpressPost?.id || null,
+          });
+        } else {
+          const errorMessage =
+            lastError?.response?.data?.message ||
+            lastError?.response?.data?.error ||
+            lastError?.message ||
+            "Unknown error";
+
+          results.push({
+            id: adId,
+            success: false,
+            attempts: attemptsUsed,
+            error: errorMessage,
+          });
+        }
+
+        if (index < adIds.length - 1 && delaySeconds > 0) {
+          await sleep(delaySeconds * 1000);
+        }
+      }
+
+      const succeeded = results.filter((item) => item.success).length;
+      const failed = results.length - succeeded;
+
+      res.json({
+        success: failed === 0,
+        total: adIds.length,
+        succeeded,
+        failed,
+        delaySeconds,
+        retryAttempts,
+        results,
+      });
+    } catch (err) {
+      console.error("Bulk WordPress posting failed:", err);
+      res.status(500).json({
+        error: "Failed bulk posting to WordPress",
+        details: err.message,
+      });
     }
   },
 );

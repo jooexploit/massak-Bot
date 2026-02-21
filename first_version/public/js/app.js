@@ -9,6 +9,8 @@ let allCategories = [];
 let savedCustomNumbers = []; // Saved custom phone numbers with names
 let selectedCustomNumbers = []; // Currently selected custom numbers for sending
 let initialDataLoaded = false; // Track if initial data has been loaded
+let selectedAdsForBulkPost = new Set(); // Selected ads in Manage Ads for bulk WP posting
+let bulkPostingInProgress = false;
 
 // DOM Elements
 const loginPage = document.getElementById("login-page");
@@ -43,6 +45,13 @@ const adminControls = document.getElementById("admin-controls");
 const disconnectBtn = document.getElementById("disconnect-btn");
 const adminMessage = document.getElementById("admin-message");
 const adsSearchInput = document.getElementById("ads-search-input");
+const adsSelectAllVisible = document.getElementById("ads-select-all-visible");
+const adsSelectedCount = document.getElementById("ads-selected-count");
+const adsBulkDelayInput = document.getElementById("ads-bulk-delay");
+const adsBulkRetriesInput = document.getElementById("ads-bulk-retries");
+const adsBulkPostWpBtn = document.getElementById("ads-bulk-post-wp-btn");
+const adsBulkClearBtn = document.getElementById("ads-bulk-clear-btn");
+const adsBulkStatus = document.getElementById("ads-bulk-status");
 
 // Modal elements
 const resendModal = document.getElementById("resend-modal");
@@ -213,6 +222,20 @@ function setupEventListeners() {
     adsSearchInput.addEventListener("input", (e) => {
       performLiveSearch(e.target.value);
     });
+  }
+
+  // Manage Ads bulk WordPress controls
+  if (adsSelectAllVisible) {
+    adsSelectAllVisible.addEventListener(
+      "change",
+      handleSelectAllVisibleAdsToggle,
+    );
+  }
+  if (adsBulkPostWpBtn) {
+    adsBulkPostWpBtn.addEventListener("click", handleBulkPostSelectedToWordPress);
+  }
+  if (adsBulkClearBtn) {
+    adsBulkClearBtn.addEventListener("click", clearSelectedAdsForBulkPosting);
   }
 
   // View-specific buttons
@@ -1333,6 +1356,198 @@ function performLiveSearch(searchTerm) {
 
     card.style.display = matchesSearch ? "block" : "none";
   });
+
+  updateAdsBulkSelectionUI();
+}
+
+function clampNumber(value, min, max, fallback) {
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
+}
+
+function setAdsBulkStatus(message = "", type = "info") {
+  if (!adsBulkStatus) return;
+
+  const colorMap = {
+    info: "#555",
+    success: "#2e7d32",
+    error: "#c62828",
+  };
+
+  adsBulkStatus.textContent = message;
+  adsBulkStatus.style.color = colorMap[type] || colorMap.info;
+}
+
+function updateAdsBulkSelectionUI() {
+  const selectedCount = selectedAdsForBulkPost.size;
+
+  if (adsSelectedCount) {
+    adsSelectedCount.textContent = `${selectedCount} selected`;
+  }
+
+  const cards = Array.from(adsList.querySelectorAll(".card[data-ad-id]"));
+  const visibleCards = cards.filter((card) => card.style.display !== "none");
+  const selectedVisibleCount = visibleCards.filter((card) =>
+    selectedAdsForBulkPost.has(card.getAttribute("data-ad-id")),
+  ).length;
+
+  if (adsSelectAllVisible) {
+    adsSelectAllVisible.disabled =
+      bulkPostingInProgress || visibleCards.length === 0;
+    adsSelectAllVisible.checked =
+      visibleCards.length > 0 && selectedVisibleCount === visibleCards.length;
+    adsSelectAllVisible.indeterminate =
+      selectedVisibleCount > 0 && selectedVisibleCount < visibleCards.length;
+  }
+
+  if (adsBulkPostWpBtn) {
+    adsBulkPostWpBtn.disabled = bulkPostingInProgress || selectedCount === 0;
+    adsBulkPostWpBtn.innerHTML = bulkPostingInProgress
+      ? '<i class="fas fa-spinner fa-spin"></i> Posting...'
+      : '<i class="fab fa-wordpress"></i> Post Selected to WordPress';
+  }
+
+  if (adsBulkClearBtn) {
+    adsBulkClearBtn.disabled = bulkPostingInProgress || selectedCount === 0;
+  }
+
+  if (adsBulkDelayInput) {
+    adsBulkDelayInput.disabled = bulkPostingInProgress;
+  }
+
+  if (adsBulkRetriesInput) {
+    adsBulkRetriesInput.disabled = bulkPostingInProgress;
+  }
+}
+
+function toggleBulkAdSelection(adId, isSelected) {
+  if (!adId) return;
+  const normalizedId = String(adId);
+  if (isSelected) {
+    selectedAdsForBulkPost.add(normalizedId);
+  } else {
+    selectedAdsForBulkPost.delete(normalizedId);
+  }
+  updateAdsBulkSelectionUI();
+}
+
+function handleSelectAllVisibleAdsToggle(event) {
+  const shouldSelect = event.target.checked;
+  const visibleCards = Array.from(adsList.querySelectorAll(".card[data-ad-id]"))
+    .filter((card) => card.style.display !== "none");
+
+  visibleCards.forEach((card) => {
+    const adId = card.getAttribute("data-ad-id");
+    const checkbox = card.querySelector(".ad-bulk-select-checkbox");
+    if (!adId || !checkbox) return;
+
+    checkbox.checked = shouldSelect;
+    if (shouldSelect) {
+      selectedAdsForBulkPost.add(String(adId));
+    } else {
+      selectedAdsForBulkPost.delete(String(adId));
+    }
+  });
+
+  updateAdsBulkSelectionUI();
+}
+
+function clearSelectedAdsForBulkPosting() {
+  selectedAdsForBulkPost.clear();
+  adsList.querySelectorAll(".ad-bulk-select-checkbox").forEach((checkbox) => {
+    checkbox.checked = false;
+  });
+  setAdsBulkStatus("");
+  updateAdsBulkSelectionUI();
+}
+
+async function handleBulkPostSelectedToWordPress() {
+  if (bulkPostingInProgress) return;
+
+  const adIds = Array.from(selectedAdsForBulkPost);
+  if (adIds.length === 0) {
+    setAdsBulkStatus("Select at least one ad first.", "error");
+    return;
+  }
+
+  const delaySeconds = clampNumber(adsBulkDelayInput?.value, 0, 120, 2);
+  const retryAttempts = clampNumber(adsBulkRetriesInput?.value, 1, 5, 3);
+
+  const confirmText = `Post ${adIds.length} selected ad(s) to WordPress?\n\nDelay: ${delaySeconds}s\nRetries per ad: ${retryAttempts}`;
+  if (!confirm(confirmText)) return;
+
+  bulkPostingInProgress = true;
+  setAdsBulkStatus(`Posting ${adIds.length} ads...`, "info");
+  showInfo(
+    adsInfo,
+    `Posting ${adIds.length} selected ads to WordPress. Please wait...`,
+  );
+  updateAdsBulkSelectionUI();
+
+  try {
+    const response = await fetch("/api/bot/ads/bulk-post-to-wordpress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        adIds,
+        delaySeconds,
+        retryAttempts,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Failed bulk posting to WordPress");
+    }
+
+    const results = Array.isArray(data.results) ? data.results : [];
+    results.forEach((item) => {
+      if (item && item.success && item.id) {
+        selectedAdsForBulkPost.delete(String(item.id));
+      }
+    });
+
+    const succeeded = data.succeeded || 0;
+    const failed = data.failed || 0;
+
+    if (failed === 0) {
+      setAdsBulkStatus(
+        `Completed successfully: ${succeeded}/${data.total} posted.`,
+        "success",
+      );
+      showInfo(adsInfo, `✅ Posted ${succeeded} ad(s) to WordPress successfully.`);
+    } else {
+      const failedIds = results
+        .filter((item) => item && !item.success)
+        .map((item) => item.id)
+        .slice(0, 5);
+      const failedIdsSuffix =
+        failedIds.length > 0
+          ? ` Failed IDs: ${failedIds.join(", ")}${failed > 5 ? ", ..." : ""}`
+          : "";
+      setAdsBulkStatus(
+        `Completed with errors: ${succeeded} success, ${failed} failed.`,
+        "error",
+      );
+      showInfo(
+        adsInfo,
+        `⚠️ Bulk WordPress posting finished: ${succeeded} success, ${failed} failed.${failedIdsSuffix}`,
+      );
+    }
+
+    setTimeout(() => hideMessage(adsInfo), 6000);
+    await fetchAndRenderAds();
+  } catch (error) {
+    console.error("Bulk post to WordPress failed:", error);
+    setAdsBulkStatus(error.message || "Bulk posting failed.", "error");
+    showInfo(adsInfo, `❌ ${error.message || "Bulk posting failed"}`);
+    setTimeout(() => hideMessage(adsInfo), 5000);
+  } finally {
+    bulkPostingInProgress = false;
+    updateAdsBulkSelectionUI();
+  }
 }
 
 // Focus on specific ad and expand it
@@ -1374,6 +1589,7 @@ async function fetchAndRenderAds(reset = true) {
       currentAdsPage = 1;
       adsList.innerHTML = '<div class="loading">Loading ads...</div>';
       hideMessage(adsInfo);
+      updateAdsBulkSelectionUI();
     } else {
       if (isLoadingMoreAds) return; // Prevent duplicate requests
       isLoadingMoreAds = true;
@@ -1433,6 +1649,7 @@ async function fetchAndRenderAds(reset = true) {
     populateAdsGroupFilter(data.allGroups || []);
 
     renderAds(list, reset, pagination);
+    updateAdsBulkSelectionUI();
 
     isLoadingMoreAds = false;
   } catch (err) {
@@ -1441,6 +1658,7 @@ async function fetchAndRenderAds(reset = true) {
       adsList.innerHTML = "";
       showInfo(adsInfo, "Failed to load ads. Please try again.");
     }
+    updateAdsBulkSelectionUI();
     isLoadingMoreAds = false;
   }
 }
@@ -1515,6 +1733,19 @@ function renderAds(list, reset = true, pagination = {}) {
       : "";
 
     const hasEnhanced = ad.enhancedText && ad.enhancedText !== ad.text;
+    const isSelectedForBulk = selectedAdsForBulkPost.has(String(ad.id));
+    const editedHeaderBadge = ad.isEdited
+      ? '<span style="background:#ffc107;color:#111;padding:4px 8px;border-radius:12px;font-size:0.75rem;font-weight:700;">✏️ Edited</span>'
+      : ad.wpDataManuallyEdited
+        ? '<span style="background:#17a2b8;color:#fff;padding:4px 8px;border-radius:12px;font-size:0.75rem;font-weight:700;">📝 Modified</span>'
+        : "";
+    const wpSavedStatusBadge = ad.wpDataManuallyEdited
+      ? `<span style="font-size: 0.75rem; background: rgba(255,193,7,0.25); color: #8a5700; padding: 4px 8px; border-radius: 12px; border: 1px solid rgba(255,193,7,0.5);">✏️ Saved edit${
+          ad.wpDataEditedAt
+            ? ` • ${new Date(ad.wpDataEditedAt).toLocaleString()}`
+            : ""
+        }</span>`
+      : '<span style="font-size: 0.75rem; background: rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 12px;">✅ Ready to Post</span>';
 
     // Determine target website with icon and styling
     const targetWebsite =
@@ -1536,6 +1767,12 @@ function renderAds(list, reset = true, pagination = {}) {
         }" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #5a67d8; color: white; border-radius: 8px; transition: all 0.3s ease;">
           <div style="flex: 1;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;">
+              <input type="checkbox"
+                class="ad-bulk-select-checkbox"
+                data-id="${ad.id}"
+                ${isSelectedForBulk ? "checked" : ""}
+                title="Select ad for bulk WordPress posting"
+                style="width:16px;height:16px;cursor:pointer;" />
               <span style="background: rgba(255,255,255,0.3); padding: 4px 10px; border-radius: 6px; font-weight: bold; margin-right: 5px;">#${
                 index + 1
               }</span>
@@ -1548,6 +1785,7 @@ function renderAds(list, reset = true, pagination = {}) {
                   : ad.fromGroupName || ad.fromGroup
               }</strong>
               ${aiConfidenceBadge}
+              ${editedHeaderBadge}
               ${websiteBadge}
             </div>
             <div style="display: flex; gap: 15px; align-items: center; font-size: 0.9rem; opacity: 0.95; flex-wrap: wrap;">
@@ -1685,7 +1923,7 @@ function renderAds(list, reset = true, pagination = {}) {
           <div style="margin-bottom: 20px;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; font-weight: bold; display: flex; align-items: center; justify-content: space-between;">
               <span><i class="fas fa-globe"></i> 🌐 Auto-Generated WordPress Data</span>
-              <span style="font-size: 0.75rem; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 12px;">✅ Ready to Post</span>
+              ${wpSavedStatusBadge}
             </div>
             <div style="padding: 15px; background: #f8f9fa; border: 2px solid #667eea; border-top: none; border-radius: 0 0 8px 8px;">
               
@@ -1918,6 +2156,17 @@ function renderAds(list, reset = true, pagination = {}) {
       });
     }
 
+    const bulkCheckbox = el.querySelector(".ad-bulk-select-checkbox");
+    if (bulkCheckbox) {
+      bulkCheckbox.addEventListener("click", (e) => {
+        e.stopPropagation();
+      });
+      bulkCheckbox.addEventListener("change", (e) => {
+        e.stopPropagation();
+        toggleBulkAdSelection(String(ad.id), e.target.checked);
+      });
+    }
+
     // FAQ-style dropdown toggle handler
     const faqHeader = el.querySelector(".ad-faq-header");
     const faqContent = el.querySelector(".ad-faq-content");
@@ -2008,6 +2257,8 @@ function renderAds(list, reset = true, pagination = {}) {
     endMessage.innerHTML = `<i class="fas fa-check-circle"></i> All ads loaded (${pagination.totalAds} total)`;
     adsList.appendChild(endMessage);
   }
+
+  updateAdsBulkSelectionUI();
 }
 
 function escapeHtml(text) {
