@@ -56,7 +56,7 @@ function hasAutoPostGroupSelection(settings) {
 }
 
 function isAutoPostEnabled(settings) {
-  return settings?.autoApproveWordPress === true || hasAutoPostGroupSelection(settings);
+  return settings?.autoApproveWordPress === true;
 }
 
 /**

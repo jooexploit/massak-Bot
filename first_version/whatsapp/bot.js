@@ -143,7 +143,7 @@ function hasAutoPostGroupSelection() {
 }
 
 function isAutoPostEnabled() {
-  return settings.autoApproveWordPress === true || hasAutoPostGroupSelection();
+  return settings.autoApproveWordPress === true;
 }
 
 function buildAutoPostWpData(baseWpData) {

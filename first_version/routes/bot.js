@@ -137,7 +137,7 @@ function hasAutoPostGroupSelection(settings) {
 }
 
 function isAutoPostEnabled(settings) {
-  return settings?.autoApproveWordPress === true || hasAutoPostGroupSelection(settings);
+  return settings?.autoApproveWordPress === true;
 }
 
 function buildAutoPostWpData(baseWpData) {
@@ -169,6 +169,7 @@ async function postAdToWordPress(
   wpData = null,
   previewOnly = false,
   targetWebsite = null,
+  forcedCategoryIds = null,
 ) {
   const fs = require("fs");
   const path = require("path");
@@ -185,6 +186,16 @@ async function postAdToWordPress(
           ad.enhancedText || ad.enhanced_text || ad.text,
         );
       }
+    }
+
+    if (Array.isArray(forcedCategoryIds) && forcedCategoryIds.length > 0) {
+      wpData = {
+        ...wpData,
+        fixedCategoryIds: forcedCategoryIds
+          .map((id) => parseInt(id, 10))
+          .filter((id) => Number.isInteger(id) && id > 0),
+        meta: wpData?.meta ? { ...wpData.meta } : {},
+      };
     }
 
     // Detect target website if not specified, or adjust based on Hasak categories
@@ -2290,7 +2301,14 @@ router.post(
       console.log("🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵\n");
 
       // Use the reusable function
-      const result = await postAdToWordPress(ad, sock, wpData, previewOnly);
+      const result = await postAdToWordPress(
+        ad,
+        sock,
+        wpData,
+        previewOnly,
+        null,
+        [131],
+      );
 
       // After successfully posting (not preview), check for matches with client requests
       if (!previewOnly && result.success && result.wordpressPost) {
