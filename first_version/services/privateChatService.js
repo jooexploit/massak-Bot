@@ -23,6 +23,41 @@ const areaNormalizer = require("./areaNormalizer");
 // Request deduplication cache: Map<hash, timestamp>
 const recentRequestsCache = new Map();
 const CACHE_TTL = 5000; // 5 seconds
+const AUTO_POST_FIXED_CATEGORY_IDS = [131];
+
+function normalizeGroupJids(groupIds) {
+  if (!Array.isArray(groupIds)) return [];
+
+  return [...new Set(
+    groupIds
+      .filter((groupId) => typeof groupId === "string")
+      .map((groupId) => groupId.trim())
+      .filter(Boolean),
+  )];
+}
+
+function isAutoPostAllowedForGroup(settings, sourceGroupJid) {
+  const selectedGroups = normalizeGroupJids(
+    settings?.autoApproveWordPressGroups || [],
+  );
+
+  // Backwards compatibility: if no groups selected, keep old behavior (allow all)
+  if (selectedGroups.length === 0) {
+    return true;
+  }
+
+  return (
+    typeof sourceGroupJid === "string" && selectedGroups.includes(sourceGroupJid)
+  );
+}
+
+function hasAutoPostGroupSelection(settings) {
+  return normalizeGroupJids(settings?.autoApproveWordPressGroups || []).length > 0;
+}
+
+function isAutoPostEnabled(settings) {
+  return settings?.autoApproveWordPress === true || hasAutoPostGroupSelection(settings);
+}
 
 /**
  * Search WordPress for ads using new custom API
@@ -1351,7 +1386,19 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
 
       // Check if auto-approve is enabled and auto-post to WordPress
       const settings = getSettings();
-      if (settings.autoApproveWordPress === true && ad.wpData) {
+      const isGroupAllowedForAutoPost = isAutoPostAllowedForGroup(
+        settings,
+        ad.fromGroup,
+      );
+      const autoPostEnabled = isAutoPostEnabled(settings);
+      const shouldUseFixedAutoPostCategory =
+        hasAutoPostGroupSelection(settings);
+
+      if (
+        autoPostEnabled &&
+        ad.wpData &&
+        isGroupAllowedForAutoPost
+      ) {
         console.log(
           "🚀 Auto-approve enabled, posting private chat ad to WordPress automatically..."
         );
@@ -1380,7 +1427,15 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
             );
 
             // Prepare WordPress data
-            let wpData = { ...ad.wpData };
+            let wpData = {
+              ...(ad.wpData || {}),
+              meta: ad.wpData?.meta ? { ...ad.wpData.meta } : {},
+            };
+
+            if (shouldUseFixedAutoPostCategory) {
+              wpData.categories = [...AUTO_POST_FIXED_CATEGORY_IDS];
+              wpData.fixedCategoryIds = [...AUTO_POST_FIXED_CATEGORY_IDS];
+            }
 
             if (ad.senderName && wpData.meta) {
               wpData.meta.owner_name = ad.senderName;
@@ -1403,7 +1458,9 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
               title: wpData.title || "Untitled Ad",
               content: wpData.content || "",
               status: "publish",
-              categories: wpData.categories || [],
+              categories: shouldUseFixedAutoPostCategory
+                ? wpData.categories || [...AUTO_POST_FIXED_CATEGORY_IDS]
+                : wpData.categories || [],
               meta: wpData.meta || {},
             };
 
@@ -1438,6 +1495,7 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
             ad.wordpressPostUrl = shortLink;
             ad.wordpressFullUrl = fullLink;
             ad.whatsappMessage = whatsappMessage;
+            ad.wpData = wpData;
 
             fs.writeFileSync(ADS_FILE, JSON.stringify(ads, null, 2));
             reloadAds();
@@ -1450,6 +1508,14 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
             console.error("Error details:", error.response?.data || error);
           }
         })();
+      } else if (
+        autoPostEnabled &&
+        ad.wpData &&
+        !isGroupAllowedForAutoPost
+      ) {
+        console.log(
+          `⏭️ Auto-post skipped: source "${ad.fromGroup}" is not in selected auto-post groups`,
+        );
       }
     } catch (reloadErr) {
       console.error("⚠️ Failed to reload ads in memory:", reloadErr);

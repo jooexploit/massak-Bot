@@ -104,6 +104,53 @@ async function axiosWithRetry(
 
 // Default axios timeout for WordPress requests (30 seconds)
 const WP_AXIOS_TIMEOUT = 30000;
+const AUTO_POST_FIXED_CATEGORY_IDS = [131];
+
+function normalizeGroupJids(groupIds) {
+  if (!Array.isArray(groupIds)) return [];
+
+  return [...new Set(
+    groupIds
+      .filter((groupId) => typeof groupId === "string")
+      .map((groupId) => groupId.trim())
+      .filter(Boolean),
+  )];
+}
+
+function isAutoPostAllowedForGroup(settings, sourceGroupJid) {
+  const selectedGroups = normalizeGroupJids(
+    settings?.autoApproveWordPressGroups || [],
+  );
+
+  // Backwards compatibility: if no groups selected, allow all groups
+  if (selectedGroups.length === 0) {
+    return true;
+  }
+
+  return (
+    typeof sourceGroupJid === "string" && selectedGroups.includes(sourceGroupJid)
+  );
+}
+
+function hasAutoPostGroupSelection(settings) {
+  return normalizeGroupJids(settings?.autoApproveWordPressGroups || []).length > 0;
+}
+
+function isAutoPostEnabled(settings) {
+  return settings?.autoApproveWordPress === true || hasAutoPostGroupSelection(settings);
+}
+
+function buildAutoPostWpData(baseWpData) {
+  const safeWpData =
+    baseWpData && typeof baseWpData === "object" ? baseWpData : {};
+
+  return {
+    ...safeWpData,
+    categories: [...AUTO_POST_FIXED_CATEGORY_IDS],
+    fixedCategoryIds: [...AUTO_POST_FIXED_CATEGORY_IDS],
+    meta: safeWpData.meta ? { ...safeWpData.meta } : {},
+  };
+}
 
 // ========== REUSABLE WORDPRESS POSTING FUNCTION ==========
 /**
@@ -557,13 +604,35 @@ async function postAdToWordPress(
       wpData.meta.offer_status = statusMap[orderType] || "عرض جديد";
     }
 
+    const fixedCategoryIds =
+      Array.isArray(wpData.fixedCategoryIds) &&
+      wpData.fixedCategoryIds
+        .map((id) => parseInt(id, 10))
+        .filter((id) => Number.isInteger(id) && id > 0);
+
+    const resolvedCategories =
+      fixedCategoryIds && fixedCategoryIds.length > 0
+        ? fixedCategoryIds
+        : subcategoryId
+          ? [categoryId, subcategoryId]
+          : [categoryId];
+
+    if (fixedCategoryIds && fixedCategoryIds.length > 0) {
+      console.log(
+        `🎯 Using fixed category IDs for post: [${fixedCategoryIds.join(", ")}]`,
+      );
+    }
+
     const wpPayload = {
       title: wpData.title || "عقار جديد",
       content: wpData.content || wpData.description || "",
       status: "publish",
-      categories: subcategoryId ? [categoryId, subcategoryId] : [categoryId],
+      categories: resolvedCategories,
       meta: wpData.meta || {},
     };
+
+    // Keep categories used for publishing in returned extracted data
+    wpData.categories = [...resolvedCategories];
 
     if (featuredMediaId) {
       wpPayload.featured_media = featuredMediaId;
@@ -1125,9 +1194,13 @@ router.post(
       // Check if auto-approve is enabled and status is accepted
       const settings = getSettings();
       console.log("📋 Auto-approve setting:", settings.autoApproveWordPress);
+      console.log(
+        "📋 Auto-post group selection active:",
+        hasAutoPostGroupSelection(settings),
+      );
       console.log("📋 Status being set:", status);
 
-      if (status === "accepted" && settings.autoApproveWordPress === true) {
+      if (status === "accepted" && isAutoPostEnabled(settings)) {
         console.log(
           "🚀 Auto-approve enabled, posting to WordPress automatically...",
         );
@@ -1151,17 +1224,31 @@ router.post(
               return;
             }
 
+            if (!isAutoPostAllowedForGroup(settings, ad.fromGroup)) {
+              console.log(
+                `⏭️ Auto-post skipped: group "${ad.fromGroup}" is not in selected auto-post groups`,
+              );
+              return;
+            }
+
             console.log("📝 Ad found:", ad.id);
             console.log("📝 Ad has wpData:", !!ad.wpData);
 
             // Use pre-generated WordPress data if available
-            let wpData = ad.wpData;
-            if (!wpData) {
+            if (!ad.wpData) {
               console.log(
                 "⚠️ No pre-generated WordPress data, skipping auto-post",
               );
               return;
             }
+            const shouldUseFixedAutoPostCategory =
+              hasAutoPostGroupSelection(settings);
+            let wpData = shouldUseFixedAutoPostCategory
+              ? buildAutoPostWpData(ad.wpData)
+              : {
+                  ...ad.wpData,
+                  meta: ad.wpData?.meta ? { ...ad.wpData.meta } : {},
+                };
 
             // Override owner_name with WhatsApp sender name if available
             if (ad.senderName && wpData.meta) {
@@ -1260,7 +1347,9 @@ router.post(
               title: wpData.title || "Untitled Ad",
               content: wpData.content || "",
               status: "publish",
-              categories: wpData.categories || [],
+              categories: shouldUseFixedAutoPostCategory
+                ? wpData.categories || [...AUTO_POST_FIXED_CATEGORY_IDS]
+                : wpData.categories || [],
               meta: wpData.meta || {},
             };
 
@@ -1301,6 +1390,7 @@ router.post(
             ad.wordpressPostUrl = shortLink;
             ad.wordpressFullUrl = fullLink;
             ad.whatsappMessage = whatsappMessage;
+            ad.wpData = wpData;
 
             // Save updated ad
             fs.writeFileSync(
@@ -2051,6 +2141,7 @@ router.put(
         autoApproveWordPress,
         categoryLimits,
         excludedGroups,
+        autoApproveWordPressGroups,
       } = req.body;
       const updates = {};
 
@@ -2111,6 +2202,17 @@ router.put(
             .json({ error: "excludedGroups must be an array" });
         }
         updates.excludedGroups = excludedGroups;
+      }
+
+      if (autoApproveWordPressGroups !== undefined) {
+        if (!Array.isArray(autoApproveWordPressGroups)) {
+          return res.status(400).json({
+            error: "autoApproveWordPressGroups must be an array",
+          });
+        }
+        updates.autoApproveWordPressGroups = normalizeGroupJids(
+          autoApproveWordPressGroups,
+        );
       }
 
       if (categoryLimits !== undefined) {

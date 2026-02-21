@@ -88,13 +88,75 @@ const RECYCLE_BIN_FILE = dataSync.getFilePath("RECYCLE_BIN");
 const SETTINGS_FILE = dataSync.getFilePath("SETTINGS");
 let ads = [];
 let recycleBin = []; // Messages rejected by AI
-let settings = { recycleBinDays: 7, excludedGroups: [] }; // Default: auto-delete after 7 days, no excluded groups
+let settings = {
+  recycleBinDays: 7,
+  excludedGroups: [],
+  autoApproveWordPressGroups: [],
+}; // Default: auto-delete after 7 days, no excluded groups, no auto-post group filter
 let seenGroups = new Set();
 let groupsMetadata = {}; // Store group metadata (jid -> {name, jid})
 let collections = []; // Store group collections
 let categories = []; // Store custom categories
 // Pending admin actions waiting for confirmation: { [adminJid]: { type: 'stop'|'start'|'waseet', phones: ["9665..."], createdAt } }
 const pendingActions = {};
+const AUTO_POST_FIXED_CATEGORY_IDS = [131];
+
+function normalizeGroupSelection(groupIds) {
+  if (!Array.isArray(groupIds)) return [];
+
+  return [...new Set(
+    groupIds
+      .filter((groupId) => typeof groupId === "string")
+      .map((groupId) => groupId.trim())
+      .filter(Boolean),
+  )];
+}
+
+function normalizeSettingsForCompatibility() {
+  if (!settings || typeof settings !== "object") {
+    settings = {};
+  }
+
+  settings.excludedGroups = normalizeGroupSelection(settings.excludedGroups);
+  settings.autoApproveWordPressGroups = normalizeGroupSelection(
+    settings.autoApproveWordPressGroups,
+  );
+}
+
+function shouldAutoPostFromSourceGroup(sourceGroupJid) {
+  const selectedGroups = normalizeGroupSelection(
+    settings.autoApproveWordPressGroups,
+  );
+
+  // Backwards compatibility: if nothing selected, keep old behavior (all groups allowed)
+  if (selectedGroups.length === 0) {
+    return true;
+  }
+
+  return (
+    typeof sourceGroupJid === "string" && selectedGroups.includes(sourceGroupJid)
+  );
+}
+
+function hasAutoPostGroupSelection() {
+  return normalizeGroupSelection(settings.autoApproveWordPressGroups).length > 0;
+}
+
+function isAutoPostEnabled() {
+  return settings.autoApproveWordPress === true || hasAutoPostGroupSelection();
+}
+
+function buildAutoPostWpData(baseWpData) {
+  const safeWpData =
+    baseWpData && typeof baseWpData === "object" ? baseWpData : {};
+
+  return {
+    ...safeWpData,
+    categories: [...AUTO_POST_FIXED_CATEGORY_IDS],
+    fixedCategoryIds: [...AUTO_POST_FIXED_CATEGORY_IDS],
+    meta: safeWpData.meta ? { ...safeWpData.meta } : {},
+  };
+}
 
 function loadAds() {
   try {
@@ -109,15 +171,13 @@ function loadAds() {
     settings = dataSync.readDataSync("SETTINGS", {
       recycleBinDays: 7,
       excludedGroups: [],
+      autoApproveWordPressGroups: [],
     });
 
     ads.forEach((a) => seenGroups.add(a.fromGroup));
     console.log(`✅ Loaded ${collections.length} collections from file`);
 
-    // Ensure excludedGroups exists in settings (for backwards compatibility)
-    if (!settings.excludedGroups) {
-      settings.excludedGroups = [];
-    }
+    normalizeSettingsForCompatibility();
 
     // Clean old recycle bin items
     cleanRecycleBin();
@@ -764,7 +824,17 @@ async function processMessageFromQueue(messageData) {
 
     // Check if auto-approve is enabled and auto-post to WordPress
     const settings = getSettings();
-    if (settings.autoApproveWordPress === true && ad.wpData) {
+    const isGroupAllowedForAutoPost = shouldAutoPostFromSourceGroup(
+      ad.fromGroup,
+    );
+    const autoPostEnabled = isAutoPostEnabled();
+    const shouldUseFixedAutoPostCategory = hasAutoPostGroupSelection();
+
+    if (
+      autoPostEnabled &&
+      ad.wpData &&
+      isGroupAllowedForAutoPost
+    ) {
       console.log(
         "🚀 Auto-approve enabled, posting new ad to WordPress automatically..."
       );
@@ -780,8 +850,17 @@ async function processMessageFromQueue(messageData) {
           );
           console.log("🔵 Ad ID:", ad.id);
 
+          const wpDataForAutoPost = shouldUseFixedAutoPostCategory
+            ? buildAutoPostWpData(ad.wpData)
+            : ad.wpData;
+
           // Call the same function used for manual posting
-          const result = await postAdToWordPress(ad, sock, ad.wpData, false);
+          const result = await postAdToWordPress(
+            ad,
+            sock,
+            wpDataForAutoPost,
+            false,
+          );
 
           if (result.success) {
             console.log(
@@ -831,7 +910,15 @@ async function processMessageFromQueue(messageData) {
           console.error("Error details:", error.response?.data || error);
         }
       })();
-    } else if (settings.autoApproveWordPress === true && !ad.wpData) {
+    } else if (
+      autoPostEnabled &&
+      ad.wpData &&
+      !isGroupAllowedForAutoPost
+    ) {
+      console.log(
+        `⏭️ Auto-post skipped: group "${ad.fromGroup}" is not in selected auto-post groups`,
+      );
+    } else if (autoPostEnabled && !ad.wpData) {
       console.log(
         "⚠️ Auto-approve enabled but ad has no wpData, skipping auto-post"
       );
@@ -1739,7 +1826,18 @@ async function initializeBot() {
 
               // Check if auto-approve is enabled and auto-post to WordPress
               const settings = getSettings();
-              if (settings.autoApproveWordPress === true && ad.wpData) {
+              const isGroupAllowedForAutoPost = shouldAutoPostFromSourceGroup(
+                ad.fromGroup,
+              );
+              const autoPostEnabled = isAutoPostEnabled();
+              const shouldUseFixedAutoPostCategory =
+                hasAutoPostGroupSelection();
+
+              if (
+                autoPostEnabled &&
+                ad.wpData &&
+                isGroupAllowedForAutoPost
+              ) {
                 console.log(
                   "🚀 Auto-approve enabled, posting waseet ad to WordPress automatically..."
                 );
@@ -1755,12 +1853,16 @@ async function initializeBot() {
                     );
                     console.log("🔵 Ad ID:", ad.id);
 
+                    const wpDataForAutoPost = shouldUseFixedAutoPostCategory
+                      ? buildAutoPostWpData(ad.wpData)
+                      : ad.wpData;
+
                     // Call the same function used for manual posting
                     const result = await postAdToWordPress(
                       ad,
                       sock,
-                      ad.wpData,
-                      false
+                      wpDataForAutoPost,
+                      false,
                     );
 
                     if (result.success) {
@@ -1799,6 +1901,14 @@ async function initializeBot() {
                     );
                   }
                 })();
+              } else if (
+                autoPostEnabled &&
+                ad.wpData &&
+                !isGroupAllowedForAutoPost
+              ) {
+                console.log(
+                  `⏭️ Auto-post skipped: source "${ad.fromGroup}" is not in selected auto-post groups`,
+                );
               }
 
               // Send confirmation to waseet
@@ -2753,7 +2863,22 @@ function getSettings() {
 }
 
 function updateSettings(newSettings) {
-  Object.assign(settings, newSettings);
+  const updates = { ...(newSettings || {}) };
+
+  if (Object.prototype.hasOwnProperty.call(updates, "excludedGroups")) {
+    updates.excludedGroups = normalizeGroupSelection(updates.excludedGroups);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(updates, "autoApproveWordPressGroups")
+  ) {
+    updates.autoApproveWordPressGroups = normalizeGroupSelection(
+      updates.autoApproveWordPressGroups,
+    );
+  }
+
+  Object.assign(settings, updates);
+  normalizeSettingsForCompatibility();
   saveSettings();
 }
 
@@ -2769,7 +2894,9 @@ function reloadAds() {
     settings = dataSync.readDataSync("SETTINGS", {
       recycleBinDays: 7,
       excludedGroups: [],
+      autoApproveWordPressGroups: [],
     });
+    normalizeSettingsForCompatibility();
     console.log(`🔄 Reloaded ${ads.length} ads from file`);
     return true;
   } catch (err) {

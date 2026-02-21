@@ -353,6 +353,36 @@ function setupEventListeners() {
     excludedGroupsSearch.addEventListener("input", filterExcludedGroups);
   }
 
+  // Auto-post groups buttons
+  const loadAutoPostGroupsBtn = document.getElementById(
+    "load-auto-post-groups-btn",
+  );
+  if (loadAutoPostGroupsBtn) {
+    loadAutoPostGroupsBtn.addEventListener("click", loadAutoPostGroups);
+  }
+
+  const selectAllAutoPostGroupsBtn = document.getElementById(
+    "select-all-auto-post-groups-btn",
+  );
+  if (selectAllAutoPostGroupsBtn) {
+    selectAllAutoPostGroupsBtn.addEventListener("click", selectAllAutoPostGroups);
+  }
+
+  const deselectAllAutoPostGroupsBtn = document.getElementById(
+    "deselect-all-auto-post-groups-btn",
+  );
+  if (deselectAllAutoPostGroupsBtn) {
+    deselectAllAutoPostGroupsBtn.addEventListener(
+      "click",
+      deselectAllAutoPostGroups,
+    );
+  }
+
+  const autoPostGroupsSearch = document.getElementById("auto-post-groups-search");
+  if (autoPostGroupsSearch) {
+    autoPostGroupsSearch.addEventListener("input", filterAutoPostGroups);
+  }
+
   const addApiKeyBtn = document.getElementById("add-api-key-btn");
   if (addApiKeyBtn) {
     addApiKeyBtn.addEventListener("click", () => {
@@ -4378,6 +4408,12 @@ async function loadSettingsView() {
 
     // Load excluded groups into global variable
     currentExcludedGroups = data.settings.excludedGroups || [];
+    currentAutoPostGroups = data.settings.autoApproveWordPressGroups || [];
+
+    // If groups are already loaded in selector, refresh checked states
+    if (allGroupsForAutoPost.length > 0) {
+      renderAutoPostGroupsList();
+    }
 
     // Check API keys status and show alert if needed
     await checkApiKeysStatus();
@@ -5943,6 +5979,7 @@ async function handleSaveAllSettings() {
       wordpressUsername: wpUsername ? wpUsername.value : "",
       wordpressPassword: wpPassword ? wpPassword.value : "",
       excludedGroups: currentExcludedGroups, // Include excluded groups
+      autoApproveWordPressGroups: currentAutoPostGroups,
     };
 
     const response = await fetch("/api/bot/settings", {
@@ -8089,6 +8126,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 let currentExcludedGroups = [];
 let allGroupsForExclusion = [];
+let currentAutoPostGroups = [];
+let allGroupsForAutoPost = [];
 
 async function loadExcludedGroups() {
   const loadBtn = document.getElementById("load-excluded-groups-btn");
@@ -8237,6 +8276,173 @@ function filterExcludedGroups() {
   items.forEach((item) => {
     const jid = item.dataset.jid;
     const group = allGroupsForExclusion.find((g) => g.jid === jid);
+    if (!group) {
+      item.style.display = "none";
+      return;
+    }
+
+    const groupName = (group.name || group.jid).toLowerCase();
+    const matches = groupName.includes(searchTerm) || jid.includes(searchTerm);
+    item.style.display = matches ? "flex" : "none";
+  });
+}
+
+// ==================== AUTO-POST GROUPS FUNCTIONS ====================
+
+async function loadAutoPostGroups() {
+  const loadBtn = document.getElementById("load-auto-post-groups-btn");
+  const container = document.getElementById("auto-post-groups-container");
+
+  if (!loadBtn || !container) return;
+
+  try {
+    loadBtn.disabled = true;
+    loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+
+    // Fetch current settings
+    const settingsRes = await fetch("/api/bot/settings", {
+      credentials: "include",
+    });
+    if (!settingsRes.ok) throw new Error("Failed to fetch settings");
+    const settingsData = await settingsRes.json();
+    currentAutoPostGroups = settingsData.settings.autoApproveWordPressGroups || [];
+
+    // Fetch all groups
+    const groupsRes = await fetch("/api/bot/groups/refresh", {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!groupsRes.ok) throw new Error("Failed to fetch groups");
+    const groupsData = await groupsRes.json();
+    allGroupsForAutoPost = groupsData.groups || [];
+
+    container.style.display = "block";
+    renderAutoPostGroupsList();
+
+    loadBtn.innerHTML = '<i class="fas fa-check"></i> Groups Loaded';
+    setTimeout(() => {
+      loadBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Reload Groups';
+      loadBtn.disabled = false;
+    }, 2000);
+  } catch (error) {
+    console.error("Error loading auto-post groups:", error);
+    alert("Failed to load groups. Please try again.");
+    loadBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Load Groups';
+    loadBtn.disabled = false;
+  }
+}
+
+function renderAutoPostGroupsList() {
+  const listContainer = document.getElementById("auto-post-groups-list");
+  const countContainer = document.getElementById("auto-post-groups-count");
+
+  if (!listContainer || !countContainer) return;
+
+  if (allGroupsForAutoPost.length === 0) {
+    listContainer.innerHTML =
+      '<p style="color: #999; text-align: center; padding: 2rem;">No groups found</p>';
+    countContainer.textContent = "";
+    return;
+  }
+
+  const sortedGroups = [...allGroupsForAutoPost].sort((a, b) =>
+    (a.name || a.jid).localeCompare(b.name || b.jid),
+  );
+
+  listContainer.innerHTML = sortedGroups
+    .map((group) => {
+      const isSelected = currentAutoPostGroups.includes(group.jid);
+      const groupName = group.name || group.jid;
+      const groupType = group.type || "Group";
+      const typeIcon = groupType === "Community" ? "📢" : "👥";
+
+      return `
+      <div class="auto-post-group-item" data-jid="${
+        group.jid
+      }" style="padding: 0.75rem; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 0.5rem;">
+        <input type="checkbox"
+               class="auto-post-group-checkbox"
+               data-jid="${group.jid}"
+               ${isSelected ? "checked" : ""}
+               onchange="handleAutoPostGroupToggle('${group.jid}', this.checked)"
+               style="width: 18px; height: 18px; cursor: pointer;">
+        <label style="flex: 1; cursor: pointer; margin: 0; display: flex; align-items: center; gap: 0.5rem;"
+               onclick="document.querySelector('#auto-post-groups-list .auto-post-group-checkbox[data-jid=\\'${
+                 group.jid
+               }\\']').click()">
+          <span>${typeIcon}</span>
+          <span style="font-weight: 500;">${escapeHtml(groupName)}</span>
+          <span style="color: #999; font-size: 0.85rem;">(${groupType})</span>
+        </label>
+      </div>
+    `;
+    })
+    .join("");
+
+  updateAutoPostGroupsCount();
+}
+
+function handleAutoPostGroupToggle(jid, isChecked) {
+  if (isChecked) {
+    if (!currentAutoPostGroups.includes(jid)) {
+      currentAutoPostGroups.push(jid);
+    }
+  } else {
+    currentAutoPostGroups = currentAutoPostGroups.filter((group) => group !== jid);
+  }
+
+  updateAutoPostGroupsCount();
+}
+
+function updateAutoPostGroupsCount() {
+  const countContainer = document.getElementById("auto-post-groups-count");
+  if (!countContainer) return;
+
+  const total = allGroupsForAutoPost.length;
+  const selected = currentAutoPostGroups.length;
+  const remaining = Math.max(total - selected, 0);
+
+  if (selected === 0) {
+    countContainer.innerHTML = `
+      <strong>0</strong> selected | <strong>${total}</strong> total
+      <br><span style="color: #777;">No selection means auto-post applies to all groups (legacy behavior).</span>
+    `;
+    return;
+  }
+
+  countContainer.innerHTML = `
+    <strong>${selected}</strong> selected for auto-post |
+    <strong>${remaining}</strong> not selected |
+    <strong>${total}</strong> total
+  `;
+}
+
+function selectAllAutoPostGroups() {
+  const checkboxes = document.querySelectorAll(".auto-post-group-checkbox");
+  checkboxes.forEach((checkbox) => {
+    checkbox.checked = true;
+    handleAutoPostGroupToggle(checkbox.dataset.jid, true);
+  });
+}
+
+function deselectAllAutoPostGroups() {
+  const checkboxes = document.querySelectorAll(".auto-post-group-checkbox");
+  checkboxes.forEach((checkbox) => {
+    checkbox.checked = false;
+    handleAutoPostGroupToggle(checkbox.dataset.jid, false);
+  });
+}
+
+function filterAutoPostGroups() {
+  const searchInput = document.getElementById("auto-post-groups-search");
+  if (!searchInput) return;
+
+  const searchTerm = searchInput.value.toLowerCase();
+  const items = document.querySelectorAll(".auto-post-group-item");
+
+  items.forEach((item) => {
+    const jid = item.dataset.jid;
+    const group = allGroupsForAutoPost.find((g) => g.jid === jid);
     if (!group) {
       item.style.display = "none";
       return;
