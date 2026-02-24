@@ -19,15 +19,15 @@ const PROVIDERS = {
 // Model configurations for each provider
 const MODEL_CONFIG = {
   [PROVIDERS.GEMINI]: {
-    default: "gemini-2.0-flash-lite",
-    efficient: "gemini-2.0-flash-lite", // Most token-efficient
+    default: "gemini-2.5-flash-lite",
+    efficient: "gemini-2.5-flash-lite", // Most token-efficient
     powerful: "gemini-2.5-flash",
     endpoint: "https://generativelanguage.googleapis.com/v1beta",
   },
   [PROVIDERS.GPT]: {
-    default: "gpt-4o-mini",
-    efficient: "gpt-4o-mini", // Most token-efficient for dashboard
-    powerful: "gpt-4o",
+    default: "gpt-5-mini",
+    efficient: "gpt-5-nano", // Most token-efficient for dashboard
+    powerful: "gpt-5.2",
     endpoint: "https://api.openai.com/v1",
   },
 };
@@ -159,7 +159,7 @@ function switchToNextKey(provider) {
   console.log(
     `🔄 Switched to ${provider.toUpperCase()} API key #${
       settings[indexKey] + 1
-    }: ${enabledKeys[settings[indexKey]].name}`
+    }: ${enabledKeys[settings[indexKey]].name}`,
   );
   return enabledKeys[settings[indexKey]];
 }
@@ -285,7 +285,7 @@ function deleteApiKey(keyId) {
 
   // Search and remove from both arrays
   const geminiIndex = (settings.geminiApiKeys || []).findIndex(
-    (k) => k.id === keyId
+    (k) => k.id === keyId,
   );
   const gptIndex = (settings.gptApiKeys || []).findIndex((k) => k.id === keyId);
 
@@ -387,7 +387,7 @@ function getApiKeysStatus() {
 
   const geminiStatus = processKeys(
     settings.geminiApiKeys || [],
-    PROVIDERS.GEMINI
+    PROVIDERS.GEMINI,
   );
   const gptStatus = processKeys(settings.gptApiKeys || [], PROVIDERS.GPT);
 
@@ -415,7 +415,7 @@ async function retryWithKeyRotation(
   provider,
   operation,
   operationName = "AI operation",
-  maxRetries = null
+  maxRetries = null,
 ) {
   const allKeys = getKeysByProvider(provider);
   const enabledKeys = getEnabledKeysByProvider(provider);
@@ -428,7 +428,7 @@ async function retryWithKeyRotation(
   if (allKeys.length > 0 && enabledKeys.length === 0) {
     console.log(`   ⚠️ All ${allKeys.length} keys are disabled!`);
     allKeys.forEach((k, i) =>
-      console.log(`     ${i + 1}. ${k.name}: enabled=${k.enabled}`)
+      console.log(`     ${i + 1}. ${k.name}: enabled=${k.enabled}`),
     );
   }
 
@@ -436,7 +436,7 @@ async function retryWithKeyRotation(
     throw new Error(
       `❌ No enabled ${provider.toUpperCase()} API keys available (${
         allKeys.length
-      } total keys, all disabled)`
+      } total keys, all disabled)`,
     );
   }
 
@@ -450,7 +450,7 @@ async function retryWithKeyRotation(
   console.log(
     `🔄 Starting ${operationName} with ${
       enabledKeys.length
-    } available ${provider.toUpperCase()} API keys`
+    } available ${provider.toUpperCase()} API keys`,
   );
 
   for (let i = 0; i < totalRetries; i++) {
@@ -461,19 +461,19 @@ async function retryWithKeyRotation(
       console.log(
         `🔑 [${provider.toUpperCase()}] Attempt ${attemptCount}/${totalRetries} - Using key: ${
           currentKey.name
-        } (Priority: ${currentKey.priority})`
+        } (Priority: ${currentKey.priority})`,
       );
 
       const result = await operation(
         currentKey.key,
         currentKey,
-        currentRotationIndex
+        currentRotationIndex,
       );
 
       console.log(
         `✅ ${operationName} succeeded with ${provider.toUpperCase()} key: ${
           currentKey.name
-        }`
+        }`,
       );
       updateKeyStats(provider, currentKey.id, null);
 
@@ -503,7 +503,7 @@ async function retryWithKeyRotation(
 
       console.error(
         `❌ [${provider.toUpperCase()}] Attempt ${attemptCount} failed:`,
-        errorMessage
+        errorMessage,
       );
 
       updateKeyStats(provider, currentKey.id, error);
@@ -518,7 +518,7 @@ async function retryWithKeyRotation(
           }
 
           console.log(
-            `⚠️ ${provider.toUpperCase()} key issue, switching to next key...`
+            `⚠️ ${provider.toUpperCase()} key issue, switching to next key...`,
           );
           currentRotationIndex =
             (currentRotationIndex + 1) % enabledKeys.length;
@@ -532,10 +532,10 @@ async function retryWithKeyRotation(
               consecutiveRateLimits >= enabledKeys.length ? 15000 : 5000;
             delayMs = Math.min(
               baseDelay * Math.pow(2, Math.floor(i / enabledKeys.length)),
-              60000
+              60000,
             );
             console.log(
-              `⏳ Rate limit hit (${consecutiveRateLimits} consecutive) - waiting ${delayMs}ms before retry...`
+              `⏳ Rate limit hit (${consecutiveRateLimits} consecutive) - waiting ${delayMs}ms before retry...`,
             );
           } else {
             delayMs = Math.min(1000 * Math.pow(2, i), 10000);
@@ -550,7 +550,7 @@ async function retryWithKeyRotation(
   }
 
   console.error(
-    `💥 ${operationName} failed after ${attemptCount} attempts with all ${provider.toUpperCase()} API keys`
+    `💥 ${operationName} failed after ${attemptCount} attempts with all ${provider.toUpperCase()} API keys`,
   );
   throw lastError;
 }
