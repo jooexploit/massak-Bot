@@ -2350,6 +2350,92 @@ router.put(
   },
 );
 
+// Bulk move ads to recycle bin (admin and author)
+router.post(
+  "/ads/bulk-recycle-bin",
+  authenticateToken,
+  authorizeRole(["admin", "author"]),
+  (req, res) => {
+    try {
+      const rawAdIds = Array.isArray(req.body?.adIds) ? req.body.adIds : [];
+      const adIds = [...new Set(
+        rawAdIds
+          .filter((id) => typeof id === "string")
+          .map((id) => id.trim())
+          .filter(Boolean),
+      )];
+
+      if (adIds.length === 0) {
+        return res.status(400).json({ error: "adIds array is required" });
+      }
+
+      const reason =
+        typeof req.body?.reason === "string" && req.body.reason.trim()
+          ? req.body.reason.trim()
+          : "Bulk moved to recycle bin";
+
+      const results = [];
+
+      for (const adId of adIds) {
+        try {
+          reloadAds();
+          const ad = getAdById(adId);
+
+          if (!ad) {
+            results.push({ id: adId, success: false, error: "Ad not found" });
+            continue;
+          }
+
+          const markedRejected = updateAdStatus(adId, "rejected", reason);
+          if (!markedRejected) {
+            results.push({
+              id: adId,
+              success: false,
+              error: "Failed to mark ad as rejected",
+            });
+            continue;
+          }
+
+          const moved = moveAdToRecycleBin(adId);
+          if (!moved) {
+            results.push({
+              id: adId,
+              success: false,
+              error: "Failed to move ad to recycle bin",
+            });
+            continue;
+          }
+
+          results.push({ id: adId, success: true });
+        } catch (error) {
+          results.push({
+            id: adId,
+            success: false,
+            error: error.message || "Unknown error",
+          });
+        }
+      }
+
+      const succeeded = results.filter((item) => item.success).length;
+      const failed = results.length - succeeded;
+
+      res.json({
+        success: failed === 0,
+        total: adIds.length,
+        succeeded,
+        failed,
+        results,
+      });
+    } catch (err) {
+      console.error("Bulk recycle-bin move failed:", err);
+      res.status(500).json({
+        error: "Failed bulk move to recycle bin",
+        details: err.message,
+      });
+    }
+  },
+);
+
 // Bulk post ads to WordPress (admin and author)
 router.post(
   "/ads/bulk-post-to-wordpress",

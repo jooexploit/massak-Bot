@@ -4608,6 +4608,7 @@ function updateAdText(id, text) {
   if (idx === -1) return false;
   ads[idx].enhancedText = text;
   ads[idx].isEdited = true;
+  ads[idx].editedAt = Date.now();
   saveAds();
   return true;
 }
@@ -4618,6 +4619,7 @@ function updateAdEnhancedText(id, enhancedText, improvements) {
   ads[idx].enhancedText = enhancedText;
   ads[idx].improvements = improvements || [];
   ads[idx].isEdited = false; // Reset edited flag when regenerated
+  ads[idx].editedAt = null;
   saveAds();
   return true;
 }
@@ -4628,6 +4630,7 @@ function updateAdWordPressData(id, wpData, whatsappMessage) {
   ads[idx].wpData = wpData;
   ads[idx].whatsappMessage = whatsappMessage;
   ads[idx].isEdited = false; // Reset edited flag when regenerated
+  ads[idx].editedAt = null;
   saveAds();
   return true;
 }

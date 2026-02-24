@@ -50,6 +50,7 @@ const adsSelectedCount = document.getElementById("ads-selected-count");
 const adsBulkDelayInput = document.getElementById("ads-bulk-delay");
 const adsBulkRetriesInput = document.getElementById("ads-bulk-retries");
 const adsBulkPostWpBtn = document.getElementById("ads-bulk-post-wp-btn");
+const adsBulkRecycleBtn = document.getElementById("ads-bulk-recycle-btn");
 const adsBulkClearBtn = document.getElementById("ads-bulk-clear-btn");
 const adsBulkStatus = document.getElementById("ads-bulk-status");
 
@@ -234,6 +235,10 @@ function setupEventListeners() {
   if (adsBulkPostWpBtn) {
     adsBulkPostWpBtn.addEventListener("click", handleBulkPostSelectedToWordPress);
   }
+  if (adsBulkRecycleBtn) {
+    adsBulkRecycleBtn.addEventListener("click", handleBulkMoveSelectedToRecycleBin);
+  }
+
   if (adsBulkClearBtn) {
     adsBulkClearBtn.addEventListener("click", clearSelectedAdsForBulkPosting);
   }
@@ -1408,6 +1413,13 @@ function updateAdsBulkSelectionUI() {
       : '<i class="fab fa-wordpress"></i> Post Selected to WordPress';
   }
 
+  if (adsBulkRecycleBtn) {
+    adsBulkRecycleBtn.disabled = bulkPostingInProgress || selectedCount === 0;
+    adsBulkRecycleBtn.innerHTML = bulkPostingInProgress
+      ? '<i class="fas fa-spinner fa-spin"></i> Processing...'
+      : '<i class="fas fa-trash"></i> Move Selected to Recycle Bin';
+  }
+
   if (adsBulkClearBtn) {
     adsBulkClearBtn.disabled = bulkPostingInProgress || selectedCount === 0;
   }
@@ -1543,6 +1555,87 @@ async function handleBulkPostSelectedToWordPress() {
     console.error("Bulk post to WordPress failed:", error);
     setAdsBulkStatus(error.message || "Bulk posting failed.", "error");
     showInfo(adsInfo, `❌ ${error.message || "Bulk posting failed"}`);
+    setTimeout(() => hideMessage(adsInfo), 5000);
+  } finally {
+    bulkPostingInProgress = false;
+    updateAdsBulkSelectionUI();
+  }
+}
+
+async function handleBulkMoveSelectedToRecycleBin() {
+  if (bulkPostingInProgress) return;
+
+  const adIds = Array.from(selectedAdsForBulkPost);
+  if (adIds.length === 0) {
+    setAdsBulkStatus("Select at least one ad first.", "error");
+    return;
+  }
+
+  const confirmText = `Move ${adIds.length} selected ad(s) to recycle bin?\n\nThis will mark each as rejected and move it to recycle bin.`;
+  if (!confirm(confirmText)) return;
+
+  bulkPostingInProgress = true;
+  setAdsBulkStatus(`Moving ${adIds.length} ads to recycle bin...`, "info");
+  showInfo(
+    adsInfo,
+    `Moving ${adIds.length} selected ads to recycle bin. Please wait...`,
+  );
+  updateAdsBulkSelectionUI();
+
+  try {
+    const response = await fetch("/api/bot/ads/bulk-recycle-bin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ adIds }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Failed bulk move to recycle bin");
+    }
+
+    const results = Array.isArray(data.results) ? data.results : [];
+    results.forEach((item) => {
+      if (item && item.success && item.id) {
+        selectedAdsForBulkPost.delete(String(item.id));
+      }
+    });
+
+    const succeeded = data.succeeded || 0;
+    const failed = data.failed || 0;
+
+    if (failed === 0) {
+      setAdsBulkStatus(
+        `Completed successfully: ${succeeded}/${data.total} moved to recycle bin.`,
+        "success",
+      );
+      showInfo(adsInfo, `✅ Moved ${succeeded} ad(s) to recycle bin successfully.`);
+    } else {
+      const failedIds = results
+        .filter((item) => item && !item.success)
+        .map((item) => item.id)
+        .slice(0, 5);
+      const failedIdsSuffix =
+        failedIds.length > 0
+          ? ` Failed IDs: ${failedIds.join(", ")}${failed > 5 ? ", ..." : ""}`
+          : "";
+      setAdsBulkStatus(
+        `Completed with errors: ${succeeded} success, ${failed} failed.`,
+        "error",
+      );
+      showInfo(
+        adsInfo,
+        `⚠️ Bulk recycle-bin move finished: ${succeeded} success, ${failed} failed.${failedIdsSuffix}`,
+      );
+    }
+
+    setTimeout(() => hideMessage(adsInfo), 6000);
+    await fetchAndRenderAds();
+  } catch (error) {
+    console.error("Bulk recycle-bin move failed:", error);
+    setAdsBulkStatus(error.message || "Bulk move failed.", "error");
+    showInfo(adsInfo, `❌ ${error.message || "Bulk move failed"}`);
     setTimeout(() => hideMessage(adsInfo), 5000);
   } finally {
     bulkPostingInProgress = false;

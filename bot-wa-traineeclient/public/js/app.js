@@ -9,6 +9,9 @@ let allCategories = [];
 let savedCustomNumbers = []; // Saved custom phone numbers with names
 let selectedCustomNumbers = []; // Currently selected custom numbers for sending
 let initialDataLoaded = false; // Track if initial data has been loaded
+let selectedAdIds = new Set(); // Bulk-selected ads in Manage Ads view
+let isAdsBulkActionRunning = false;
+let initialEditAdText = "";
 
 // ==================== WHATSAPP LINK HELPERS ====================
 function normalizeWhatsAppPhone(phone) {
@@ -164,8 +167,7 @@ async function handleOpenGroupsPreviewInWhatsApp() {
   } finally {
     if (openBtn) {
       openBtn.disabled = false;
-      openBtn.innerHTML =
-        '<i class="fab fa-whatsapp"></i> Open in WhatsApp';
+      openBtn.innerHTML = '<i class="fab fa-whatsapp"></i> Open in WhatsApp';
     }
   }
 }
@@ -441,6 +443,14 @@ const adminControls = document.getElementById("admin-controls");
 const disconnectBtn = document.getElementById("disconnect-btn");
 const adminMessage = document.getElementById("admin-message");
 const adsSearchInput = document.getElementById("ads-search-input");
+const adsSelectAllCheckbox = document.getElementById("ads-select-all-checkbox");
+const adsSelectedCount = document.getElementById("ads-selected-count");
+const adsBulkDelayInput = document.getElementById("ads-bulk-delay");
+const adsBulkRetriesInput = document.getElementById("ads-bulk-retries");
+const adsBulkPostWpBtn = document.getElementById("ads-bulk-post-wp-btn");
+const adsBulkRecycleBtn = document.getElementById("ads-bulk-recycle-btn");
+const adsBulkClearBtn = document.getElementById("ads-bulk-clear-btn");
+const adsBulkStatus = document.getElementById("ads-bulk-status");
 
 // Modal elements
 const resendModal = document.getElementById("resend-modal");
@@ -551,6 +561,8 @@ document.addEventListener("DOMContentLoaded", () => {
   checkAuth();
   setupEventListeners();
   bindLoginUI();
+  updateAdsBulkControlsState();
+  updateEditSaveButtonState();
 
   // Check API keys status periodically (every 5 minutes)
   setInterval(checkAndShowApiKeysNotification, 5 * 60 * 1000);
@@ -614,6 +626,29 @@ function setupEventListeners() {
   if (adsSearchInput) {
     adsSearchInput.addEventListener("input", (e) => {
       performLiveSearch(e.target.value);
+    });
+  }
+
+  // Manage Ads bulk selection/actions
+  if (adsSelectAllCheckbox) {
+    adsSelectAllCheckbox.addEventListener("change", (e) => {
+      toggleSelectAllVisibleAds(e.target.checked);
+    });
+  }
+  if (adsBulkPostWpBtn) {
+    adsBulkPostWpBtn.addEventListener("click", () =>
+      runBulkAdsAction("post-to-wordpress"),
+    );
+  }
+  if (adsBulkRecycleBtn) {
+    adsBulkRecycleBtn.addEventListener("click", () =>
+      runBulkAdsAction("move-to-recycle"),
+    );
+  }
+  if (adsBulkClearBtn) {
+    adsBulkClearBtn.addEventListener("click", () => {
+      clearSelectedAds();
+      showAdsBulkStatus("Selection cleared.", "success");
     });
   }
 
@@ -848,6 +883,9 @@ function setupEventListeners() {
   if (cancelEditAdBtn)
     cancelEditAdBtn.addEventListener("click", closeEditAdModal);
   if (saveEditAdBtn) saveEditAdBtn.addEventListener("click", handleSaveEditAd);
+  if (editAdTextarea) {
+    editAdTextarea.addEventListener("input", updateEditSaveButtonState);
+  }
 
   // Accept Options modal
   if (closeAcceptModalBtn)
@@ -1696,6 +1734,7 @@ function performLiveSearch(searchTerm) {
   if (!term) {
     // Show all ads if search is empty
     cards.forEach((card) => (card.style.display = "block"));
+    updateAdsBulkControlsState();
     return;
   }
 
@@ -1734,6 +1773,7 @@ function performLiveSearch(searchTerm) {
   console.log(
     `🔍 Smart Search: "${term}" - Found ${visibleCount}/${cards.length} ads`,
   );
+  updateAdsBulkControlsState();
 }
 
 // Focus on specific ad and expand it
@@ -1761,6 +1801,312 @@ function focusOnAd(adId) {
   setTimeout(() => {
     card.style.boxShadow = "";
   }, 2000);
+}
+
+function waitMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function clampNumber(value, min, max, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
+}
+
+function showAdsBulkStatus(message, type = "info", keepVisible = false) {
+  if (!adsBulkStatus) return;
+  adsBulkStatus.textContent = message;
+  adsBulkStatus.className =
+    type === "success"
+      ? "success-message show"
+      : type === "error"
+        ? "error-message show"
+        : "info-message show";
+  adsBulkStatus.style.display = "block";
+
+  if (!keepVisible) {
+    setTimeout(() => {
+      if (isAdsBulkActionRunning) return;
+      adsBulkStatus.style.display = "none";
+      adsBulkStatus.classList.remove("show");
+    }, 4500);
+  }
+}
+
+function clearSelectedAds() {
+  selectedAdIds.clear();
+  document.querySelectorAll("#ads-list .ad-select-checkbox").forEach((cb) => {
+    cb.checked = false;
+  });
+  updateAdsBulkControlsState();
+}
+
+function getVisibleAdSelectionCheckboxes() {
+  return Array.from(
+    document.querySelectorAll("#ads-list .ad-select-checkbox"),
+  ).filter((cb) => {
+    const card = cb.closest(".card");
+    return card && card.style.display !== "none";
+  });
+}
+
+function toggleSelectAllVisibleAds(checked) {
+  getVisibleAdSelectionCheckboxes().forEach((cb) => {
+    cb.checked = checked;
+    const id = cb.getAttribute("data-id");
+    if (!id) return;
+    if (checked) selectedAdIds.add(id);
+    else selectedAdIds.delete(id);
+  });
+  updateAdsBulkControlsState();
+}
+
+function updateAdsBulkControlsState() {
+  const selectedCount = selectedAdIds.size;
+  if (adsSelectedCount) {
+    adsSelectedCount.textContent = `${selectedCount} selected`;
+  }
+
+  const visibleCheckboxes = getVisibleAdSelectionCheckboxes();
+  const checkedVisible = visibleCheckboxes.filter((cb) => cb.checked).length;
+
+  if (adsSelectAllCheckbox) {
+    const hasVisible = visibleCheckboxes.length > 0;
+    adsSelectAllCheckbox.disabled = !hasVisible || isAdsBulkActionRunning;
+    adsSelectAllCheckbox.checked =
+      hasVisible && checkedVisible === visibleCheckboxes.length;
+    adsSelectAllCheckbox.indeterminate =
+      hasVisible &&
+      checkedVisible > 0 &&
+      checkedVisible < visibleCheckboxes.length;
+  }
+
+  const disableActions = selectedCount === 0 || isAdsBulkActionRunning;
+  if (adsBulkPostWpBtn) adsBulkPostWpBtn.disabled = disableActions;
+  if (adsBulkRecycleBtn) adsBulkRecycleBtn.disabled = disableActions;
+  if (adsBulkClearBtn) adsBulkClearBtn.disabled = disableActions;
+  if (adsBulkDelayInput) adsBulkDelayInput.disabled = isAdsBulkActionRunning;
+  if (adsBulkRetriesInput)
+    adsBulkRetriesInput.disabled = isAdsBulkActionRunning;
+}
+
+async function getResponseErrorMessage(response, fallbackMessage) {
+  try {
+    const data = await response.json();
+    if (data?.error) return data.error;
+    if (data?.details) return data.details;
+  } catch (_) {}
+
+  try {
+    const text = await response.text();
+    if (text) return text;
+  } catch (_) {}
+
+  return fallbackMessage;
+}
+
+async function moveAdToRecycleBinWithFallback(adId) {
+  let response = await fetch(`/api/bot/ads/${adId}/recycle-bin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+
+  if (response.ok) return;
+
+  if (response.status !== 404) {
+    const reason = await getResponseErrorMessage(
+      response,
+      "Failed to move ad to recycle bin",
+    );
+    throw new Error(reason);
+  }
+
+  const rejectReason = "Moved to recycle bin by bulk action";
+  const rejectResponse = await fetch(`/api/bot/ads/${adId}/status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ status: "rejected", reason: rejectReason }),
+  });
+
+  if (!rejectResponse.ok) {
+    const reason = await getResponseErrorMessage(
+      rejectResponse,
+      "Failed to reject ad before recycle-bin move",
+    );
+    throw new Error(reason);
+  }
+
+  response = await fetch(`/api/bot/ads/${adId}/recycle-bin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const reason = await getResponseErrorMessage(
+      response,
+      "Failed to move ad to recycle bin",
+    );
+    throw new Error(reason);
+  }
+}
+
+async function executeSingleBulkAdAction(adId, action) {
+  if (action === "post-to-wordpress") {
+    const postRes = await fetch(`/api/bot/ads/${adId}/post-to-wordpress`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    });
+
+    if (!postRes.ok) {
+      const reason = await getResponseErrorMessage(
+        postRes,
+        "Failed to post ad to WordPress",
+      );
+      throw new Error(reason);
+    }
+
+    const statusRes = await fetch(`/api/bot/ads/${adId}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ status: "accepted" }),
+    });
+
+    if (!statusRes.ok) {
+      const reason = await getResponseErrorMessage(
+        statusRes,
+        "Posted to WordPress but failed to mark ad as accepted",
+      );
+      throw new Error(reason);
+    }
+
+    return;
+  }
+
+  if (action === "move-to-recycle") {
+    await moveAdToRecycleBinWithFallback(adId);
+    return;
+  }
+
+  throw new Error(`Unsupported bulk action: ${action}`);
+}
+
+async function executeBulkActionWithRetries(adId, action, retries) {
+  let lastError = null;
+  const attempts = retries + 1;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await executeSingleBulkAdAction(adId, action);
+      return attempt;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await waitMs(Math.min(1000 * attempt, 3000));
+      }
+    }
+  }
+
+  throw lastError || new Error("Unknown bulk action failure");
+}
+
+async function runBulkAdsAction(action) {
+  if (isAdsBulkActionRunning) return;
+
+  const ids = Array.from(selectedAdIds);
+  if (ids.length === 0) {
+    showAdsBulkStatus("Please select at least one ad first.", "error");
+    return;
+  }
+
+  const delaySeconds = clampNumber(adsBulkDelayInput?.value, 0, 60, 2);
+  const retries = clampNumber(adsBulkRetriesInput?.value, 0, 5, 2);
+  if (adsBulkDelayInput) adsBulkDelayInput.value = String(delaySeconds);
+  if (adsBulkRetriesInput) adsBulkRetriesInput.value = String(retries);
+
+  const isPostAction = action === "post-to-wordpress";
+  const actionLabel = isPostAction
+    ? "post selected ads to WordPress"
+    : "move selected ads to recycle bin";
+
+  const confirmed = confirm(
+    `Run bulk action for ${ids.length} ad(s)?\n\nAction: ${actionLabel}\nDelay: ${delaySeconds}s between ads\nRetries per ad: ${retries}`,
+  );
+
+  if (!confirmed) return;
+
+  isAdsBulkActionRunning = true;
+  updateAdsBulkControlsState();
+  showAdsBulkStatus(
+    `Starting bulk ${isPostAction ? "WordPress posting" : "recycle move"}...`,
+    "info",
+    true,
+  );
+
+  let successCount = 0;
+  const failed = [];
+
+  try {
+    for (let i = 0; i < ids.length; i++) {
+      const adId = ids[i];
+      showAdsBulkStatus(
+        `Processing ${i + 1}/${ids.length} (Ad: ${adId})...`,
+        "info",
+        true,
+      );
+
+      try {
+        const usedAttempts = await executeBulkActionWithRetries(
+          adId,
+          action,
+          retries,
+        );
+        successCount++;
+        selectedAdIds.delete(adId);
+        console.log(
+          `✅ Bulk ${action} success for ad ${adId} (attempt ${usedAttempts})`,
+        );
+      } catch (error) {
+        console.error(`❌ Bulk ${action} failed for ad ${adId}:`, error);
+        failed.push({ id: adId, error: error.message || "Unknown error" });
+      }
+
+      updateAdsBulkControlsState();
+
+      if (delaySeconds > 0 && i < ids.length - 1) {
+        await waitMs(delaySeconds * 1000);
+      }
+    }
+  } finally {
+    isAdsBulkActionRunning = false;
+    updateAdsBulkControlsState();
+  }
+
+  const failedIds = failed.map((item) => item.id);
+  selectedAdIds = new Set(failedIds);
+
+  const failCount = failed.length;
+  if (failCount === 0) {
+    showAdsBulkStatus(
+      `✅ Done. ${successCount}/${ids.length} ads processed successfully.`,
+      "success",
+    );
+  } else {
+    const failedPreview = failedIds.slice(0, 5).join(", ");
+    const suffix = failedIds.length > 5 ? "..." : "";
+    showAdsBulkStatus(
+      `⚠️ Done with errors. Success: ${successCount}/${ids.length}, Failed: ${failCount}. Failed IDs: ${failedPreview}${suffix}`,
+      "error",
+      true,
+    );
+  }
+
+  await fetchAndRenderAds(true);
+  updateAdsBulkControlsState();
 }
 
 // Fetch ads from server and render
@@ -1817,6 +2163,7 @@ async function fetchAndRenderAds(reset = true) {
     if (response.status === 401 || response.status === 403) {
       currentUser = null;
       showLogin();
+      updateAdsBulkControlsState();
       return;
     }
 
@@ -1850,6 +2197,7 @@ async function fetchAndRenderAds(reset = true) {
       showInfo(adsInfo, "Failed to load ads. Please try again.");
     }
     isLoadingMoreAds = false;
+    updateAdsBulkControlsState();
   }
 }
 
@@ -1892,6 +2240,7 @@ function renderAds(list, reset = true, pagination = {}) {
     if (reset) {
       adsList.innerHTML = `<div class="info-text">No ads found.</div>`;
     }
+    updateAdsBulkControlsState();
     return;
   }
 
@@ -1899,11 +2248,12 @@ function renderAds(list, reset = true, pagination = {}) {
 
   list.forEach((ad, index) => {
     const globalIndex = startIndex + index;
+    const displayIndex = globalIndex + 1;
     const el = document.createElement("div");
     el.className = "card";
     el.style.marginBottom = "12px";
     el.setAttribute("data-ad-id", ad.id); // For search and focus
-    el.setAttribute("data-ad-index", index + 1); // Ad number
+    el.setAttribute("data-ad-index", displayIndex); // Ad number
 
     // Find category for color
     const catObj = allCategories.find((c) => c.name === ad.category);
@@ -1950,6 +2300,12 @@ function renderAds(list, reset = true, pagination = {}) {
         </div>`
         : "";
 
+    const editedStateBadge = ad.isEdited
+      ? `<span style="background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.5); color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700;" title="${escapeHtml(ad.editedAt ? `Saved at ${new Date(ad.editedAt).toLocaleString()}` : "Saved edit")}">
+          <i class="fas fa-save"></i> Saved Edit
+        </span>`
+      : "";
+
     el.innerHTML = `
       <div class="card-body">
         <!-- FAQ-style Header (Clickable) -->
@@ -1959,7 +2315,7 @@ function renderAds(list, reset = true, pagination = {}) {
           <div style="flex: 1;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;">
               <span style="background: rgba(255,255,255,0.3); padding: 4px 10px; border-radius: 6px; font-weight: bold; margin-right: 5px;">#${
-                index + 1
+                displayIndex
               }</span>
               <i class="fas fa-chevron-right ad-faq-icon" data-ad-id="${
                 ad.id
@@ -1971,6 +2327,7 @@ function renderAds(list, reset = true, pagination = {}) {
               }</strong>
               ${aiConfidenceBadge}
               ${websiteBadge}
+              ${editedStateBadge}
               ${isRejected ? '<span style="background: rgba(255,255,255,0.3); padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: bold;"><i class="fas fa-times-circle"></i> مرفوض</span>' : ""}
             </div>
             <div style="display: flex; gap: 15px; align-items: center; font-size: 0.9rem; opacity: 0.95; flex-wrap: wrap;">
@@ -2327,13 +2684,44 @@ function renderAds(list, reset = true, pagination = {}) {
       });
     }
 
-    // FAQ-style dropdown toggle handler
     const faqHeader = el.querySelector(".ad-faq-header");
     const faqContent = el.querySelector(".ad-faq-content");
     const faqIcon = el.querySelector(".ad-faq-icon");
 
+    // Selection checkbox for bulk actions
+    if (faqHeader) {
+      const selectorWrap = document.createElement("label");
+      selectorWrap.style.cssText =
+        "display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.18);font-size:0.85rem;font-weight:600;cursor:pointer;margin-right:10px;white-space:nowrap;";
+      selectorWrap.innerHTML = `
+        <input type="checkbox" class="ad-select-checkbox" data-id="${ad.id}" ${
+          selectedAdIds.has(ad.id) ? "checked" : ""
+        } style="width:16px;height:16px;cursor:pointer;">
+       
+      `;
+
+      selectorWrap.addEventListener("click", (event) =>
+        event.stopPropagation(),
+      );
+      faqHeader.insertBefore(selectorWrap, faqHeader.firstChild);
+
+      const adCheckbox = selectorWrap.querySelector(".ad-select-checkbox");
+      if (adCheckbox) {
+        adCheckbox.addEventListener("change", (event) => {
+          const id = event.target.getAttribute("data-id");
+          if (!id) return;
+          if (event.target.checked) selectedAdIds.add(id);
+          else selectedAdIds.delete(id);
+          updateAdsBulkControlsState();
+        });
+      }
+    }
+
+    // FAQ-style dropdown toggle handler
+
     if (faqHeader && faqContent && faqIcon) {
       faqHeader.addEventListener("click", (e) => {
+        if (e.target.closest(".ad-select-checkbox")) return;
         const isVisible = faqContent.style.display === "block";
 
         if (isVisible) {
@@ -2417,6 +2805,8 @@ function renderAds(list, reset = true, pagination = {}) {
     endMessage.innerHTML = `<i class="fas fa-check-circle"></i> All ads loaded (${pagination.totalAds} total)`;
     adsList.appendChild(endMessage);
   }
+
+  updateAdsBulkControlsState();
 }
 
 function escapeHtml(text) {
@@ -2432,6 +2822,23 @@ function escapeHtml(text) {
     .replace(/'/g, "&#039;");
 }
 
+function updateEditSaveButtonState(isSaving = false) {
+  if (!saveEditAdBtn || !editAdTextarea) return;
+
+  if (isSaving) {
+    saveEditAdBtn.disabled = true;
+    saveEditAdBtn.innerHTML =
+      '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    return;
+  }
+
+  const isDirty = editAdTextarea.value !== initialEditAdText;
+  saveEditAdBtn.disabled = !isDirty;
+  saveEditAdBtn.innerHTML = isDirty
+    ? '<i class="fas fa-save"></i> Save Changes (Edited)'
+    : '<i class="fas fa-check-circle"></i> Saved';
+}
+
 // Edit Ad Text
 async function handleEditAd(id, ad) {
   currentEditAdId = id;
@@ -2439,7 +2846,10 @@ async function handleEditAd(id, ad) {
 
   if (editAdTextarea) {
     editAdTextarea.value = currentText;
+    initialEditAdText = currentText;
+    updateEditSaveButtonState();
   }
+  if (editAdMessage) editAdMessage.style.display = "none";
 
   if (editAdModal) {
     editAdModal.style.display = "flex";
@@ -2457,6 +2867,8 @@ function closeEditAdModal() {
     editAdMessage.style.display = "none";
   }
   currentEditAdId = null;
+  initialEditAdText = "";
+  updateEditSaveButtonState();
 }
 
 async function handleSaveEditAd() {
@@ -2470,6 +2882,13 @@ async function handleSaveEditAd() {
     showEditAdMessage("Please enter ad text", "error");
     return;
   }
+  if (newText === initialEditAdText) {
+    showEditAdMessage("✅ No new edits. Already saved.", "success");
+    updateEditSaveButtonState();
+    return;
+  }
+
+  updateEditSaveButtonState(true);
 
   try {
     const response = await fetch(`/api/bot/ads/${currentEditAdId}/edit`, {
@@ -2480,17 +2899,21 @@ async function handleSaveEditAd() {
     });
 
     if (response.ok) {
-      showEditAdMessage("✅ Ad updated successfully!", "success");
+      initialEditAdText = newText;
+      updateEditSaveButtonState();
+      showEditAdMessage("✅ Saved. Ad updated successfully!", "success");
       setTimeout(() => {
         closeEditAdModal();
         fetchAndRenderAds();
       }, 1000);
     } else {
       const data = await response.json();
+      updateEditSaveButtonState();
       showEditAdMessage(data.error || "Failed to update ad", "error");
     }
   } catch (err) {
     console.error("Edit ad error:", err);
+    updateEditSaveButtonState();
     showEditAdMessage("Failed to update ad", "error");
   }
 }
