@@ -150,6 +150,53 @@ async function axiosWithRetry(
   }
 }
 
+const WORDPRESS_STRING_META_FIELDS = new Set([
+  "price_amount",
+  "from_price",
+  "to_price",
+  "arc_space",
+  "area",
+]);
+
+function normalizeMetaForWordPress(meta = {}) {
+  const normalized = { ...meta };
+  const coercedFields = [];
+
+  WORDPRESS_STRING_META_FIELDS.forEach((field) => {
+    if (!(field in normalized)) return;
+
+    const value = normalized[field];
+
+    if (value === null || value === undefined) {
+      normalized[field] = "";
+      coercedFields.push(field);
+      return;
+    }
+
+    if (typeof value === "number") {
+      normalized[field] = Number.isFinite(value) ? String(value) : "";
+      coercedFields.push(field);
+      return;
+    }
+
+    if (typeof value === "boolean") {
+      normalized[field] = value ? "1" : "0";
+      coercedFields.push(field);
+      return;
+    }
+
+    if (typeof value !== "string") {
+      normalized[field] = String(value);
+      coercedFields.push(field);
+    }
+  });
+
+  return {
+    normalized,
+    coercedFields: [...new Set(coercedFields)],
+  };
+}
+
 // Default axios timeout for WordPress requests (30 seconds)
 const WP_AXIOS_TIMEOUT = 30000;
 
@@ -402,6 +449,9 @@ async function postAdToWordPress(
           wpData.meta?.parent_catt ||
           wpData.meta?.arc_category ||
           wpData.meta?.category ||
+          wpData.category ||
+          effectiveCategory ||
+          ad.category ||
           wpData.meta?.sub_catt ||
           "";
 
@@ -697,12 +747,24 @@ async function postAdToWordPress(
       wpData.meta.offer_status = statusMap[orderType] || "عرض جديد";
     }
 
+    const { normalized: normalizedMeta, coercedFields } = normalizeMetaForWordPress(
+      wpData.meta || {},
+    );
+
+    if (coercedFields.length > 0) {
+      console.log(
+        `🔧 Coerced meta field types for WordPress: ${coercedFields.join(", ")}`,
+      );
+    }
+
+    wpData.meta = normalizedMeta;
+
     const wpPayload = {
       title: wpData.title || "عقار جديد",
       content: wpData.content || wpData.description || "",
       status: "publish",
       categories: subcategoryId ? [categoryId, subcategoryId] : [categoryId],
-      meta: wpData.meta || {},
+      meta: normalizedMeta,
     };
 
     if (featuredMediaId) {

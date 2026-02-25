@@ -122,6 +122,13 @@ function isRetryableWordPressPostError(error) {
 // Default axios timeout for WordPress requests (30 seconds)
 const WP_AXIOS_TIMEOUT = 30000;
 const AUTO_POST_FIXED_CATEGORY_IDS = [131];
+const WORDPRESS_STRING_META_FIELDS = [
+  "price_amount",
+  "from_price",
+  "to_price",
+  "arc_space",
+  "area",
+];
 
 function normalizeGroupJids(groupIds) {
   if (!Array.isArray(groupIds)) return [];
@@ -167,6 +174,75 @@ function buildAutoPostWpData(baseWpData) {
     fixedCategoryIds: [...AUTO_POST_FIXED_CATEGORY_IDS],
     meta: safeWpData.meta ? { ...safeWpData.meta } : {},
   };
+}
+
+function normalizeWordPressMetaForApi(meta = {}) {
+  const normalized = meta && typeof meta === "object" ? { ...meta } : {};
+
+  WORDPRESS_STRING_META_FIELDS.forEach((field) => {
+    if (!Object.prototype.hasOwnProperty.call(normalized, field)) {
+      return;
+    }
+
+    const value = normalized[field];
+
+    if (value === null || value === undefined) {
+      normalized[field] = "";
+      return;
+    }
+
+    if (typeof value === "number") {
+      normalized[field] = Number.isFinite(value) ? String(value) : "";
+      return;
+    }
+
+    if (typeof value !== "string") {
+      normalized[field] = String(value);
+    }
+  });
+
+  return normalized;
+}
+
+function normalizeArabicForRouting(text = "") {
+  const map = {
+    "٠": "0",
+    "١": "1",
+    "٢": "2",
+    "٣": "3",
+    "٤": "4",
+    "٥": "5",
+    "٦": "6",
+    "٧": "7",
+    "٨": "8",
+    "٩": "9",
+  };
+
+  return String(text || "")
+    .replace(/[٠-٩]/g, (char) => map[char] || char)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasRequestIntentInText(text = "") {
+  const normalized = normalizeArabicForRouting(text);
+  return /(?:مطلوب|ابحث عن|ادور|أدور|احتاج|محتاج|من عنده|مين عنده|حد عنده|تكفون|ابغى اشتري|ابغا اشتري|ابي اشتري|ودي اشتري)/i.test(
+    normalized,
+  );
+}
+
+function hasOfferIntentInText(text = "") {
+  const normalized = normalizeArabicForRouting(text);
+  return /(?:للبيع|للإيجار|للايجار|للأجار|للتقبيل|للتمليك|ابغى ابيع|ابغا ابيع|ابي ابيع|ودي ابيع|for sale|for rent)/i.test(
+    normalized,
+  );
+}
+
+function hasRealEstateHintInText(text = "") {
+  const normalized = normalizeArabicForRouting(text);
+  return /(?:بيت|منزل|شقة|شقه|فيلا|فيله|عمارة|عماره|أرض|ارض|دبلكس|مزرعة|مزرعه|استراحة|استراحه|محل|مستودع|عقار)/i.test(
+    normalized,
+  );
 }
 
 // ========== REUSABLE WORDPRESS POSTING FUNCTION ==========
@@ -365,13 +441,25 @@ async function postAdToWordPress(
         wpData.meta?.order_type ||
         wpData.meta?.offer_type ||
         "";
+      const requestSignalText = [
+        adType,
+        wpData.title || "",
+        wpData.content || "",
+        ad.enhancedText || ad.enhanced_text || ad.text || "",
+      ].join(" ");
+      const treatAsOffer =
+        hasOfferIntentInText(requestSignalText) &&
+        hasRealEstateHintInText(requestSignalText) &&
+        !hasRequestIntentInText(requestSignalText);
       const isRequest =
-        adType.includes("طلب") ||
-        wpData.meta?.category === "طلبات" ||
-        wpData.meta?.parent_catt === "طلبات" ||
-        wpData.meta?.category_id === 83;
+        !treatAsOffer &&
+        (adType.includes("طلب") ||
+          wpData.meta?.category === "طلبات" ||
+          wpData.meta?.parent_catt === "طلبات" ||
+          wpData.meta?.category_id === 83);
 
       console.log("Ad Type:", adType);
+      console.log("Treat As Offer:", treatAsOffer);
       console.log("Is Request (طلبات)?", isRequest);
 
       if (!isRequest) {
@@ -538,13 +626,25 @@ async function postAdToWordPress(
       wpData.meta?.offer_type ||
       wpData.meta?.ad_type ||
       "بيع";
+    const categorySignalText = [
+      orderType,
+      wpData.title || "",
+      wpData.content || "",
+      ad.enhancedText || ad.enhanced_text || ad.text || "",
+    ].join(" ");
+    const forceOfferCategory =
+      hasOfferIntentInText(categorySignalText) &&
+      hasRealEstateHintInText(categorySignalText) &&
+      !hasRequestIntentInText(categorySignalText);
 
     console.log("Initial Category:", parentCatt);
     console.log("Initial Subcategory:", subCatt);
+    console.log("Force Offer Category:", forceOfferCategory);
 
     // For Masaak: Check if it's a request category
     const isRequestCategory =
       targetWebsite === "masaak" &&
+      !forceOfferCategory &&
       (wpData.meta?.category_id === 83 ||
         wpData.meta?.category === "طلبات" ||
         parentCatt === "طلبات" ||
@@ -557,6 +657,27 @@ async function postAdToWordPress(
       wpData.meta.category_id = 83;
       wpData.meta.category = "طلبات";
       wpData.meta.parent_catt = "طلبات";
+    }
+
+    if (
+      targetWebsite === "masaak" &&
+      forceOfferCategory &&
+      (parentCatt === "طلبات" || wpData.meta?.category_id === 83)
+    ) {
+      console.log(
+        "\n✅ Offer-style real-estate ad detected from text. Overriding mistaken طلبات category.",
+      );
+      parentCatt = "";
+      subCatt = "";
+      wpData.meta.category_id = "";
+      wpData.meta.category = "";
+      wpData.meta.parent_catt = "";
+      if (wpData.meta.order_status?.includes("طلب")) {
+        wpData.meta.order_status = "عرض جديد";
+      }
+      if (wpData.meta.offer_status?.includes("طلب")) {
+        wpData.meta.offer_status = "عرض جديد";
+      }
     }
 
     // Auto-detect category from text if not found
@@ -656,8 +777,10 @@ async function postAdToWordPress(
       content: wpData.content || wpData.description || "",
       status: "publish",
       categories: resolvedCategories,
-      meta: wpData.meta || {},
+      meta: normalizeWordPressMetaForApi(wpData.meta || {}),
     };
+
+    wpData.meta = { ...wpPayload.meta };
 
     // Keep categories used for publishing in returned extracted data
     wpData.categories = [...resolvedCategories];

@@ -250,6 +250,45 @@ function sanitizeHtml(content) {
   return html;
 }
 
+function stripAdReferenceNumbers(text) {
+  const cleaned = String(text || "")
+    .replace(
+      /رقم\s*(?:القطعة|الإعلان|الاعلان|العرض|الطلب)\s*[:：-]?\s*[0-9٠-٩]+(?:\s*[A-Za-z\u0600-\u06FF]+)?/gi,
+      "",
+    )
+    .replace(
+      /قطعة\s*[:：-]?\s*[0-9٠-٩]+(?:\s*[A-Za-z\u0600-\u06FF]+)?/gi,
+      "",
+    )
+    .replace(/\s+[:：]\s+/g, " ")
+    .replace(/[,:،]\s*(?=\n|$)/g, "");
+
+  return cleaned
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function inferCityGovernorateFromText(adText) {
+  const text = normalizeArabicText(adText || "");
+  if (!text) {
+    return { city: "", governorate: "" };
+  }
+
+  const match = text.match(
+    /(?:^|[\s(])(في|ب)\s*([^،,\n]{2,40})\s*[،,]\s*([^،,\n]{2,40})/i,
+  );
+
+  if (!match) {
+    return { city: "", governorate: "" };
+  }
+
+  return {
+    city: normalizeArabicText(match[2]),
+    governorate: normalizeArabicText(match[3]),
+  };
+}
+
 function normalizePhoneNumber(rawPhone) {
   const digits = convertArabicDigitsToEnglish(String(rawPhone ?? "")).replace(
     /\D/g,
@@ -400,6 +439,56 @@ function collectJsonCandidates(rawText) {
 }
 
 function parseJson(candidate) {
+  const tryParse = (value) => {
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const maybeParseNestedString = (parsedValue) => {
+    if (typeof parsedValue !== "string") {
+      return parsedValue;
+    }
+
+    const nested = parsedValue.trim();
+    const looksLikeJson =
+      (nested.startsWith("{") && nested.endsWith("}")) ||
+      (nested.startsWith("[") && nested.endsWith("]"));
+
+    if (!looksLikeJson) {
+      return parsedValue;
+    }
+
+    return tryParse(nested) ?? parsedValue;
+  };
+
+  const rawCandidate = String(candidate ?? "");
+
+  let parsed = tryParse(rawCandidate);
+  if (parsed !== null) {
+    return maybeParseNestedString(parsed);
+  }
+
+  // Defensive cleanup for model output artifacts.
+  const normalizedCandidate = rawCandidate
+    .replace(/^\uFEFF/, "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\u0000/g, "");
+
+  parsed = tryParse(normalizedCandidate);
+  if (parsed !== null) {
+    return maybeParseNestedString(parsed);
+  }
+
+  const withoutTrailingCommas = normalizedCandidate.replace(/,\s*([}\]])/g, "$1");
+  parsed = tryParse(withoutTrailingCommas);
+  if (parsed !== null) {
+    return maybeParseNestedString(parsed);
+  }
+
   try {
     return JSON.parse(candidate);
   } catch (error) {
@@ -413,15 +502,34 @@ function expandPayloadCandidates(parsed) {
 
   while (queue.length > 0) {
     const current = queue.shift();
+    if (Array.isArray(current)) {
+      current.forEach((item) => queue.push(item));
+      continue;
+    }
+
     if (!isObject(current)) continue;
 
     collected.push(current);
 
-    ["data", "result", "output", "response", "payload"].forEach((key) => {
+    [
+      "data",
+      "result",
+      "output",
+      "response",
+      "payload",
+      "json",
+      "arguments",
+      "content",
+    ].forEach((key) => {
       const nested = current[key];
 
       if (isObject(nested)) {
         queue.push(nested);
+        return;
+      }
+
+      if (Array.isArray(nested)) {
+        nested.forEach((item) => queue.push(item));
         return;
       }
 
@@ -431,7 +539,7 @@ function expandPayloadCandidates(parsed) {
 
         nestedCandidates.forEach((candidate) => {
           const reparsed = parseJson(candidate);
-          if (isObject(reparsed)) {
+          if (isObject(reparsed) || Array.isArray(reparsed)) {
             queue.push(reparsed);
           }
         });
@@ -575,6 +683,92 @@ function shouldOmitTemperature(modelName = "") {
   );
 }
 
+function shouldUseMinimalReasoningEffort(modelName = "") {
+  const normalized = String(modelName).toLowerCase();
+  return (
+    normalized.startsWith("gpt-5") ||
+    normalized.startsWith("o1") ||
+    normalized.startsWith("o3") ||
+    normalized.startsWith("o4")
+  );
+}
+
+function summarizeGptCompletion(completion) {
+  const choice = Array.isArray(completion?.choices) ? completion.choices[0] : null;
+  const message = choice?.message;
+  const content = message?.content;
+
+  const toolCallTypes = Array.isArray(message?.tool_calls)
+    ? message.tool_calls.map((toolCall) => toolCall?.type).filter(Boolean)
+    : [];
+
+  return {
+    id: completion?.id || null,
+    model: completion?.model || null,
+    finish_reason: choice?.finish_reason || null,
+    has_message: Boolean(message),
+    content_kind: Array.isArray(content) ? "array" : typeof content,
+    content_length: typeof content === "string" ? content.length : null,
+    refusal_length:
+      typeof message?.refusal === "string" ? message.refusal.length : null,
+    tool_call_types: toolCallTypes,
+    usage: completion?.usage || null,
+  };
+}
+
+function extractTextFromGptMessage(message) {
+  if (!isObject(message)) return "";
+
+  const content = message.content;
+
+  if (typeof content === "string") {
+    return content.trim();
+  }
+
+  if (Array.isArray(content)) {
+    const parts = content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (!isObject(part)) return "";
+        return firstNonEmpty(part.text, part.output_text, part.content, part.value, "");
+      })
+      .map((part) => String(part ?? "").trim())
+      .filter(Boolean);
+
+    if (parts.length > 0) {
+      return parts.join("\n");
+    }
+  }
+
+  if (isObject(content)) {
+    return JSON.stringify(content);
+  }
+
+  if (isObject(message.parsed)) {
+    return JSON.stringify(message.parsed);
+  }
+
+  const toolCallPayloads = Array.isArray(message.tool_calls)
+    ? message.tool_calls
+        .map((toolCall) =>
+          firstNonEmpty(toolCall?.function?.arguments, toolCall?.custom?.input, ""),
+        )
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    : [];
+
+  if (toolCallPayloads.length > 0) {
+    return toolCallPayloads.join("\n");
+  }
+
+  const functionCallArguments = firstNonEmpty(message.function_call?.arguments, "");
+  if (typeof functionCallArguments === "string" && functionCallArguments.trim()) {
+    return functionCallArguments.trim();
+  }
+
+  return "";
+}
+
 async function callProviderRaw({
   provider,
   prompt,
@@ -611,6 +805,9 @@ async function callProviderRaw({
         if (schema) {
           completionRequest.response_format = { type: "json_object" };
         }
+        if (schema && shouldUseMinimalReasoningEffort(modelName)) {
+          completionRequest.reasoning_effort = "minimal";
+        }
 
         let completion;
         try {
@@ -621,16 +818,47 @@ async function callProviderRaw({
             schema &&
             /response_format/i.test(message) &&
             /(unsupported|not supported|invalid)/i.test(message);
+          const reasoningEffortUnsupported =
+            schema &&
+            /reasoning[_\s-]*effort/i.test(message) &&
+            /(unsupported|not supported|invalid)/i.test(message);
 
-          if (!responseFormatUnsupported) {
+          if (responseFormatUnsupported) {
+            delete completionRequest.response_format;
+            completion = await client.chat.completions.create(completionRequest);
+          } else if (reasoningEffortUnsupported) {
+            delete completionRequest.reasoning_effort;
+            completion = await client.chat.completions.create(completionRequest);
+          } else {
             throw error;
           }
-
-          delete completionRequest.response_format;
-          completion = await client.chat.completions.create(completionRequest);
         }
 
-        return completion?.choices?.[0]?.message?.content || "";
+        const choice = Array.isArray(completion?.choices)
+          ? completion.choices[0]
+          : null;
+        const message = choice?.message;
+        const extractedText = extractTextFromGptMessage(message);
+
+        if (!extractedText && typeof message?.refusal === "string" && message.refusal.trim()) {
+          throw new AIServiceError(
+            `${taskName}: model refused to return content`,
+            "provider_failure",
+            { refusal: message.refusal.slice(0, 400) },
+          );
+        }
+
+        if (!extractedText) {
+          throw new AIServiceError(
+            `${taskName}: empty response from GPT`,
+            "provider_failure",
+            {
+              gpt_debug: summarizeGptCompletion(completion),
+            },
+          );
+        }
+
+        return extractedText;
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);
@@ -716,9 +944,17 @@ async function callLLM({
         console.error(
           `❌ [${taskName}] provider=${provider} attempt=${attempt} type=${normalized.type}: ${normalized.message}`,
         );
-        if (normalized.type === "invalid_json" && normalized.details?.preview) {
+        if (normalized.type === "invalid_json") {
+          const preview =
+            typeof normalized.details?.preview === "string" &&
+            normalized.details.preview.trim()
+              ? normalized.details.preview
+              : "<empty response>";
+          console.error(`🧪 [${taskName}] invalid_json preview: ${preview}`);
+        }
+        if (normalized.details?.gpt_debug) {
           console.error(
-            `🧪 [${taskName}] invalid_json preview: ${normalized.details.preview}`,
+            `🧪 [${taskName}] gpt_debug: ${JSON.stringify(normalized.details.gpt_debug)}`,
           );
         }
 
@@ -956,16 +1192,46 @@ function normalizeCategoryLabel(label) {
   return found || normalized;
 }
 
-function normalizeLocationMeta(meta) {
-  const city = normalizeArabicText(firstNonEmpty(meta.city, meta.City, meta.subcity));
+function normalizeLocationMeta(meta, adText = "") {
+  const inferred = inferCityGovernorateFromText(adText);
+
+  let city = normalizeArabicText(firstNonEmpty(meta.city, meta.City, meta.subcity));
   const beforeCity = normalizeArabicText(
-    firstNonEmpty(meta.before_City, meta.before_city, city, "الأحساء"),
+    firstNonEmpty(meta.before_City, meta.before_city, inferred.governorate, "الأحساء"),
   );
-  const subcity = normalizeArabicText(firstNonEmpty(meta.subcity, city));
+  let subcity = normalizeArabicText(firstNonEmpty(meta.subcity, city));
 
   let neighborhood = normalizeArabicText(
     firstNonEmpty(meta.neighborhood, meta.location, "لم يذكر"),
   );
+
+  if (neighborhood.includes("،") || neighborhood.includes(",")) {
+    const parts = neighborhood
+      .split(/[،,]/)
+      .map((part) => normalizeArabicText(part))
+      .filter(Boolean);
+
+    if (parts.length >= 2) {
+      const [firstPart, secondPart] = parts;
+      if (secondPart === beforeCity || secondPart === city) {
+        neighborhood = firstPart;
+      } else if (firstPart === beforeCity && secondPart) {
+        neighborhood = secondPart;
+      }
+    }
+  }
+
+  if ((!city || city === beforeCity) && inferred.city) {
+    city = inferred.city;
+  }
+
+  if ((!subcity || subcity === beforeCity) && city) {
+    subcity = city;
+  }
+
+  if ((neighborhood === "لم يذكر" || !neighborhood) && inferred.city) {
+    neighborhood = inferred.city;
+  }
 
   if (neighborhood === city || neighborhood === beforeCity) {
     neighborhood = "لم يذكر";
@@ -974,7 +1240,7 @@ function normalizeLocationMeta(meta) {
   meta.before_City = beforeCity || "الأحساء";
   meta.before_city = beforeCity || "الأحساء";
   meta.city = city || beforeCity || "الأحساء";
-  meta.subcity = subcity || city || beforeCity || "";
+  meta.subcity = subcity || city || "";
   meta.City = meta.subcity || meta.city;
   meta.neighborhood = neighborhood || "لم يذكر";
   meta.location = neighborhood || "لم يذكر";
@@ -1008,10 +1274,76 @@ function normalizePriceMeta(meta) {
   }
 }
 
-function normalizeWordPressCategoryMeta(meta) {
-  const candidateCategory = normalizeCategoryLabel(
+function hasRequestIntent(text = "") {
+  const normalized = normalizeArabicText(text);
+  if (!normalized) return false;
+
+  return /(?:مطلوب|ابحث عن|ادور|أدور|احتاج|محتاج|من عنده|مين عنده|حد عنده|تكفون|ابغى اشتري|ابغا اشتري|ابي اشتري|ودي اشتري)/i.test(
+    normalized,
+  );
+}
+
+function hasOfferIntent(text = "") {
+  const normalized = normalizeArabicText(text);
+  if (!normalized) return false;
+
+  return /(?:للبيع|للإيجار|للايجار|للأجار|للتقبيل|للتمليك|ابغى ابيع|ابغا ابيع|ابي ابيع|ودي ابيع|for sale|for rent)/i.test(
+    normalized,
+  );
+}
+
+function hasRealEstateCue(text = "") {
+  const normalized = normalizeArabicText(text);
+  if (!normalized) return false;
+
+  if (detectPropertyTypeFromText(normalized)) {
+    return true;
+  }
+
+  return /(?:عقار|عقارات|منزل|بيوت|قطعة\s*ارض|قطعة\s*أرض)/i.test(normalized);
+}
+
+function canonicalizeMasaakCategory(label) {
+  const normalized = normalizeCategoryLabel(label);
+  if (!normalized) return "";
+
+  const aliases = {
+    ارض: "أرض",
+    شقه: "شقة",
+    عماره: "عمارة",
+    مزرعه: "مزرعة",
+    استراحه: "استراحة",
+    شاليه: "شالية",
+    فيله: "فيلا",
+    فلة: "فيلا",
+    منزل: "بيت",
+    بيوت: "بيت",
+    طلب: "طلبات",
+  };
+
+  if (aliases[normalized]) {
+    return aliases[normalized];
+  }
+
+  return normalized;
+}
+
+function normalizeWordPressCategoryMeta(meta, adText = "") {
+  const normalizedAdText = normalizeArabicText(adText || "");
+  const offerInText = hasOfferIntent(normalizedAdText);
+  const requestInText = hasRequestIntent(normalizedAdText);
+  const realEstateInText = hasRealEstateCue(normalizedAdText);
+  const inferredPropertyCategory = canonicalizeMasaakCategory(
+    detectPropertyTypeFromText(normalizedAdText),
+  );
+
+  let candidateCategory = canonicalizeMasaakCategory(
     firstNonEmpty(meta.category, meta.arc_category, meta.parent_catt),
   );
+  if (!candidateCategory && inferredPropertyCategory) {
+    candidateCategory = inferredPropertyCategory;
+  }
+
   const candidateSubCategory = normalizeCategoryLabel(
     firstNonEmpty(meta.subcategory, meta.arc_subcategory, meta.sub_catt),
   );
@@ -1019,11 +1351,13 @@ function normalizeWordPressCategoryMeta(meta) {
   if (!meta.category) meta.category = candidateCategory;
   if (!meta.subcategory) meta.subcategory = candidateSubCategory;
 
+  const shouldPreferRealEstateFromText =
+    offerInText && realEstateInText && !!inferredPropertyCategory;
   const hasakCategory = [meta.category, meta.parent_catt, meta.arc_category].find((c) =>
     HASAK_CATEGORIES.includes(c),
   );
 
-  if (hasakCategory) {
+  if (hasakCategory && !shouldPreferRealEstateFromText) {
     meta.category = hasakCategory;
     meta.arc_category = hasakCategory;
     if (!meta.arc_subcategory) {
@@ -1040,13 +1374,35 @@ function normalizeWordPressCategoryMeta(meta) {
     return;
   }
 
-  const isRequestCategory =
+  const requestByMetaCategory =
     meta.category === "طلبات" ||
     meta.parent_catt === "طلبات" ||
-    Number(meta.category_id) === 83 ||
-    normalizeArabicText(meta.ad_type).includes("طلب") ||
-    normalizeArabicText(meta.order_status).includes("طلب") ||
-    normalizeArabicText(meta.offer_status).includes("طلب");
+    Number(meta.category_id) === 83;
+  const requestByTypeHint =
+    /طلب/.test(normalizeArabicText(meta.ad_type)) ||
+    /طلب/.test(
+      normalizeArabicText(firstNonEmpty(meta.order_type, meta.offer_type)),
+    );
+
+  const requestFromText = requestInText && !offerInText;
+  const forceOfferFromText =
+    offerInText && realEstateInText && !requestInText;
+
+  const isRequestCategory =
+    (requestByMetaCategory || requestByTypeHint || requestFromText) &&
+    !forceOfferFromText;
+
+  if (!isRequestCategory && requestByMetaCategory) {
+    meta.category = "";
+    meta.parent_catt = "";
+    meta.category_id = "";
+    if (normalizeArabicText(meta.order_status).includes("طلب")) {
+      meta.order_status = "عرض جديد";
+    }
+    if (normalizeArabicText(meta.offer_status).includes("طلب")) {
+      meta.offer_status = "عرض جديد";
+    }
+  }
 
   if (isRequestCategory) {
     meta.category = "طلبات";
@@ -1071,6 +1427,373 @@ function normalizeWordPressCategoryMeta(meta) {
   if (!meta.category_id) {
     meta.category_id = resolveCategoryId(meta.category || meta.parent_catt || meta.arc_category);
   }
+}
+
+const FORBIDDEN_DESCRIPTION_PATTERNS = [
+  /https?:\/\/[^\s<]+/gi,
+  /(?:chat\.whatsapp\.com|wa\.me|t\.me|tiktok\.com|instagram\.com|snapchat|youtube\.com)/gi,
+  /(?:رقم\s*الترخيص|ترخيص|رخصة|معلن\s*معتمد|الهيئة\s*العامة\s*للعقار)[^<\n]{0,40}[0-9٠-٩]{4,}/gi,
+  /(?:برقم)\s*[0-9٠-٩]{4,}/gi,
+  /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|قروب|مجموعة واتساب|انضمام)/gi,
+  /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف)/gi,
+  /\b(?:\+?966|0)?5[0-9٠-٩]{8}\b/g,
+];
+
+const REAL_ESTATE_KEYWORDS = [
+  "أرض",
+  "ارض",
+  "شقة",
+  "شقه",
+  "فيلا",
+  "فلة",
+  "بيت",
+  "عمارة",
+  "عماره",
+  "دبلكس",
+  "مزرعة",
+  "مزرعه",
+  "استراحة",
+  "استراحه",
+  "شاليه",
+  "محل",
+  "مستودع",
+  "عقار",
+];
+
+function removeForbiddenInlineContent(text) {
+  let cleaned = String(text ?? "");
+  FORBIDDEN_DESCRIPTION_PATTERNS.forEach((pattern) => {
+    cleaned = cleaned.replace(pattern, "");
+  });
+
+  return normalizeArabicText(
+    cleaned
+      .replace(/[*`#]+/g, "")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim(),
+  );
+}
+
+function extractCleanDescriptionLines(adText) {
+  const source = String(adText ?? "")
+    .replace(/<[^>]+>/g, "\n")
+    .replace(/\r/g, "\n");
+
+  const lines = source
+    .split(/\n+/)
+    .map((line) => stripAdReferenceNumbers(removeForbiddenInlineContent(line)))
+    .map((line) => line.replace(/^[\-*•:]+/g, "").trim())
+    .filter(Boolean)
+    .filter((line) => line.length >= 3);
+
+  return unique(lines).slice(0, 20);
+}
+
+function hasForbiddenDescriptionContent(text) {
+  const value = String(text ?? "");
+  return FORBIDDEN_DESCRIPTION_PATTERNS.some((pattern) => {
+    const safePattern = new RegExp(pattern.source, pattern.flags.replace(/g/g, ""));
+    return safePattern.test(value);
+  });
+}
+
+function isLikelyRealEstateMeta(meta = {}, adText = "") {
+  const categoriesBlob = normalizeArabicText(
+    [
+      meta.parent_catt,
+      meta.arc_category,
+      meta.category,
+      meta.sub_catt,
+      meta.arc_subcategory,
+      meta.subcategory,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  const isRequestsBucket = Number(meta.category_id) === 83 || categoriesBlob.includes("طلبات");
+  const hasRealEstateKeyword = REAL_ESTATE_KEYWORDS.some((keyword) =>
+    categoriesBlob.includes(normalizeArabicText(keyword)),
+  );
+  const hasArea = extractNumericValue(firstNonEmpty(meta.arc_space, meta.area)) !== "";
+  const textBlob = normalizeArabicText(adText || "");
+  const hasRealEstateKeywordInText = REAL_ESTATE_KEYWORDS.some((keyword) =>
+    textBlob.includes(normalizeArabicText(keyword)),
+  );
+
+  if (isRequestsBucket && !hasRealEstateKeyword && !hasRealEstateKeywordInText) {
+    return false;
+  }
+
+  return hasRealEstateKeyword || hasArea || hasRealEstateKeywordInText;
+}
+
+function detectPropertyTypeFromText(adText = "") {
+  const text = normalizeArabicText(adText);
+  if (!text) return "";
+
+  const priority = [
+    "عمارة",
+    "عماره",
+    "فيلا",
+    "فيله",
+    "بيت",
+    "منزل",
+    "بيوت",
+    "شقة",
+    "شقه",
+    "أرض",
+    "ارض",
+    "دبلكس",
+    "مزرعة",
+    "مزرعه",
+    "استراحة",
+    "استراحه",
+    "شاليه",
+    "محل",
+    "مستودع",
+  ];
+
+  const found = priority.find((keyword) => text.includes(normalizeArabicText(keyword)));
+  if (!found) return "";
+
+  const aliases = {
+    عماره: "عمارة",
+    فيله: "فيلا",
+    منزل: "بيت",
+    بيوت: "بيت",
+    شقه: "شقة",
+    ارض: "أرض",
+    مزرعه: "مزرعة",
+    استراحه: "استراحة",
+    شاليه: "شالية",
+  };
+
+  return aliases[found] || found;
+}
+
+function formatPriceSummary(meta = {}) {
+  const priceType = normalizeArabicText(meta.price_type || "");
+  const priceAmount = extractNumericValue(meta.price_amount);
+  const fromPrice = extractNumericValue(meta.from_price);
+  const toPrice = extractNumericValue(meta.to_price);
+
+  if (
+    priceType.includes("عند التواصل") ||
+    priceType.includes("على السوم")
+  ) {
+    return priceType || "عند التواصل";
+  }
+
+  if (
+    typeof fromPrice === "number" &&
+    typeof toPrice === "number" &&
+    fromPrice > 0 &&
+    toPrice > 0 &&
+    fromPrice !== toPrice
+  ) {
+    return `من ${fromPrice} إلى ${toPrice} ريال`;
+  }
+
+  if (typeof priceAmount === "number" && priceAmount > 0) {
+    return `${priceAmount} ريال`;
+  }
+
+  const freeTextPrice = removeForbiddenInlineContent(meta.price || "");
+  return freeTextPrice || "لم يذكر";
+}
+
+function formatLocationSummary(meta = {}) {
+  const parts = unique(
+    [
+      normalizeArabicText(meta.location || meta.neighborhood || ""),
+      normalizeArabicText(meta.City || meta.subcity || meta.city || ""),
+      normalizeArabicText(meta.before_City || meta.before_city || ""),
+    ].filter(
+      (value) =>
+        value && value !== "لم يذكر" && value !== "لا يوجد",
+    ),
+  );
+
+  return parts.length > 0 ? parts.join(" - ") : "الأحساء";
+}
+
+function buildRealEstateHtmlDescription({ title, meta, adText }) {
+  const cleanLines = extractCleanDescriptionLines(adText);
+  let propertyType = normalizeArabicText(
+    firstNonEmpty(meta.parent_catt, meta.arc_category, meta.category, ""),
+  );
+  const detectedTypeFromText = detectPropertyTypeFromText(adText);
+  const hasRealEstateType = REAL_ESTATE_KEYWORDS.some((keyword) =>
+    propertyType.includes(normalizeArabicText(keyword)),
+  );
+  if (!propertyType || propertyType === "طلبات" || !hasRealEstateType) {
+    propertyType = detectedTypeFromText || "عقار";
+  }
+  const subType = normalizeArabicText(
+    firstNonEmpty(meta.sub_catt, meta.arc_subcategory, meta.subcategory),
+  );
+  const area = firstNonEmpty(meta.arc_space, meta.area);
+  const priceSummary = formatPriceSummary(meta);
+  const locationSummary = formatLocationSummary(meta);
+
+  const intro =
+    removeForbiddenInlineContent(
+      cleanLines.find((line) => line.length >= 12) || "",
+    ) ||
+    `${propertyType || "عقار"} ${normalizeArabicText(meta.order_type || meta.offer_type || "للبيع")} في ${locationSummary}`;
+
+  const specs = [];
+  if (propertyType) specs.push(`نوع العقار: ${propertyType}`);
+  if (subType) specs.push(`التصنيف الفرعي: ${subType}`);
+  if (area !== "") specs.push(`المساحة: ${area} متر مربع`);
+  if (meta.age) specs.push(`عمر العقار: ${normalizeArabicText(meta.age)}`);
+  if (meta.order_type || meta.offer_type) {
+    specs.push(
+      `نوع العملية: ${normalizeArabicText(firstNonEmpty(meta.order_type, meta.offer_type))}`,
+    );
+  }
+
+  const specHintKeywords =
+    /(واجهة|شارع|غرف|غرفة|صالة|حمام|مطبخ|مجلس|دور|مصعد|مواقف|أطوال|ارتداد|تشطيب|مؤثث|مكيف)/i;
+  cleanLines.forEach((line) => {
+    if (specHintKeywords.test(line) && specs.length < 10) {
+      specs.push(line);
+    }
+  });
+
+  const features = [];
+  const adTextNormalized = normalizeArabicText(adText || "");
+  const incomeMatch = convertArabicDigitsToEnglish(adTextNormalized).match(
+    /(?:الدخل|الدخل السنوي|مدخول|الإيجار السنوي)[^0-9]{0,12}([0-9][0-9,\.]*)/i,
+  );
+  if (incomeMatch) {
+    features.push(`الدخل السنوي: ${incomeMatch[1].replace(/,/g, "")} ريال`);
+  }
+
+  if (/غير\s*مرهون|بدون\s*رهن/i.test(adTextNormalized)) {
+    features.push("حالة الرهن: غير مرهون");
+  } else if (/مرهون|رهن/i.test(adTextNormalized)) {
+    features.push("حالة الرهن: مرهون");
+  }
+
+  const featureHintKeywords = /(ميزة|مميزات|فرصة|جديد|مؤجر|مدخول|مرهون|صك|عداد|خزان)/i;
+  cleanLines.forEach((line) => {
+    if (featureHintKeywords.test(line) && features.length < 8) {
+      features.push(line);
+    }
+  });
+
+  const safeSpecs = unique(specs.map(removeForbiddenInlineContent).filter(Boolean));
+  const safeFeatures = unique(features.map(removeForbiddenInlineContent).filter(Boolean));
+
+  const specsHtml =
+    safeSpecs.length > 0
+      ? safeSpecs.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+      : `<li>${escapeHtml("لم يتم ذكر تفاصيل إضافية")}</li>`;
+
+  const featuresHtml =
+    safeFeatures.length > 0
+      ? safeFeatures.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+      : `<li>${escapeHtml("فرصة مناسبة حسب المعطيات المتوفرة")}</li>`;
+
+  const html = [
+    `<h1>${escapeHtml(sanitizeTitle(title || DEFAULT_WP_TITLE))}</h1>`,
+    `<p>${escapeHtml(intro)}</p>`,
+    `<h2>${escapeHtml("المواصفات")}</h2>`,
+    `<ul>${specsHtml}</ul>`,
+    `<h2>${escapeHtml("المميزات")}</h2>`,
+    `<ul>${featuresHtml}</ul>`,
+    `<h2>${escapeHtml("السعر")}</h2>`,
+    `<p>${escapeHtml(priceSummary)}</p>`,
+    `<h2>${escapeHtml("الموقع")}</h2>`,
+    `<p>${escapeHtml(locationSummary)}</p>`,
+  ].join("");
+
+  return sanitizeHtml(html);
+}
+
+function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
+  const cleanLines = extractCleanDescriptionLines(adText);
+  const rawItemName = normalizeArabicText(
+    firstNonEmpty(meta.sub_catt, meta.subcategory, meta.category, meta.parent_catt),
+  );
+  const titleHint = removeForbiddenInlineContent(
+    stripAdReferenceNumbers(String(title || "")),
+  )
+    .replace(/^(?:عرض|طلب)\s*/i, "")
+    .replace(/^(?:للبيع|للإيجار|للايجار|للتقبيل|مطلوب)\s*/i, "")
+    .trim();
+  const itemName = rawItemName || normalizeArabicText(titleHint);
+  const adType = normalizeArabicText(meta.ad_type || "");
+  const orderType = normalizeArabicText(firstNonEmpty(meta.order_type, meta.offer_type, ""));
+  const isRequest = adType.includes("طلب") || Number(meta.category_id) === 83;
+  const isBuyRequest = isRequest && orderType.includes("شراء");
+  const isSellRequest = isRequest && orderType.includes("بيع");
+  const itemLabel = itemName || "منتج";
+
+  let heading = sanitizeTitle(title || DEFAULT_WP_TITLE);
+  if (isBuyRequest) {
+    heading = `مطلوب ${itemLabel} للشراء`;
+  } else if (isSellRequest) {
+    heading = `طلب بيع ${itemLabel}`;
+  } else if (isRequest) {
+    heading = `مطلوب ${itemLabel}`;
+  }
+
+  const detailParts = [];
+  const goodsHintKeywords =
+    /(حالة|مستعمل|جديد|نظيف|موديل|ماركة|ضمان|سبب البيع|ميزانية|سعر|مواصفات|استخدام)/i;
+  cleanLines.forEach((line) => {
+    if (goodsHintKeywords.test(line) && detailParts.length < 5) {
+      detailParts.push(line);
+    }
+  });
+
+  const priceSummary = formatPriceSummary(meta);
+  if (priceSummary && priceSummary !== "لم يذكر") {
+    const hasPriceMention = detailParts.some((line) => {
+      const normalizedLine = normalizeArabicText(line);
+      return (
+        normalizedLine.includes(normalizeArabicText(priceSummary)) ||
+        normalizedLine.includes("السعر")
+      );
+    });
+
+    if (!hasPriceMention) {
+      detailParts.push(`السعر: ${priceSummary}`);
+    }
+  }
+
+  if (detailParts.length === 0) {
+    if (isBuyRequest) {
+      detailParts.push(
+        `أبحث عن ${itemLabel} بحالة جيدة مع مواصفات مناسبة للاستخدام المطلوب وميزانية واضحة.`,
+      );
+    } else if (isSellRequest || isRequest) {
+      detailParts.push(
+        `طلب يتعلق بـ ${itemLabel} مع توضيح الحالة والمواصفات والسعر المطلوب أو القابل للتفاوض.`,
+      );
+    } else {
+      detailParts.push(
+        `${itemLabel} بحالة مناسبة مع توضيح المميزات والحالة والسعر بشكل مختصر.`,
+      );
+    }
+  }
+
+  const paragraph = unique(detailParts.map(removeForbiddenInlineContent).filter(Boolean)).join(
+    " ",
+  );
+  const html = `<h1>${escapeHtml(heading)}</h1><p>${escapeHtml(paragraph)}</p>`;
+  return sanitizeHtml(html);
+}
+
+function buildDeterministicDescription({ title, meta, adText }) {
+  if (isLikelyRealEstateMeta(meta, adText)) {
+    return buildRealEstateHtmlDescription({ title, meta, adText });
+  }
+
+  return buildNonRealEstateHtmlDescription({ title, meta, adText });
 }
 
 function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration) {
@@ -1138,8 +1861,8 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
   meta.youtube_link = meta.youtube_link || null;
 
   normalizePriceMeta(meta);
-  normalizeLocationMeta(meta);
-  normalizeWordPressCategoryMeta(meta);
+  normalizeLocationMeta(meta, adText);
+  normalizeWordPressCategoryMeta(meta, adText);
 
   const confidenceOverall = extractNumericValue(
     firstNonEmpty(rawData.confidence_overall, meta.confidence_overall),
@@ -1153,9 +1876,8 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
     meta.parse_notes = normalizeArabicText(rawData.parse_error);
   }
 
-  if (meta.ad_type.includes("عرض")) {
-    meta.main_ad = adText || "";
-  }
+  // Always set main_ad from the original text (manual, not AI-generated).
+  meta.main_ad = stripAdReferenceNumbers(adText || "");
 
   const tags = parseTags(firstNonEmpty(rawData.tags, meta.tags));
   meta.tags = tags.join(", ");
@@ -1173,9 +1895,39 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
     );
   }
 
+  const normalizedTitle = sanitizeTitle(titleValue || DEFAULT_WP_TITLE);
+  const manualContent = buildDeterministicDescription({
+    title: normalizedTitle,
+    meta,
+    adText,
+  });
+
+  let finalContent = manualContent;
+
+  if (!finalContent || hasForbiddenDescriptionContent(finalContent)) {
+    const cleanedAdText = removeForbiddenInlineContent(
+      stripAdReferenceNumbers(adText || ""),
+    );
+    finalContent = buildDeterministicDescription({
+      title: normalizedTitle,
+      meta,
+      adText: cleanedAdText,
+    });
+  }
+
+  if (!finalContent || hasForbiddenDescriptionContent(finalContent)) {
+    const fallbackPlainText =
+      removeForbiddenInlineContent(
+        stripAdReferenceNumbers(contentValue || adText || ""),
+      ) || "وصف مختصر للإعلان.";
+    finalContent = sanitizeHtml(
+      `<h1>${escapeHtml(normalizedTitle)}</h1><p>${escapeHtml(fallbackPlainText)}</p>`,
+    );
+  }
+
   return {
-    title: sanitizeTitle(titleValue || DEFAULT_WP_TITLE),
-    content: sanitizeHtml(contentValue || `<p>${escapeHtml(adText || "")}</p>`),
+    title: normalizedTitle,
+    content: finalContent,
     excerpt: normalizeArabicText(excerptValue || ""),
     status: "publish",
     meta,
@@ -1206,10 +1958,14 @@ ${contactHint}
 8) املأ meta بحقول ثابتة حتى لو كانت فارغة.
 9) phone_number بصيغة 9665xxxxxxxx إذا متاح.
 10) status دائماً "publish".
+11) احذف أي أرقام مرجعية مثل: رقم القطعة، قطعة 11 أ، رقم الإعلان من العنوان والمحتوى و main_ad.
+12) للمحتوى العقاري فقط استخدم HTML منظم بهذه الأقسام: h1 ثم p افتتاحي ثم h2+ul للمواصفات ثم h2+ul للمميزات ثم h2+p للسعر ثم h2+p للموقع.
+13) للمحتوى غير العقاري استخدم HTML بسيط: h1 ثم p واحد فقط يصف الحالة/المواصفات/السعر أو المواصفات المطلوبة.
+14) ممنوع داخل content: أرقام اتصال، أسماء وسطاء، أسماء مكاتب، تراخيص، قروبات، روابط، ملاحظات إدارية أو شروحات خارج وصف الإعلان.
 ${
   isRegeneration
-    ? "11) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
-    : "11) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
+    ? "15) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
+    : "15) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
 }
 
 أعد الشكل التالي فقط:
@@ -1731,6 +2487,23 @@ ${CATEGORY_LIST.join("، ")}`;
  * @returns {string|null}
  */
 function detectCategoryFallback(text) {
+  const normalizedText = normalizeArabicText(text || "");
+  const inferredPropertyCategory = canonicalizeMasaakCategory(
+    detectPropertyTypeFromText(normalizedText),
+  );
+
+  // Prefer direct real-estate offer categories over "طلبات" when text says "للبيع/للإيجار".
+  if (
+    inferredPropertyCategory &&
+    hasOfferIntent(normalizedText) &&
+    !hasRequestIntent(normalizedText)
+  ) {
+    console.log(
+      `🏷️ Fallback detected category: ${inferredPropertyCategory} (real-estate offer priority)`,
+    );
+    return inferredPropertyCategory;
+  }
+
   const categoryKeywords = {
     "حراج الحسا": [
       "حراج الحسا",
@@ -1802,13 +2575,9 @@ function detectCategoryFallback(text) {
     "محلات تجارية": ["محل", "محلات", "متجر", "سوق", "مول", "بازار"],
     "مركز ترفيهي": ["ترفيهي", "ترفيه", "العاب", "ألعاب", "ملاهي"],
     طلبات: [
-      "ابغى ابيع",
-      "ابغا ابيع",
-      "ابي ابيع",
       "ابغى اشتري",
       "ابغا اشتري",
       "ابي اشتري",
-      "ودي ابيع",
       "ودي اشتري",
       "مطلوب",
       "ابحث عن",
@@ -1845,8 +2614,6 @@ function detectCategoryFallback(text) {
     فعاليات: ["فعالية", "فعاليات", "مناسبة", "احتفال", "مهرجان"],
     خدمات: ["خدمة", "خدمات", "صيانة", "نقل", "توصيل"],
   };
-
-  const normalizedText = String(text || "");
 
   for (const [category, keywords] of Object.entries(categoryKeywords)) {
     for (const keyword of keywords) {

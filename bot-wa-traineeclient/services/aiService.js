@@ -374,6 +374,123 @@ async function callAI(
   );
 }
 
+function normalizeTextValue(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripAdReferenceNumbers(text) {
+  const cleaned = String(text || "")
+    // Remove explicit listing/reference numbers.
+    .replace(
+      /رقم\s*(?:القطعة|الإعلان|الاعلان|العرض|الطلب)\s*[:：-]?\s*[0-9٠-٩]+(?:\s*[A-Za-z\u0600-\u06FF]+)?/gi,
+      "",
+    )
+    // Remove "قطعة 11 أ" style references.
+    .replace(
+      /قطعة\s*[:：-]?\s*[0-9٠-٩]+(?:\s*[A-Za-z\u0600-\u06FF]+)?/gi,
+      "",
+    )
+    .replace(/\s+[:：]\s+/g, " ")
+    .replace(/[,:،]\s*(?=\n|$)/g, "");
+
+  return cleaned
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function inferCityGovernorateFromText(adText) {
+  const text = normalizeTextValue(adText);
+  if (!text) {
+    return { city: "", governorate: "" };
+  }
+
+  const match = text.match(
+    /(?:^|[\s(])(في|ب)\s*([^،,\n]{2,40})\s*[،,]\s*([^،,\n]{2,40})/i,
+  );
+
+  if (!match) {
+    return { city: "", governorate: "" };
+  }
+
+  return {
+    city: normalizeTextValue(match[2]),
+    governorate: normalizeTextValue(match[3]),
+  };
+}
+
+function normalizeLocationMetaFromText(meta, adText) {
+  const normalized = { ...(meta || {}) };
+  const inferred = inferCityGovernorateFromText(adText);
+
+  const currentGovernorate = normalizeTextValue(
+    normalized.before_City || normalized.before_city || "",
+  );
+
+  const currentCity = normalizeTextValue(
+    normalized.City || normalized.city || normalized.subcity || "",
+  );
+
+  const location = normalizeTextValue(
+    normalized.location || normalized.neighborhood || "",
+  );
+
+  let inferredLocation = location;
+  if (inferredLocation.includes("،") || inferredLocation.includes(",")) {
+    const parts = inferredLocation
+      .split(/[،,]/)
+      .map((part) => normalizeTextValue(part))
+      .filter(Boolean);
+
+    if (parts.length >= 2) {
+      inferredLocation = parts[0];
+    }
+  }
+
+  const governorate = currentGovernorate || inferred.governorate || "الأحساء";
+
+  let city = currentCity;
+  if ((!city || city === governorate) && inferred.city) {
+    city = inferred.city;
+  }
+
+  if (
+    !city &&
+    inferredLocation &&
+    inferredLocation !== "لم يذكر" &&
+    inferredLocation !== governorate
+  ) {
+    city = inferredLocation;
+  }
+
+  normalized.before_City = governorate;
+  normalized.before_city = governorate;
+
+  if (city) {
+    normalized.City = city;
+    normalized.city = city;
+    normalized.subcity = city;
+  }
+
+  if (!normalized.location || normalizeTextValue(normalized.location) === "لم يذكر") {
+    normalized.location = inferred.city || inferredLocation || "";
+  } else if (inferredLocation && inferredLocation !== governorate) {
+    normalized.location = inferredLocation;
+  }
+
+  if (
+    (!normalized.neighborhood ||
+      normalizeTextValue(normalized.neighborhood) === "لم يذكر") &&
+    normalized.location
+  ) {
+    normalized.neighborhood = normalized.location;
+  }
+
+  return normalized;
+}
+
 // -------------------------
 // Smart Phone Number Extraction
 // -------------------------
@@ -1948,6 +2065,7 @@ ${adText}${contactHint}
 4. أسماء الوسطاء أو الأشخاص (إلا إذا كان المالك الفعلي للعقار)
 5. أرقام هواتف الوسطاء أو المكاتب ()
 6. أي إشارات لمصادر النص (مثال: "من قروب كذا"، "نشر في مجموعة كذا")
+7. أرقام تعريف الإعلان أو الأرض مثل: "رقم القطعة"، "قطعة 11 أ"، "رقم الإعلان"
 
 ✅ المسموح فقط:
 - "مسعاك" أو "حساك" - هذه الأسماء فقط يمكن ذكرها
@@ -2540,7 +2658,9 @@ ${adText}${contactHint}
 
     // 🎨 Enhance HTML content with proper styling and formatting
     const adType = data.meta?.ad_type?.value || data.meta?.ad_type || "عرض";
+    wpData.content = stripAdReferenceNumbers(wpData.content);
     wpData.content = enhanceHTMLContent(wpData.content, adType);
+    wpData.content = stripAdReferenceNumbers(wpData.content);
 
     // Warning if using fallback title
     if (wpData.title === "عقار للبيع") {
@@ -2561,6 +2681,9 @@ ${adText}${contactHint}
             : field;
       });
     }
+
+    // Infer governorate/city from text patterns like "في جواثا، الأحساء".
+    wpData.meta = normalizeLocationMetaFromText(wpData.meta, adText);
 
     // 🔧 Clean up price fields to prevent duplication
     if (wpData.meta.price_type) {
@@ -2688,15 +2811,9 @@ ${adText}${contactHint}
         wpData.meta.subcategory ||
         "",
       before_City:
-        wpData.meta.before_City ||
-        wpData.meta.before_city ||
-        wpData.meta.city ||
-        "الأحساء",
+        wpData.meta.before_City || wpData.meta.before_city || "الأحساء",
       before_city:
-        wpData.meta.before_city ||
-        wpData.meta.before_City ||
-        wpData.meta.city ||
-        "الأحساء",
+        wpData.meta.before_city || wpData.meta.before_City || "الأحساء",
       City: wpData.meta.City || wpData.meta.city || wpData.meta.subcity || "",
       city: wpData.meta.city || wpData.meta.City || wpData.meta.subcity || "",
       location: wpData.meta.location || wpData.meta.neighborhood || "",
@@ -2735,6 +2852,43 @@ ${adText}${contactHint}
         wpData.meta[key] = requiredFields[key];
       }
     });
+
+    // WordPress for this installation validates these meta fields as strings.
+    // Keep AI output flexible, but normalize outgoing values to avoid rest_invalid_type.
+    const wordpressStringMetaFields = [
+      "price_amount",
+      "from_price",
+      "to_price",
+      "arc_space",
+      "area",
+    ];
+
+    wordpressStringMetaFields.forEach((field) => {
+      const value = wpData.meta[field];
+
+      if (value === null || value === undefined || value === "") {
+        wpData.meta[field] = "";
+        return;
+      }
+
+      if (typeof value === "number") {
+        wpData.meta[field] = Number.isFinite(value) ? String(value) : "";
+        return;
+      }
+
+      if (typeof value === "boolean") {
+        wpData.meta[field] = value ? "1" : "0";
+        return;
+      }
+
+      if (typeof value !== "string") {
+        wpData.meta[field] = String(value);
+      }
+    });
+
+    if (wpData.meta.arc_space && !wpData.meta.order_space) {
+      wpData.meta.order_space = `${wpData.meta.arc_space} متر مربع`;
+    }
 
     // ⚠️ Special handling for "طلبات" category - use parent_catt/sub_catt only (for Masaak requests)
     // IMPORTANT: Do NOT apply this normalization for Hasak categories like "حراج الحسا" etc.
@@ -2848,10 +3002,10 @@ ${adText}${contactHint}
         "\n⚠️ Detected 'عرض' (offer) - using original ad text as main_ad",
       );
       // Store the original ad text in main_ad so it can be manually edited later
-      wpData.meta.main_ad = adText || "";
+      wpData.meta.main_ad = stripAdReferenceNumbers(adText || "");
       console.log(
         "✅ main_ad set with",
-        adText ? adText.length : 0,
+        wpData.meta.main_ad ? wpData.meta.main_ad.length : 0,
         "characters",
       );
     }
