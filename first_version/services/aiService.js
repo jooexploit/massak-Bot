@@ -418,8 +418,23 @@ function expandPayloadCandidates(parsed) {
     collected.push(current);
 
     ["data", "result", "output", "response", "payload"].forEach((key) => {
-      if (isObject(current[key])) {
-        queue.push(current[key]);
+      const nested = current[key];
+
+      if (isObject(nested)) {
+        queue.push(nested);
+        return;
+      }
+
+      // Some providers wrap the JSON object as an escaped string inside these keys.
+      if (typeof nested === "string") {
+        const nestedCandidates = collectJsonCandidates(nested);
+
+        nestedCandidates.forEach((candidate) => {
+          const reparsed = parseJson(candidate);
+          if (isObject(reparsed)) {
+            queue.push(reparsed);
+          }
+        });
       }
     });
   }
@@ -567,6 +582,7 @@ async function callProviderRaw({
   temperature = 0.2,
   maxTokens = 1200,
   model,
+  schema = null,
   maxRetries = null,
 }) {
   const modelName =
@@ -592,9 +608,27 @@ async function callProviderRaw({
           completionRequest.max_tokens = maxTokens;
         }
 
-        const completion = await client.chat.completions.create(
-          completionRequest,
-        );
+        if (schema) {
+          completionRequest.response_format = { type: "json_object" };
+        }
+
+        let completion;
+        try {
+          completion = await client.chat.completions.create(completionRequest);
+        } catch (error) {
+          const message = String(error?.message || error || "");
+          const responseFormatUnsupported =
+            schema &&
+            /response_format/i.test(message) &&
+            /(unsupported|not supported|invalid)/i.test(message);
+
+          if (!responseFormatUnsupported) {
+            throw error;
+          }
+
+          delete completionRequest.response_format;
+          completion = await client.chat.completions.create(completionRequest);
+        }
 
         return completion?.choices?.[0]?.message?.content || "";
       }
@@ -665,6 +699,7 @@ async function callLLM({
           temperature,
           maxTokens,
           model: modelByProvider[provider],
+          schema,
           maxRetries,
         });
 
@@ -681,6 +716,11 @@ async function callLLM({
         console.error(
           `❌ [${taskName}] provider=${provider} attempt=${attempt} type=${normalized.type}: ${normalized.message}`,
         );
+        if (normalized.type === "invalid_json" && normalized.details?.preview) {
+          console.error(
+            `🧪 [${taskName}] invalid_json preview: ${normalized.details.preview}`,
+          );
+        }
 
         const shouldRetryJson =
           normalized.type === "invalid_json" && attempt === 1 && Boolean(schema);
