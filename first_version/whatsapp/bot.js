@@ -30,6 +30,7 @@ let reconnectAttempts = 0;
 let maxReconnectAttempts = 10;
 let reconnectTimeout = null;
 let isReconnecting = false;
+let groupsFetchTimeout = null;
 // Guard: prevent concurrent initializeBot calls that can create duplicate sessions
 let initInProgress = false;
 // Cross-process init lock (prevents two Node processes from opening the same Baileys session)
@@ -78,6 +79,47 @@ function releaseInitLock() {
   try {
     fs.rmSync(INIT_LOCK_FILE, { force: true });
   } catch {}
+}
+
+function isSocketOpen() {
+  if (!sock || !sock.ws) return false;
+  return sock.ws.readyState === sock.ws.OPEN;
+}
+
+function scheduleGroupsFetch() {
+  if (groupsFetchTimeout) {
+    clearTimeout(groupsFetchTimeout);
+    groupsFetchTimeout = null;
+  }
+
+  groupsFetchTimeout = setTimeout(async () => {
+    if (
+      connectionStatus !== "connected" ||
+      isReconnecting ||
+      !isSocketOpen()
+    ) {
+      console.log("⚠️ Skipping group fetch: socket not ready");
+      return;
+    }
+
+    try {
+      const groups = await sock.groupFetchAllParticipating();
+      console.log(`Found ${Object.keys(groups).length} groups`);
+
+      Object.values(groups).forEach((group) => {
+        const jid = group.id;
+        seenGroups.add(jid);
+        groupsMetadata[jid] = {
+          jid: jid,
+          name: group.subject || jid,
+        };
+      });
+
+      console.log("All groups loaded successfully");
+    } catch (err) {
+      console.error("Failed to fetch groups:", err);
+    }
+  }, 2000);
 }
 
 // Use centralized data sync utility
@@ -1175,6 +1217,10 @@ async function initializeBot() {
           clearTimeout(reconnectTimeout);
           reconnectTimeout = null;
         }
+        if (groupsFetchTimeout) {
+          clearTimeout(groupsFetchTimeout);
+          groupsFetchTimeout = null;
+        }
 
         // Check if this is a conflict error (401 with "conflict" message)
         const isConflict =
@@ -1364,26 +1410,8 @@ async function initializeBot() {
         adminCommandService.startQueueProcessor();
         console.log("✅ Message queue processor initialized");
 
-        // Fetch all groups when connected
-        setTimeout(async () => {
-          try {
-            const groups = await sock.groupFetchAllParticipating();
-            console.log(`Found ${Object.keys(groups).length} groups`);
-
-            Object.values(groups).forEach((group) => {
-              const jid = group.id;
-              seenGroups.add(jid);
-              groupsMetadata[jid] = {
-                jid: jid,
-                name: group.subject || jid,
-              };
-            });
-
-            console.log("All groups loaded successfully");
-          } catch (err) {
-            console.error("Failed to fetch groups:", err);
-          }
-        }, 2000);
+        // Fetch all groups when connected (guarded)
+        scheduleGroupsFetch();
       }
     });
 
