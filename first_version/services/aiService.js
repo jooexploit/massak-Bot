@@ -550,6 +550,16 @@ function shouldUseMaxCompletionTokens(modelName = "") {
   );
 }
 
+function shouldOmitTemperature(modelName = "") {
+  const normalized = String(modelName).toLowerCase();
+  return (
+    normalized.startsWith("gpt-5") ||
+    normalized.startsWith("o1") ||
+    normalized.startsWith("o3") ||
+    normalized.startsWith("o4")
+  );
+}
+
 async function callProviderRaw({
   provider,
   prompt,
@@ -570,8 +580,11 @@ async function callProviderRaw({
         const completionRequest = {
           model: modelName,
           messages: [{ role: "user", content: prompt }],
-          temperature,
         };
+
+        if (!shouldOmitTemperature(modelName)) {
+          completionRequest.temperature = temperature;
+        }
 
         if (shouldUseMaxCompletionTokens(modelName)) {
           completionRequest.max_completion_tokens = maxTokens;
