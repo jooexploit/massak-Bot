@@ -540,6 +540,16 @@ function getProviderOrder(providerOrder = []) {
   );
 }
 
+function shouldUseMaxCompletionTokens(modelName = "") {
+  const normalized = String(modelName).toLowerCase();
+  return (
+    normalized.startsWith("gpt-5") ||
+    normalized.startsWith("o1") ||
+    normalized.startsWith("o3") ||
+    normalized.startsWith("o4")
+  );
+}
+
 async function callProviderRaw({
   provider,
   prompt,
@@ -557,12 +567,21 @@ async function callProviderRaw({
     async (apiKey) => {
       if (provider === PROVIDERS.GPT) {
         const client = new OpenAI({ apiKey });
-        const completion = await client.chat.completions.create({
+        const completionRequest = {
           model: modelName,
           messages: [{ role: "user", content: prompt }],
           temperature,
-          max_tokens: maxTokens,
-        });
+        };
+
+        if (shouldUseMaxCompletionTokens(modelName)) {
+          completionRequest.max_completion_tokens = maxTokens;
+        } else {
+          completionRequest.max_tokens = maxTokens;
+        }
+
+        const completion = await client.chat.completions.create(
+          completionRequest,
+        );
 
         return completion?.choices?.[0]?.message?.content || "";
       }
