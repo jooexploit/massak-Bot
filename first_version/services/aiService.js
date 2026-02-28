@@ -2,11 +2,13 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const OpenAI = require("openai");
 
 const apiKeyManager = require("./apiKeyManager");
+const areaNormalizer = require("./areaNormalizer");
 const websiteConfig = require("../config/website.config");
 
 const { PROVIDERS } = apiKeyManager;
 
 const DEFAULT_WP_TITLE = "إعلان عقاري مميز";
+const REQUIRED_METADATA_FIELDS = ["area", "price", "fullLocation", "category", "subcategory"];
 const HASAK_CATEGORIES = Object.keys(websiteConfig.hasak.categories || {}).filter(
   (name) => name !== "default" && name !== "Uncategorized",
 );
@@ -65,6 +67,7 @@ const WP_META_DEFAULTS = {
   city: "",
   subcity: "",
   location: "",
+  full_location: "",
   neighborhood: "",
   neighborhood1: "",
   neighborhood2: "",
@@ -1121,12 +1124,73 @@ const WORDPRESS_SCHEMA = {
       before_City: "الأحساء",
       City: "الهفوف",
       location: "الرابية",
+      full_location: "الرابية - الهفوف - الأحساء",
     },
   },
   match: (obj) =>
     isObject(obj) &&
     ("meta" in obj || "title" in obj || "content" in obj || "IsItAd" in obj),
   sanitize: (obj) => obj,
+};
+
+const RECOVER_MISSING_WORDPRESS_FIELDS_SCHEMA = {
+  template: {
+    area: "",
+    price: "",
+    price_type: "",
+    price_amount: "",
+    from_price: "",
+    to_price: "",
+    fullLocation: "",
+    neighborhood: "",
+    city: "",
+    governorate: "",
+    category: "",
+    subcategory: "",
+    notes: "",
+    confidence: 0.9,
+  },
+  match: (obj) =>
+    isObject(obj) &&
+    ("area" in obj ||
+      "price" in obj ||
+      "fullLocation" in obj ||
+      "category" in obj ||
+      "subcategory" in obj),
+  sanitize: (obj) => {
+    const confidenceRaw = extractNumericValue(firstNonEmpty(obj.confidence, obj.score));
+    const confidence =
+      typeof confidenceRaw === "number"
+        ? clamp(confidenceRaw <= 1 ? confidenceRaw : confidenceRaw / 100, 0, 1)
+        : 0.8;
+
+    return {
+      area: firstNonEmpty(obj.area, obj.arc_space, obj.order_space, ""),
+      price: firstNonEmpty(obj.price, ""),
+      price_type: firstNonEmpty(obj.price_type, obj.priceType, ""),
+      price_amount: firstNonEmpty(obj.price_amount, obj.priceAmount, ""),
+      from_price: firstNonEmpty(obj.from_price, obj.fromPrice, ""),
+      to_price: firstNonEmpty(obj.to_price, obj.toPrice, ""),
+      fullLocation: firstNonEmpty(
+        obj.fullLocation,
+        obj.full_location,
+        obj.location_full,
+        "",
+      ),
+      neighborhood: firstNonEmpty(obj.neighborhood, obj.location, ""),
+      city: firstNonEmpty(obj.city, obj.City, obj.subcity, ""),
+      governorate: firstNonEmpty(obj.governorate, obj.before_City, obj.before_city, ""),
+      category: firstNonEmpty(obj.category, obj.arc_category, obj.parent_catt, ""),
+      subcategory: firstNonEmpty(
+        obj.subcategory,
+        obj.arc_subcategory,
+        obj.sub_catt,
+        "",
+      ),
+      notes: normalizeArabicText(firstNonEmpty(obj.notes, obj.reason, obj.explanation, "")),
+      confidence,
+    };
+  },
 };
 
 const VALIDATION_SCHEMA = {
@@ -1192,6 +1256,63 @@ function normalizeCategoryLabel(label) {
   return found || normalized;
 }
 
+function appendParseNote(existingNotes, note) {
+  const base = normalizeArabicText(existingNotes || "");
+  const addition = normalizeArabicText(note || "");
+
+  if (!addition) {
+    return base;
+  }
+
+  if (!base) {
+    return addition;
+  }
+
+  if (base.includes(addition)) {
+    return base;
+  }
+
+  return `${base} | ${addition}`;
+}
+
+function buildFullLocationValue(meta = {}, fallback = "") {
+  const parts = unique(
+    [
+      normalizeArabicText(firstNonEmpty(meta.location, meta.neighborhood, "")),
+      normalizeArabicText(firstNonEmpty(meta.City, meta.subcity, meta.city, "")),
+      normalizeArabicText(firstNonEmpty(meta.before_City, meta.before_city, "")),
+    ].filter(
+      (value) =>
+        value && value !== "لم يذكر" && value !== "لا يوجد",
+    ),
+  );
+
+  if (parts.length > 0) {
+    return parts.join(" - ");
+  }
+
+  return normalizeArabicText(fallback || "");
+}
+
+function hasDetailedLocation(meta = {}) {
+  const fullLocation = normalizeArabicText(meta.full_location || "");
+  if (fullLocation && !["الأحساء", "لم يذكر", "لا يوجد"].includes(fullLocation)) {
+    return true;
+  }
+
+  const beforeCity = normalizeArabicText(firstNonEmpty(meta.before_City, meta.before_city, ""));
+  const city = normalizeArabicText(firstNonEmpty(meta.City, meta.subcity, meta.city, ""));
+  const neighborhood = normalizeArabicText(firstNonEmpty(meta.location, meta.neighborhood, ""));
+
+  const hasNeighborhood =
+    Boolean(neighborhood) &&
+    neighborhood !== "لم يذكر" &&
+    neighborhood !== "لا يوجد";
+  const hasDistinctCity = Boolean(city) && city !== beforeCity;
+
+  return hasNeighborhood || hasDistinctCity;
+}
+
 function normalizeLocationMeta(meta, adText = "") {
   const inferred = inferCityGovernorateFromText(adText);
 
@@ -1244,6 +1365,7 @@ function normalizeLocationMeta(meta, adText = "") {
   meta.City = meta.subcity || meta.city;
   meta.neighborhood = neighborhood || "لم يذكر";
   meta.location = neighborhood || "لم يذكر";
+  meta.full_location = buildFullLocationValue(meta, "الأحساء") || "الأحساء";
 }
 
 function normalizePriceMeta(meta) {
@@ -1439,6 +1561,12 @@ const FORBIDDEN_DESCRIPTION_PATTERNS = [
   /\b(?:\+?966|0)?5[0-9٠-٩]{8}\b/g,
 ];
 
+const OWNER_ADMIN_DETAIL_PATTERNS = [
+  /(?:اسم\s*المالك|المالك|مالك\s*العقار|صاحب\s*العقار|صاحب\s*الإعلان|اسم\s*المعلن|المعلن)/i,
+  /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|رقم\s*الترخيص|رقم\s*المعلن)/i,
+  /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف|رقم\s*التواصل|رقم\s*الجوال)/i,
+];
+
 const REAL_ESTATE_KEYWORDS = [
   "أرض",
   "ارض",
@@ -1474,6 +1602,13 @@ function removeForbiddenInlineContent(text) {
   );
 }
 
+function isOwnerOrAdministrativeDetailLine(line = "") {
+  const normalized = normalizeArabicText(line || "");
+  if (!normalized) return false;
+
+  return OWNER_ADMIN_DETAIL_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 function extractCleanDescriptionLines(adText) {
   const source = String(adText ?? "")
     .replace(/<[^>]+>/g, "\n")
@@ -1484,6 +1619,7 @@ function extractCleanDescriptionLines(adText) {
     .map((line) => stripAdReferenceNumbers(removeForbiddenInlineContent(line)))
     .map((line) => line.replace(/^[\-*•:]+/g, "").trim())
     .filter(Boolean)
+    .filter((line) => !isOwnerOrAdministrativeDetailLine(line))
     .filter((line) => line.length >= 3);
 
   return unique(lines).slice(0, 20);
@@ -1604,18 +1740,52 @@ function formatPriceSummary(meta = {}) {
 }
 
 function formatLocationSummary(meta = {}) {
-  const parts = unique(
-    [
-      normalizeArabicText(meta.location || meta.neighborhood || ""),
-      normalizeArabicText(meta.City || meta.subcity || meta.city || ""),
-      normalizeArabicText(meta.before_City || meta.before_city || ""),
-    ].filter(
-      (value) =>
-        value && value !== "لم يذكر" && value !== "لا يوجد",
+  return buildFullLocationValue(meta, "الأحساء") || "الأحساء";
+}
+
+function pickTitleLocationLabel(meta = {}) {
+  const fullLocation = normalizeArabicText(
+    firstNonEmpty(meta.full_location, buildFullLocationValue(meta, "")),
+  );
+  if (fullLocation) {
+    return fullLocation;
+  }
+
+  const fallback = normalizeArabicText(
+    firstNonEmpty(
+      meta.location,
+      meta.neighborhood,
+      meta.City,
+      meta.subcity,
+      meta.city,
+      meta.before_City,
+      meta.before_city,
+      "",
     ),
   );
+  return fallback;
+}
 
-  return parts.length > 0 ? parts.join(" - ") : "الأحساء";
+function ensureTitleContainsLocation(title, meta = {}) {
+  const sanitized = sanitizeTitle(title || DEFAULT_WP_TITLE);
+  const locationLabel = pickTitleLocationLabel(meta);
+
+  if (!locationLabel || ["لم يذكر", "لا يوجد", "غير محدد"].includes(locationLabel)) {
+    return sanitized;
+  }
+
+  const normalizedTitle = normalizeArabicText(sanitized);
+  const locationParts = locationLabel
+    .split(/[-،,]/)
+    .map((part) => normalizeArabicText(part))
+    .filter(Boolean);
+
+  const titleHasLocation = locationParts.some((part) => normalizedTitle.includes(part));
+  if (titleHasLocation) {
+    return sanitized;
+  }
+
+  return sanitizeTitle(`${sanitized} في ${locationLabel}`);
 }
 
 function buildRealEstateHtmlDescription({ title, meta, adText }) {
@@ -1644,6 +1814,7 @@ function buildRealEstateHtmlDescription({ title, meta, adText }) {
     `${propertyType || "عقار"} ${normalizeArabicText(meta.order_type || meta.offer_type || "للبيع")} في ${locationSummary}`;
 
   const specs = [];
+  const consumedLines = new Set();
   if (propertyType) specs.push(`نوع العقار: ${propertyType}`);
   if (subType) specs.push(`التصنيف الفرعي: ${subType}`);
   if (area !== "") specs.push(`المساحة: ${area} متر مربع`);
@@ -1657,8 +1828,9 @@ function buildRealEstateHtmlDescription({ title, meta, adText }) {
   const specHintKeywords =
     /(واجهة|شارع|غرف|غرفة|صالة|حمام|مطبخ|مجلس|دور|مصعد|مواقف|أطوال|ارتداد|تشطيب|مؤثث|مكيف)/i;
   cleanLines.forEach((line) => {
-    if (specHintKeywords.test(line) && specs.length < 10) {
+    if (specHintKeywords.test(line) && specs.length < 12) {
       specs.push(line);
+      consumedLines.add(line);
     }
   });
 
@@ -1679,7 +1851,23 @@ function buildRealEstateHtmlDescription({ title, meta, adText }) {
 
   const featureHintKeywords = /(ميزة|مميزات|فرصة|جديد|مؤجر|مدخول|مرهون|صك|عداد|خزان)/i;
   cleanLines.forEach((line) => {
-    if (featureHintKeywords.test(line) && features.length < 8) {
+    if (featureHintKeywords.test(line) && features.length < 10) {
+      features.push(line);
+      consumedLines.add(line);
+    }
+  });
+
+  // Preserve additional property details that are not owner/admin/contact details.
+  cleanLines.forEach((line) => {
+    if (consumedLines.has(line)) return;
+    if (isOwnerOrAdministrativeDetailLine(line)) return;
+
+    if (/[:\-]/.test(line) && specs.length < 12) {
+      specs.push(line);
+      return;
+    }
+
+    if (features.length < 10) {
       features.push(line);
     }
   });
@@ -1742,11 +1930,13 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
   }
 
   const detailParts = [];
+  const consumedDetailLines = new Set();
   const goodsHintKeywords =
     /(حالة|مستعمل|جديد|نظيف|موديل|ماركة|ضمان|سبب البيع|ميزانية|سعر|مواصفات|استخدام)/i;
   cleanLines.forEach((line) => {
     if (goodsHintKeywords.test(line) && detailParts.length < 5) {
       detailParts.push(line);
+      consumedDetailLines.add(line);
     }
   });
 
@@ -1764,6 +1954,15 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
       detailParts.push(`السعر: ${priceSummary}`);
     }
   }
+
+  // Keep as many product/property-specific details as possible.
+  cleanLines.forEach((line) => {
+    if (consumedDetailLines.has(line)) return;
+    if (isOwnerOrAdministrativeDetailLine(line)) return;
+    if (detailParts.length < 8) {
+      detailParts.push(line);
+    }
+  });
 
   if (detailParts.length === 0) {
     if (isBuyRequest) {
@@ -1895,7 +2094,10 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
     );
   }
 
-  const normalizedTitle = sanitizeTitle(titleValue || DEFAULT_WP_TITLE);
+  const normalizedTitle = ensureTitleContainsLocation(
+    titleValue || DEFAULT_WP_TITLE,
+    meta,
+  );
   const manualContent = buildDeterministicDescription({
     title: normalizedTitle,
     meta,
@@ -1937,6 +2139,650 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
   };
 }
 
+function getRequiredFieldLabel(field) {
+  const labels = {
+    area: "المساحة",
+    price: "السعر",
+    fullLocation: "الموقع الكامل",
+    category: "التصنيف",
+    subcategory: "التصنيف الفرعي",
+  };
+
+  return labels[field] || field;
+}
+
+function summarizeRequiredMetadata(wpData) {
+  const meta = isObject(wpData?.meta) ? wpData.meta : {};
+  const areaNumber = extractNumericValue(firstNonEmpty(meta.arc_space, meta.area));
+  const areaText = normalizeArabicText(meta.order_space || "");
+  const priceAmount = extractNumericValue(
+    firstNonEmpty(meta.price_amount, meta.from_price, meta.to_price),
+  );
+  const priceText = normalizeArabicText(firstNonEmpty(meta.price_type, meta.price, ""));
+  const category = normalizeCategoryLabel(
+    firstNonEmpty(wpData?.category, meta.category, meta.arc_category, meta.parent_catt),
+  );
+  const subcategory = normalizeCategoryLabel(
+    firstNonEmpty(
+      wpData?.subcategory,
+      meta.subcategory,
+      meta.arc_subcategory,
+      meta.sub_catt,
+    ),
+  );
+  const fullLocation = buildFullLocationValue(meta, "");
+
+  return {
+    area:
+      typeof areaNumber === "number" && areaNumber > 0
+        ? String(areaNumber)
+        : areaText,
+    price:
+      typeof priceAmount === "number" && priceAmount > 0
+        ? String(priceAmount)
+        : priceText,
+    fullLocation,
+    category,
+    subcategory,
+  };
+}
+
+function getMissingRequiredMetadataFields(wpData) {
+  const meta = isObject(wpData?.meta) ? wpData.meta : {};
+  const values = summarizeRequiredMetadata(wpData);
+  const missing = [];
+
+  if (!values.area) {
+    missing.push("area");
+  }
+
+  if (!values.price) {
+    missing.push("price");
+  }
+
+  if (!hasDetailedLocation(meta)) {
+    missing.push("fullLocation");
+  }
+
+  if (!values.category) {
+    missing.push("category");
+  }
+
+  if (!values.subcategory) {
+    missing.push("subcategory");
+  }
+
+  return {
+    missing: missing.filter((field) => REQUIRED_METADATA_FIELDS.includes(field)),
+    values,
+  };
+}
+
+function parseFullLocationText(fullLocation) {
+  const normalized = normalizeArabicText(fullLocation || "");
+  if (!normalized) {
+    return { neighborhood: "", city: "", governorate: "" };
+  }
+
+  const parts = normalized
+    .split(/[-،,]/)
+    .map((part) => normalizeArabicText(part))
+    .filter(Boolean);
+
+  if (parts.length >= 3) {
+    return {
+      neighborhood: parts[0],
+      city: parts[1],
+      governorate: parts.slice(2).join(" - "),
+    };
+  }
+
+  if (parts.length === 2) {
+    return {
+      neighborhood: parts[0],
+      city: parts[1],
+      governorate: "",
+    };
+  }
+
+  return {
+    neighborhood: parts[0] || "",
+    city: "",
+    governorate: "",
+  };
+}
+
+function extractAreaFromTextFallback(adText = "") {
+  const text = convertArabicDigitsToEnglish(String(adText || ""));
+  const patterns = [
+    /(?:المساحة|المساحه|مساحة|مساحه)\s*[:：-]?\s*([0-9][0-9,\.]*)/i,
+    /([0-9][0-9,\.]*)\s*(?:متر(?:\s*مربع)?|م²|m2)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const value = extractNumericValue(match[1]);
+    if (typeof value === "number" && value > 0) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function extractPriceFromTextFallback(adText = "") {
+  const text = convertArabicDigitsToEnglish(String(adText || ""));
+  const normalized = normalizeArabicText(text);
+
+  if (/على\s*السوم/i.test(normalized)) {
+    return {
+      price: "على السوم",
+      price_type: "على السوم",
+      price_amount: "",
+      from_price: "",
+      to_price: "",
+    };
+  }
+
+  if (/عند\s*التواصل/i.test(normalized)) {
+    return {
+      price: "عند التواصل",
+      price_type: "عند التواصل",
+      price_amount: "",
+      from_price: "",
+      to_price: "",
+    };
+  }
+
+  const scaledPatterns = [
+    { pattern: /([0-9][0-9,\.]*)\s*مليون/i, multiplier: 1000000 },
+    { pattern: /([0-9][0-9,\.]*)\s*ألف/i, multiplier: 1000 },
+  ];
+
+  for (const { pattern, multiplier } of scaledPatterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+
+    const base = extractNumericValue(match[1]);
+    if (typeof base === "number" && base > 0) {
+      const price = Math.round(base * multiplier);
+      return {
+        price: String(price),
+        price_type: "",
+        price_amount: price,
+        from_price: price,
+        to_price: price,
+      };
+    }
+  }
+
+  const numericPatterns = [
+    /(?:السعر|المبلغ|المطلوب|القيمة|بسعر)\s*[:：-]?\s*([0-9][0-9,\.]*)/i,
+    /([0-9][0-9,\.]{2,})\s*(?:ريال|﷼|sar|سار)/i,
+  ];
+
+  for (const pattern of numericPatterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+
+    const value = extractNumericValue(match[1]);
+    if (typeof value === "number" && value > 0) {
+      return {
+        price: String(value),
+        price_type: "",
+        price_amount: value,
+        from_price: value,
+        to_price: value,
+      };
+    }
+  }
+
+  return {
+    price: "",
+    price_type: "",
+    price_amount: "",
+    from_price: "",
+    to_price: "",
+  };
+}
+
+function extractLocationFromTextFallback(adText = "") {
+  const normalizedText = normalizeArabicText(adText || "");
+  let neighborhood = "";
+  let city = "";
+  let governorate = "";
+
+  const neighborhoodPatterns = [
+    /(?:الحي|المنطقة|الموقع|المكان)\s*[:：-]?\s*([^\n،,]{2,40})/i,
+    /في\s*حي\s*([^\n،,]{2,40})/i,
+  ];
+
+  for (const pattern of neighborhoodPatterns) {
+    const match = normalizedText.match(pattern);
+    if (!match) continue;
+    neighborhood = normalizeArabicText(match[1]);
+    if (neighborhood) break;
+  }
+
+  const cityPatterns = [
+    /(?:المدينة|المدينه|مدينة|مدينه)\s*[:：-]?\s*([^\n،,]{2,35})/i,
+    /(?:في|ب)\s*([^\n،,]{2,35})\s*[،,]\s*([^\n،,]{2,35})/i,
+  ];
+
+  for (const pattern of cityPatterns) {
+    const match = normalizedText.match(pattern);
+    if (!match) continue;
+
+    if (!city) {
+      city = normalizeArabicText(match[1]);
+    }
+
+    if (!governorate && match[2]) {
+      governorate = normalizeArabicText(match[2]);
+    }
+
+    if (city) break;
+  }
+
+  if (!neighborhood) {
+    const extractedNeighborhoods = areaNormalizer.extractNeighborhoods(normalizedText);
+    if (extractedNeighborhoods.length > 0) {
+      neighborhood = normalizeArabicText(extractedNeighborhoods[0]);
+    }
+  }
+
+  const inferred = inferCityGovernorateFromText(normalizedText);
+  if (!city && inferred.city) {
+    city = normalizeArabicText(inferred.city);
+  }
+  if (!governorate && inferred.governorate) {
+    governorate = normalizeArabicText(inferred.governorate);
+  }
+
+  if (neighborhood && (neighborhood === city || neighborhood === governorate)) {
+    neighborhood = "";
+  }
+
+  return {
+    neighborhood: neighborhood || "",
+    city: city || "",
+    governorate: governorate || "الأحساء",
+  };
+}
+
+function inferSubcategoryFallback(adText = "", category = "") {
+  const text = normalizeArabicText(adText || "");
+  const patterns = [
+    { regex: /دور\s*أول|الدور\s*الأول/i, value: "دور أول" },
+    { regex: /دور\s*ثاني|الدور\s*الثاني/i, value: "دور ثاني" },
+    { regex: /دور\s*أرضي|الدور\s*الأرضي/i, value: "دور أرضي" },
+    { regex: /دبلكس|دوبلكس/i, value: "دبلكس" },
+    { regex: /شقة\s*دبلكسية|شقه\s*دبلكسيه/i, value: "شقة دبلكسية" },
+  ];
+
+  const detected = patterns.find(({ regex }) => regex.test(text));
+  if (detected) {
+    return detected.value;
+  }
+
+  const normalizedCategory = normalizeCategoryLabel(category);
+  if (normalizedCategory === "طلبات") {
+    return "عام";
+  }
+
+  return normalizedCategory || "عام";
+}
+
+function mergeRecoveredWordPressMetadata(wpData, recoveredData) {
+  const merged = {
+    ...wpData,
+    meta: isObject(wpData?.meta) ? { ...wpData.meta } : {},
+  };
+  const meta = merged.meta;
+  const patch = isObject(recoveredData) ? recoveredData : {};
+
+  const recoveredArea = extractNumericValue(firstNonEmpty(patch.area, patch.arc_space));
+  if (typeof recoveredArea === "number" && recoveredArea > 0) {
+    meta.arc_space = recoveredArea;
+    meta.area = recoveredArea;
+    meta.order_space = meta.order_space || `${recoveredArea} متر مربع`;
+  }
+
+  const recoveredPriceAmount = extractNumericValue(
+    firstNonEmpty(patch.price_amount, patch.from_price, patch.to_price, patch.price),
+  );
+  const recoveredPriceType = normalizeArabicText(firstNonEmpty(patch.price_type, ""));
+  const recoveredPriceText = normalizeArabicText(firstNonEmpty(patch.price, recoveredPriceType, ""));
+
+  if (typeof recoveredPriceAmount === "number" && recoveredPriceAmount > 0) {
+    meta.price_amount = recoveredPriceAmount;
+    meta.from_price = meta.from_price || recoveredPriceAmount;
+    meta.to_price = meta.to_price || recoveredPriceAmount;
+    meta.price = meta.price || String(recoveredPriceAmount);
+  }
+
+  if (recoveredPriceType) {
+    meta.price_type = recoveredPriceType;
+  } else if (!meta.price_type && recoveredPriceText) {
+    meta.price = recoveredPriceText;
+  }
+
+  const parsedLocation = parseFullLocationText(firstNonEmpty(patch.fullLocation, ""));
+  const recoveredNeighborhood = normalizeArabicText(
+    firstNonEmpty(patch.neighborhood, patch.location, parsedLocation.neighborhood),
+  );
+  const recoveredCity = normalizeArabicText(firstNonEmpty(patch.city, parsedLocation.city));
+  const recoveredGovernorate = normalizeArabicText(
+    firstNonEmpty(patch.governorate, parsedLocation.governorate),
+  );
+
+  if (recoveredNeighborhood) {
+    meta.neighborhood = recoveredNeighborhood;
+    meta.location = recoveredNeighborhood;
+  }
+  if (recoveredCity) {
+    meta.city = recoveredCity;
+    meta.subcity = recoveredCity;
+    meta.City = recoveredCity;
+  }
+  if (recoveredGovernorate) {
+    meta.before_City = recoveredGovernorate;
+    meta.before_city = recoveredGovernorate;
+  }
+
+  const recoveredCategory = canonicalizeMasaakCategory(
+    firstNonEmpty(patch.category, patch.arc_category, patch.parent_catt),
+  );
+  if (recoveredCategory) {
+    merged.category = recoveredCategory;
+    meta.category = recoveredCategory;
+    meta.arc_category = recoveredCategory;
+    if (!HASAK_CATEGORIES.includes(recoveredCategory)) {
+      meta.parent_catt = recoveredCategory;
+    }
+    if (!meta.category_id) {
+      meta.category_id = resolveCategoryId(recoveredCategory);
+    }
+  }
+
+  const recoveredSubcategory = normalizeCategoryLabel(
+    firstNonEmpty(patch.subcategory, patch.arc_subcategory, patch.sub_catt),
+  );
+  if (recoveredSubcategory) {
+    merged.subcategory = recoveredSubcategory;
+    meta.subcategory = recoveredSubcategory;
+    meta.arc_subcategory = recoveredSubcategory;
+    meta.sub_catt = recoveredSubcategory;
+  }
+
+  if (patch.notes) {
+    meta.parse_notes = appendParseNote(meta.parse_notes, patch.notes);
+  }
+
+  meta.full_location = buildFullLocationValue(meta, "الأحساء") || "الأحساء";
+
+  return merged;
+}
+
+function applyRequiredFieldFallbacks(wpData, adText) {
+  const updated = {
+    ...wpData,
+    meta: isObject(wpData?.meta) ? { ...wpData.meta } : {},
+  };
+  const meta = updated.meta;
+  const missingState = getMissingRequiredMetadataFields(updated);
+
+  if (missingState.missing.length > 0) {
+    meta.parse_notes = appendParseNote(
+      meta.parse_notes,
+      `تطبيق معالجة تلقائية للحقول: ${missingState.missing.join(", ")}`,
+    );
+  }
+
+  if (missingState.missing.includes("area")) {
+    const areaValue = extractAreaFromTextFallback(adText);
+    if (typeof areaValue === "number" && areaValue > 0) {
+      meta.arc_space = areaValue;
+      meta.area = areaValue;
+      meta.order_space = `${areaValue} متر مربع`;
+    } else if (!meta.order_space) {
+      meta.order_space = "غير محدد";
+    }
+  }
+
+  if (missingState.missing.includes("price")) {
+    const priceData = extractPriceFromTextFallback(adText);
+    if (typeof priceData.price_amount === "number" && priceData.price_amount > 0) {
+      meta.price_amount = priceData.price_amount;
+      meta.from_price = priceData.from_price || priceData.price_amount;
+      meta.to_price = priceData.to_price || priceData.price_amount;
+      meta.price = String(priceData.price_amount);
+    }
+    if (priceData.price_type) {
+      meta.price_type = priceData.price_type;
+    } else if (!meta.price_type && priceData.price) {
+      meta.price = priceData.price;
+    } else if (!meta.price_type && !meta.price) {
+      meta.price_type = "عند التواصل";
+      meta.price = "عند التواصل";
+    }
+  }
+
+  if (missingState.missing.includes("fullLocation")) {
+    const locationData = extractLocationFromTextFallback(adText);
+    if (locationData.neighborhood) {
+      meta.neighborhood = locationData.neighborhood;
+      meta.location = locationData.neighborhood;
+    } else if (!meta.location || meta.location === "لم يذكر") {
+      meta.location = "غير محدد";
+      meta.neighborhood = "غير محدد";
+    }
+
+    if (locationData.city) {
+      meta.city = locationData.city;
+      meta.subcity = locationData.city;
+      meta.City = locationData.city;
+    }
+    if (locationData.governorate) {
+      meta.before_City = locationData.governorate;
+      meta.before_city = locationData.governorate;
+    }
+  }
+
+  if (missingState.missing.includes("category")) {
+    const inferredCategory = canonicalizeMasaakCategory(
+      firstNonEmpty(
+        meta.category,
+        meta.arc_category,
+        meta.parent_catt,
+        detectPropertyTypeFromText(adText),
+        detectCategoryFallback(adText),
+      ),
+    );
+    const safeCategory = inferredCategory || "عقار";
+
+    updated.category = safeCategory;
+    meta.category = safeCategory;
+    meta.arc_category = safeCategory;
+    if (!HASAK_CATEGORIES.includes(safeCategory)) {
+      meta.parent_catt = safeCategory;
+    }
+    meta.category_id = meta.category_id || resolveCategoryId(safeCategory);
+  }
+
+  if (missingState.missing.includes("subcategory")) {
+    const sourceCategory = firstNonEmpty(
+      updated.category,
+      meta.category,
+      meta.arc_category,
+      meta.parent_catt,
+    );
+    const fallbackSubcategory = inferSubcategoryFallback(adText, sourceCategory);
+
+    updated.subcategory = fallbackSubcategory;
+    meta.subcategory = fallbackSubcategory;
+    meta.arc_subcategory = fallbackSubcategory;
+    meta.sub_catt = fallbackSubcategory;
+  }
+
+  meta.full_location = buildFullLocationValue(meta, "الأحساء") || "الأحساء";
+  return updated;
+}
+
+function buildRecoverMissingFieldsPrompt(adText, currentData, missingFields) {
+  const currentSummary = summarizeRequiredMetadata(currentData);
+  const missingLines = missingFields
+    .filter((field) => REQUIRED_METADATA_FIELDS.includes(field))
+    .map((field) => `- ${field}: ${getRequiredFieldLabel(field)}`)
+    .join("\n");
+
+  return `أنت مدقق جودة لاستخراج بيانات إعلان عقاري.
+
+المطلوب: أكمل فقط الحقول الناقصة التالية:
+${missingLines || "- لا يوجد"}
+
+النص الأصلي:
+"""
+${adText}
+"""
+
+البيانات الحالية (لا تُعدّل القيم الصحيحة):
+${JSON.stringify(currentSummary, null, 2)}
+
+أعد JSON واحد فقط بدون Markdown وبدون أي شرح.
+إذا تعذر استنتاج قيمة حقل ضع "".
+
+الشكل المطلوب:
+{
+  "area": "",
+  "price": "",
+  "price_type": "",
+  "price_amount": "",
+  "from_price": "",
+  "to_price": "",
+  "fullLocation": "",
+  "neighborhood": "",
+  "city": "",
+  "governorate": "",
+  "category": "",
+  "subcategory": "",
+  "notes": "",
+  "confidence": 0.9
+}`;
+}
+
+async function recoverMissingWordPressFields(adText, currentData, missingFields) {
+  const relevantMissing = unique(
+    missingFields.filter((field) => REQUIRED_METADATA_FIELDS.includes(field)),
+  );
+
+  if (relevantMissing.length === 0) {
+    return {};
+  }
+
+  const prompt = buildRecoverMissingFieldsPrompt(adText, currentData, relevantMissing);
+  const providerOrders = unique([
+    `${PROVIDERS.GPT},${PROVIDERS.GEMINI}`,
+    `${PROVIDERS.GEMINI},${PROVIDERS.GPT}`,
+  ]).map((order) => order.split(","));
+
+  let lastError = null;
+
+  for (const order of providerOrders) {
+    try {
+      const { data } = await callLLM({
+        taskName: "Recover Missing WordPress Fields",
+        prompt,
+        schema: RECOVER_MISSING_WORDPRESS_FIELDS_SCHEMA,
+        providerOrder: order,
+        temperature: 0,
+        maxTokens: 900,
+        maxRetries: null,
+      });
+
+      return data;
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `⚠️ Missing-field recovery failed for provider order [${order.join(" -> ")}]:`,
+        error?.message || error,
+      );
+    }
+  }
+
+  throw lastError || new Error("Missing-field recovery failed");
+}
+
+async function ensureRequiredMetadataCoverage({
+  wpData,
+  adText,
+  extractedPhones,
+  isRegeneration,
+  maxPasses = 2,
+}) {
+  let current = wpData;
+
+  for (let pass = 1; pass <= maxPasses; pass += 1) {
+    const initialCheck = getMissingRequiredMetadataFields(current);
+    if (initialCheck.missing.length === 0) {
+      return current;
+    }
+
+    console.log(
+      `⚠️ Required metadata missing (pass ${pass}): ${initialCheck.missing.join(", ")}`,
+    );
+
+    let merged = applyRequiredFieldFallbacks(current, adText);
+    let checkAfterFallback = getMissingRequiredMetadataFields(merged);
+
+    if (checkAfterFallback.missing.length === 0) {
+      return normalizeWordPressData(merged, adText, extractedPhones, isRegeneration);
+    }
+
+    try {
+      const recovered = await recoverMissingWordPressFields(
+        adText,
+        merged,
+        checkAfterFallback.missing,
+      );
+
+      merged = mergeRecoveredWordPressMetadata(merged, recovered);
+      merged = applyRequiredFieldFallbacks(merged, adText);
+      current = normalizeWordPressData(merged, adText, extractedPhones, isRegeneration);
+    } catch (error) {
+      console.error(
+        `⚠️ Required metadata recovery attempt ${pass} failed:`,
+        error?.message || error,
+      );
+      current = normalizeWordPressData(merged, adText, extractedPhones, isRegeneration);
+    }
+
+    checkAfterFallback = getMissingRequiredMetadataFields(current);
+    if (checkAfterFallback.missing.length === 0) {
+      return current;
+    }
+  }
+
+  const finalized = applyRequiredFieldFallbacks(current, adText);
+  const finalNormalized = normalizeWordPressData(
+    finalized,
+    adText,
+    extractedPhones,
+    isRegeneration,
+  );
+  const finalCheck = getMissingRequiredMetadataFields(finalNormalized);
+
+  if (finalCheck.missing.length > 0) {
+    finalNormalized.meta.parse_notes = appendParseNote(
+      finalNormalized.meta.parse_notes,
+      `حقول ناقصة بعد التحقق النهائي: ${finalCheck.missing.join(", ")}`,
+    );
+  }
+
+  return finalNormalized;
+}
+
 function buildWordPressExtractionPrompt(adText, contactHint, isRegeneration) {
   return `أنت مساعد متخصص في استخراج بيانات إعلان عربي للنشر في WordPress.
 
@@ -1961,18 +2807,21 @@ ${contactHint}
 11) احذف أي أرقام مرجعية مثل: رقم القطعة، قطعة 11 أ، رقم الإعلان من العنوان والمحتوى و main_ad.
 12) للمحتوى العقاري فقط استخدم HTML منظم بهذه الأقسام: h1 ثم p افتتاحي ثم h2+ul للمواصفات ثم h2+ul للمميزات ثم h2+p للسعر ثم h2+p للموقع.
 13) للمحتوى غير العقاري استخدم HTML بسيط: h1 ثم p واحد فقط يصف الحالة/المواصفات/السعر أو المواصفات المطلوبة.
-14) ممنوع داخل content: أرقام اتصال، أسماء وسطاء، أسماء مكاتب، تراخيص، قروبات، روابط، ملاحظات إدارية أو شروحات خارج وصف الإعلان.
+14) العنوان title يجب أن يتضمن الموقع بوضوح (الحي/المدينة إن توفرت).
+15) الوصف content يجب أن يشمل كل المزايا والتفاصيل المتاحة عن العقار فقط (المساحة، السعر، الواجهة، عدد الغرف، العمر، الخدمات... إلخ).
+16) ممنوع داخل content: أرقام اتصال، اسم المالك، أسماء وسطاء، أسماء مكاتب، تراخيص، قروبات، روابط، ملاحظات إدارية أو أي تفاصيل ليست عن العقار نفسه.
 ${
   isRegeneration
-    ? "15) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
-    : "15) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
+    ? "17) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
+    : "17) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
 }
+18) حاول قدر الإمكان تعبئة الحقول الحرجة: area/arc_space، price أو price_type، location/city، category، subcategory.
 
 أعد الشكل التالي فقط:
 {
   "IsItAd": true,
   "status": "publish",
-  "title": "عنوان نظيف",
+  "title": "عنوان نظيف يتضمن الموقع",
   "content": "<h1>...</h1><p>...</p>",
   "excerpt": "وصف مختصر",
   "category": "",
@@ -2004,6 +2853,7 @@ ${
     "city": "",
     "subcity": "",
     "location": "",
+    "full_location": "",
     "neighborhood": "",
     "order_status": "",
     "offer_status": "",
@@ -2778,12 +3628,20 @@ async function extractWordPressData(adText, isRegeneration = false) {
         maxRetries: null,
       });
 
-      return normalizeWordPressData(
+      const normalizedData = normalizeWordPressData(
         data,
         normalizedAdText,
         extractedPhones,
         isRegeneration,
       );
+
+      return ensureRequiredMetadataCoverage({
+        wpData: normalizedData,
+        adText: normalizedAdText,
+        extractedPhones,
+        isRegeneration,
+        maxPasses: 2,
+      });
     } catch (error) {
       lastError = error;
       console.error(
