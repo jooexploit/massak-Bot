@@ -245,6 +245,70 @@ function hasRealEstateHintInText(text = "") {
   );
 }
 
+function normalizeCategoryValue(value) {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
+function firstNonEmptyCategoryValue(...values) {
+  for (const value of values) {
+    const normalized = normalizeCategoryValue(value);
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function normalizeMetaCategoriesByWebsite(meta = {}, targetWebsite = "masaak") {
+  const normalizedMeta = meta && typeof meta === "object" ? { ...meta } : {};
+  const isHasak = targetWebsite === "hasak";
+
+  const mainCategory = isHasak
+    ? firstNonEmptyCategoryValue(
+        normalizedMeta.arc_category,
+        normalizedMeta.parent_catt,
+        normalizedMeta.category,
+      )
+    : firstNonEmptyCategoryValue(
+        normalizedMeta.parent_catt,
+        normalizedMeta.arc_category,
+        normalizedMeta.category,
+      );
+
+  const subCategory = isHasak
+    ? firstNonEmptyCategoryValue(
+        normalizedMeta.arc_subcategory,
+        normalizedMeta.sub_catt,
+        normalizedMeta.subcategory,
+      )
+    : firstNonEmptyCategoryValue(
+        normalizedMeta.sub_catt,
+        normalizedMeta.arc_subcategory,
+        normalizedMeta.subcategory,
+      );
+
+  normalizedMeta.category = mainCategory || normalizedMeta.category || "";
+  normalizedMeta.subcategory = subCategory || normalizedMeta.subcategory || "";
+
+  if (isHasak) {
+    normalizedMeta.arc_category = mainCategory || "";
+    normalizedMeta.arc_subcategory = subCategory || "";
+    normalizedMeta.parent_catt = "";
+    normalizedMeta.sub_catt = "";
+  } else {
+    normalizedMeta.parent_catt = mainCategory || "";
+    normalizedMeta.sub_catt = subCategory || "";
+    // Keep mirrored values for compatibility with existing reports/search.
+    normalizedMeta.arc_category = mainCategory || "";
+    normalizedMeta.arc_subcategory = subCategory || "";
+  }
+
+  return {
+    meta: normalizedMeta,
+    mainCategory,
+    subCategory,
+  };
+}
+
 // ========== REUSABLE WORDPRESS POSTING FUNCTION ==========
 /**
  * Posts an ad to WordPress with image handling
@@ -321,7 +385,7 @@ async function postAdToWordPress(
         targetWebsite = wpData.targetWebsite;
         console.log(`🌐 Using target website from wpData: ${targetWebsite}`);
       } else {
-        const category = meta.parent_catt || meta.category || "";
+        const category = meta.arc_category || meta.parent_catt || meta.category || "";
         targetWebsite = websiteConfig.detectWebsite(
           ad.enhancedText || ad.enhanced_text || ad.text,
           category,
@@ -333,6 +397,11 @@ async function postAdToWordPress(
 
     // Store the target website in wpData for future reference
     wpData.targetWebsite = targetWebsite;
+    const normalizedCategoryMeta = normalizeMetaCategoriesByWebsite(
+      wpData.meta || {},
+      targetWebsite,
+    );
+    wpData.meta = normalizedCategoryMeta.meta;
 
     // Get website configuration
     const website = websiteConfig.getWebsite(targetWebsite);
@@ -612,15 +681,19 @@ async function postAdToWordPress(
     console.log("Website Config:", website.name);
 
     let parentCatt =
-      wpData.meta?.parent_catt ||
-      wpData.meta?.arc_category ||
-      wpData.meta?.category ||
-      "";
+      targetWebsite === "hasak"
+        ? wpData.meta?.arc_category || wpData.meta?.parent_catt || wpData.meta?.category || ""
+        : wpData.meta?.parent_catt || wpData.meta?.arc_category || wpData.meta?.category || "";
     let subCatt =
-      wpData.meta?.sub_catt ||
-      wpData.meta?.arc_subcategory ||
-      wpData.meta?.subcategory ||
-      "";
+      targetWebsite === "hasak"
+        ? wpData.meta?.arc_subcategory ||
+          wpData.meta?.sub_catt ||
+          wpData.meta?.subcategory ||
+          ""
+        : wpData.meta?.sub_catt ||
+          wpData.meta?.arc_subcategory ||
+          wpData.meta?.subcategory ||
+          "";
     let orderType =
       wpData.meta?.order_type ||
       wpData.meta?.offer_type ||
@@ -727,10 +800,21 @@ async function postAdToWordPress(
     console.log("======================================\n");
 
     // Update wpData meta
-    wpData.meta.parent_catt = parentCatt;
-    wpData.meta.sub_catt = subCatt;
+    if (targetWebsite === "hasak") {
+      wpData.meta.parent_catt = "";
+      wpData.meta.sub_catt = "";
+      wpData.meta.arc_category = parentCatt;
+      wpData.meta.arc_subcategory = subCatt;
+      wpData.meta.category = parentCatt;
+      wpData.meta.subcategory = subCatt;
+    } else {
+      wpData.meta.parent_catt = parentCatt;
+      wpData.meta.sub_catt = subCatt;
+      wpData.meta.category = parentCatt;
+      wpData.meta.subcategory = subCatt;
+    }
 
-    // For Masaak real estate: use arc_category and arc_subcategory
+    // For Masaak real estate: use arc_category and arc_subcategory mirror except طلبات.
     if (targetWebsite === "masaak" && parentCatt !== "طلبات") {
       wpData.meta.arc_category = parentCatt;
       wpData.meta.arc_subcategory = subCatt;
@@ -1653,8 +1737,14 @@ router.post(
         currentAd.targetWebsite ||
         currentAd.wpData?.targetWebsite ||
         "masaak";
+      const normalizedMeta = normalizeMetaCategoriesByWebsite(
+        safeWpData.meta || {},
+        targetWebsite,
+      );
       const editedAt = Date.now();
 
+      safeWpData.meta = normalizedMeta.meta;
+      safeWpData.targetWebsite = targetWebsite;
       currentAd.wpData = safeWpData;
       currentAd.targetWebsite = targetWebsite;
       currentAd.whatsappMessage = generateWhatsAppMessage(

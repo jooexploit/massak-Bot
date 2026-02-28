@@ -470,7 +470,7 @@
 
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
                                 <div>
-                                    <label>parent_catt (فئة رئيسية) *</label>
+                                    <label id="wp-preview-parent-catt-label">parent_catt (فئة رئيسية) *</label>
                                     <select id="wp-preview-parent-catt" class="form-control"
                                         onchange="updateWpSubcategories()">
                                         <option value="">اختر نوع العقار</option>
@@ -491,7 +491,7 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label>sub_catt (فئة فرعية)</label>
+                                    <label id="wp-preview-sub-catt-label">sub_catt (فئة فرعية)</label>
                                     <select id="wp-preview-sub-catt" class="form-control">
                                         <option value="">اختر نوع العقار أولاً</option>
                                     </select>
@@ -502,15 +502,15 @@
                                 <div>
                                     <label>arc_category (تصنيف العقار)</label>
                                     <input id="wp-preview-arc-category" class="form-control"
-                                        style="background: #f0f0f0;" />
-                                    <small style="color: #666; font-size: 0.75rem;">يُملأ تلقائياً من
+                                        style="background: #f0f0f0;" readonly />
+                                    <small id="wp-preview-arc-category-hint" style="color: #666; font-size: 0.75rem;">يُملأ تلقائياً من
                                         parent_catt</small>
                                 </div>
                                 <div>
                                     <label>arc_subcategory (تصنيف فرعي)</label>
                                     <input id="wp-preview-arc-subcategory" class="form-control"
-                                        style="background: #f0f0f0;" />
-                                    <small style="color: #666; font-size: 0.75rem;">يُملأ تلقائياً من sub_catt</small>
+                                        style="background: #f0f0f0;" readonly />
+                                    <small id="wp-preview-arc-subcategory-hint" style="color: #666; font-size: 0.75rem;">يُملأ تلقائياً من sub_catt</small>
                                 </div>
                             </div>
 
@@ -1810,74 +1810,256 @@
     </div>
 
     <script>
-        // WordPress Category Subcategory Mapping (matches backend)
-        const wpSubcategoryMap = {
-            "أرض": ["سكنية", "تجارية", "زراعية"],
-            "بيت": ["دور", "دور وشقق", "دور وملحق", "دورين", "عربي"],
-            "دبلكس": ["بطن", "زاوية"],
-            "شقة دبلكسية": ["دور أرضي", "دور أول", "دور ثاني", "دور ثالث"],
-            "شقة": ["دور أرضي", "دور أول", "دور ثاني", "دور ثالث"],
-            "عمارة": ["سكنية", "تجارية", "سكنية تجارية"],
-            "فيلا": ["دور", "دور وشقق", "دورين"],
-            "محطة بنزين": ["بدون محلات", "مع محلات"],
-            "محل تجاري": [
-                "حلاق", "مغسلة سيارات", "مغسلة ملابس", "بقالة", "سوبر ماركت",
-                "محل سباكة", "محل زينة", "مطعم", "بوفية", "كوفي", "مشغل نسائي",
-                "حلويات", "محل كهرباء", "أدوات صحية", "صيدلية", "محل ملابس",
-                "قطع سيارات", "محل أثاث", "محل كماليات", "محل عصاير", "محل فواكه",
-                "جوالات", "فود ترك", "محل تجاري"
+        const wpCategoryOptionsByWebsite = {
+            masaak: [
+                "أرض",
+                "بيت",
+                "دبلكس",
+                "شقة دبلكسية",
+                "شقة",
+                "عمارة",
+                "فيلا",
+                "محطة بنزين",
+                "محل تجاري",
+                "مزرعة",
+                "مستودع",
+                "شالية",
+                "استراحة",
+                " للإيجار",
+                "طلبات"
             ],
-            "مزرعة": ["صك", "عرق", "مشاع", "وقف"],
-            "استراحة": ["صك", "عرق", "مشاع", "وقف"],
-            "شالية": ["صك", "عرق", "مشاع", "وقف"],
-            "مستودع": ["كبير", "صغير"],
-            " للإيجار": ["شقة", "دبلكس", "فيلا", "بيت", "شقة دبلكسية", "عمارة", "استراحة", "شالية", "محل تجاري", "مزرعة", "مستودع"]
+            hasak: [
+                "أسر منتجة",
+                "إعلان تجاري ربحي مميز",
+                "الفعاليات والانشطة",
+                "برامج ووظائف",
+                "توصيل سيارات",
+                "حراج الحسا",
+                "فعاليات و أنشطة",
+                "فعالية مجانية مميزة",
+                "كوفيهات أو مطاعم",
+                "مجتمع حساك",
+                "محلات تجارية",
+                "مركز ترفيهي",
+                "منتجعات وإستراحات"
+            ]
         };
 
-        // Function to update subcategories based on parent selection
-        function updateWpSubcategories() {
-            const parentSelect = document.getElementById('wp-preview-parent-catt');
-            const subSelect = document.getElementById('wp-preview-sub-catt');
-            const arcCategoryInput = document.getElementById('wp-preview-arc-category');
-            const arcSubcategoryInput = document.getElementById('wp-preview-arc-subcategory');
+        const wpSubcategoryMapByWebsite = {
+            masaak: {
+                "أرض": ["سكنية", "تجارية", "زراعية"],
+                "بيت": ["دور", "دور وشقق", "دور وملحق", "دورين", "عربي"],
+                "دبلكس": ["بطن", "زاوية"],
+                "شقة دبلكسية": ["دور أرضي", "دور أول", "دور ثاني", "دور ثالث"],
+                "شقة": ["دور أرضي", "دور أول", "دور ثاني", "دور ثالث"],
+                "عمارة": ["سكنية", "تجارية", "سكنية تجارية"],
+                "فيلا": ["دور", "دور وشقق", "دورين"],
+                "محطة بنزين": ["بدون محلات", "مع محلات"],
+                "محل تجاري": [
+                    "حلاق", "مغسلة سيارات", "مغسلة ملابس", "بقالة", "سوبر ماركت",
+                    "محل سباكة", "محل زينة", "مطعم", "بوفية", "كوفي", "مشغل نسائي",
+                    "حلويات", "محل كهرباء", "أدوات صحية", "صيدلية", "محل ملابس",
+                    "قطع سيارات", "محل أثاث", "محل كماليات", "محل عصاير", "محل فواكه",
+                    "جوالات", "فود ترك", "محل تجاري"
+                ],
+                "مزرعة": ["صك", "عرق", "مشاع", "وقف"],
+                "استراحة": ["صك", "عرق", "مشاع", "وقف"],
+                "شالية": ["صك", "عرق", "مشاع", "وقف"],
+                "مستودع": ["كبير", "صغير"],
+                " للإيجار": ["شقة", "دبلكس", "فيلا", "بيت", "شقة دبلكسية", "عمارة", "استراحة", "شالية", "محل تجاري", "مزرعة", "مستودع"]
+            },
+            hasak: {}
+        };
 
-            const parentValue = parentSelect.value;
+        function getWpPreviewWebsite() {
+            const targetWebsiteSelect = document.getElementById("wp-preview-target-website");
+            return targetWebsiteSelect && targetWebsiteSelect.value === "hasak" ? "hasak" : "masaak";
+        }
 
-            // Update arc_category to match parent_catt
+        function setWpCategoryLabelsForWebsite(website) {
+            const parentLabel = document.getElementById("wp-preview-parent-catt-label");
+            const subLabel = document.getElementById("wp-preview-sub-catt-label");
+            const arcCategoryHint = document.getElementById("wp-preview-arc-category-hint");
+            const arcSubcategoryHint = document.getElementById("wp-preview-arc-subcategory-hint");
+
+            if (website === "hasak") {
+                if (parentLabel) parentLabel.textContent = "category (تصنيف رئيسي لحساك) *";
+                if (subLabel) subLabel.textContent = "subcategory (تصنيف فرعي لحساك)";
+                if (arcCategoryHint) arcCategoryHint.textContent = "يُحفظ تلقائياً في arc_category لحساك";
+                if (arcSubcategoryHint) arcSubcategoryHint.textContent = "يُحفظ تلقائياً في arc_subcategory لحساك";
+                return;
+            }
+
+            if (parentLabel) parentLabel.textContent = "parent_catt (فئة رئيسية) *";
+            if (subLabel) subLabel.textContent = "sub_catt (فئة فرعية)";
+            if (arcCategoryHint) arcCategoryHint.textContent = "يُملأ تلقائياً من parent_catt";
+            if (arcSubcategoryHint) arcSubcategoryHint.textContent = "يُملأ تلقائياً من sub_catt";
+        }
+
+        function populateWpMainCategoryDropdown(website, selectedCategory = "") {
+            const parentSelect = document.getElementById("wp-preview-parent-catt");
+            if (!parentSelect) return;
+
+            const categories = wpCategoryOptionsByWebsite[website] || [];
+            const normalizedSelected = String(selectedCategory || "").trim();
+
+            parentSelect.innerHTML = "";
+
+            const placeholder = document.createElement("option");
+            placeholder.value = "";
+            placeholder.textContent = website === "hasak"
+                ? "اختر تصنيف حساك الرئيسي"
+                : "اختر نوع العقار";
+            parentSelect.appendChild(placeholder);
+
+            categories.forEach((category) => {
+                const option = document.createElement("option");
+                option.value = category;
+                option.textContent = category;
+                parentSelect.appendChild(option);
+            });
+
+            if (normalizedSelected && !categories.includes(normalizedSelected)) {
+                const option = document.createElement("option");
+                option.value = normalizedSelected;
+                option.textContent = `${normalizedSelected} (القيمة الحالية)`;
+                parentSelect.appendChild(option);
+            }
+
+            parentSelect.dataset.website = website;
+            parentSelect.value = normalizedSelected || "";
+        }
+
+        // Function to update categories/subcategories based on website + category selection
+        function updateWpSubcategories(options = {}) {
+            const parentSelect = document.getElementById("wp-preview-parent-catt");
+            const subSelect = document.getElementById("wp-preview-sub-catt");
+            const arcCategoryInput = document.getElementById("wp-preview-arc-category");
+            const arcSubcategoryInput = document.getElementById("wp-preview-arc-subcategory");
+            if (!parentSelect || !subSelect) return;
+
+            const opts = options && typeof options === "object" ? options : {};
+            const forcedWebsite = opts.forceWebsite === "hasak" ? "hasak" : "";
+
+            if (forcedWebsite) {
+                const websiteSelect = document.getElementById("wp-preview-target-website");
+                if (websiteSelect) {
+                    websiteSelect.value = forcedWebsite;
+                }
+            }
+
+            const website = forcedWebsite || getWpPreviewWebsite();
+            setWpCategoryLabelsForWebsite(website);
+
+            const selectedCategory =
+                opts.selectedCategory !== undefined ? String(opts.selectedCategory || "").trim() : parentSelect.value;
+
+            if (parentSelect.dataset.website !== website) {
+                populateWpMainCategoryDropdown(website, selectedCategory);
+            } else if (opts.selectedCategory !== undefined) {
+                if (
+                    selectedCategory &&
+                    !Array.from(parentSelect.options).some((option) => option.value === selectedCategory)
+                ) {
+                    const option = document.createElement("option");
+                    option.value = selectedCategory;
+                    option.textContent = `${selectedCategory} (القيمة الحالية)`;
+                    parentSelect.appendChild(option);
+                }
+                parentSelect.value = selectedCategory;
+            }
+
+            const parentValue = String(parentSelect.value || "").trim();
+
             if (arcCategoryInput) {
                 arcCategoryInput.value = parentValue;
             }
 
-            // Clear subcategory
-            subSelect.innerHTML = '<option value="">اختر النوع الفرعي</option>';
-            if (arcSubcategoryInput) {
-                arcSubcategoryInput.value = '';
+            const subMap = wpSubcategoryMapByWebsite[website] || {};
+            let availableSubcategories = parentValue && subMap[parentValue]
+                ? [...subMap[parentValue]]
+                : [];
+            if (website === "hasak" && parentValue && availableSubcategories.length === 0) {
+                availableSubcategories = ["عام"];
             }
 
-            // Populate subcategories if parent is selected
-            if (parentValue && wpSubcategoryMap[parentValue]) {
-                wpSubcategoryMap[parentValue].forEach(function (sub) {
-                    const option = document.createElement('option');
-                    option.value = sub;
-                    option.textContent = sub;
-                    subSelect.appendChild(option);
-                });
-                subSelect.disabled = false;
-            } else {
-                subSelect.disabled = true;
+            const selectedSubcategory = opts.selectedSubcategory !== undefined
+                ? String(opts.selectedSubcategory || "").trim()
+                : String(subSelect.value || (arcSubcategoryInput ? arcSubcategoryInput.value : "") || "").trim();
+
+            subSelect.innerHTML = "";
+            const subPlaceholder = document.createElement("option");
+            subPlaceholder.value = "";
+            subPlaceholder.textContent = "بدون تصنيف فرعي";
+            subSelect.appendChild(subPlaceholder);
+
+            availableSubcategories.forEach((sub) => {
+                const option = document.createElement("option");
+                option.value = sub;
+                option.textContent = sub;
+                subSelect.appendChild(option);
+            });
+
+            if (selectedSubcategory && !availableSubcategories.includes(selectedSubcategory)) {
+                const option = document.createElement("option");
+                option.value = selectedSubcategory;
+                option.textContent = `${selectedSubcategory} (القيمة الحالية)`;
+                subSelect.appendChild(option);
+            }
+
+            subSelect.disabled = false;
+            subSelect.value = selectedSubcategory || "";
+
+            if (arcSubcategoryInput) {
+                arcSubcategoryInput.value = subSelect.value;
             }
         }
 
-        // Sync sub_catt with arc_subcategory when changed
-        document.addEventListener('DOMContentLoaded', function () {
-            const subSelect = document.getElementById('wp-preview-sub-catt');
-            const arcSubcategoryInput = document.getElementById('wp-preview-arc-subcategory');
+        function handleWpTargetWebsiteChange() {
+            const website = getWpPreviewWebsite();
+            const parentSelect = document.getElementById("wp-preview-parent-catt");
+            const subSelect = document.getElementById("wp-preview-sub-catt");
+            const arcCategoryInput = document.getElementById("wp-preview-arc-category");
+            const arcSubcategoryInput = document.getElementById("wp-preview-arc-subcategory");
+
+            const currentCategory = String(
+                (parentSelect && parentSelect.value) ||
+                (arcCategoryInput && arcCategoryInput.value) ||
+                ""
+            ).trim();
+            const currentSubcategory = String(
+                (subSelect && subSelect.value) ||
+                (arcSubcategoryInput && arcSubcategoryInput.value) ||
+                ""
+            ).trim();
+
+            const websiteCategories = wpCategoryOptionsByWebsite[website] || [];
+            const selectedCategory = websiteCategories.includes(currentCategory) ? currentCategory : "";
+
+            updateWpSubcategories({
+                forceWebsite: website,
+                selectedCategory,
+                selectedSubcategory: selectedCategory ? currentSubcategory : "",
+            });
+        }
+
+        // Sync sub_catt with arc_subcategory and website dropdown handling
+        document.addEventListener("DOMContentLoaded", function () {
+            const subSelect = document.getElementById("wp-preview-sub-catt");
+            const arcSubcategoryInput = document.getElementById("wp-preview-arc-subcategory");
+            const targetWebsiteSelect = document.getElementById("wp-preview-target-website");
 
             if (subSelect && arcSubcategoryInput) {
-                subSelect.addEventListener('change', function () {
+                subSelect.addEventListener("change", function () {
                     arcSubcategoryInput.value = this.value;
                 });
             }
+
+            if (targetWebsiteSelect) {
+                targetWebsiteSelect.addEventListener("change", handleWpTargetWebsiteChange);
+            }
+
+            updateWpSubcategories();
         });
     </script>
 

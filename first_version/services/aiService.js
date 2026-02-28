@@ -8,7 +8,14 @@ const websiteConfig = require("../config/website.config");
 const { PROVIDERS } = apiKeyManager;
 
 const DEFAULT_WP_TITLE = "إعلان عقاري مميز";
-const REQUIRED_METADATA_FIELDS = ["area", "price", "fullLocation", "category", "subcategory"];
+const REQUIRED_METADATA_FIELDS = [
+  "area",
+  "price",
+  "priceMethod",
+  "fullLocation",
+  "category",
+  "subcategory",
+];
 const HASAK_CATEGORIES = Object.keys(websiteConfig.hasak.categories || {}).filter(
   (name) => name !== "default" && name !== "Uncategorized",
 );
@@ -1137,6 +1144,7 @@ const RECOVER_MISSING_WORDPRESS_FIELDS_SCHEMA = {
   template: {
     area: "",
     price: "",
+    price_method: "",
     price_type: "",
     price_amount: "",
     from_price: "",
@@ -1154,6 +1162,7 @@ const RECOVER_MISSING_WORDPRESS_FIELDS_SCHEMA = {
     isObject(obj) &&
     ("area" in obj ||
       "price" in obj ||
+      "price_method" in obj ||
       "fullLocation" in obj ||
       "category" in obj ||
       "subcategory" in obj),
@@ -1167,6 +1176,7 @@ const RECOVER_MISSING_WORDPRESS_FIELDS_SCHEMA = {
     return {
       area: firstNonEmpty(obj.area, obj.arc_space, obj.order_space, ""),
       price: firstNonEmpty(obj.price, ""),
+      price_method: firstNonEmpty(obj.price_method, obj.payment_method, obj.priceMethod, ""),
       price_type: firstNonEmpty(obj.price_type, obj.priceType, ""),
       price_amount: firstNonEmpty(obj.price_amount, obj.priceAmount, ""),
       from_price: firstNonEmpty(obj.from_price, obj.fromPrice, ""),
@@ -1394,6 +1404,72 @@ function normalizePriceMeta(meta) {
     meta.from_price = meta.price_amount;
     meta.to_price = meta.price_amount;
   }
+}
+
+function inferPriceMethodFromText(adText = "", meta = {}) {
+  const normalized = normalizeArabicText(
+    [
+      adText,
+      firstNonEmpty(meta.price_method, ""),
+      firstNonEmpty(meta.payment_method, ""),
+      firstNonEmpty(meta.price_type, ""),
+      firstNonEmpty(meta.price, ""),
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  if (!normalized) return "";
+
+  if (/(?:تقسيط|أقساط|اقساط|دفعة|دفعات|شهري|شهرياً|سنوي|سنوياً)/i.test(normalized)) {
+    return "تقسيط";
+  }
+
+  if (/(?:كاش|نقد|نقدا|نقدًا|فوري)/i.test(normalized)) {
+    return "كاش";
+  }
+
+  if (/(?:على\s*السوم|السوم\s*وصل)/i.test(normalized)) {
+    return "على السوم";
+  }
+
+  if (/(?:عند\s*التواصل)/i.test(normalized)) {
+    return "عند التواصل";
+  }
+
+  if (/(?:للمتر|للمتر\s*المربع|ريال\s*للمتر)/i.test(normalized)) {
+    return "ريال للمتر";
+  }
+
+  if (/(?:إجمالي|اجمالي|صافي|نهائي)/i.test(normalized)) {
+    return "إجمالي";
+  }
+
+  return "";
+}
+
+function normalizePriceMethodMeta(meta, adText = "") {
+  const explicitMethod = normalizeArabicText(
+    firstNonEmpty(meta.price_method, meta.payment_method, ""),
+  );
+
+  if (explicitMethod) {
+    meta.price_method = explicitMethod;
+    meta.payment_method = normalizeArabicText(meta.payment_method || explicitMethod);
+    return;
+  }
+
+  const inferredMethod = inferPriceMethodFromText(adText, meta);
+  if (inferredMethod) {
+    meta.price_method = inferredMethod;
+    if (!meta.payment_method) {
+      meta.payment_method = inferredMethod;
+    }
+    return;
+  }
+
+  meta.price_method = normalizeArabicText(meta.price_method || "");
+  meta.payment_method = normalizeArabicText(meta.payment_method || meta.price_method || "");
 }
 
 function hasRequestIntent(text = "") {
@@ -2060,6 +2136,7 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
   meta.youtube_link = meta.youtube_link || null;
 
   normalizePriceMeta(meta);
+  normalizePriceMethodMeta(meta, adText);
   normalizeLocationMeta(meta, adText);
   normalizeWordPressCategoryMeta(meta, adText);
 
@@ -2143,6 +2220,7 @@ function getRequiredFieldLabel(field) {
   const labels = {
     area: "المساحة",
     price: "السعر",
+    priceMethod: "طريقة السعر",
     fullLocation: "الموقع الكامل",
     category: "التصنيف",
     subcategory: "التصنيف الفرعي",
@@ -2159,6 +2237,7 @@ function summarizeRequiredMetadata(wpData) {
     firstNonEmpty(meta.price_amount, meta.from_price, meta.to_price),
   );
   const priceText = normalizeArabicText(firstNonEmpty(meta.price_type, meta.price, ""));
+  const priceMethod = normalizeArabicText(firstNonEmpty(meta.price_method, meta.payment_method, ""));
   const category = normalizeCategoryLabel(
     firstNonEmpty(wpData?.category, meta.category, meta.arc_category, meta.parent_catt),
   );
@@ -2181,6 +2260,7 @@ function summarizeRequiredMetadata(wpData) {
       typeof priceAmount === "number" && priceAmount > 0
         ? String(priceAmount)
         : priceText,
+    priceMethod,
     fullLocation,
     category,
     subcategory,
@@ -2198,6 +2278,10 @@ function getMissingRequiredMetadataFields(wpData) {
 
   if (!values.price) {
     missing.push("price");
+  }
+
+  if (!values.priceMethod) {
+    missing.push("priceMethod");
   }
 
   if (!hasDetailedLocation(meta)) {
@@ -2278,6 +2362,7 @@ function extractPriceFromTextFallback(adText = "") {
   if (/على\s*السوم/i.test(normalized)) {
     return {
       price: "على السوم",
+      price_method: "على السوم",
       price_type: "على السوم",
       price_amount: "",
       from_price: "",
@@ -2288,6 +2373,7 @@ function extractPriceFromTextFallback(adText = "") {
   if (/عند\s*التواصل/i.test(normalized)) {
     return {
       price: "عند التواصل",
+      price_method: "عند التواصل",
       price_type: "عند التواصل",
       price_amount: "",
       from_price: "",
@@ -2309,6 +2395,7 @@ function extractPriceFromTextFallback(adText = "") {
       const price = Math.round(base * multiplier);
       return {
         price: String(price),
+        price_method: "إجمالي",
         price_type: "",
         price_amount: price,
         from_price: price,
@@ -2330,6 +2417,7 @@ function extractPriceFromTextFallback(adText = "") {
     if (typeof value === "number" && value > 0) {
       return {
         price: String(value),
+        price_method: "",
         price_type: "",
         price_amount: value,
         from_price: value,
@@ -2340,6 +2428,7 @@ function extractPriceFromTextFallback(adText = "") {
 
   return {
     price: "",
+    price_method: "",
     price_type: "",
     price_amount: "",
     from_price: "",
@@ -2462,10 +2551,19 @@ function mergeRecoveredWordPressMetadata(wpData, recoveredData) {
     meta.price = meta.price || String(recoveredPriceAmount);
   }
 
+  const recoveredPriceMethod = normalizeArabicText(
+    firstNonEmpty(patch.price_method, patch.payment_method, ""),
+  );
   if (recoveredPriceType) {
     meta.price_type = recoveredPriceType;
   } else if (!meta.price_type && recoveredPriceText) {
     meta.price = recoveredPriceText;
+  }
+  if (recoveredPriceMethod) {
+    meta.price_method = recoveredPriceMethod;
+    if (!meta.payment_method) {
+      meta.payment_method = recoveredPriceMethod;
+    }
   }
 
   const parsedLocation = parseFullLocationText(firstNonEmpty(patch.fullLocation, ""));
@@ -2567,6 +2665,24 @@ function applyRequiredFieldFallbacks(wpData, adText) {
       meta.price_type = "عند التواصل";
       meta.price = "عند التواصل";
     }
+
+    if (priceData.price_method) {
+      meta.price_method = priceData.price_method;
+      meta.payment_method = meta.payment_method || priceData.price_method;
+    }
+  }
+
+  if (missingState.missing.includes("priceMethod")) {
+    const fallbackMethod =
+      extractPriceFromTextFallback(adText).price_method ||
+      inferPriceMethodFromText(adText, meta);
+    if (fallbackMethod) {
+      meta.price_method = fallbackMethod;
+      meta.payment_method = meta.payment_method || fallbackMethod;
+    } else if (meta.price_type && !meta.price_method) {
+      meta.price_method = meta.price_type;
+      meta.payment_method = meta.payment_method || meta.price_type;
+    }
   }
 
   if (missingState.missing.includes("fullLocation")) {
@@ -2627,6 +2743,7 @@ function applyRequiredFieldFallbacks(wpData, adText) {
   }
 
   meta.full_location = buildFullLocationValue(meta, "الأحساء") || "الأحساء";
+  normalizePriceMethodMeta(meta, adText);
   return updated;
 }
 
@@ -2657,6 +2774,7 @@ ${JSON.stringify(currentSummary, null, 2)}
 {
   "area": "",
   "price": "",
+  "price_method": "",
   "price_type": "",
   "price_amount": "",
   "from_price": "",
@@ -2815,7 +2933,7 @@ ${
     ? "17) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
     : "17) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
 }
-18) حاول قدر الإمكان تعبئة الحقول الحرجة: area/arc_space، price أو price_type، location/city، category، subcategory.
+18) حاول قدر الإمكان تعبئة الحقول الحرجة: area/arc_space، price أو price_type، price_method، location/city، category، subcategory.
 
 أعد الشكل التالي فقط:
 {

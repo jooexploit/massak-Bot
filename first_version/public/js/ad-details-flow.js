@@ -1276,31 +1276,71 @@ async function openWpPreviewModal(adId, extractedData, mode, sourceAd = null) {
     (ed.meta && ed.meta.google_location) || "",
   );
 
-  // Categories - Handle dropdowns specially
-  const parentCattSelect = document.getElementById("wp-preview-parent-catt");
-  if (parentCattSelect) {
-    parentCattSelect.value = (ed.meta && ed.meta.parent_catt) || "";
-
-    // Trigger subcategory loading
-    if (typeof updateWpSubcategories === "function") {
-      updateWpSubcategories();
-    }
-
-    // Set subcategory after brief delay to allow subcategories to load
-    setTimeout(() => {
-      const subCattSelect = document.getElementById("wp-preview-sub-catt");
-      if (subCattSelect) {
-        subCattSelect.value = (ed.meta && ed.meta.sub_catt) || "";
-      }
-    }, 50);
+  // Set target website (auto-detected or from existing data)
+  const targetWebsiteSelect = document.getElementById(
+    "wp-preview-target-website",
+  );
+  const hasakMainCategories = new Set([
+    "أسر منتجة",
+    "إعلان تجاري ربحي مميز",
+    "الفعاليات والانشطة",
+    "برامج ووظائف",
+    "توصيل سيارات",
+    "حراج الحسا",
+    "فعاليات و أنشطة",
+    "فعالية مجانية مميزة",
+    "كوفيهات أو مطاعم",
+    "مجتمع حساك",
+    "محلات تجارية",
+    "مركز ترفيهي",
+    "منتجعات وإستراحات",
+  ]);
+  const inferredMainCategory =
+    (ed.meta && (ed.meta.arc_category || ed.meta.parent_catt || ed.meta.category)) ||
+    "";
+  const inferredWebsite = hasakMainCategories.has(inferredMainCategory)
+    ? "hasak"
+    : "masaak";
+  const targetWebsite =
+    (ed.targetWebsite || sourceAd?.targetWebsite || inferredWebsite) === "hasak"
+      ? "hasak"
+      : "masaak";
+  if (targetWebsiteSelect) {
+    targetWebsiteSelect.value = targetWebsite;
+    console.log(`🌐 Target website set to: ${targetWebsite}`);
   }
 
-  // arc_category and arc_subcategory are readonly and auto-sync, so just set them
-  setVal("wp-preview-arc-category", (ed.meta && ed.meta.arc_category) || "");
-  setVal(
-    "wp-preview-arc-subcategory",
-    (ed.meta && ed.meta.arc_subcategory) || "",
-  );
+  // Categories - website aware dropdown mapping
+  const mainCategory =
+    targetWebsite === "hasak"
+      ? (ed.meta &&
+          (ed.meta.arc_category || ed.meta.parent_catt || ed.meta.category)) ||
+        ""
+      : (ed.meta &&
+          (ed.meta.parent_catt || ed.meta.arc_category || ed.meta.category)) ||
+        "";
+  const subCategory =
+    targetWebsite === "hasak"
+      ? (ed.meta &&
+          (ed.meta.arc_subcategory || ed.meta.sub_catt || ed.meta.subcategory)) ||
+        ""
+      : (ed.meta &&
+          (ed.meta.sub_catt || ed.meta.arc_subcategory || ed.meta.subcategory)) ||
+        "";
+
+  if (typeof updateWpSubcategories === "function") {
+    updateWpSubcategories({
+      forceWebsite: targetWebsite,
+      selectedCategory: mainCategory,
+      selectedSubcategory: subCategory,
+    });
+  } else {
+    setVal("wp-preview-arc-category", (ed.meta && ed.meta.arc_category) || "");
+    setVal(
+      "wp-preview-arc-subcategory",
+      (ed.meta && ed.meta.arc_subcategory) || "",
+    );
+  }
 
   // Contact & Owner
   setVal("wp-preview-owner-name", (ed.meta && ed.meta.owner_name) || "");
@@ -1314,16 +1354,6 @@ async function openWpPreviewModal(adId, extractedData, mode, sourceAd = null) {
   const orderTypeSelect = document.getElementById("wp-preview-order-type");
   if (orderTypeSelect) {
     orderTypeSelect.value = (ed.meta && ed.meta.order_type) || "";
-  }
-
-  // Set target website (auto-detected or from existing data)
-  const targetWebsiteSelect = document.getElementById(
-    "wp-preview-target-website",
-  );
-  if (targetWebsiteSelect) {
-    const targetWebsite = ed.targetWebsite || "masaak"; // Default to masaak
-    targetWebsiteSelect.value = targetWebsite;
-    console.log(`🌐 Target website set to: ${targetWebsite}`);
   }
 
   // Offer Details
@@ -1469,6 +1499,22 @@ function getEditedWpDataFromWpModal() {
   };
 
   const targetWebsite = getVal("wp-preview-target-website") || "masaak";
+  const mainCategory = getVal("wp-preview-parent-catt");
+  const subCategory = getVal("wp-preview-sub-catt");
+  const categoryMeta =
+    targetWebsite === "hasak"
+      ? {
+          parent_catt: "",
+          sub_catt: "",
+          arc_category: mainCategory,
+          arc_subcategory: subCategory,
+        }
+      : {
+          parent_catt: mainCategory,
+          sub_catt: subCategory,
+          arc_category: mainCategory,
+          arc_subcategory: subCategory,
+        };
 
   return {
     title: getVal("wp-preview-title"),
@@ -1489,10 +1535,7 @@ function getEditedWpDataFromWpModal() {
       google_location: getVal("wp-preview-google-location"),
 
       // Categories
-      parent_catt: getVal("wp-preview-parent-catt"),
-      sub_catt: getVal("wp-preview-sub-catt"),
-      arc_category: getVal("wp-preview-arc-category"),
-      arc_subcategory: getVal("wp-preview-arc-subcategory"),
+      ...categoryMeta,
 
       // Contact & Owner
       owner_name: getVal("wp-preview-owner-name"),
