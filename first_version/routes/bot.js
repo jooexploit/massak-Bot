@@ -1627,12 +1627,8 @@ router.post(
             ad.whatsappMessage = whatsappMessage;
             ad.wpData = wpData;
 
-            // Save updated ad
-            fs.writeFileSync(
-              adsFilePath,
-              JSON.stringify(adsArray, null, 2),
-              "utf8",
-            );
+            // Save updated ad to shared ADS data file
+            dataSync.writeDataSync("ADS", adsArray);
             console.log(
               "✅ Ad updated with WordPress info and kept as accepted",
             );
@@ -2782,12 +2778,8 @@ router.post(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const fs = require("fs");
-      const path = require("path");
-      const adsFilePath = path.join(__dirname, "..", "data", "ads.json");
-
-      // Read fresh data from file
-      const adsData = JSON.parse(fs.readFileSync(adsFilePath, "utf8"));
+      // Read fresh data from shared ADS data file
+      const adsData = dataSync.readDataSync("ADS", []);
       const adsArray = Array.isArray(adsData) ? adsData : adsData.ads || [];
       const ad = adsArray.find((a) => a.id === id);
 
