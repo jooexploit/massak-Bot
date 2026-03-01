@@ -4,6 +4,265 @@
 
 let currentAdDetails = null;
 let wpPreviewDirtyWatchersBound = false;
+let wpLocationSmartInputsBound = false;
+const WP_LOCATION_OPTIONS_STORAGE_KEY = "wp_location_options_v1";
+const DEFAULT_WP_BEFORE_CITY_OPTIONS = ["الأحساء"];
+const DEFAULT_WP_CITY_OPTIONS = ["الهفوف", "المبرز", "العيون", "القرى"];
+const wpLocationOptionsState = {
+  loaded: false,
+  loadingPromise: null,
+  beforeCities: [...DEFAULT_WP_BEFORE_CITY_OPTIONS],
+  cities: [...DEFAULT_WP_CITY_OPTIONS],
+};
+
+function normalizeWpLocationList(values, fallback = []) {
+  const source = Array.isArray(values) ? values : fallback;
+  const fallbackValues = Array.isArray(fallback) ? fallback : [];
+  const normalized = source
+    .filter((value) => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .slice(0, 300);
+
+  const uniqueValues = [...new Set(normalized)];
+  if (uniqueValues.length > 0) return uniqueValues;
+
+  return [...new Set(
+    fallbackValues
+      .filter((value) => typeof value === "string")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  )];
+}
+
+function getStoredWpLocationOptions() {
+  try {
+    const raw = localStorage.getItem(WP_LOCATION_OPTIONS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+
+    return {
+      beforeCities: normalizeWpLocationList(
+        parsed.beforeCities,
+        DEFAULT_WP_BEFORE_CITY_OPTIONS,
+      ),
+      cities: normalizeWpLocationList(parsed.cities, DEFAULT_WP_CITY_OPTIONS),
+    };
+  } catch (error) {
+    console.warn("Failed to read smart location options from localStorage:", error);
+    return null;
+  }
+}
+
+function storeWpLocationOptionsLocally() {
+  try {
+    localStorage.setItem(
+      WP_LOCATION_OPTIONS_STORAGE_KEY,
+      JSON.stringify({
+        beforeCities: wpLocationOptionsState.beforeCities,
+        cities: wpLocationOptionsState.cities,
+      }),
+    );
+  } catch (error) {
+    console.warn("Failed to save smart location options to localStorage:", error);
+  }
+}
+
+function mergeWpLocationOptions(options = {}) {
+  const nextBeforeCities = normalizeWpLocationList(
+    [
+      ...wpLocationOptionsState.beforeCities,
+      ...(Array.isArray(options.beforeCities) ? options.beforeCities : []),
+    ],
+    DEFAULT_WP_BEFORE_CITY_OPTIONS,
+  );
+  const nextCities = normalizeWpLocationList(
+    [
+      ...wpLocationOptionsState.cities,
+      ...(Array.isArray(options.cities) ? options.cities : []),
+    ],
+    DEFAULT_WP_CITY_OPTIONS,
+  );
+
+  const beforeChanged =
+    JSON.stringify(nextBeforeCities) !==
+    JSON.stringify(wpLocationOptionsState.beforeCities);
+  const citiesChanged =
+    JSON.stringify(nextCities) !== JSON.stringify(wpLocationOptionsState.cities);
+
+  if (beforeChanged) {
+    wpLocationOptionsState.beforeCities = nextBeforeCities;
+  }
+  if (citiesChanged) {
+    wpLocationOptionsState.cities = nextCities;
+  }
+
+  return beforeChanged || citiesChanged;
+}
+
+function renderWpLocationDatalists(extraBeforeCity = "", extraCity = "") {
+  const beforeDatalist = document.getElementById("wp-before-city-options");
+  const cityDatalist = document.getElementById("wp-city-options");
+  if (!beforeDatalist || !cityDatalist) return;
+
+  const beforeCities = normalizeWpLocationList(
+    [...wpLocationOptionsState.beforeCities, extraBeforeCity],
+    DEFAULT_WP_BEFORE_CITY_OPTIONS,
+  );
+  const cities = normalizeWpLocationList(
+    [...wpLocationOptionsState.cities, extraCity],
+    DEFAULT_WP_CITY_OPTIONS,
+  );
+
+  beforeDatalist.innerHTML = "";
+  cityDatalist.innerHTML = "";
+
+  beforeCities.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    beforeDatalist.appendChild(option);
+  });
+
+  cities.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    cityDatalist.appendChild(option);
+  });
+}
+
+function bindWpLocationSmartInputs() {
+  if (wpLocationSmartInputsBound) return;
+
+  const beforeCityInput = document.getElementById("wp-preview-before-city");
+  const cityInput = document.getElementById("wp-preview-city");
+  if (!beforeCityInput || !cityInput) return;
+
+  const refreshOptions = () => {
+    renderWpLocationDatalists(beforeCityInput.value, cityInput.value);
+  };
+
+  beforeCityInput.addEventListener("input", refreshOptions);
+  cityInput.addEventListener("input", refreshOptions);
+  beforeCityInput.addEventListener("change", refreshOptions);
+  cityInput.addEventListener("change", refreshOptions);
+  beforeCityInput.addEventListener("blur", refreshOptions);
+  cityInput.addEventListener("blur", refreshOptions);
+
+  wpLocationSmartInputsBound = true;
+}
+
+async function ensureWpLocationOptionsLoaded(forceReload = false) {
+  if (wpLocationOptionsState.loaded && !forceReload) return;
+  if (wpLocationOptionsState.loadingPromise && !forceReload) {
+    await wpLocationOptionsState.loadingPromise;
+    return;
+  }
+
+  wpLocationOptionsState.loadingPromise = (async () => {
+    const local = getStoredWpLocationOptions();
+    if (local) {
+      mergeWpLocationOptions({
+        beforeCities: local.beforeCities,
+        cities: local.cities,
+      });
+    }
+
+    try {
+      const response = await fetch("/api/bot/settings", { credentials: "include" });
+      if (!response.ok) {
+        throw new Error(`Settings request failed: ${response.status}`);
+      }
+      const data = await response.json();
+      const settings = data?.settings || {};
+      mergeWpLocationOptions({
+        beforeCities: settings.wpBeforeCityOptions,
+        cities: settings.wpCityOptions,
+      });
+      storeWpLocationOptionsLocally();
+    } catch (error) {
+      console.warn("Failed to load smart location options from server:", error);
+    } finally {
+      wpLocationOptionsState.loaded = true;
+      wpLocationOptionsState.loadingPromise = null;
+    }
+  })();
+
+  await wpLocationOptionsState.loadingPromise;
+}
+
+async function prepareWpLocationSmartInputs(extraBeforeCity = "", extraCity = "") {
+  await ensureWpLocationOptionsLoaded(false);
+
+  mergeWpLocationOptions({
+    beforeCities: extraBeforeCity ? [extraBeforeCity] : [],
+    cities: extraCity ? [extraCity] : [],
+  });
+  storeWpLocationOptionsLocally();
+  renderWpLocationDatalists(extraBeforeCity, extraCity);
+  bindWpLocationSmartInputs();
+}
+
+async function persistWpLocationOptionsFromModal() {
+  const beforeCityInput = document.getElementById("wp-preview-before-city");
+  const cityInput = document.getElementById("wp-preview-city");
+  if (!beforeCityInput || !cityInput) return true;
+
+  const beforeCity = String(beforeCityInput.value || "").trim();
+  const city = String(cityInput.value || "").trim();
+
+  await ensureWpLocationOptionsLoaded(false);
+  const changed = mergeWpLocationOptions({
+    beforeCities: beforeCity ? [beforeCity] : [],
+    cities: city ? [city] : [],
+  });
+
+  storeWpLocationOptionsLocally();
+  renderWpLocationDatalists(beforeCity, city);
+
+  if (!changed) {
+    return true;
+  }
+
+  // Persist globally for all users/sessions when role allows settings update.
+  const isAdminUser =
+    typeof currentUser !== "undefined" &&
+    currentUser &&
+    currentUser.role === "admin";
+  if (!isAdminUser) {
+    return true;
+  }
+
+  try {
+    const response = await fetch("/api/bot/settings", {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wpBeforeCityOptions: wpLocationOptionsState.beforeCities,
+        wpCityOptions: wpLocationOptionsState.cities,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Failed to save smart options (${response.status})`);
+    }
+
+    const data = await response.json();
+    const settings = data?.settings || {};
+    mergeWpLocationOptions({
+      beforeCities: settings.wpBeforeCityOptions,
+      cities: settings.wpCityOptions,
+    });
+    storeWpLocationOptionsLocally();
+    renderWpLocationDatalists(beforeCity, city);
+  } catch (error) {
+    console.warn("Failed to persist smart location options to server:", error);
+  }
+
+  return true;
+}
 
 function formatWpPreviewSavedTime(timestamp) {
   if (!timestamp) return "";
@@ -112,6 +371,8 @@ async function handleWpPreviewSaveEdits(silent = false) {
 
   const adId = modal.dataset.adId;
   if (!adId) return false;
+
+  await persistWpLocationOptionsFromModal();
 
   const currentWpData = getEditedWpDataFromWpModal();
   const currentSnapshot = serializeWpPreviewData(currentWpData);
@@ -1274,6 +1535,11 @@ async function openWpPreviewModal(adId, extractedData, mode, sourceAd = null) {
   setVal(
     "wp-preview-google-location",
     (ed.meta && ed.meta.google_location) || "",
+  );
+
+  await prepareWpLocationSmartInputs(
+    (ed.meta && ed.meta.before_City) || "",
+    (ed.meta && ed.meta.City) || "",
   );
 
   // Set target website (auto-detected or from existing data)

@@ -4,6 +4,7 @@ const OpenAI = require("openai");
 const apiKeyManager = require("./apiKeyManager");
 const areaNormalizer = require("./areaNormalizer");
 const websiteConfig = require("../config/website.config");
+const dataSync = require("../utils/dataSync");
 
 const { PROVIDERS } = apiKeyManager;
 
@@ -19,6 +20,15 @@ const REQUIRED_METADATA_FIELDS = [
 const HASAK_CATEGORIES = Object.keys(websiteConfig.hasak.categories || {}).filter(
   (name) => name !== "default" && name !== "Uncategorized",
 );
+const DEFAULT_DYNAMIC_BEFORE_CITIES = ["الأحساء"];
+const DEFAULT_DYNAMIC_CITIES = ["الهفوف", "المبرز", "العيون", "القرى"];
+const DYNAMIC_LOCATION_CACHE_TTL_MS = 30000;
+
+let dynamicLocationHintsCache = {
+  loadedAt: 0,
+  beforeCities: [...DEFAULT_DYNAMIC_BEFORE_CITIES],
+  cities: [...DEFAULT_DYNAMIC_CITIES],
+};
 
 const CATEGORY_LIST = [
   "شقق للبيع",
@@ -120,6 +130,23 @@ function normalizeWhitespace(text) {
   return String(text ?? "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function isPlaceholderLocationValue(value = "") {
+  const normalized = normalizeArabicText(value || "").toLowerCase();
+  if (!normalized) return true;
+
+  return [
+    "لم يذكر",
+    "لا يوجد",
+    "غير محدد",
+    "غير معروف",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "-",
+  ].includes(normalized);
 }
 
 function convertArabicDigitsToEnglish(text) {
@@ -279,24 +306,185 @@ function stripAdReferenceNumbers(text) {
     .trim();
 }
 
+function normalizeLocationHintList(values, fallback = []) {
+  const source = Array.isArray(values) ? values : fallback;
+  const normalized = source
+    .filter((value) => typeof value === "string")
+    .map((value) => normalizeArabicText(value))
+    .map((value) =>
+      normalizeArabicText(
+        areaNormalizer.normalizeCityName
+          ? areaNormalizer.normalizeCityName(value) || value
+          : value,
+      ),
+    )
+    .filter(Boolean)
+    .slice(0, 300);
+
+  const uniqueValues = unique(normalized);
+  if (uniqueValues.length > 0) return uniqueValues;
+
+  return unique(
+    (Array.isArray(fallback) ? fallback : [])
+      .filter((value) => typeof value === "string")
+      .map((value) => normalizeArabicText(value))
+      .filter(Boolean),
+  );
+}
+
+function getDynamicLocationHints(forceRefresh = false) {
+  const isFresh =
+    !forceRefresh &&
+    dynamicLocationHintsCache.loadedAt > 0 &&
+    Date.now() - dynamicLocationHintsCache.loadedAt < DYNAMIC_LOCATION_CACHE_TTL_MS;
+
+  if (isFresh) {
+    return dynamicLocationHintsCache;
+  }
+
+  try {
+    const settings = dataSync.readDataSync("SETTINGS", {}) || {};
+    const beforeCities = normalizeLocationHintList(
+      settings.wpBeforeCityOptions,
+      DEFAULT_DYNAMIC_BEFORE_CITIES,
+    );
+    const cities = normalizeLocationHintList(
+      settings.wpCityOptions,
+      DEFAULT_DYNAMIC_CITIES,
+    );
+
+    dynamicLocationHintsCache = {
+      loadedAt: Date.now(),
+      beforeCities,
+      cities,
+    };
+  } catch (error) {
+    dynamicLocationHintsCache = {
+      ...dynamicLocationHintsCache,
+      loadedAt: Date.now(),
+      beforeCities: normalizeLocationHintList(
+        dynamicLocationHintsCache.beforeCities,
+        DEFAULT_DYNAMIC_BEFORE_CITIES,
+      ),
+      cities: normalizeLocationHintList(
+        dynamicLocationHintsCache.cities,
+        DEFAULT_DYNAMIC_CITIES,
+      ),
+    };
+  }
+
+  return dynamicLocationHintsCache;
+}
+
+function inferLocationFromKnownOptions(text, options = []) {
+  const normalizedText = normalizeArabicText(text || "").toLowerCase();
+  if (!normalizedText || !Array.isArray(options) || options.length === 0) {
+    return "";
+  }
+
+  const sortedOptions = normalizeLocationHintList(options)
+    .sort((a, b) => b.length - a.length);
+
+  for (const option of sortedOptions) {
+    const normalizedOption = normalizeArabicText(option).toLowerCase();
+    if (!normalizedOption) continue;
+
+    if (
+      normalizedText === normalizedOption ||
+      normalizedText.includes(` ${normalizedOption} `) ||
+      normalizedText.includes(normalizedOption)
+    ) {
+      return option;
+    }
+  }
+
+  return "";
+}
+
+function buildDynamicLocationHintsPromptText() {
+  const hints = getDynamicLocationHints(false);
+  const beforeCities = hints.beforeCities.slice(0, 40);
+  const cities = hints.cities.slice(0, 40);
+
+  const beforeCitiesLine =
+    beforeCities.length > 0
+      ? `- المحافظات/المناطق الكبرى المحدثة: ${beforeCities.join("، ")}`
+      : "";
+  const citiesLine =
+    cities.length > 0 ? `- المدن المحدثة: ${cities.join("، ")}` : "";
+
+  if (!beforeCitiesLine && !citiesLine) {
+    return "";
+  }
+
+  return `مرجع جغرافي داخلي (استخدمه للاستنتاج عند غياب الحقول الصريحة):
+${beforeCitiesLine}
+${citiesLine}`;
+}
+
 function inferCityGovernorateFromText(adText) {
   const text = normalizeArabicText(adText || "");
   if (!text) {
     return { city: "", governorate: "" };
   }
 
+  let city = "";
+  let governorate = "";
+
   const match = text.match(
     /(?:^|[\s(])(في|ب)\s*([^،,\n]{2,40})\s*[،,]\s*([^،,\n]{2,40})/i,
   );
-
-  if (!match) {
-    return { city: "", governorate: "" };
+  if (match) {
+    city = normalizeArabicText(match[2]);
+    governorate = normalizeArabicText(match[3]);
   }
 
-  return {
-    city: normalizeArabicText(match[2]),
-    governorate: normalizeArabicText(match[3]),
-  };
+  if (!city) {
+    const cityMatch = text.match(
+      /(?:المدينة|المدينه|مدينة|مدينه)\s*[:：-]?\s*([^\n،,]{2,35})/i,
+    );
+    if (cityMatch) {
+      city = normalizeArabicText(cityMatch[1]);
+    }
+  }
+
+  if (areaNormalizer.normalizeCityName) {
+    city = normalizeArabicText(areaNormalizer.normalizeCityName(city) || city);
+    governorate = normalizeArabicText(
+      areaNormalizer.normalizeCityName(governorate) || governorate,
+    );
+  }
+
+  const dynamicHints = getDynamicLocationHints(false);
+  if (!city) {
+    city = inferLocationFromKnownOptions(text, dynamicHints.cities);
+  }
+  if (!governorate) {
+    governorate = inferLocationFromKnownOptions(text, dynamicHints.beforeCities);
+  }
+
+  if (!city) {
+    const neighborhoodHints = areaNormalizer.extractNeighborhoods(text);
+    for (const hint of neighborhoodHints) {
+      const inferredCity = normalizeArabicText(
+        areaNormalizer.inferCityFromArea ? areaNormalizer.inferCityFromArea(hint) : "",
+      );
+      if (inferredCity) {
+        city = inferredCity;
+        break;
+      }
+    }
+  }
+
+  if (!governorate && /(?:الأحساء|الاحساء|الحسا)/i.test(text)) {
+    governorate = "الأحساء";
+  }
+
+  if (!governorate && city) {
+    governorate = "الأحساء";
+  }
+
+  return { city, governorate };
 }
 
 function normalizePhoneNumber(rawPhone) {
@@ -1325,16 +1513,40 @@ function hasDetailedLocation(meta = {}) {
 
 function normalizeLocationMeta(meta, adText = "") {
   const inferred = inferCityGovernorateFromText(adText);
+  const dynamicHints = getDynamicLocationHints(false);
 
   let city = normalizeArabicText(firstNonEmpty(meta.city, meta.City, meta.subcity));
-  const beforeCity = normalizeArabicText(
+  let beforeCity = normalizeArabicText(
     firstNonEmpty(meta.before_City, meta.before_city, inferred.governorate, "الأحساء"),
   );
   let subcity = normalizeArabicText(firstNonEmpty(meta.subcity, city));
 
   let neighborhood = normalizeArabicText(
-    firstNonEmpty(meta.neighborhood, meta.location, "لم يذكر"),
+    firstNonEmpty(meta.neighborhood, meta.location, ""),
   );
+
+  if (areaNormalizer.normalizeCityName) {
+    city = normalizeArabicText(areaNormalizer.normalizeCityName(city) || city);
+    beforeCity = normalizeArabicText(
+      areaNormalizer.normalizeCityName(beforeCity) || beforeCity,
+    );
+    subcity = normalizeArabicText(areaNormalizer.normalizeCityName(subcity) || subcity);
+  }
+
+  if (
+    !neighborhood ||
+    neighborhood === "غير محدد" ||
+    neighborhood === "لا يوجد"
+  ) {
+    neighborhood = "لم يذكر";
+  }
+
+  if (!city) {
+    city = inferLocationFromKnownOptions(adText, dynamicHints.cities);
+  }
+  if (!beforeCity) {
+    beforeCity = inferLocationFromKnownOptions(adText, dynamicHints.beforeCities);
+  }
 
   if (neighborhood.includes("،") || neighborhood.includes(",")) {
     const parts = neighborhood
@@ -1352,16 +1564,32 @@ function normalizeLocationMeta(meta, adText = "") {
     }
   }
 
+  if (neighborhood && neighborhood !== "لم يذكر" && areaNormalizer.normalizeAreaName) {
+    neighborhood = normalizeArabicText(
+      areaNormalizer.normalizeAreaName(neighborhood) || neighborhood,
+    );
+  }
+
+  const inferredCityFromNeighborhood = normalizeArabicText(
+    neighborhood && neighborhood !== "لم يذكر" && areaNormalizer.inferCityFromArea
+      ? areaNormalizer.inferCityFromArea(neighborhood)
+      : "",
+  );
+
+  if ((!city || city === beforeCity) && inferredCityFromNeighborhood) {
+    city = inferredCityFromNeighborhood;
+  }
+
   if ((!city || city === beforeCity) && inferred.city) {
-    city = inferred.city;
+    city = normalizeArabicText(
+      areaNormalizer.normalizeCityName
+        ? areaNormalizer.normalizeCityName(inferred.city) || inferred.city
+        : inferred.city,
+    );
   }
 
   if ((!subcity || subcity === beforeCity) && city) {
     subcity = city;
-  }
-
-  if ((neighborhood === "لم يذكر" || !neighborhood) && inferred.city) {
-    neighborhood = inferred.city;
   }
 
   if (neighborhood === city || neighborhood === beforeCity) {
@@ -2438,6 +2666,7 @@ function extractPriceFromTextFallback(adText = "") {
 
 function extractLocationFromTextFallback(adText = "") {
   const normalizedText = normalizeArabicText(adText || "");
+  const dynamicHints = getDynamicLocationHints(false);
   let neighborhood = "";
   let city = "";
   let governorate = "";
@@ -2481,12 +2710,53 @@ function extractLocationFromTextFallback(adText = "") {
     }
   }
 
+  if (neighborhood && areaNormalizer.normalizeAreaName) {
+    neighborhood = normalizeArabicText(
+      areaNormalizer.normalizeAreaName(neighborhood) || neighborhood,
+    );
+  }
+
+  if (city && areaNormalizer.normalizeCityName) {
+    city = normalizeArabicText(areaNormalizer.normalizeCityName(city) || city);
+  }
+
+  if (!city) {
+    city = inferLocationFromKnownOptions(normalizedText, dynamicHints.cities);
+  }
+  if (!governorate) {
+    governorate = inferLocationFromKnownOptions(
+      normalizedText,
+      dynamicHints.beforeCities,
+    );
+  }
+
+  const inferredCityFromNeighborhood = normalizeArabicText(
+    neighborhood && areaNormalizer.inferCityFromArea
+      ? areaNormalizer.inferCityFromArea(neighborhood)
+      : "",
+  );
+
   const inferred = inferCityGovernorateFromText(normalizedText);
+  if (!city && inferredCityFromNeighborhood) {
+    city = inferredCityFromNeighborhood;
+  }
   if (!city && inferred.city) {
-    city = normalizeArabicText(inferred.city);
+    city = normalizeArabicText(
+      areaNormalizer.normalizeCityName
+        ? areaNormalizer.normalizeCityName(inferred.city) || inferred.city
+        : inferred.city,
+    );
   }
   if (!governorate && inferred.governorate) {
-    governorate = normalizeArabicText(inferred.governorate);
+    governorate = normalizeArabicText(
+      areaNormalizer.normalizeCityName
+        ? areaNormalizer.normalizeCityName(inferred.governorate) || inferred.governorate
+        : inferred.governorate,
+    );
+  }
+
+  if (!governorate && (city || neighborhood)) {
+    governorate = "الأحساء";
   }
 
   if (neighborhood && (neighborhood === city || neighborhood === governorate)) {
@@ -2902,6 +3172,8 @@ async function ensureRequiredMetadataCoverage({
 }
 
 function buildWordPressExtractionPrompt(adText, contactHint, isRegeneration) {
+  const dynamicLocationHintsText = buildDynamicLocationHintsPromptText();
+
   return `أنت مساعد متخصص في استخراج بيانات إعلان عربي للنشر في WordPress.
 
 النص:
@@ -2910,6 +3182,7 @@ ${adText}
 """
 
 ${contactHint}
+${dynamicLocationHintsText ? `\n${dynamicLocationHintsText}` : ""}
 
 القواعد الإلزامية:
 1) أعد JSON واحد فقط بدون Markdown.
@@ -2934,6 +3207,7 @@ ${
     : "17) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
 }
 18) حاول قدر الإمكان تعبئة الحقول الحرجة: area/arc_space، price أو price_type، price_method، location/city، category، subcategory.
+19) في إعلانات الأحساء قد يُكتب الحي فقط بدون المدينة. إذا توفر الحي فقط فاستنتج المدينة المناسبة (مثل الهفوف/المبرز/القرى/العيون) واجعل before_City و before_city = "الأحساء".
 
 أعد الشكل التالي فقط:
 {
@@ -3682,9 +3956,12 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
 
     if (meta.location || meta.City || meta.before_City) {
       const location = [meta.location, meta.City, meta.before_City]
-        .filter(Boolean)
+        .map((value) => normalizeArabicText(value))
+        .filter((value) => !isPlaceholderLocationValue(value))
         .join(" - ");
-      message += `📍 *الموقع:* ${location}\n`;
+      if (location) {
+        message += `📍 *الموقع:* ${location}\n`;
+      }
     }
 
     message += "📲 *للتواصل:* 0508001475\n";

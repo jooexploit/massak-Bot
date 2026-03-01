@@ -134,6 +134,8 @@ let settings = {
   recycleBinDays: 7,
   excludedGroups: [],
   autoApproveWordPressGroups: [],
+  wpBeforeCityOptions: ["الأحساء"],
+  wpCityOptions: ["الهفوف", "المبرز", "العيون", "القرى"],
 }; // Default: auto-delete after 7 days, no excluded groups, no auto-post group filter
 let seenGroups = new Set();
 let groupsMetadata = {}; // Store group metadata (jid -> {name, jid})
@@ -154,6 +156,25 @@ function normalizeGroupSelection(groupIds) {
   )];
 }
 
+function normalizeSmartLocationOptions(options, fallback = []) {
+  const fallbackList = Array.isArray(fallback) ? fallback : [];
+  const source = Array.isArray(options) ? options : fallbackList;
+
+  const normalized = source
+    .filter((value) => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .slice(0, 300);
+
+  const uniqueValues = [...new Set(normalized)];
+
+  if (uniqueValues.length === 0) {
+    return [...new Set(fallbackList.filter((value) => typeof value === "string").map((v) => v.trim()).filter(Boolean))];
+  }
+
+  return uniqueValues;
+}
+
 function normalizeSettingsForCompatibility() {
   if (!settings || typeof settings !== "object") {
     settings = {};
@@ -163,6 +184,16 @@ function normalizeSettingsForCompatibility() {
   settings.autoApproveWordPressGroups = normalizeGroupSelection(
     settings.autoApproveWordPressGroups,
   );
+  settings.wpBeforeCityOptions = normalizeSmartLocationOptions(
+    settings.wpBeforeCityOptions,
+    ["الأحساء"],
+  );
+  settings.wpCityOptions = normalizeSmartLocationOptions(settings.wpCityOptions, [
+    "الهفوف",
+    "المبرز",
+    "العيون",
+    "القرى",
+  ]);
 }
 
 function shouldAutoPostFromSourceGroup(sourceGroupJid) {
@@ -214,6 +245,8 @@ function loadAds() {
       recycleBinDays: 7,
       excludedGroups: [],
       autoApproveWordPressGroups: [],
+      wpBeforeCityOptions: ["الأحساء"],
+      wpCityOptions: ["الهفوف", "المبرز", "العيون", "القرى"],
     });
 
     ads.forEach((a) => seenGroups.add(a.fromGroup));
@@ -2908,6 +2941,20 @@ function updateSettings(newSettings) {
     );
   }
 
+  if (Object.prototype.hasOwnProperty.call(updates, "wpBeforeCityOptions")) {
+    updates.wpBeforeCityOptions = normalizeSmartLocationOptions(
+      updates.wpBeforeCityOptions,
+      settings.wpBeforeCityOptions || ["الأحساء"],
+    );
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, "wpCityOptions")) {
+    updates.wpCityOptions = normalizeSmartLocationOptions(
+      updates.wpCityOptions,
+      settings.wpCityOptions || ["الهفوف", "المبرز", "العيون", "القرى"],
+    );
+  }
+
   Object.assign(settings, updates);
   normalizeSettingsForCompatibility();
   saveSettings();
@@ -2926,6 +2973,8 @@ function reloadAds() {
       recycleBinDays: 7,
       excludedGroups: [],
       autoApproveWordPressGroups: [],
+      wpBeforeCityOptions: ["الأحساء"],
+      wpCityOptions: ["الهفوف", "المبرز", "العيون", "القرى"],
     });
     normalizeSettingsForCompatibility();
     console.log(`🔄 Reloaded ${ads.length} ads from file`);

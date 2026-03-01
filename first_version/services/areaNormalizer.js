@@ -61,6 +61,20 @@ const CITY_NEIGHBORHOODS = {
  * List of city names for detection
  */
 const CITIES = Object.keys(CITY_NEIGHBORHOODS);
+const AL_AHSA_GOVERNORATE = "الأحساء";
+const AL_AHSA_SUB_CITIES = new Set(["الهفوف", "المبرز", "القرى", "العيون"]);
+const CITY_NAME_ALIASES = {
+  الاحساء: AL_AHSA_GOVERNORATE,
+  الأحساء: AL_AHSA_GOVERNORATE,
+  الاحسا: AL_AHSA_GOVERNORATE,
+  الحسا: AL_AHSA_GOVERNORATE,
+  "الهفوف": "الهفوف",
+  "المبرز": "المبرز",
+  "العيون": "العيون",
+  "القرى": "القرى",
+  "القرى والهجر": "القرى",
+  "القرى و الهجر": "القرى",
+};
 
 /**
  * Common prefixes that often start compound neighborhood/area names
@@ -237,7 +251,9 @@ function normalizeAreaName(areaName) {
   // Check if it's a known variation
   if (AREA_CORRECTIONS[normalized]) {
     const corrected = AREA_CORRECTIONS[normalized];
-    console.log(`📍 Area name corrected: "${areaName}" → "${corrected}"`);
+    if (corrected !== normalized) {
+      console.log(`📍 Area name corrected: "${areaName}" → "${corrected}"`);
+    }
     return corrected;
   }
 
@@ -245,9 +261,11 @@ function normalizeAreaName(areaName) {
   const lowerInput = normalized.toLowerCase();
   for (const [wrong, correct] of Object.entries(AREA_CORRECTIONS)) {
     if (wrong.toLowerCase() === lowerInput) {
-      console.log(
-        `📍 Area name corrected (case): "${areaName}" → "${correct}"`
-      );
+      if (correct !== normalized) {
+        console.log(
+          `📍 Area name corrected (case): "${areaName}" → "${correct}"`
+        );
+      }
       return correct;
     }
   }
@@ -268,9 +286,11 @@ function normalizeAreaName(areaName) {
     const withHa = normalized.slice(0, -1) + "ه";
     if (AREA_CORRECTIONS[withHa]) {
       const corrected = AREA_CORRECTIONS[withHa];
-      console.log(
-        `📍 Area name corrected (ة→ه): "${areaName}" → "${corrected}"`
-      );
+      if (corrected !== normalized) {
+        console.log(
+          `📍 Area name corrected (ة→ه): "${areaName}" → "${corrected}"`
+        );
+      }
       return corrected;
     }
   }
@@ -405,8 +425,14 @@ function getSuggestions(areaName) {
  */
 function isCity(areaName) {
   if (!areaName) return false;
-  const normalized = normalizeAreaName(areaName).toLowerCase();
-  return CITIES.some((city) => city.toLowerCase() === normalized);
+  const normalized = normalizeCityName(areaName).toLowerCase();
+  if (!normalized) return false;
+
+  if (AL_AHSA_SUB_CITIES.has(normalizeCityName(areaName))) {
+    return true;
+  }
+
+  return CITIES.some((city) => normalizeCityName(city).toLowerCase() === normalized);
 }
 
 /**
@@ -416,8 +442,90 @@ function isCity(areaName) {
  */
 function getNeighborhoodsForCity(cityName) {
   if (!cityName) return [];
-  const normalized = normalizeAreaName(cityName);
-  return CITY_NEIGHBORHOODS[normalized] || [];
+  const normalized = normalizeCityName(cityName);
+
+  for (const [city, neighborhoods] of Object.entries(CITY_NEIGHBORHOODS)) {
+    if (normalizeCityName(city) === normalized) {
+      return neighborhoods;
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Normalize city aliases to one canonical display name.
+ * @param {string} cityName
+ * @returns {string}
+ */
+function normalizeCityName(cityName) {
+  if (!cityName) return "";
+
+  const normalized = normalizeAreaName(cityName).replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+
+  if (CITY_NAME_ALIASES[normalized]) {
+    return CITY_NAME_ALIASES[normalized];
+  }
+
+  const simplified = normalized.replace(/[أإآ]/g, "ا");
+  if (CITY_NAME_ALIASES[simplified]) {
+    return CITY_NAME_ALIASES[simplified];
+  }
+
+  return normalized;
+}
+
+/**
+ * Infer city from an area/neighborhood name.
+ * Returns empty string if city cannot be inferred.
+ * @param {string} areaName
+ * @returns {string}
+ */
+function inferCityFromArea(areaName) {
+  if (!areaName) return "";
+
+  const normalizedArea = normalizeAreaName(
+    String(areaName).replace(/^حي\s+/i, "").trim(),
+  );
+  if (!normalizedArea) return "";
+
+  const cityCandidate = normalizeCityName(normalizedArea);
+  if (isCity(cityCandidate)) {
+    return cityCandidate;
+  }
+
+  const areaLower = normalizedArea.toLowerCase();
+  for (const [city, neighborhoods] of Object.entries(CITY_NEIGHBORHOODS)) {
+    const normalizedCity = normalizeCityName(city);
+    for (const neighborhood of neighborhoods) {
+      const normalizedNeighborhood = String(neighborhood || "").toLowerCase().trim();
+      if (!normalizedNeighborhood) continue;
+      if (
+        areaLower === normalizedNeighborhood ||
+        areaLower.includes(normalizedNeighborhood) ||
+        normalizedNeighborhood.includes(areaLower)
+      ) {
+        return normalizedCity;
+      }
+    }
+  }
+
+  // Retry with fuzzy suggestions when there is a typo in the neighborhood name.
+  const suggestions = getSuggestions(normalizedArea);
+  for (const suggestion of suggestions) {
+    const suggestionLower = normalizeAreaName(suggestion).toLowerCase();
+    for (const [city, neighborhoods] of Object.entries(CITY_NEIGHBORHOODS)) {
+      for (const neighborhood of neighborhoods) {
+        const normalizedNeighborhood = String(neighborhood || "").toLowerCase().trim();
+        if (suggestionLower === normalizedNeighborhood) {
+          return normalizeCityName(city);
+        }
+      }
+    }
+  }
+
+  return "";
 }
 
 /**
@@ -505,6 +613,8 @@ function filterResultsByArea(results, requestedArea) {
 
 module.exports = {
   normalizeAreaName,
+  normalizeCityName,
+  inferCityFromArea,
   normalizeAreaNames,
   isValidArea,
   getSuggestions,

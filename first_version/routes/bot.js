@@ -224,6 +224,81 @@ function normalizeArabicForRouting(text = "") {
     .trim();
 }
 
+function normalizeLocationToken(value = "") {
+  return String(value || "").trim();
+}
+
+function isPlaceholderLocationValue(value = "") {
+  const normalized = normalizeArabicForRouting(value).toLowerCase();
+  if (!normalized) return true;
+
+  return [
+    "لم يذكر",
+    "لا يوجد",
+    "غير محدد",
+    "غير معروف",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "-",
+  ].includes(normalized);
+}
+
+function buildCleanFullLocation(meta = {}) {
+  const location = normalizeLocationToken(
+    meta.location || meta.neighborhood || "",
+  );
+  const city = normalizeLocationToken(meta.City || meta.city || meta.subcity || "");
+  const beforeCity = normalizeLocationToken(
+    meta.before_City || meta.before_city || "",
+  );
+
+  const parts = [location, city, beforeCity].filter(
+    (value) => !isPlaceholderLocationValue(value),
+  );
+
+  const uniqueParts = [...new Set(parts)];
+  if (uniqueParts.length > 0) {
+    return uniqueParts.join(" - ");
+  }
+
+  return "الأحساء";
+}
+
+function normalizeManualLocationMeta(meta = {}) {
+  const normalized = meta && typeof meta === "object" ? { ...meta } : {};
+
+  const locationValue = normalizeLocationToken(
+    normalized.location || normalized.neighborhood || "",
+  );
+  const cityValue = normalizeLocationToken(
+    normalized.City || normalized.city || normalized.subcity || "",
+  );
+  const beforeCityValue = normalizeLocationToken(
+    normalized.before_City || normalized.before_city || "",
+  );
+
+  normalized.location = isPlaceholderLocationValue(locationValue)
+    ? "لم يذكر"
+    : locationValue;
+  normalized.neighborhood = normalized.location;
+
+  const cleanCity = isPlaceholderLocationValue(cityValue) ? "" : cityValue;
+  normalized.City = cleanCity;
+  normalized.city = cleanCity;
+  normalized.subcity = cleanCity;
+
+  const cleanBeforeCity = isPlaceholderLocationValue(beforeCityValue)
+    ? ""
+    : beforeCityValue;
+  normalized.before_City = cleanBeforeCity || "الأحساء";
+  normalized.before_city = normalized.before_City;
+
+  normalized.full_location = buildCleanFullLocation(normalized);
+  return normalized;
+}
+
 function hasRequestIntentInText(text = "") {
   const normalized = normalizeArabicForRouting(text);
   return /(?:مطلوب|ابحث عن|ادور|أدور|احتاج|محتاج|من عنده|مين عنده|حد عنده|تكفون|ابغى اشتري|ابغا اشتري|ابي اشتري|ودي اشتري)/i.test(
@@ -1739,7 +1814,7 @@ router.post(
       );
       const editedAt = Date.now();
 
-      safeWpData.meta = normalizedMeta.meta;
+      safeWpData.meta = normalizeManualLocationMeta(normalizedMeta.meta);
       safeWpData.targetWebsite = targetWebsite;
       currentAd.wpData = safeWpData;
       currentAd.targetWebsite = targetWebsite;
@@ -1752,6 +1827,49 @@ router.post(
       currentAd.wpDataEditedAt = editedAt;
       currentAd.wpDataEditedBy =
         req.user?.username || req.user?.id || "unknown";
+
+      // Learn new location values from manual edit so AI/location logic stays up-to-date.
+      try {
+        const currentSettings = getSettings() || {};
+        const currentBeforeCities = Array.isArray(currentSettings.wpBeforeCityOptions)
+          ? currentSettings.wpBeforeCityOptions
+          : [];
+        const currentCities = Array.isArray(currentSettings.wpCityOptions)
+          ? currentSettings.wpCityOptions
+          : [];
+
+        const beforeCityRaw = String(
+          safeWpData.meta.before_City || safeWpData.meta.before_city || "",
+        )
+          .trim();
+        const cityRaw = String(safeWpData.meta.City || safeWpData.meta.city || "")
+          .trim();
+
+        const nextBeforeCities = [...new Set(
+          [...currentBeforeCities, beforeCityRaw].filter(Boolean),
+        )];
+        const nextCities = [...new Set(
+          [...currentCities, cityRaw].filter(Boolean),
+        )];
+
+        if (
+          nextBeforeCities.length !== currentBeforeCities.length ||
+          nextCities.length !== currentCities.length
+        ) {
+          updateSettings({
+            wpBeforeCityOptions: nextBeforeCities,
+            wpCityOptions: nextCities,
+          });
+          console.log(
+            `📍 Learned location options from manual edit (before_City: ${beforeCityRaw || "-"}, City: ${cityRaw || "-"})`,
+          );
+        }
+      } catch (settingsErr) {
+        console.warn(
+          "⚠️ Failed to update smart location options from manual wp-data save:",
+          settingsErr?.message || settingsErr,
+        );
+      }
 
       dataSync.writeDataSync("ADS", ads);
 
@@ -2444,6 +2562,8 @@ router.put(
         categoryLimits,
         excludedGroups,
         autoApproveWordPressGroups,
+        wpBeforeCityOptions,
+        wpCityOptions,
       } = req.body;
       const updates = {};
 
@@ -2515,6 +2635,50 @@ router.put(
         updates.autoApproveWordPressGroups = normalizeGroupJids(
           autoApproveWordPressGroups,
         );
+      }
+
+      if (wpBeforeCityOptions !== undefined) {
+        if (!Array.isArray(wpBeforeCityOptions)) {
+          return res.status(400).json({
+            error: "wpBeforeCityOptions must be an array",
+          });
+        }
+
+        const invalidValue = wpBeforeCityOptions.find(
+          (value) => typeof value !== "string" || value.trim().length > 80,
+        );
+        if (invalidValue !== undefined) {
+          return res.status(400).json({
+            error:
+              "Each wpBeforeCityOptions value must be a string with max length 80",
+          });
+        }
+
+        updates.wpBeforeCityOptions = wpBeforeCityOptions
+          .map((value) => value.trim())
+          .filter(Boolean);
+      }
+
+      if (wpCityOptions !== undefined) {
+        if (!Array.isArray(wpCityOptions)) {
+          return res.status(400).json({
+            error: "wpCityOptions must be an array",
+          });
+        }
+
+        const invalidValue = wpCityOptions.find(
+          (value) => typeof value !== "string" || value.trim().length > 80,
+        );
+        if (invalidValue !== undefined) {
+          return res.status(400).json({
+            error:
+              "Each wpCityOptions value must be a string with max length 80",
+          });
+        }
+
+        updates.wpCityOptions = wpCityOptions
+          .map((value) => value.trim())
+          .filter(Boolean);
       }
 
       if (categoryLimits !== undefined) {

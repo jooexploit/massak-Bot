@@ -451,11 +451,15 @@
                             <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem;">
                                 <div>
                                     <label>before_City (المحافظة)</label>
-                                    <input id="wp-preview-before-city" class="form-control" placeholder="الأحساء" />
+                                    <input id="wp-preview-before-city" class="form-control"
+                                        placeholder="الأحساء" list="wp-before-city-options" autocomplete="off" />
+                                    <datalist id="wp-before-city-options"></datalist>
                                 </div>
                                 <div>
                                     <label>City (المدينة)</label>
-                                    <input id="wp-preview-city" class="form-control" placeholder="الهفوف / المبرز" />
+                                    <input id="wp-preview-city" class="form-control"
+                                        placeholder="الهفوف / المبرز" list="wp-city-options" autocomplete="off" />
+                                    <datalist id="wp-city-options"></datalist>
                                 </div>
                                 <div>
                                     <label>google_location (رابط الخريطة)</label>
@@ -463,6 +467,9 @@
                                         placeholder="https://maps.google.com/..." />
                                 </div>
                             </div>
+                            <small style="color:#666;display:block;margin-top:4px;">
+                                اكتب للبحث في القائمة. إذا أدخلت قيمة جديدة فسيتم حفظها تلقائياً عند حفظ التعديلات.
+                            </small>
 
                             <h3
                                 style="color: #9C27B0; border-bottom: 2px solid #9C27B0; padding-bottom: 0.5rem; margin-top: 1rem;">
