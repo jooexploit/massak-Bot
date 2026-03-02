@@ -1984,22 +1984,31 @@ function parseRequirements(message) {
     console.log(`⚠️  No price detected`);
   }
 
+  const MIN_REASONABLE_AREA = 10;
+  const MAX_REASONABLE_AREA = 1000000;
+
+  const parseArabicNumber = (value) => {
+    const cleaned = String(value || "").replace(/[,\s]+/g, "");
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  };
+
   // Extract area - Enhanced patterns with range support
   let areaMatch = normalizedMessage.match(
-    /(?:المساحة|المساحه)[^:]*:[*\s]*(\d+(?:\s*(?:إلى|الى|-|حتى)\s*\d+)?)/i
+    /(?:المساحة|المساحه)[^:]*:[*\s]*([\d,]+(?:\s*(?:إلى|الى|-|حتى)\s*[\d,]+)?)/i
   );
 
   // Try to match area in parentheses
   if (!areaMatch) {
     areaMatch = normalizedMessage.match(
-      /(?:المساحة|المساحه)[^(]*\((\d+(?:\s*(?:إلى|الى|-|حتى)\s*\d+)?)/i
+      /(?:المساحة|المساحه)[^(]*\(([\d,]+(?:\s*(?:إلى|الى|-|حتى)\s*[\d,]+)?)/i
     );
   }
 
   // Try to find numbers near "المساحة" keyword (more flexible)
   if (!areaMatch) {
     const areaSection = normalizedMessage.match(
-      /(?:المساحة|المساحه)[^\n]*?(\d{2,4}(?:\s*(?:إلى|الى|-|حتى)\s*\d{2,4})?)/i
+      /(?:المساحة|المساحه)[^\n]*?(\d{2,6}(?:\s*(?:إلى|الى|-|حتى)\s*\d{2,6})?)/i
     );
     if (areaSection) {
       areaMatch = areaSection;
@@ -2008,7 +2017,7 @@ function parseRequirements(message) {
 
   // Alternative pattern: just numbers followed by متر (as last resort)
   if (!areaMatch) {
-    areaMatch = normalizedMessage.match(/(\d{2,4})\s*(?:متر|م²|م)/);
+    areaMatch = normalizedMessage.match(/(\d{2,6})\s*(?:متر|م²|م)/);
   }
 
   if (areaMatch) {
@@ -2016,12 +2025,20 @@ function parseRequirements(message) {
     console.log(`📊 Area text found: "${areaText}"`);
 
     // Check for range pattern
-    const areaRangeMatch = areaText.match(/(\d+)\s*(?:إلى|الى|-|حتى)\s*(\d+)/);
+    const areaRangeMatch = areaText.match(
+      /([\d,]+)\s*(?:إلى|الى|-|حتى)\s*([\d,]+)/,
+    );
     if (areaRangeMatch) {
-      const min = parseInt(areaRangeMatch[1]);
-      const max = parseInt(areaRangeMatch[2]);
-      // Validate they're reasonable area values (10-50000 m²)
-      if (min >= 10 && min <= 50000 && max >= 10 && max <= 50000 && min < max) {
+      const min = parseArabicNumber(areaRangeMatch[1]);
+      const max = parseArabicNumber(areaRangeMatch[2]);
+      // Validate they're reasonable area values (supports large farm/land areas)
+      if (
+        min >= MIN_REASONABLE_AREA &&
+        min <= MAX_REASONABLE_AREA &&
+        max >= MIN_REASONABLE_AREA &&
+        max <= MAX_REASONABLE_AREA &&
+        min < max
+      ) {
         requirements.areaMin = min;
         requirements.areaMax = max;
         console.log(`✅ Detected area range: ${min} - ${max} m²`);
@@ -2032,12 +2049,11 @@ function parseRequirements(message) {
       }
     } else {
       // Single area value
-      const areaSingleMatch = areaText.match(/(\d+)/);
+      const areaSingleMatch = areaText.match(/([\d,]+)/);
       if (areaSingleMatch) {
-        const area = parseInt(areaSingleMatch[1]);
-        // Make sure it's a reasonable area (not phone number: 10-10000 m²)
-        // Make sure it's a reasonable area (not phone number: 10-10000 m²)
-        if (area >= 10 && area <= 10000) {
+        const area = parseArabicNumber(areaSingleMatch[1]);
+        // Make sure it's a reasonable area (not phone number)
+        if (area >= MIN_REASONABLE_AREA && area <= MAX_REASONABLE_AREA) {
           // Reverting to legacy behavior: 0 -> target, as per user request to follow the "old way"
           requirements.areaMin = 0;
           requirements.areaMax = area;
@@ -2055,13 +2071,31 @@ function parseRequirements(message) {
 
   // Extract neighborhoods - Dynamic extraction from user input
   // Look for the "الأحياء المفضلة:" or "الحي:" or "الأحياء:" section
-  const neighborhoodMatch = normalizedMessage.match(
-    /(?:الأحياء المفضلة|الأحياء المفضله|الأحياء|الحي)[:*\s]*([^\n]+)/i
-  );
+  const neighborhoodLines = normalizedMessage
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter(
+      (line) =>
+        !/^(?:المدينة\s*والحي|المدينه\s*والحي|مدينة\s*و\s*الحي|مدينه\s*و\s*الحي|مدينة\s*وحي|مدينه\s*وحي)/i.test(
+          line,
+        ),
+    );
 
-  if (neighborhoodMatch) {
+  const neighborhoodValues = [];
+  const neighborhoodLineRegex =
+    /^(?:الأحياء\s*المفضلة|الأحياء\s*المفضله|الأحياء|الحي)(?:\s*[0-9٠-٩]+)?\s*[:：-]\s*(.+)$/i;
+
+  for (const line of neighborhoodLines) {
+    const match = line.match(neighborhoodLineRegex);
+    if (match && match[1]) {
+      neighborhoodValues.push(match[1].trim());
+    }
+  }
+
+  if (neighborhoodValues.length > 0) {
     const neighborhoods = areaNormalizer.extractNeighborhoods(
-      neighborhoodMatch[1]
+      neighborhoodValues.join("، "),
     );
 
     if (neighborhoods.length > 0) {
