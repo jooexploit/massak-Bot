@@ -9,6 +9,8 @@ const {
   AL_AHSA_GOVERNORATE: LOCATION_GOVERNORATE,
 } = require("../config/locationHierarchy");
 
+const seenAreaCorrectionLogs = new Set();
+
 function normalizeAliasKey(value = "") {
   return String(value || "")
     .trim()
@@ -16,6 +18,15 @@ function normalizeAliasKey(value = "") {
     .replace(/[أإآ]/g, "ا")
     .replace(/ى/g, "ي")
     .toLowerCase();
+}
+
+function logAreaCorrection(reason, fromValue, toValue) {
+  const from = String(fromValue || "");
+  const to = String(toValue || "");
+  const key = `${reason}|${from}|${to}`;
+  if (seenAreaCorrectionLogs.has(key)) return;
+  seenAreaCorrectionLogs.add(key);
+  console.log(`📍 Area name corrected (${reason}): "${from}" → "${to}"`);
 }
 
 function buildCityNeighborhoodMap() {
@@ -248,11 +259,39 @@ const VALID_AREAS = [...new Set([...STATIC_VALID_AREAS, ...DYNAMIC_VALID_AREAS])
 
 function addGeneratedAreaCorrections() {
   const generated = {};
+  const allAreasSet = new Set(VALID_AREAS);
+
+  const toArabicDigits = (value = "") =>
+    String(value || "")
+      .replace(/0/g, "٠")
+      .replace(/1/g, "١")
+      .replace(/2/g, "٢")
+      .replace(/3/g, "٣")
+      .replace(/4/g, "٤")
+      .replace(/5/g, "٥")
+      .replace(/6/g, "٦")
+      .replace(/7/g, "٧")
+      .replace(/8/g, "٨")
+      .replace(/9/g, "٩");
+
+  const toEnglishDigits = (value = "") =>
+    String(value || "")
+      .replace(/٠/g, "0")
+      .replace(/١/g, "1")
+      .replace(/٢/g, "2")
+      .replace(/٣/g, "3")
+      .replace(/٤/g, "4")
+      .replace(/٥/g, "5")
+      .replace(/٦/g, "6")
+      .replace(/٧/g, "7")
+      .replace(/٨/g, "8")
+      .replace(/٩/g, "9");
 
   const add = (fromValue, toValue) => {
     const from = String(fromValue || "").trim();
     const to = String(toValue || "").trim();
     if (!from || !to || from === to) return;
+    if (Object.prototype.hasOwnProperty.call(generated, from)) return;
     generated[from] = to;
   };
 
@@ -268,31 +307,18 @@ function addGeneratedAreaCorrections() {
     }
 
     // Arabic/English digits variants for names like "ضاحية هجر ١٢".
-    const arabicDigits = canonical
-      .replace(/0/g, "٠")
-      .replace(/1/g, "١")
-      .replace(/2/g, "٢")
-      .replace(/3/g, "٣")
-      .replace(/4/g, "٤")
-      .replace(/5/g, "٥")
-      .replace(/6/g, "٦")
-      .replace(/7/g, "٧")
-      .replace(/8/g, "٨")
-      .replace(/9/g, "٩");
-    const englishDigits = canonical
-      .replace(/٠/g, "0")
-      .replace(/١/g, "1")
-      .replace(/٢/g, "2")
-      .replace(/٣/g, "3")
-      .replace(/٤/g, "4")
-      .replace(/٥/g, "5")
-      .replace(/٦/g, "6")
-      .replace(/٧/g, "7")
-      .replace(/٨/g, "8")
-      .replace(/٩/g, "9");
+    const arabicDigits = toArabicDigits(canonical);
+    const englishDigits = toEnglishDigits(canonical);
+    const hasArabicVariant = allAreasSet.has(arabicDigits);
+    const hasEnglishVariant = allAreasSet.has(englishDigits);
+    const preferredDigitCanonical = hasArabicVariant
+      ? arabicDigits
+      : hasEnglishVariant
+        ? englishDigits
+        : canonical;
 
-    add(arabicDigits, canonical);
-    add(englishDigits, canonical);
+    add(arabicDigits, preferredDigitCanonical);
+    add(englishDigits, preferredDigitCanonical);
     add(canonical.replace(/[أإآ]/g, "ا"), canonical);
   });
 
@@ -316,7 +342,7 @@ function normalizeAreaName(areaName) {
   if (AREA_CORRECTIONS[normalized]) {
     const corrected = AREA_CORRECTIONS[normalized];
     if (corrected !== normalized) {
-      console.log(`📍 Area name corrected: "${areaName}" → "${corrected}"`);
+      logAreaCorrection("exact", areaName, corrected);
     }
     return corrected;
   }
@@ -326,9 +352,7 @@ function normalizeAreaName(areaName) {
   for (const [wrong, correct] of Object.entries(AREA_CORRECTIONS)) {
     if (wrong.toLowerCase() === lowerInput) {
       if (correct !== normalized) {
-        console.log(
-          `📍 Area name corrected (case): "${areaName}" → "${correct}"`
-        );
+        logAreaCorrection("case", areaName, correct);
       }
       return correct;
     }
@@ -338,9 +362,7 @@ function normalizeAreaName(areaName) {
   if (normalized.endsWith("ه")) {
     const withTaMarbuta = normalized.slice(0, -1) + "ة";
     if (VALID_AREAS.includes(withTaMarbuta)) {
-      console.log(
-        `📍 Area name corrected (ه→ة): "${areaName}" → "${withTaMarbuta}"`
-      );
+      logAreaCorrection("ه→ة", areaName, withTaMarbuta);
       return withTaMarbuta;
     }
   }
@@ -351,9 +373,7 @@ function normalizeAreaName(areaName) {
     if (AREA_CORRECTIONS[withHa]) {
       const corrected = AREA_CORRECTIONS[withHa];
       if (corrected !== normalized) {
-        console.log(
-          `📍 Area name corrected (ة→ه): "${areaName}" → "${corrected}"`
-        );
+        logAreaCorrection("ة→ه", areaName, corrected);
       }
       return corrected;
     }
@@ -600,15 +620,18 @@ function inferCityFromArea(areaName) {
   }
 
   const candidates = getCitiesForArea(normalizedArea);
-  if (candidates.length > 0) {
+  if (candidates.length === 1) {
     return candidates[0];
+  }
+  if (candidates.length > 1) {
+    return "";
   }
 
   // Retry with fuzzy suggestions when there is a typo in the neighborhood name.
   const suggestions = getSuggestions(normalizedArea);
   for (const suggestion of suggestions) {
     const suggestionCandidates = getCitiesForArea(suggestion);
-    if (suggestionCandidates.length > 0) {
+    if (suggestionCandidates.length === 1) {
       return suggestionCandidates[0];
     }
   }
