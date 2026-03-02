@@ -7,7 +7,7 @@ let wpPreviewDirtyWatchersBound = false;
 let wpLocationSmartInputsBound = false;
 const WP_LOCATION_OPTIONS_STORAGE_KEY = "wp_location_options_v1";
 const DEFAULT_WP_BEFORE_CITY_OPTIONS = ["الأحساء"];
-const DEFAULT_WP_CITY_OPTIONS = ["الهفوف", "المبرز", "العيون", "القرى"];
+const DEFAULT_WP_CITY_OPTIONS = ["الهفوف", "المبرز", "العيون", "العمران", "القرى"];
 const wpLocationOptionsState = {
   loaded: false,
   loadingPromise: null,

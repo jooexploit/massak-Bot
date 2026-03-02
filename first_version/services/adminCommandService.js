@@ -12,6 +12,10 @@ const interestGroupService = require("./interestGroupService");
 const wordpressPostService = require("./wordpressPostService");
 const areaNormalizer = require("./areaNormalizer");
 const websiteConfig = require("../config/website.config");
+const {
+  AL_AHSA_GOVERNORATE,
+  DEFAULT_WP_CITY_OPTIONS,
+} = require("../config/locationHierarchy");
 const { getDataPath } = require("../config/dataPath");
 
 // KSA Timezone configuration
@@ -41,7 +45,11 @@ const pendingWordPressActions = {};
 const WP_AXIOS_TIMEOUT = 30000;
 
 // City fallback aliases for request metadata
-const AHSA_CITY_ALIASES = new Set(["الأحساء", "الاحساء", "الهفوف", "المبرز"]);
+const AHSA_CITY_ALIASES = new Set([
+  AL_AHSA_GOVERNORATE,
+  "الاحساء",
+  ...DEFAULT_WP_CITY_OPTIONS,
+]);
 
 /**
  * Normalize phone number to standard format
@@ -139,6 +147,237 @@ function extractCityFromRequestText(text) {
 }
 
 /**
+ * Normalize city labels to WordPress-friendly display values
+ * @param {string} cityName
+ * @returns {string}
+ */
+function normalizeCityForWordPress(cityName) {
+  if (!cityName) return "";
+  const normalized = areaNormalizer.normalizeCityName(String(cityName).trim());
+  if (!normalized) return "";
+  if (normalized === "الاحساء") return "الأحساء";
+  return normalized;
+}
+
+/**
+ * Split values from a single field line (comma/slash separated)
+ * @param {string} value
+ * @returns {Array<string>}
+ */
+function splitFieldValues(value) {
+  if (!value) return [];
+  return String(value)
+    .split(/[،,\/|]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Extract city list from city-related fields (supports multiple values)
+ * @param {string} text
+ * @returns {Array<string>}
+ */
+function extractCityListFromText(text) {
+  if (!text) return [];
+
+  const cities = [];
+  const lines = String(text)
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    // Keep dedicated "city+neighborhood" format for its own parser.
+    if (
+      /^(?:المدينة\s*والحي|المدينه\s*والحي|مدينة\s*و\s*الحي|مدينه\s*و\s*الحي|مدينة\s*وحي|مدينه\s*وحي)/i.test(
+        line,
+      )
+    ) {
+      continue;
+    }
+
+    const cityMatch = line.match(
+      /^(?:المدينة\s*المطلوبة|المدينة\s*المفضلة|المدينه\s*المطلوبه|المدينه\s*المفضله|المدينة|المدينه|مدينة)\s*[:：-]\s*(.+)$/i,
+    );
+    if (!cityMatch || !cityMatch[1]) continue;
+
+    const cityValues = splitFieldValues(cityMatch[1]);
+    for (const cityValue of cityValues) {
+      const normalizedCity = normalizeCityForWordPress(cityValue);
+      if (normalizedCity) cities.push(normalizedCity);
+    }
+  }
+
+  return [...new Set(cities)];
+}
+
+/**
+ * Parse one city+neighborhood line value
+ * Supported examples:
+ * - "القرى - السحيمية"
+ * - "القرى (السحيمية)"
+ * - "الهفوف, الكوت"
+ * @param {string} value
+ * @returns {{city:string, neighborhood:string}|null}
+ */
+function parseCityNeighborhoodLineValue(value) {
+  if (!value) return null;
+
+  const cleaned = String(value).replace(/\*+/g, " ").trim();
+  if (!cleaned) return null;
+
+  let cityRaw = "";
+  let neighborhoodRaw = "";
+
+  const parenthesisMatch = cleaned.match(/^(.+?)\s*\(([^()]+)\)\s*$/);
+  if (parenthesisMatch) {
+    cityRaw = parenthesisMatch[1].trim();
+    neighborhoodRaw = parenthesisMatch[2].trim();
+  } else {
+    const parts = cleaned
+      .split(/\s*(?:-|–|—|\/|\\|\||،|,)\s*/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (parts.length >= 2) {
+      cityRaw = parts[0];
+      neighborhoodRaw = parts.slice(1).join(" - ");
+    } else if (parts.length === 1) {
+      cityRaw = parts[0];
+    }
+  }
+
+  let city = normalizeCityForWordPress(cityRaw);
+  let neighborhood = "";
+
+  if (neighborhoodRaw) {
+    const extractedNeighborhoods = areaNormalizer.extractNeighborhoods(
+      neighborhoodRaw,
+    );
+    neighborhood =
+      extractedNeighborhoods[0] ||
+      areaNormalizer.normalizeAreaName(neighborhoodRaw) ||
+      "";
+  }
+
+  if (!city && neighborhood) {
+    city = normalizeCityForWordPress(areaNormalizer.inferCityFromArea(neighborhood));
+  }
+
+  if (!city && !neighborhood) return null;
+  return { city: city || "", neighborhood: neighborhood || "" };
+}
+
+/**
+ * Extract explicit city+neighborhood pairs from request text
+ * Expected label: "المدينة والحي" (repeatable, e.g. المدينة والحي 1 / 2 / 3)
+ * @param {string} text
+ * @returns {Array<{city:string, neighborhood:string}>}
+ */
+function extractCityNeighborhoodPairs(text) {
+  if (!text) return [];
+
+  const pairs = [];
+  const lines = String(text)
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const pairLineRegex =
+    /^(?:المدينة\s*والحي|المدينه\s*والحي|مدينة\s*و\s*الحي|مدينه\s*و\s*الحي|مدينة\s*وحي|مدينه\s*وحي)(?:\s*[0-9٠-٩]+)?\s*[:：-]\s*(.+)$/i;
+
+  for (const line of lines) {
+    const match = line.match(pairLineRegex);
+    if (!match || !match[1]) continue;
+
+    const parsed = parseCityNeighborhoodLineValue(match[1]);
+    if (parsed) pairs.push(parsed);
+  }
+
+  const uniquePairs = [];
+  const seen = new Set();
+  for (const pair of pairs) {
+    const key = `${pair.city}|${pair.neighborhood}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniquePairs.push(pair);
+  }
+
+  return uniquePairs;
+}
+
+/**
+ * Build City/City2.. and location/location2.. slots for WordPress payload
+ * @param {string} rawText
+ * @param {Array<string>} neighborhoods
+ * @returns {{citySlots:Array<string>, locationSlots:Array<string>, pairs:Array<{city:string, neighborhood:string}>}}
+ */
+function buildCityLocationSlots(rawText, neighborhoods = []) {
+  const normalizedNeighborhoods = Array.isArray(neighborhoods)
+    ? neighborhoods
+        .map((n) => areaNormalizer.normalizeAreaName(n))
+        .filter(Boolean)
+    : [];
+
+  let pairs = extractCityNeighborhoodPairs(rawText);
+
+  if (pairs.length === 0) {
+    const listedCities = extractCityListFromText(rawText);
+
+    if (normalizedNeighborhoods.length > 0 && listedCities.length > 0) {
+      const pairsCount = Math.max(normalizedNeighborhoods.length, listedCities.length);
+      for (let i = 0; i < pairsCount; i++) {
+        pairs.push({
+          city: listedCities[i] || listedCities[0] || "",
+          neighborhood: normalizedNeighborhoods[i] || normalizedNeighborhoods[0] || "",
+        });
+      }
+    } else if (normalizedNeighborhoods.length > 0) {
+      for (const neighborhood of normalizedNeighborhoods) {
+        const inferredCity = normalizeCityForWordPress(
+          areaNormalizer.inferCityFromArea(neighborhood),
+        );
+        pairs.push({ city: inferredCity || "", neighborhood });
+      }
+    } else if (listedCities.length > 0) {
+      pairs = listedCities.map((city) => ({ city, neighborhood: "" }));
+    }
+  }
+
+  if (pairs.length === 0) {
+    const fallbackCity =
+      normalizeCityForWordPress(extractCityFromRequestText(rawText)) ||
+      normalizeCityForWordPress(inferCityFromNeighborhoods(normalizedNeighborhoods)) ||
+      "الأحساء";
+
+    pairs.push({
+      city: fallbackCity,
+      neighborhood: normalizedNeighborhoods[0] || "",
+    });
+  }
+
+  const defaultCity =
+    pairs.find((pair) => pair.city)?.city ||
+    normalizeCityForWordPress(extractCityFromRequestText(rawText)) ||
+    normalizeCityForWordPress(inferCityFromNeighborhoods(normalizedNeighborhoods)) ||
+    "الأحساء";
+
+  const finalPairs = pairs.slice(0, 4).map((pair) => ({
+    city: pair.city || defaultCity,
+    neighborhood: pair.neighborhood || "",
+  }));
+
+  const citySlots = ["", "", "", ""];
+  const locationSlots = ["", "", "", ""];
+  for (let i = 0; i < finalPairs.length; i++) {
+    citySlots[i] = finalPairs[i].city;
+    locationSlots[i] = finalPairs[i].neighborhood;
+  }
+
+  return { citySlots, locationSlots, pairs: finalPairs };
+}
+
+/**
  * Infer city from neighborhoods using area normalizer dataset
  * @param {Array<string>} neighborhoods
  * @returns {string}
@@ -205,9 +444,8 @@ function buildWordPressRequestPayload(requirements, rawText, normalizedPhone) {
     ? requirements.neighborhoods.map((n) => areaNormalizer.normalizeAreaName(n))
     : [];
 
-  const cityFromText = extractCityFromRequestText(rawText);
-  const cityFromNeighborhoods = inferCityFromNeighborhoods(neighborhoods);
-  const city = cityFromText || cityFromNeighborhoods || "الأحساء";
+  const { citySlots, locationSlots } = buildCityLocationSlots(rawText, neighborhoods);
+  const city = citySlots[0] || "الأحساء";
 
   const beforeCity = city && !AHSA_CITY_ALIASES.has(city) ? city : "الأحساء";
   const paymentMethod = extractPaymentMethodFromText(rawText);
@@ -263,10 +501,10 @@ function buildWordPressRequestPayload(requirements, rawText, normalizedPhone) {
       : "";
   const wpArcSpace = hasAreaMin ? String(Math.trunc(areaMinRaw)) : "";
 
-  const location1 = neighborhoods[0] || "";
-  const location2 = neighborhoods[1] || "";
-  const location3 = neighborhoods[2] || "";
-  const location4 = neighborhoods[3] || "";
+  const location1 = locationSlots[0] || "";
+  const location2 = locationSlots[1] || "";
+  const location3 = locationSlots[2] || "";
+  const location4 = locationSlots[3] || "";
 
   const cleanRequestText = String(rawText || "")
     .replace(/^طلب\s*/i, "")
@@ -312,10 +550,10 @@ function buildWordPressRequestPayload(requirements, rawText, normalizedPhone) {
       sub_catt: subCategory,
       before_City: beforeCity,
       before_city: beforeCity,
-      City: city,
-      City2: "",
-      City3: "",
-      City4: "",
+      City: citySlots[0] || city,
+      City2: citySlots[1] || "",
+      City3: citySlots[2] || "",
+      City4: citySlots[3] || "",
       location: location1,
       location2: location2,
       location3: location3,
@@ -362,6 +600,14 @@ async function postRequestToWordPress(requirements, rawText, normalizedPhone) {
     JSON.stringify(
       {
         phone_number: payload?.meta?.phone_number || "",
+        City: payload?.meta?.City || "",
+        City2: payload?.meta?.City2 || "",
+        City3: payload?.meta?.City3 || "",
+        City4: payload?.meta?.City4 || "",
+        location: payload?.meta?.location || "",
+        location2: payload?.meta?.location2 || "",
+        location3: payload?.meta?.location3 || "",
+        location4: payload?.meta?.location4 || "",
         price_amount: payload?.meta?.price_amount || "",
         price_max: payload?.meta?.price_max || "",
         order_space: payload?.meta?.order_space || "",
@@ -1367,7 +1613,9 @@ function getAdminHelpMessage() {
 الغرض: شراء
 حدود السعر: من 500 ألف إلى مليون
 المساحة المطلوبة: 450
-الأحياء المفضلة: عين موسى
+المدينة والحي 1: القرى - السحيمية
+المدينة والحي 2: الهفوف - الكوت (اختياري)
+الأحياء المفضلة: عين موسى (اختياري - صيغة قديمة مدعومة)
 رقم التواصل: 0501234567
 التصنيف الفرعي: صك (اختياري)
 مواصفات إضافية: مجلس رجال منفصل
@@ -1379,7 +1627,8 @@ function getAdminHelpMessage() {
 الغرض: شراء
 حدود السعر: 100000
 المساحة المطلوبة: 300
-الأحياء المفضلة: النزهه
+المدينة والحي 1: الأحساء - عين موسى
+المدينة والحي 2: المبرز - محاسن
 رقم التواصل: +966508007053
 
 *المميزات:*
@@ -1388,6 +1637,7 @@ function getAdminHelpMessage() {
 • يطلب التأكيد قبل الإرسال للعميل
 • يحفظ الطلب للتنبيهات المستقبلية
 • يفعّل الإشعارات التلقائية
+• يدعم أكثر من مدينة/حي في نفس الطلب
 
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -1817,7 +2067,27 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         const requirements = privateChatService.parseRequirements(text);
 
         if (!requirements) {
-          return "❌ *خطأ في تحليل الطلب*\n\nالرجاء التأكد من صيغة الرسالة:\n\nطلب\nنوع العقار المطلوب: بيت\nالغرض: شراء\nحدود السعر: من 500 ألف إلى مليون\nالمساحة المطلوبة: 450\nالأحياء المفضلة: عين موسى\nرقم التواصل: 0501234567\nالتصنيف الفرعي: صك\nمواصفات إضافية: ...";
+          return "❌ *خطأ في تحليل الطلب*\n\nالرجاء التأكد من صيغة الرسالة:\n\nطلب\nنوع العقار المطلوب: بيت\nالغرض: شراء\nحدود السعر: من 500 ألف إلى مليون\nالمساحة المطلوبة: 450\nالمدينة والحي 1: القرى - السحيمية\nالمدينة والحي 2: الهفوف - الكوت (اختياري)\nرقم التواصل: 0501234567\nالتصنيف الفرعي: صك\nمواصفات إضافية: ...";
+        }
+
+        // Support new repeated format: "المدينة والحي 1/2/3..."
+        // Merge extracted neighborhoods into requirements for better search matching.
+        const cityNeighborhoodPairs = extractCityNeighborhoodPairs(text);
+        if (cityNeighborhoodPairs.length > 0) {
+          const extractedNeighborhoods = cityNeighborhoodPairs
+            .map((pair) => pair.neighborhood)
+            .filter(Boolean);
+          if (extractedNeighborhoods.length > 0) {
+            requirements.neighborhoods = [
+              ...(Array.isArray(requirements.neighborhoods)
+                ? requirements.neighborhoods
+                : []),
+              ...extractedNeighborhoods,
+            ]
+              .map((area) => areaNormalizer.normalizeAreaName(area))
+              .filter(Boolean);
+            requirements.neighborhoods = [...new Set(requirements.neighborhoods)];
+          }
         }
 
         // Extract client phone number from requirements

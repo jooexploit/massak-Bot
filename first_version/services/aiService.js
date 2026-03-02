@@ -4,6 +4,11 @@ const OpenAI = require("openai");
 const apiKeyManager = require("./apiKeyManager");
 const areaNormalizer = require("./areaNormalizer");
 const websiteConfig = require("../config/website.config");
+const {
+  AL_AHSA_GOVERNORATE,
+  DEFAULT_WP_BEFORE_CITY_OPTIONS,
+  DEFAULT_WP_CITY_OPTIONS,
+} = require("../config/locationHierarchy");
 const dataSync = require("../utils/dataSync");
 
 const { PROVIDERS } = apiKeyManager;
@@ -17,11 +22,34 @@ const REQUIRED_METADATA_FIELDS = [
   "category",
   "subcategory",
 ];
-const HASAK_CATEGORIES = Object.keys(websiteConfig.hasak.categories || {}).filter(
-  (name) => name !== "default" && name !== "Uncategorized",
-);
-const DEFAULT_DYNAMIC_BEFORE_CITIES = ["الأحساء"];
-const DEFAULT_DYNAMIC_CITIES = ["الهفوف", "المبرز", "العيون", "القرى"];
+const MASAAK_CATEGORIES = [
+  ...new Set(
+    Object.keys(websiteConfig.masaak.categories || {})
+      .map((name) => String(name || "").trim())
+      .filter((name) => name && name !== "default" && name !== "Uncategorized"),
+  ),
+];
+const HASAK_CATEGORIES = [
+  ...new Set(
+    Object.keys(websiteConfig.hasak.categories || {})
+      .map((name) => String(name || "").trim())
+      .filter((name) => name && name !== "default" && name !== "Uncategorized"),
+  ),
+];
+const MASAAK_SUBCATEGORY_MAP = websiteConfig.masaak.subcategories || {};
+const MASAAK_SUBCATEGORY_LINES_FOR_PROMPT = Object.entries(MASAAK_SUBCATEGORY_MAP)
+  .map(([main, subMap]) => {
+    const parent = String(main || "").trim();
+    const children = Object.keys(subMap || {})
+      .map((name) => String(name || "").trim())
+      .filter(Boolean);
+
+    if (!parent || children.length === 0) return "";
+    return `${parent}: ${children.join("، ")}`;
+  })
+  .filter(Boolean);
+const DEFAULT_DYNAMIC_BEFORE_CITIES = [...DEFAULT_WP_BEFORE_CITY_OPTIONS];
+const DEFAULT_DYNAMIC_CITIES = [...DEFAULT_WP_CITY_OPTIONS];
 const DYNAMIC_LOCATION_CACHE_TTL_MS = 30000;
 
 let dynamicLocationHintsCache = {
@@ -31,28 +59,39 @@ let dynamicLocationHintsCache = {
 };
 
 const CATEGORY_LIST = [
-  "شقق للبيع",
-  "شقق للإيجار",
-  "فيلا للبيع",
-  "فيلا للإيجار",
-  "عمارة للبيع",
-  "عمارة للإيجار",
-  "أرض للبيع",
-  "أرض للإيجار",
-  "محل للبيع",
-  "محل للإيجار",
-  "محل للتقبيل",
-  "استراحة للبيع",
-  "استراحة للإيجار",
-  "شاليه للإيجار",
-  "مزرعة للبيع",
-  "مزرعة للإيجار",
-  "فعاليات",
-  "حراج",
-  "أسر منتجة",
-  "خدمات",
-  "طلبات",
-  ...HASAK_CATEGORIES,
+  ...new Set(
+    [
+      "شقق للبيع",
+      "شقق للإيجار",
+      "فيلا للبيع",
+      "فيلا للإيجار",
+      "عمارة للبيع",
+      "عمارة للإيجار",
+      "أرض للبيع",
+      "أرض للإيجار",
+      "محل للبيع",
+      "محل للإيجار",
+      "محل للتقبيل",
+      "استراحة للبيع",
+      "استراحة للإيجار",
+      "شاليه للإيجار",
+      "مزرعة للبيع",
+      "مزرعة للإيجار",
+      "فعاليات",
+      "حراج",
+      "أسر منتجة",
+      "خدمات",
+      "طلبات",
+      ...MASAAK_CATEGORIES,
+      ...Object.keys(MASAAK_SUBCATEGORY_MAP || {}),
+      ...Object.values(MASAAK_SUBCATEGORY_MAP || {}).flatMap((subMap) =>
+        Object.keys(subMap || {}),
+      ),
+      ...HASAK_CATEGORIES,
+    ]
+      .map((name) => String(name || "").trim())
+      .filter(Boolean),
+  ),
 ];
 
 const WP_META_DEFAULTS = {
@@ -477,11 +516,11 @@ function inferCityGovernorateFromText(adText) {
   }
 
   if (!governorate && /(?:الأحساء|الاحساء|الحسا)/i.test(text)) {
-    governorate = "الأحساء";
+    governorate = AL_AHSA_GOVERNORATE;
   }
 
   if (!governorate && city) {
-    governorate = "الأحساء";
+    governorate = AL_AHSA_GOVERNORATE;
   }
 
   return { city, governorate };
@@ -1511,13 +1550,29 @@ function hasDetailedLocation(meta = {}) {
   return hasNeighborhood || hasDistinctCity;
 }
 
-function normalizeLocationMeta(meta, adText = "") {
+function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
+  const targetWebsite =
+    targetWebsiteHint ||
+    inferTargetWebsiteFromData(
+      {
+        category: meta.category,
+        subcategory: meta.subcategory,
+        meta,
+      },
+      adText,
+    );
+  const isHasak = targetWebsite === "hasak";
   const inferred = inferCityGovernorateFromText(adText);
   const dynamicHints = getDynamicLocationHints(false);
 
   let city = normalizeArabicText(firstNonEmpty(meta.city, meta.City, meta.subcity));
   let beforeCity = normalizeArabicText(
-    firstNonEmpty(meta.before_City, meta.before_city, inferred.governorate, "الأحساء"),
+    firstNonEmpty(
+      meta.before_City,
+      meta.before_city,
+      inferred.governorate,
+      isHasak ? "" : AL_AHSA_GOVERNORATE,
+    ),
   );
   let subcity = normalizeArabicText(firstNonEmpty(meta.subcity, city));
 
@@ -1538,7 +1593,7 @@ function normalizeLocationMeta(meta, adText = "") {
     neighborhood === "غير محدد" ||
     neighborhood === "لا يوجد"
   ) {
-    neighborhood = "لم يذكر";
+    neighborhood = isHasak ? "" : "لم يذكر";
   }
 
   if (!city) {
@@ -1575,6 +1630,31 @@ function normalizeLocationMeta(meta, adText = "") {
       ? areaNormalizer.inferCityFromArea(neighborhood)
       : "",
   );
+  const cityCandidatesFromNeighborhood =
+    neighborhood &&
+    neighborhood !== "لم يذكر" &&
+    areaNormalizer.getCitiesForArea
+      ? areaNormalizer
+          .getCitiesForArea(neighborhood)
+          .map((candidate) => normalizeArabicText(candidate))
+          .filter(Boolean)
+      : [];
+  const uniqueNeighborhoodCandidates = [...new Set(cityCandidatesFromNeighborhood)];
+  const hasSingleNeighborhoodCityCandidate =
+    uniqueNeighborhoodCandidates.length === 1;
+  const onlyNeighborhoodCityCandidate = hasSingleNeighborhoodCityCandidate
+    ? uniqueNeighborhoodCandidates[0]
+    : "";
+
+  if (
+    city &&
+    city !== beforeCity &&
+    hasSingleNeighborhoodCityCandidate &&
+    city !== onlyNeighborhoodCityCandidate
+  ) {
+    // Deterministic fix: when one clear city owns the neighborhood, trust it over AI guess.
+    city = onlyNeighborhoodCityCandidate;
+  }
 
   if ((!city || city === beforeCity) && inferredCityFromNeighborhood) {
     city = inferredCityFromNeighborhood;
@@ -1593,17 +1673,35 @@ function normalizeLocationMeta(meta, adText = "") {
   }
 
   if (neighborhood === city || neighborhood === beforeCity) {
-    neighborhood = "لم يذكر";
+    neighborhood = isHasak ? "" : "لم يذكر";
   }
 
-  meta.before_City = beforeCity || "الأحساء";
-  meta.before_city = beforeCity || "الأحساء";
-  meta.city = city || beforeCity || "الأحساء";
+  if (isHasak) {
+    const cleanNeighborhood =
+      neighborhood && !["لم يذكر", "لا يوجد", "غير محدد"].includes(neighborhood)
+        ? neighborhood
+        : "";
+
+    meta.before_City = beforeCity || "";
+    meta.before_city = beforeCity || "";
+    meta.city = city || "";
+    meta.subcity = subcity || city || "";
+    meta.City = meta.subcity || meta.city || "";
+    meta.neighborhood = cleanNeighborhood;
+    meta.location = cleanNeighborhood;
+    meta.full_location = buildFullLocationValue(meta, "") || "";
+    return;
+  }
+
+  meta.before_City = beforeCity || AL_AHSA_GOVERNORATE;
+  meta.before_city = beforeCity || AL_AHSA_GOVERNORATE;
+  meta.city = city || beforeCity || AL_AHSA_GOVERNORATE;
   meta.subcity = subcity || city || "";
   meta.City = meta.subcity || meta.city;
   meta.neighborhood = neighborhood || "لم يذكر";
   meta.location = neighborhood || "لم يذكر";
-  meta.full_location = buildFullLocationValue(meta, "الأحساء") || "الأحساء";
+  meta.full_location =
+    buildFullLocationValue(meta, AL_AHSA_GOVERNORATE) || AL_AHSA_GOVERNORATE;
 }
 
 function normalizePriceMeta(meta) {
@@ -2044,7 +2142,9 @@ function formatPriceSummary(meta = {}) {
 }
 
 function formatLocationSummary(meta = {}) {
-  return buildFullLocationValue(meta, "الأحساء") || "الأحساء";
+  return (
+    buildFullLocationValue(meta, AL_AHSA_GOVERNORATE) || AL_AHSA_GOVERNORATE
+  );
 }
 
 function pickTitleLocationLabel(meta = {}) {
@@ -2070,11 +2170,131 @@ function pickTitleLocationLabel(meta = {}) {
   return fallback;
 }
 
-function ensureTitleContainsLocation(title, meta = {}) {
+function isGenericAutoLocationLabel(locationLabel = "") {
+  const normalized = normalizeArabicText(locationLabel || "");
+  if (!normalized) return false;
+
+  const knownHints = [AL_AHSA_GOVERNORATE, ...DEFAULT_WP_CITY_OPTIONS];
+  const matchedHints = knownHints.filter((hint) =>
+    normalized.includes(normalizeArabicText(hint)),
+  );
+  const separatorsCount = (normalized.match(/[\/\\|]/g) || []).length;
+
+  if (separatorsCount >= 1 && matchedHints.length >= 3) {
+    return true;
+  }
+
+  if (normalized.includes("(") && normalized.includes(")") && matchedHints.length >= 3) {
+    return true;
+  }
+
+  return false;
+}
+
+function escapeRegExp(value = "") {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function collectLikelyLocationTokens(meta = {}) {
+  const dynamicHints = getDynamicLocationHints(false);
+  const knownDefaults = [
+    AL_AHSA_GOVERNORATE,
+    "الاحساء",
+    ...DEFAULT_WP_CITY_OPTIONS,
+  ];
+
+  return unique(
+    [
+      meta.location,
+      meta.neighborhood,
+      meta.City,
+      meta.subcity,
+      meta.city,
+      meta.before_City,
+      meta.before_city,
+      ...knownDefaults,
+      ...(dynamicHints.beforeCities || []),
+      ...(dynamicHints.cities || []),
+    ]
+      .map((value) => normalizeArabicText(value))
+      .filter(
+        (value) =>
+          value &&
+          !["لم يذكر", "لا يوجد", "غير محدد", "n/a", "na", "none"].includes(value),
+      ),
+  );
+}
+
+function stripInjectedHasakLocationFromTitle(title, meta = {}, adText = "") {
   const sanitized = sanitizeTitle(title || DEFAULT_WP_TITLE);
+  let updated = normalizeArabicText(sanitized);
+  const normalizedAdText = normalizeArabicText(adText || "");
+  const locationTokens = collectLikelyLocationTokens(meta);
+
+  if (locationTokens.length === 0 || !updated) {
+    return sanitized;
+  }
+
+  locationTokens.forEach((token) => {
+    if (!token || normalizedAdText.includes(token)) {
+      return;
+    }
+
+    const escaped = escapeRegExp(token);
+    const patterns = [
+      new RegExp(`\\s*[\\(\\[]?\\s*في\\s+${escaped}\\s*[\\)\\]]?`, "gi"),
+      new RegExp(`\\s*[\\(\\[]?\\s*ب(?:مدينة|محافظة)?\\s*${escaped}\\s*[\\)\\]]?`, "gi"),
+      new RegExp(`\\s*[\\(\\[]\\s*${escaped}\\s*[\\)\\]]`, "gi"),
+      new RegExp(`\\s*[\\-–—،,/]\\s*${escaped}(?=\\s|$)`, "gi"),
+      new RegExp(`\\s+${escaped}(?=\\s*$)`, "gi"),
+    ];
+
+    patterns.forEach((pattern) => {
+      updated = updated.replace(pattern, " ");
+    });
+  });
+
+  updated = normalizeWhitespace(
+    updated
+      .replace(/\(\s*\)/g, " ")
+      .replace(/\[\s*\]/g, " ")
+      .replace(/[،,/\-–—]{2,}/g, " ")
+      .replace(/\s+[،,/\-–—]/g, " ")
+      .replace(/[،,/\-–—]\s*$/g, ""),
+  );
+
+  return sanitizeTitle(updated || sanitized);
+}
+
+function ensureTitleContainsLocation(
+  title,
+  meta = {},
+  adText = "",
+  targetWebsiteHint = null,
+) {
+  const sanitized = sanitizeTitle(title || DEFAULT_WP_TITLE);
+  const targetWebsite =
+    targetWebsiteHint ||
+    inferTargetWebsiteFromData(
+      {
+        category: meta.category,
+        subcategory: meta.subcategory,
+        meta,
+      },
+      adText,
+    );
+
+  if (targetWebsite === "hasak") {
+    return stripInjectedHasakLocationFromTitle(sanitized, meta, adText);
+  }
+
   const locationLabel = pickTitleLocationLabel(meta);
 
   if (!locationLabel || ["لم يذكر", "لا يوجد", "غير محدد"].includes(locationLabel)) {
+    return sanitized;
+  }
+
+  if (isGenericAutoLocationLabel(locationLabel)) {
     return sanitized;
   }
 
@@ -2236,9 +2456,9 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
   const detailParts = [];
   const consumedDetailLines = new Set();
   const goodsHintKeywords =
-    /(حالة|مستعمل|جديد|نظيف|موديل|ماركة|ضمان|سبب البيع|ميزانية|سعر|مواصفات|استخدام)/i;
+    /(حالة|مستعمل|جديد|نظيف|موديل|ماركة|ضمان|سبب البيع|ميزانية|سعر|مواصفات|استخدام|موعد|تاريخ|وقت|مكان|عدد|الحضور|الحجز|الاشتراك|برنامج|نشاط)/i;
   cleanLines.forEach((line) => {
-    if (goodsHintKeywords.test(line) && detailParts.length < 5) {
+    if (goodsHintKeywords.test(line) && detailParts.length < 8) {
       detailParts.push(line);
       consumedDetailLines.add(line);
     }
@@ -2263,7 +2483,7 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
   cleanLines.forEach((line) => {
     if (consumedDetailLines.has(line)) return;
     if (isOwnerOrAdministrativeDetailLine(line)) return;
-    if (detailParts.length < 8) {
+    if (detailParts.length < 14) {
       detailParts.push(line);
     }
   });
@@ -2279,15 +2499,32 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
       );
     } else {
       detailParts.push(
-        `${itemLabel} بحالة مناسبة مع توضيح المميزات والحالة والسعر بشكل مختصر.`,
+        `${itemLabel} بحالة مناسبة مع توضيح المميزات والحالة والسعر والتفاصيل الأساسية بشكل واضح.`,
       );
     }
   }
 
-  const paragraph = unique(detailParts.map(removeForbiddenInlineContent).filter(Boolean)).join(
-    " ",
-  );
-  const html = `<h1>${escapeHtml(heading)}</h1><p>${escapeHtml(paragraph)}</p>`;
+  const safeDetailParts = unique(
+    detailParts.map(removeForbiddenInlineContent).filter(Boolean),
+  ).slice(0, 14);
+  const intro = safeDetailParts[0] || `${itemLabel} مع تفاصيل واضحة حسب المعلومات المتاحة.`;
+  const details = safeDetailParts.slice(1, 9);
+  const extras = safeDetailParts.slice(9, 14);
+
+  const detailsHtml =
+    details.length > 0
+      ? details.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+      : `<li>${escapeHtml("لم يتم ذكر تفاصيل إضافية واضحة")}</li>`;
+  const extrasHtml =
+    extras.length > 0
+      ? `<h2>${escapeHtml("معلومات إضافية")}</h2><ul>${extras
+          .map((item) => `<li>${escapeHtml(item)}</li>`)
+          .join("")}</ul>`
+      : "";
+
+  const html = `<h1>${escapeHtml(heading)}</h1><p>${escapeHtml(intro)}</p><h2>${escapeHtml(
+    "التفاصيل",
+  )}</h2><ul>${detailsHtml}</ul>${extrasHtml}`;
   return sanitizeHtml(html);
 }
 
@@ -2365,8 +2602,16 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
 
   normalizePriceMeta(meta);
   normalizePriceMethodMeta(meta, adText);
-  normalizeLocationMeta(meta, adText);
   normalizeWordPressCategoryMeta(meta, adText);
+  const initialTargetWebsite = inferTargetWebsiteFromData(
+    {
+      category: meta.category,
+      subcategory: meta.subcategory,
+      meta,
+    },
+    adText,
+  );
+  normalizeLocationMeta(meta, adText, initialTargetWebsite);
 
   const confidenceOverall = extractNumericValue(
     firstNonEmpty(rawData.confidence_overall, meta.confidence_overall),
@@ -2402,6 +2647,8 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
   const normalizedTitle = ensureTitleContainsLocation(
     titleValue || DEFAULT_WP_TITLE,
     meta,
+    adText,
+    initialTargetWebsite,
   );
   const manualContent = buildDeterministicDescription({
     title: normalizedTitle,
@@ -2442,6 +2689,59 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
     images: Array.isArray(rawData.images) ? rawData.images : [],
     IsItAd: true,
   };
+}
+
+function inferTargetWebsiteFromData(wpData, adText = "") {
+  const meta = isObject(wpData?.meta) ? wpData.meta : {};
+  const normalizedCategory = normalizeCategoryLabel(
+    firstNonEmpty(wpData?.category, meta.category, meta.arc_category, meta.parent_catt),
+  );
+  const normalizedSubcategory = normalizeCategoryLabel(
+    firstNonEmpty(
+      wpData?.subcategory,
+      meta.subcategory,
+      meta.arc_subcategory,
+      meta.sub_catt,
+    ),
+  );
+
+  if (
+    [normalizedCategory, normalizedSubcategory].some((value) =>
+      HASAK_CATEGORIES.includes(value),
+    )
+  ) {
+    return "hasak";
+  }
+
+  if (normalizedCategory && MASAAK_CATEGORIES.includes(normalizedCategory)) {
+    return "masaak";
+  }
+
+  const adTypeBlob = normalizeArabicText(
+    [meta.ad_type, meta.order_type, meta.offer_type].filter(Boolean).join(" "),
+  );
+  if (
+    /(?:فعالية|فعاليات|خدمة|خدمات|وظيفة|وظائف|برنامج|برامج|حراج|مستعمل|منتجعات|ترفيهي)/i.test(
+      adTypeBlob,
+    )
+  ) {
+    return "hasak";
+  }
+
+  return websiteConfig.detectWebsite(
+    normalizeArabicText(adText || ""),
+    normalizedCategory || "",
+    meta,
+  );
+}
+
+function getRequiredMetadataFieldsForAd(wpData, adText = "") {
+  const targetWebsite = inferTargetWebsiteFromData(wpData, adText);
+  if (targetWebsite === "hasak") {
+    return ["category"];
+  }
+
+  return [...REQUIRED_METADATA_FIELDS];
 }
 
 function getRequiredFieldLabel(field) {
@@ -2495,37 +2795,39 @@ function summarizeRequiredMetadata(wpData) {
   };
 }
 
-function getMissingRequiredMetadataFields(wpData) {
+function getMissingRequiredMetadataFields(wpData, adText = "") {
   const meta = isObject(wpData?.meta) ? wpData.meta : {};
   const values = summarizeRequiredMetadata(wpData);
+  const requiredFields = getRequiredMetadataFieldsForAd(wpData, adText);
   const missing = [];
 
-  if (!values.area) {
+  if (requiredFields.includes("area") && !values.area) {
     missing.push("area");
   }
 
-  if (!values.price) {
+  if (requiredFields.includes("price") && !values.price) {
     missing.push("price");
   }
 
-  if (!values.priceMethod) {
+  if (requiredFields.includes("priceMethod") && !values.priceMethod) {
     missing.push("priceMethod");
   }
 
-  if (!hasDetailedLocation(meta)) {
+  if (requiredFields.includes("fullLocation") && !hasDetailedLocation(meta)) {
     missing.push("fullLocation");
   }
 
-  if (!values.category) {
+  if (requiredFields.includes("category") && !values.category) {
     missing.push("category");
   }
 
-  if (!values.subcategory) {
+  if (requiredFields.includes("subcategory") && !values.subcategory) {
     missing.push("subcategory");
   }
 
   return {
-    missing: missing.filter((field) => REQUIRED_METADATA_FIELDS.includes(field)),
+    missing,
+    requiredFields,
     values,
   };
 }
@@ -2756,7 +3058,7 @@ function extractLocationFromTextFallback(adText = "") {
   }
 
   if (!governorate && (city || neighborhood)) {
-    governorate = "الأحساء";
+    governorate = AL_AHSA_GOVERNORATE;
   }
 
   if (neighborhood && (neighborhood === city || neighborhood === governorate)) {
@@ -2888,7 +3190,8 @@ function mergeRecoveredWordPressMetadata(wpData, recoveredData) {
     meta.parse_notes = appendParseNote(meta.parse_notes, patch.notes);
   }
 
-  meta.full_location = buildFullLocationValue(meta, "الأحساء") || "الأحساء";
+  meta.full_location =
+    buildFullLocationValue(meta, AL_AHSA_GOVERNORATE) || AL_AHSA_GOVERNORATE;
 
   return merged;
 }
@@ -2899,7 +3202,8 @@ function applyRequiredFieldFallbacks(wpData, adText) {
     meta: isObject(wpData?.meta) ? { ...wpData.meta } : {},
   };
   const meta = updated.meta;
-  const missingState = getMissingRequiredMetadataFields(updated);
+  const targetWebsite = inferTargetWebsiteFromData(updated, adText);
+  const missingState = getMissingRequiredMetadataFields(updated, adText);
 
   if (missingState.missing.length > 0) {
     meta.parse_notes = appendParseNote(
@@ -2986,7 +3290,14 @@ function applyRequiredFieldFallbacks(wpData, adText) {
         detectCategoryFallback(adText),
       ),
     );
-    const safeCategory = inferredCategory || "عقار";
+    const fallbackDetectedCategory = normalizeCategoryLabel(detectCategoryFallback(adText));
+    const safeCategory =
+      inferredCategory ||
+      (targetWebsite === "hasak"
+        ? HASAK_CATEGORIES.includes(fallbackDetectedCategory)
+          ? fallbackDetectedCategory
+          : "حراج الحسا"
+        : fallbackDetectedCategory || "عقار");
 
     updated.category = safeCategory;
     meta.category = safeCategory;
@@ -3012,19 +3323,31 @@ function applyRequiredFieldFallbacks(wpData, adText) {
     meta.sub_catt = fallbackSubcategory;
   }
 
-  meta.full_location = buildFullLocationValue(meta, "الأحساء") || "الأحساء";
+  if (targetWebsite === "hasak") {
+    meta.full_location = buildFullLocationValue(meta, "") || meta.full_location || "";
+  } else {
+    meta.full_location =
+      buildFullLocationValue(meta, AL_AHSA_GOVERNORATE) || AL_AHSA_GOVERNORATE;
+  }
   normalizePriceMethodMeta(meta, adText);
   return updated;
 }
 
 function buildRecoverMissingFieldsPrompt(adText, currentData, missingFields) {
   const currentSummary = summarizeRequiredMetadata(currentData);
+  const targetWebsite = inferTargetWebsiteFromData(currentData, adText);
+  const requiredFields = getRequiredMetadataFieldsForAd(currentData, adText);
   const missingLines = missingFields
-    .filter((field) => REQUIRED_METADATA_FIELDS.includes(field))
+    .filter((field) => requiredFields.includes(field))
     .map((field) => `- ${field}: ${getRequiredFieldLabel(field)}`)
     .join("\n");
+  const websiteInstruction =
+    targetWebsite === "hasak"
+      ? 'سياق الإعلان: حساك (فعاليات/مستعمل/خدمات). لا تُجبر حقول السعر أو المساحة أو السعر-الطريقة إذا لم تُذكر.'
+      : 'سياق الإعلان: مسعاك (عقار). حاول استكمال الحقول العقارية الحرجة قدر الإمكان.';
 
-  return `أنت مدقق جودة لاستخراج بيانات إعلان عقاري.
+  return `أنت مدقق جودة لاستخراج بيانات إعلان.
+${websiteInstruction}
 
 المطلوب: أكمل فقط الحقول الناقصة التالية:
 ${missingLines || "- لا يوجد"}
@@ -3061,8 +3384,9 @@ ${JSON.stringify(currentSummary, null, 2)}
 }
 
 async function recoverMissingWordPressFields(adText, currentData, missingFields) {
+  const requiredFields = getRequiredMetadataFieldsForAd(currentData, adText);
   const relevantMissing = unique(
-    missingFields.filter((field) => REQUIRED_METADATA_FIELDS.includes(field)),
+    missingFields.filter((field) => requiredFields.includes(field)),
   );
 
   if (relevantMissing.length === 0) {
@@ -3112,7 +3436,7 @@ async function ensureRequiredMetadataCoverage({
   let current = wpData;
 
   for (let pass = 1; pass <= maxPasses; pass += 1) {
-    const initialCheck = getMissingRequiredMetadataFields(current);
+    const initialCheck = getMissingRequiredMetadataFields(current, adText);
     if (initialCheck.missing.length === 0) {
       return current;
     }
@@ -3122,7 +3446,7 @@ async function ensureRequiredMetadataCoverage({
     );
 
     let merged = applyRequiredFieldFallbacks(current, adText);
-    let checkAfterFallback = getMissingRequiredMetadataFields(merged);
+    let checkAfterFallback = getMissingRequiredMetadataFields(merged, adText);
 
     if (checkAfterFallback.missing.length === 0) {
       return normalizeWordPressData(merged, adText, extractedPhones, isRegeneration);
@@ -3146,7 +3470,7 @@ async function ensureRequiredMetadataCoverage({
       current = normalizeWordPressData(merged, adText, extractedPhones, isRegeneration);
     }
 
-    checkAfterFallback = getMissingRequiredMetadataFields(current);
+    checkAfterFallback = getMissingRequiredMetadataFields(current, adText);
     if (checkAfterFallback.missing.length === 0) {
       return current;
     }
@@ -3159,7 +3483,7 @@ async function ensureRequiredMetadataCoverage({
     extractedPhones,
     isRegeneration,
   );
-  const finalCheck = getMissingRequiredMetadataFields(finalNormalized);
+  const finalCheck = getMissingRequiredMetadataFields(finalNormalized, adText);
 
   if (finalCheck.missing.length > 0) {
     finalNormalized.meta.parse_notes = appendParseNote(
@@ -3173,8 +3497,13 @@ async function ensureRequiredMetadataCoverage({
 
 function buildWordPressExtractionPrompt(adText, contactHint, isRegeneration) {
   const dynamicLocationHintsText = buildDynamicLocationHintsPromptText();
+  const masaakCategoriesText = MASAAK_CATEGORIES.join("، ");
+  const hasakCategoriesText = HASAK_CATEGORIES.join("، ");
+  const masaakSubcategoryHints = MASAAK_SUBCATEGORY_LINES_FOR_PROMPT.join("\n- ");
 
-  return `أنت مساعد متخصص في استخراج بيانات إعلان عربي للنشر في WordPress.
+  return `أنت مساعد متخصص في استخراج بيانات إعلان عربي للنشر في WordPress لموقعين:
+- مسعاك (عقارات)
+- حساك (فعاليات، مستعمل، أنشطة، خدمات)
 
 النص:
 """
@@ -3186,34 +3515,49 @@ ${dynamicLocationHintsText ? `\n${dynamicLocationHintsText}` : ""}
 
 القواعد الإلزامية:
 1) أعد JSON واحد فقط بدون Markdown.
-2) احذف أي مكاتب عقارية أو تراخيص أو روابط قروبات أو وسطاء من المحتوى.
-3) اكتب العنوان والمحتوى بالعربية بشكل واضح واحترافي.
-4) المحتوى HTML آمن ومختصر (بدون script/iframe).
-5) حدّد نوع الإعلان: "عرض" أو "طلب" أو "فعالية" أو "خدمة" أو "وظيفة".
-6) إذا كان طلب شراء/بيع عام: category = "طلبات" و category_id = 83 و parent_catt = "طلبات".
-7) لفئات حساك استخدم arc_category/arc_subcategory وتجنّب parent_catt/sub_catt.
-8) املأ meta بحقول ثابتة حتى لو كانت فارغة.
-9) phone_number بصيغة 9665xxxxxxxx إذا متاح.
-10) status دائماً "publish".
-11) احذف أي أرقام مرجعية مثل: رقم القطعة، قطعة 11 أ، رقم الإعلان من العنوان والمحتوى و main_ad.
-12) للمحتوى العقاري فقط استخدم HTML منظم بهذه الأقسام: h1 ثم p افتتاحي ثم h2+ul للمواصفات ثم h2+ul للمميزات ثم h2+p للسعر ثم h2+p للموقع.
-13) للمحتوى غير العقاري استخدم HTML بسيط: h1 ثم p واحد فقط يصف الحالة/المواصفات/السعر أو المواصفات المطلوبة.
-14) العنوان title يجب أن يتضمن الموقع بوضوح (الحي/المدينة إن توفرت).
-15) الوصف content يجب أن يشمل كل المزايا والتفاصيل المتاحة عن العقار فقط (المساحة، السعر، الواجهة، عدد الغرف، العمر، الخدمات... إلخ).
-16) ممنوع داخل content: أرقام اتصال، اسم المالك، أسماء وسطاء، أسماء مكاتب، تراخيص، قروبات، روابط، ملاحظات إدارية أو أي تفاصيل ليست عن العقار نفسه.
+2) اختر فئة واحدة دقيقة من القوائم المعتمدة أدناه فقط.
+3) حدّد نوع الإعلان: "عرض" أو "طلب" أو "فعالية" أو "خدمة" أو "وظيفة".
+4) إذا كان النص عن فعالية/نشاط/حراج/مستعمل/وظائف/خدمات فاختر فئة من حساك.
+5) إذا كان النص عن عقار (شقة/فيلا/أرض/عمارة/محل/مستودع...) فاختر فئة من مسعاك.
+6) إذا كان طلب شراء/بحث عام: category = "طلبات" و category_id = 83 و parent_catt = "طلبات".
+7) عند اختيار فئة حساك: استخدم arc_category/arc_subcategory، واجعل parent_catt/sub_catt فارغين.
+8) عند اختيار فئة مسعاك: استخدم parent_catt/sub_catt، ويمكن عكسها في arc_category/arc_subcategory.
+9) في حساك لا تُجبر حقول السعر أو المساحة. إذا غير مذكورة اترك price/price_amount/price_type/price_method/area/arc_space فارغة.
+10) في مسعاك حاول قدر الإمكان تعبئة الحقول الحرجة: area/arc_space، price أو price_type، price_method، location/city، category، subcategory.
+11) احذف أي مكاتب عقارية أو تراخيص أو روابط قروبات أو وسطاء من المحتوى.
+12) اكتب العنوان والمحتوى بالعربية بشكل واضح واحترافي.
+13) المحتوى HTML آمن ومختصر (بدون script/iframe).
+14) للمحتوى العقاري استخدم HTML منظم: h1 ثم p افتتاحي ثم h2+ul للمواصفات ثم h2+ul للمميزات ثم h2+p للسعر ثم h2+p للموقع.
+15) للمحتوى غير العقاري (حساك) استخدم HTML نظيف ودقيق مع أكبر قدر من التفاصيل المتاحة: h1 ثم p افتتاحي ثم h2+ul للتفاصيل/الحالة/المواصفات ثم h2+ul للمزايا أو المتطلبات.
+16) لإعلانات مسعاك فقط: يمكن تضمين الموقع في title إذا كان مذكوراً بوضوح. لإعلانات حساك لا تضف موقعاً غير مذكور صراحة في النص.
+17) الوصف content يجب أن يشمل كل التفاصيل المتاحة من النص بدون اختراع معلومات.
+18) ممنوع داخل content: أرقام اتصال، اسم المالك، أسماء وسطاء، أسماء مكاتب، تراخيص، قروبات، روابط، ملاحظات إدارية.
+19) املأ meta بحقول ثابتة حتى لو كانت فارغة.
+20) phone_number بصيغة 9665xxxxxxxx إذا متاح.
+21) status دائماً "publish".
+22) احذف أي أرقام مرجعية مثل: رقم القطعة، قطعة 11 أ، رقم الإعلان من العنوان والمحتوى و main_ad.
 ${
   isRegeneration
-    ? "17) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
-    : "17) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
+    ? "23) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
+    : "23) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
 }
-18) حاول قدر الإمكان تعبئة الحقول الحرجة: area/arc_space، price أو price_type، price_method، location/city، category، subcategory.
-19) في إعلانات الأحساء قد يُكتب الحي فقط بدون المدينة. إذا توفر الحي فقط فاستنتج المدينة المناسبة (مثل الهفوف/المبرز/القرى/العيون) واجعل before_City و before_city = "الأحساء".
+24) لمسعاك فقط: إذا توفر الحي بدون المدينة فاستنتج المدينة المناسبة (مثل الهفوف/المبرز/القرى/العيون) واجعل before_City و before_city = "الأحساء". في حساك لا تستنتج مدينة/محافظة غير مذكورة.
+
+الفئات المعتمدة:
+- فئات مسعاك: ${masaakCategoriesText}
+${
+  masaakSubcategoryHints
+    ? `- فئات مسعاك الفرعية الشائعة:
+- ${masaakSubcategoryHints}`
+    : ""
+}
+- فئات حساك: ${hasakCategoriesText}
 
 أعد الشكل التالي فقط:
 {
   "IsItAd": true,
   "status": "publish",
-  "title": "عنوان نظيف يتضمن الموقع",
+  "title": "عنوان نظيف ودقيق من النص",
   "content": "<h1>...</h1><p>...</p>",
   "excerpt": "وصف مختصر",
   "category": "",
@@ -3239,8 +3583,8 @@ ${
     "sub_catt": "",
     "arc_category": "",
     "arc_subcategory": "",
-    "before_City": "الأحساء",
-    "before_city": "الأحساء",
+    "before_City": "",
+    "before_city": "",
     "City": "",
     "city": "",
     "subcity": "",
@@ -3685,7 +4029,7 @@ function enhanceWithSmartEmojis(text) {
 }
 
 /**
- * Detect property category from text using AI.
+ * Detect ad category from text using AI.
  * @param {string} text
  * @returns {Promise<string|null>}
  */
@@ -3694,16 +4038,27 @@ async function detectCategory(text) {
     return detectCategoryFallback(text);
   }
 
-  const prompt = `صنّف النص التالي إلى تصنيف واحد مناسب فقط.
+  const masaakCategoriesText = MASAAK_CATEGORIES.join("، ");
+  const hasakCategoriesText = HASAK_CATEGORIES.join("، ");
+
+  const prompt = `صنّف النص التالي إلى تصنيف واحد مناسب فقط من القوائم المعتمدة.
 
 النص:
 "${text}"
 
+قواعد التصنيف:
+1) إذا كان الإعلان عقاري (شقة/فيلا/أرض/عمارة/محل/مستودع...) اختر من فئات مسعاك.
+2) إذا كان الإعلان عن فعالية/حراج/مستعمل/وظائف/خدمات اختر من فئات حساك.
+3) لا تستخدم "طلبات" إلا إذا النص طلب واضح (مطلوب/أبحث عن) وليس عرض بيع مباشر.
+
 أعد JSON فقط:
 {"category":"اسم التصنيف", "confidence":0.9, "reason":"سبب مختصر"}
 
-التصنيفات المحتملة:
-${CATEGORY_LIST.join("، ")}`;
+فئات مسعاك:
+${masaakCategoriesText}
+
+فئات حساك:
+${hasakCategoriesText}`;
 
   try {
     const { data } = await callLLM({

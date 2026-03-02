@@ -18,6 +18,10 @@ const adminCommandService = require("../services/adminCommandService");
 const reminderScheduler = require("../services/reminderScheduler");
 const waseetDetector = require("../services/waseetDetector");
 const websiteConfig = require("../config/website.config");
+const {
+  DEFAULT_WP_BEFORE_CITY_OPTIONS,
+  DEFAULT_WP_CITY_OPTIONS,
+} = require("../config/locationHierarchy");
 const dataSync = require("../utils/dataSync");
 
 let sock;
@@ -134,8 +138,8 @@ let settings = {
   recycleBinDays: 7,
   excludedGroups: [],
   autoApproveWordPressGroups: [],
-  wpBeforeCityOptions: ["الأحساء"],
-  wpCityOptions: ["الهفوف", "المبرز", "العيون", "القرى"],
+  wpBeforeCityOptions: [...DEFAULT_WP_BEFORE_CITY_OPTIONS],
+  wpCityOptions: [...DEFAULT_WP_CITY_OPTIONS],
 }; // Default: auto-delete after 7 days, no excluded groups, no auto-post group filter
 let seenGroups = new Set();
 let groupsMetadata = {}; // Store group metadata (jid -> {name, jid})
@@ -186,14 +190,12 @@ function normalizeSettingsForCompatibility() {
   );
   settings.wpBeforeCityOptions = normalizeSmartLocationOptions(
     settings.wpBeforeCityOptions,
-    ["الأحساء"],
+    DEFAULT_WP_BEFORE_CITY_OPTIONS,
   );
-  settings.wpCityOptions = normalizeSmartLocationOptions(settings.wpCityOptions, [
-    "الهفوف",
-    "المبرز",
-    "العيون",
-    "القرى",
-  ]);
+  settings.wpCityOptions = normalizeSmartLocationOptions(
+    settings.wpCityOptions,
+    DEFAULT_WP_CITY_OPTIONS,
+  );
 }
 
 function shouldAutoPostFromSourceGroup(sourceGroupJid) {
@@ -245,8 +247,8 @@ function loadAds() {
       recycleBinDays: 7,
       excludedGroups: [],
       autoApproveWordPressGroups: [],
-      wpBeforeCityOptions: ["الأحساء"],
-      wpCityOptions: ["الهفوف", "المبرز", "العيون", "القرى"],
+      wpBeforeCityOptions: [...DEFAULT_WP_BEFORE_CITY_OPTIONS],
+      wpCityOptions: [...DEFAULT_WP_CITY_OPTIONS],
     });
 
     ads.forEach((a) => seenGroups.add(a.fromGroup));
@@ -2944,14 +2946,14 @@ function updateSettings(newSettings) {
   if (Object.prototype.hasOwnProperty.call(updates, "wpBeforeCityOptions")) {
     updates.wpBeforeCityOptions = normalizeSmartLocationOptions(
       updates.wpBeforeCityOptions,
-      settings.wpBeforeCityOptions || ["الأحساء"],
+      settings.wpBeforeCityOptions || DEFAULT_WP_BEFORE_CITY_OPTIONS,
     );
   }
 
   if (Object.prototype.hasOwnProperty.call(updates, "wpCityOptions")) {
     updates.wpCityOptions = normalizeSmartLocationOptions(
       updates.wpCityOptions,
-      settings.wpCityOptions || ["الهفوف", "المبرز", "العيون", "القرى"],
+      settings.wpCityOptions || DEFAULT_WP_CITY_OPTIONS,
     );
   }
 
@@ -2973,8 +2975,8 @@ function reloadAds() {
       recycleBinDays: 7,
       excludedGroups: [],
       autoApproveWordPressGroups: [],
-      wpBeforeCityOptions: ["الأحساء"],
-      wpCityOptions: ["الهفوف", "المبرز", "العيون", "القرى"],
+      wpBeforeCityOptions: [...DEFAULT_WP_BEFORE_CITY_OPTIONS],
+      wpCityOptions: [...DEFAULT_WP_CITY_OPTIONS],
     });
     normalizeSettingsForCompatibility();
     console.log(`🔄 Reloaded ${ads.length} ads from file`);

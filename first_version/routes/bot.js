@@ -43,6 +43,7 @@ const {
 const apiKeyManager = require("../services/apiKeyManager");
 const dataSync = require("../utils/dataSync");
 const messageQueue = require("../services/messageQueue");
+const { processImage } = require("../services/watermarkService");
 const axios = require("axios");
 
 const router = express.Router();
@@ -702,6 +703,10 @@ async function postAdToWordPress(
           "⚠️ This is a request (طلبات), skipping normal image upload",
         );
       }
+    }
+
+    if (imageBuffer) {
+      imageBuffer = await processImage(imageBuffer, targetWebsite);
     }
 
     // Upload the image to WordPress if we have one
@@ -1615,6 +1620,15 @@ router.post(
                       reuploadRequest: sock.updateMediaMessage,
                     },
                   );
+                  const imageContentType =
+                    ad.imageUrl?.mimetype || "image/jpeg";
+                  const autoPostTargetWebsite =
+                    wpData?.targetWebsite ||
+                    (wpUrl.includes("hsaak.com") ? "hasak" : "masaak");
+                  const processedImageBuffer = await processImage(
+                    imageBuffer,
+                    autoPostTargetWebsite,
+                  );
 
                   const mediaUrl = `${wpUrl}/wp-json/wp/v2/media`;
                   const safeFilename =
@@ -1624,11 +1638,11 @@ router.post(
 
                   const uploadResponse = await axios.post(
                     mediaUrl,
-                    imageBuffer,
+                    processedImageBuffer,
                     {
                       headers: {
                         Authorization: `Basic ${auth}`,
-                        "Content-Type": "image/jpeg",
+                        "Content-Type": imageContentType,
                         "Content-Disposition": `attachment; filename="${safeFilename}"`,
                       },
                     },
