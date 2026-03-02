@@ -11,6 +11,7 @@ const waseetDetector = require("./waseetDetector");
 const interestGroupService = require("./interestGroupService");
 const wordpressPostService = require("./wordpressPostService");
 const areaNormalizer = require("./areaNormalizer");
+const locationHierarchyAdminService = require("./locationHierarchyAdminService");
 const websiteConfig = require("../config/website.config");
 const {
   AL_AHSA_GOVERNORATE,
@@ -50,6 +51,10 @@ const AHSA_CITY_ALIASES = new Set([
   "الاحساء",
   ...DEFAULT_WP_CITY_OPTIONS,
 ]);
+
+// Contact-related lines should never be published in WordPress request content.
+const REQUEST_CONTACT_LINE_REGEX =
+  /^(?:رقم\s*(?:التواصل|الاتصال|الهاتف|الجوال|الموبايل)|(?:الهاتف|الجوال|الموبايل)|(?:phone|contact)(?:\s*number)?)\s*[:：-]/i;
 
 /**
  * Normalize phone number to standard format
@@ -428,6 +433,27 @@ function extractPaymentMethodFromText(text) {
 }
 
 /**
+ * Remove sensitive contact lines from request text before publishing in WP content.
+ * Keeps the rest of the request details intact.
+ * @param {string} rawText
+ * @returns {string}
+ */
+function sanitizeWordPressRequestContent(rawText) {
+  const withoutCommand = String(rawText || "")
+    .replace(/^طلب\s*/i, "")
+    .trim();
+  if (!withoutCommand) return "";
+
+  const lines = withoutCommand
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !REQUEST_CONTACT_LINE_REGEX.test(line));
+
+  return lines.join("\n").trim();
+}
+
+/**
  * Build WP payload for admin "طلب" command with request-specific metadata
  * @param {Object} requirements
  * @param {string} rawText
@@ -506,9 +532,7 @@ function buildWordPressRequestPayload(requirements, rawText, normalizedPhone) {
   const location3 = locationSlots[2] || "";
   const location4 = locationSlots[3] || "";
 
-  const cleanRequestText = String(rawText || "")
-    .replace(/^طلب\s*/i, "")
-    .trim();
+  const cleanRequestText = sanitizeWordPressRequestContent(rawText);
 
   const titleTarget = location1 || city || beforeCity;
   const requestTitle = `طلب ${orderType} ${propertyType || "عقار"}${
@@ -1762,6 +1786,21 @@ function getAdminHelpMessage() {
 
 ━━━━━━━━━━━━━━━━━━━━
 
+*1️⃣1️⃣ إدارة المواقع (LOCATION_HIERARCHY)*
+📝 *الأمر الأساسي:* مواقع
+📋 *الأفعال المدعومة:* عرض / اضف / تعديل / حذف
+
+*أمثلة سريعة:*
+• مواقع عرض
+• مواقع عرض | الأحساء | الهفوف
+• مواقع اضف | حي | الأحساء | الهفوف | حي جديد
+• مواقع تعديل | نوع | الأحساء | الهفوف | town
+• مواقع حذف | مرادف | الأحساء | الهفوف | Hofuf
+
+💡 أرسل *مواقع* فقط لعرض كل الصيغ المتاحة
+
+━━━━━━━━━━━━━━━━━━━━
+
 *1️⃣1️⃣ التحكم في البوت*
 📝 *الأوامر:* (تدعم رقم واحد أو أكثر)
 • توقف رقم - إيقاف البوت عن الرد
@@ -1874,6 +1913,11 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       "ايقاف",
       "تشغيل",
       "تفعيل",
+      "مواقع",
+      "المواقع",
+      "location",
+      "locations",
+      "loc",
     ];
 
     // Check if the message starts with an admin command keyword
@@ -2525,6 +2569,11 @@ async function handleAdminCommand(sock, message, phoneNumber) {
       command === "Help"
     ) {
       return getAdminHelpMessage();
+    }
+
+    // Location hierarchy management (LOCATION_HIERARCHY CRUD)
+    if (locationHierarchyAdminService.isLocationHierarchyCommand(command)) {
+      return locationHierarchyAdminService.handleLocationHierarchyCommand(text);
     }
 
     // Reminder command
@@ -3306,6 +3355,10 @@ async function handleAdminCommand(sock, message, phoneNumber) {
 
       response += `📊 *معلومات النظام:*\n`;
       response += `• احصائيات (عرض إحصائيات النظام)\n\n`;
+
+      response += `🗺️ *إدارة المواقع:*\n`;
+      response += `• مواقع (عرض أوامر LOCATION_HIERARCHY)\n`;
+      response += `• مواقع عرض | الأحساء | الهفوف\n\n`;
 
       response += `⏰ *التذكيرات:*\n`;
       response += `• تذكير +966xxx تاريخ وقت الرسالة\n`;

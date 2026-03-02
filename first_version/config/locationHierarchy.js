@@ -6,9 +6,12 @@
  * Governorate -> city/cluster -> areas (districts/villages/neighborhoods)
  */
 
-const AL_AHSA_GOVERNORATE = "الأحساء";
+const { readDataSync, writeDataSync, getDataPath } = require("./dataPath");
 
-const LOCATION_HIERARCHY = {
+const AL_AHSA_GOVERNORATE = "الأحساء";
+const LOCATION_HIERARCHY_FILE = getDataPath("locationHierarchy.json");
+
+const DEFAULT_LOCATION_HIERARCHY = {
   [AL_AHSA_GOVERNORATE]: {
     // Administrative context (optional, won't break your current structure)
     region: "المنطقة الشرقية",
@@ -343,14 +346,39 @@ const LOCATION_HIERARCHY = {
   },
 };
 
+function deepClone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function loadLocationHierarchy() {
+  const fallback = deepClone(DEFAULT_LOCATION_HIERARCHY);
+  const loaded = readDataSync(LOCATION_HIERARCHY_FILE, fallback);
+
+  if (!loaded || typeof loaded !== "object" || Array.isArray(loaded)) {
+    return fallback;
+  }
+
+  return loaded;
+}
+
+const LOCATION_HIERARCHY = loadLocationHierarchy();
+
+function saveLocationHierarchy() {
+  writeDataSync(LOCATION_HIERARCHY_FILE, LOCATION_HIERARCHY);
+  return LOCATION_HIERARCHY_FILE;
+}
+
 const DEFAULT_WP_BEFORE_CITY_OPTIONS = Object.keys(LOCATION_HIERARCHY);
 const DEFAULT_WP_CITY_OPTIONS = Object.keys(
-  LOCATION_HIERARCHY[AL_AHSA_GOVERNORATE].cities || {},
+  (LOCATION_HIERARCHY[AL_AHSA_GOVERNORATE] || {}).cities || {},
 );
 
 module.exports = {
   LOCATION_HIERARCHY,
+  DEFAULT_LOCATION_HIERARCHY,
+  LOCATION_HIERARCHY_FILE,
   AL_AHSA_GOVERNORATE,
   DEFAULT_WP_BEFORE_CITY_OPTIONS,
   DEFAULT_WP_CITY_OPTIONS,
+  saveLocationHierarchy,
 };

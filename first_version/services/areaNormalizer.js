@@ -78,15 +78,15 @@ function buildCityAliasMap(cityNeighborhoods) {
  * City to Neighborhoods mapping
  * Defines which neighborhoods belong to which city
  */
-const CITY_NEIGHBORHOODS = buildCityNeighborhoodMap();
+let CITY_NEIGHBORHOODS = {};
 
 /**
  * List of city names for detection
  */
-const CITIES = Object.keys(CITY_NEIGHBORHOODS);
 const AL_AHSA_GOVERNORATE = LOCATION_GOVERNORATE;
-const AL_AHSA_SUB_CITIES = new Set(CITIES);
-const CITY_NAME_ALIASES = buildCityAliasMap(CITY_NEIGHBORHOODS);
+let CITIES = [];
+let AL_AHSA_SUB_CITIES = new Set();
+let CITY_NAME_ALIASES = {};
 
 /**
  * Common prefixes that often start compound neighborhood/area names
@@ -111,7 +111,7 @@ const COMPOUND_PREFIXES = [
  * Common area name variations and corrections
  * Maps incorrect spellings to the correct official name
  */
-const AREA_CORRECTIONS = {
+const BASE_AREA_CORRECTIONS = {
   // الخالدية variations
   الخالديه: "الخالدية",
   الخالديه: "الخالدية",
@@ -185,6 +185,9 @@ const AREA_CORRECTIONS = {
   "  الخالدية  ": "الخالدية",
 };
 
+let AREA_CORRECTIONS = {};
+let VALID_AREAS = [];
+
 /**
  * Known valid area names (for validation)
  */
@@ -249,17 +252,9 @@ const STATIC_VALID_AREAS = [
   "المركز",
 ];
 
-const DYNAMIC_VALID_AREAS = [
-  AL_AHSA_GOVERNORATE,
-  ...CITIES,
-  ...Object.values(CITY_NEIGHBORHOODS).flat(),
-];
-
-const VALID_AREAS = [...new Set([...STATIC_VALID_AREAS, ...DYNAMIC_VALID_AREAS])];
-
-function addGeneratedAreaCorrections() {
+function addGeneratedAreaCorrections(areaCorrections, validAreas) {
   const generated = {};
-  const allAreasSet = new Set(VALID_AREAS);
+  const allAreasSet = new Set(validAreas);
 
   const toArabicDigits = (value = "") =>
     String(value || "")
@@ -295,7 +290,7 @@ function addGeneratedAreaCorrections() {
     generated[from] = to;
   };
 
-  VALID_AREAS.forEach((area) => {
+  validAreas.forEach((area) => {
     const canonical = String(area || "").trim();
     if (!canonical) return;
 
@@ -322,10 +317,32 @@ function addGeneratedAreaCorrections() {
     add(canonical.replace(/[أإآ]/g, "ا"), canonical);
   });
 
-  Object.assign(AREA_CORRECTIONS, generated);
+  Object.assign(areaCorrections, generated);
 }
 
-addGeneratedAreaCorrections();
+function refreshLocationNormalizationData() {
+  CITY_NEIGHBORHOODS = buildCityNeighborhoodMap();
+  CITIES = Object.keys(CITY_NEIGHBORHOODS);
+  AL_AHSA_SUB_CITIES = new Set(CITIES);
+  CITY_NAME_ALIASES = buildCityAliasMap(CITY_NEIGHBORHOODS);
+
+  const dynamicValidAreas = [
+    AL_AHSA_GOVERNORATE,
+    ...CITIES,
+    ...Object.values(CITY_NEIGHBORHOODS).flat(),
+  ];
+
+  VALID_AREAS = [...new Set([...STATIC_VALID_AREAS, ...dynamicValidAreas])];
+  AREA_CORRECTIONS = { ...BASE_AREA_CORRECTIONS };
+  addGeneratedAreaCorrections(AREA_CORRECTIONS, VALID_AREAS);
+
+  return {
+    cities: CITIES.length,
+    areas: VALID_AREAS.length,
+  };
+}
+
+refreshLocationNormalizationData();
 
 /**
  * Normalize area name by correcting common typos and variations
@@ -735,8 +752,17 @@ module.exports = {
   getNeighborhoodsForCity,
   expandCityToNeighborhoods,
   extractNeighborhoods, // Export new extraction logic
-  VALID_AREAS,
-  AREA_CORRECTIONS,
-  CITY_NEIGHBORHOODS,
-  CITIES,
+  refreshLocationNormalizationData,
+  get VALID_AREAS() {
+    return VALID_AREAS;
+  },
+  get AREA_CORRECTIONS() {
+    return AREA_CORRECTIONS;
+  },
+  get CITY_NEIGHBORHOODS() {
+    return CITY_NEIGHBORHOODS;
+  },
+  get CITIES() {
+    return CITIES;
+  },
 };
