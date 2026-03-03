@@ -53,8 +53,10 @@ const AHSA_CITY_ALIASES = new Set([
 ]);
 
 // Contact-related lines should never be published in WordPress request content.
-const REQUEST_CONTACT_LINE_REGEX =
-  /^(?:رقم\s*(?:التواصل|الاتصال|الهاتف|الجوال|الموبايل)|(?:الهاتف|الجوال|الموبايل)|(?:phone|contact)(?:\s*number)?)\s*[:：-]/i;
+const REQUEST_CONTACT_KEYWORD_REGEX =
+  /^(?:رقم\s*(?:التواصل|الاتصال|الهاتف|الجوال|الموبايل)|(?:الهاتف|الجوال|الموبايل)|(?:phone|contact)(?:\s*number)?)/i;
+const REQUEST_CONTACT_VALUE_REGEX =
+  /^(?:رقم\s*(?:التواصل|الاتصال|الهاتف|الجوال|الموبايل)|(?:الهاتف|الجوال|الموبايل)|(?:phone|contact)(?:\s*number)?)\s*[:：-]\s*(.+)$/i;
 
 /**
  * Normalize phone number to standard format
@@ -448,9 +450,50 @@ function sanitizeWordPressRequestContent(rawText) {
     .split(/\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .filter((line) => !REQUEST_CONTACT_LINE_REGEX.test(line));
+    .filter((line) => !REQUEST_CONTACT_KEYWORD_REGEX.test(line));
 
   return lines.join("\n").trim();
+}
+
+/**
+ * Extract and normalize contact phone from request text.
+ * Supports spaced/dashed formats like "+966 55 123 4567".
+ * @param {string} rawText
+ * @returns {string} Normalized digits-only phone (no +), or empty string
+ */
+function extractContactPhoneFromRequestText(rawText) {
+  const text = String(rawText || "");
+  if (!text) return "";
+
+  const lines = text
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  // 1) Prefer explicit contact line
+  for (const line of lines) {
+    const contactMatch = line.match(REQUEST_CONTACT_VALUE_REGEX);
+    if (!contactMatch || !contactMatch[1]) continue;
+
+    const normalized = normalizePhoneNumber(contactMatch[1]);
+    if (/^\d{9,15}$/.test(normalized)) {
+      return normalized;
+    }
+  }
+
+  // 2) Fallback: contact line with keyword but without strict separator format
+  for (const line of lines) {
+    if (!REQUEST_CONTACT_KEYWORD_REGEX.test(line)) continue;
+    const phoneLike = line.match(/\+?\d[\d\s\-\(\)\.]{7,}\d/);
+    if (!phoneLike || !phoneLike[0]) continue;
+
+    const normalized = normalizePhoneNumber(phoneLike[0]);
+    if (/^\d{9,15}$/.test(normalized)) {
+      return normalized;
+    }
+  }
+
+  return "";
 }
 
 /**
@@ -2134,16 +2177,17 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           }
         }
 
-        // Extract client phone number from requirements
-        const clientPhone = requirements.contactNumber?.replace(/\D/g, "");
-        if (!clientPhone || clientPhone.length < 9) {
+        // Extract + normalize client phone number (supports spaced formats like +966 55 ...)
+        const parserPhone = normalizePhoneNumber(requirements.contactNumber || "");
+        const textPhone = extractContactPhoneFromRequestText(text);
+        const normalizedPhone = textPhone || parserPhone;
+
+        if (!/^\d{9,15}$/.test(normalizedPhone)) {
           return "❌ *رقم التواصل غير صحيح*\n\nالرجاء التأكد من وجود رقم هاتف صحيح في حقل (رقم التواصل)";
         }
 
-        // Normalize phone number
-        const normalizedPhone = clientPhone.startsWith("966")
-          ? clientPhone
-          : `966${clientPhone.replace(/^0+/, "")}`;
+        // Keep normalized phone in requirements for downstream usage/logs
+        requirements.contactNumber = `+${normalizedPhone}`;
 
         // Save client using the new multi-request system
         const privateClient = require("../models/privateClient");
