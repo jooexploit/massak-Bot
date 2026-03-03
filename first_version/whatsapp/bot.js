@@ -489,13 +489,169 @@ function quickDetectCategory(text) {
   return null; // No category detected
 }
 
+function normalizeCategoryValueForLimit(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ـ/g, "")
+    .replace(/\s+/g, " ");
+}
+
+const CATEGORY_LIMIT_ALIAS_MAP = {
+  ارض: "ارض",
+  "قطعه ارض": "ارض",
+  قطعه: "ارض",
+  شقه: "شقه",
+  شقق: "شقه",
+  "شقه دبلكسيه": "شقه دبلكسيه",
+  فيله: "فيلا",
+  فله: "فيلا",
+  منزل: "بيت",
+  بيوت: "بيت",
+  عماره: "عماره",
+  استراحه: "استراحه",
+  مزرعه: "مزرعه",
+  شاليه: "شاليه",
+  "الفعاليات والانشطه": "فعاليات و انشطه",
+  "فعاليات والانشطه": "فعاليات و انشطه",
+  "فعاليات و انشطه": "فعاليات و انشطه",
+  "اسر منتجه": "اسر منتجه",
+};
+
+function canonicalizeCategoryForLimit(value) {
+  const normalized = normalizeCategoryValueForLimit(value);
+  if (!normalized) return "";
+
+  return CATEGORY_LIMIT_ALIAS_MAP[normalized] || normalized;
+}
+
+function stripTransactionHintsFromCategory(value) {
+  const normalized = canonicalizeCategoryForLimit(value);
+  if (!normalized) return "";
+
+  const withoutHints = normalized
+    .replace(
+      /\b(?:للبيع|للايجار|للتقبيل|للتمليك|ايجار|اجار|بيع|for sale|for rent|sale|rent)\b/g,
+      " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!withoutHints) return "";
+  return CATEGORY_LIMIT_ALIAS_MAP[withoutHints] || withoutHints;
+}
+
+function categoriesMatchForLimit(limitCategory, adCategory) {
+  const limitCanonical = canonicalizeCategoryForLimit(limitCategory);
+  const adCanonical = canonicalizeCategoryForLimit(adCategory);
+
+  if (!limitCanonical || !adCanonical) return false;
+  if (limitCanonical === adCanonical) return true;
+
+  const limitBase = stripTransactionHintsFromCategory(limitCanonical);
+  const adBase = stripTransactionHintsFromCategory(adCanonical);
+
+  if (!limitBase || !adBase || limitBase !== adBase) return false;
+
+  // Allow broad-to-specific matching (e.g., "فيلا" matches "فيلا للبيع"),
+  // but avoid forcing specific-to-specific cross-matching (sale vs rent).
+  return limitCanonical === limitBase || adCanonical === adBase;
+}
+
+function getCategoryFromMeta(meta) {
+  if (!meta || typeof meta !== "object") return "";
+
+  const candidates = [meta.category, meta.arc_category, meta.parent_catt];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return "";
+}
+
+function resolveCategoryForLimit(aiResult, fallbackCategory = null) {
+  if (!aiResult || typeof aiResult !== "object") {
+    return fallbackCategory;
+  }
+
+  const candidates = [
+    aiResult.category,
+    aiResult.wpData?.category,
+    getCategoryFromMeta(aiResult.meta),
+    getCategoryFromMeta(aiResult.wpData?.meta),
+    fallbackCategory,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+}
+
+function resolveAdCategoryForLimit(ad) {
+  if (!ad || typeof ad !== "object") return "";
+
+  const candidates = [
+    ad.category,
+    ad.wpData?.category,
+    getCategoryFromMeta(ad.meta),
+    getCategoryFromMeta(ad.wpData?.meta),
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return "";
+}
+
 // Check if category has reached its daily limit
 function isCategoryLimitReached(category) {
   if (!category) return false;
 
-  const categoryLimits = settings.categoryLimits || [];
-  const limitConfig = categoryLimits.find(
-    (limit) => limit.category === category && limit.enabled
+  const categoryLimits = Array.isArray(settings.categoryLimits)
+    ? settings.categoryLimits
+    : [];
+  const enabledLimits = categoryLimits.filter(
+    (limit) =>
+      limit &&
+      typeof limit.category === "string" &&
+      typeof limit.maxAds === "number" &&
+      limit.maxAds > 0 &&
+      limit.enabled !== false,
+  );
+
+  const normalizedCategory = canonicalizeCategoryForLimit(category);
+  if (!normalizedCategory) return false;
+
+  const exactMatches = enabledLimits.filter(
+    (limit) =>
+      canonicalizeCategoryForLimit(limit.category) === normalizedCategory,
+  );
+  const matchedLimits =
+    exactMatches.length > 0
+      ? exactMatches
+      : enabledLimits.filter((limit) =>
+          categoriesMatchForLimit(limit.category, category),
+        );
+
+  if (matchedLimits.length === 0) return false;
+
+  // If multiple limits match, enforce the strictest one.
+  const limitConfig = matchedLimits.reduce((strictest, current) =>
+    current.maxAds < strictest.maxAds ? current : strictest,
   );
 
   if (!limitConfig) return false;
@@ -508,13 +664,16 @@ function isCategoryLimitReached(category) {
   // Count ads from TODAY in this category (excluding rejected/deleted)
   const todayCount = ads.filter(
     (ad) =>
-      ad.category === category &&
+      categoriesMatchForLimit(
+        limitConfig.category,
+        resolveAdCategoryForLimit(ad),
+      ) &&
       ad.status !== "rejected" &&
       ad.timestamp >= todayTimestamp
   ).length;
 
   console.log(
-    `📊 Category "${category}" TODAY: ${todayCount}/${limitConfig.maxAds} ads (limit per day)`
+    `📊 Category "${limitConfig.category}" TODAY: ${todayCount}/${limitConfig.maxAds} ads (incoming: "${category}")`
   );
 
   return todayCount >= limitConfig.maxAds;
@@ -718,10 +877,12 @@ async function processMessageFromQueue(messageData) {
       `✅ Ad detected (confidence: ${aiResult.confidence}%): ${aiResult.reason}`
     );
 
+    const aiCategoryForLimit = resolveCategoryForLimit(aiResult, quickCategory);
+
     // Check if category limit is reached
-    if (aiResult.category && isCategoryLimitReached(aiResult.category)) {
+    if (aiCategoryForLimit && isCategoryLimitReached(aiCategoryForLimit)) {
       console.log(
-        `🚫 Category "${aiResult.category}" has reached its limit. Ad blocked and moved to recycle bin.`
+        `🚫 Category "${aiCategoryForLimit}" has reached its limit. Ad blocked and moved to recycle bin.`
       );
 
       // Move to recycle bin instead of saving - include image for later use
@@ -735,8 +896,8 @@ async function processMessageFromQueue(messageData) {
         senderPhone: senderPhone,
         rejectedAt: Date.now(),
         aiConfidence: aiResult.confidence,
-        aiReason: `Category limit reached: ${aiResult.category}`,
-        category: aiResult.category,
+        aiReason: `Category limit reached: ${aiCategoryForLimit}`,
+        category: aiCategoryForLimit,
         blockReason: "category_limit_reached",
         imageUrl: imageUrl || null, // Save image for later use
       };
@@ -751,7 +912,7 @@ async function processMessageFromQueue(messageData) {
       return {
         success: false,
         reason: "category_limit_reached",
-        category: aiResult.category,
+        category: aiCategoryForLimit,
       };
     }
 
@@ -879,7 +1040,7 @@ async function processMessageFromQueue(messageData) {
       messageKey: messageData.messageKey || null, // Store message key for full image download
       timestamp: Date.now(),
       status: "new", // new | accepted | rejected | posted
-      category: aiResult.category || null, // AI-detected category
+      category: aiCategoryForLimit || aiResult.category || null, // AI-detected category
       aiConfidence: aiResult.confidence,
       aiReason: aiResult.reason,
       improvements: aiResult.improvements || [],
@@ -1850,6 +2011,48 @@ async function initializeBot() {
                 `✅ Confirmed ad from waseet ${senderName}, adding to dashboard...`
               );
 
+              const waseetQuickCategory = quickDetectCategory(messageText);
+              const waseetCategoryForLimit = resolveCategoryForLimit(
+                aiResult,
+                waseetQuickCategory,
+              );
+
+              if (
+                waseetCategoryForLimit &&
+                isCategoryLimitReached(waseetCategoryForLimit)
+              ) {
+                console.log(
+                  `🚫 Waseet ad blocked: category "${waseetCategoryForLimit}" reached daily limit.`
+                );
+
+                const recycleBinItem = {
+                  id: `rb_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                  text: messageText,
+                  fromGroup: from,
+                  fromGroupName: `وسيط: ${senderName}`,
+                  author: from,
+                  senderName: senderName,
+                  senderPhone: senderPhone,
+                  rejectedAt: Date.now(),
+                  aiConfidence: aiResult.confidence,
+                  aiReason: `Category limit reached: ${waseetCategoryForLimit}`,
+                  category: waseetCategoryForLimit,
+                  blockReason: "category_limit_reached_waseet",
+                  imageUrl: imageUrl || null,
+                  source: "waseet",
+                };
+
+                recycleBin.unshift(recycleBinItem);
+                if (recycleBin.length > 500) recycleBin = recycleBin.slice(0, 500);
+                saveRecycleBin();
+
+                await sendMessage(
+                  from,
+                  `🚫 تم إيقاف الإعلان لأن تصنيف "${waseetCategoryForLimit}" وصل للحد اليومي. حاول مرة أخرى بعد 00:00.`,
+                );
+                return;
+              }
+
               // Create ad object (similar to group ads)
               const normalized = normalizeText(messageText);
               const ad = {
@@ -1865,7 +2068,7 @@ async function initializeBot() {
                 imageUrl: imageUrl,
                 timestamp: Date.now(),
                 status: "new",
-                category: aiResult.category || null,
+                category: waseetCategoryForLimit || aiResult.category || null,
                 aiConfidence: aiResult.confidence,
                 aiReason: aiResult.reason,
                 improvements: aiResult.improvements || [],
@@ -2477,12 +2680,55 @@ async function retryFailedAd(adId) {
     const aiResult = await processMessage(ad.text);
 
     if (aiResult.isAd) {
+      const retryQuickCategory = quickDetectCategory(ad.text);
+      const retryCategoryForLimit = resolveCategoryForLimit(
+        aiResult,
+        retryQuickCategory,
+      );
+
+      if (
+        retryCategoryForLimit &&
+        isCategoryLimitReached(retryCategoryForLimit)
+      ) {
+        const idx = ads.findIndex((a) => a.id === adId);
+        if (idx !== -1) {
+          const recycleBinItem = {
+            id: `rb_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+            text: ad.text,
+            enhancedText: ad.enhancedText,
+            fromGroup: ad.fromGroup,
+            fromGroupName: ad.fromGroupName,
+            author: ad.author,
+            senderName: ad.senderName,
+            senderPhone: ad.senderPhone,
+            rejectedAt: Date.now(),
+            aiConfidence: aiResult.confidence,
+            aiReason: `Category limit reached: ${retryCategoryForLimit}`,
+            category: retryCategoryForLimit,
+            blockReason: "category_limit_reached_retry",
+            originalAdId: ad.id,
+            imageUrl: ad.imageUrl || null,
+          };
+
+          recycleBin.unshift(recycleBinItem);
+          if (recycleBin.length > 500) recycleBin = recycleBin.slice(0, 500);
+          saveRecycleBin();
+
+          ads.splice(idx, 1);
+          saveAds();
+          console.log(
+            `🗑️ Ad ${adId} moved to recycle bin after retry (category limit reached)`
+          );
+        }
+        return;
+      }
+
       // Update ad with AI results
       ad.enhancedText = aiResult.enhancedText;
       ad.aiConfidence = aiResult.confidence;
       ad.aiReason = aiResult.reason;
       ad.improvements = aiResult.improvements || [];
-      ad.category = aiResult.category || null;
+      ad.category = retryCategoryForLimit || aiResult.category || null;
       ad.meta = aiResult.meta || {};
       ad.wpData = aiResult.wpData || null;
       ad.whatsappMessage = aiResult.whatsappMessage || null;
