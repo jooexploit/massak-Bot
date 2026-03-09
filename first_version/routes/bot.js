@@ -229,6 +229,14 @@ function normalizeLocationToken(value = "") {
   return String(value || "").trim();
 }
 
+function normalizeNeighborhoodToken(value = "") {
+  const normalized = normalizeLocationToken(value);
+  if (!normalized) return "";
+  if (isPlaceholderLocationValue(normalized)) return normalized;
+
+  return normalizeLocationToken(normalized.replace(/^(?:(?:ال)?حي)\s+/i, ""));
+}
+
 function isPlaceholderLocationValue(value = "") {
   const normalized = normalizeArabicForRouting(value).toLowerCase();
   if (!normalized) return true;
@@ -247,7 +255,7 @@ function isPlaceholderLocationValue(value = "") {
 }
 
 function buildCleanFullLocation(meta = {}) {
-  const location = normalizeLocationToken(
+  const location = normalizeNeighborhoodToken(
     meta.location || meta.neighborhood || "",
   );
   const city = normalizeLocationToken(meta.City || meta.city || meta.subcity || "");
@@ -264,13 +272,13 @@ function buildCleanFullLocation(meta = {}) {
     return uniqueParts.join(" - ");
   }
 
-  return "الأحساء";
+  return "لم يذكر";
 }
 
 function normalizeManualLocationMeta(meta = {}) {
   const normalized = meta && typeof meta === "object" ? { ...meta } : {};
 
-  const locationValue = normalizeLocationToken(
+  const locationValue = normalizeNeighborhoodToken(
     normalized.location || normalized.neighborhood || "",
   );
   const cityValue = normalizeLocationToken(
@@ -293,7 +301,7 @@ function normalizeManualLocationMeta(meta = {}) {
   const cleanBeforeCity = isPlaceholderLocationValue(beforeCityValue)
     ? ""
     : beforeCityValue;
-  normalized.before_City = cleanBeforeCity || "الأحساء";
+  normalized.before_City = cleanBeforeCity || "";
   normalized.before_city = normalized.before_City;
 
   normalized.full_location = buildCleanFullLocation(normalized);

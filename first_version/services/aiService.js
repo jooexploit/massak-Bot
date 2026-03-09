@@ -17,7 +17,6 @@ const DEFAULT_WP_TITLE = "إعلان عقاري مميز";
 const REQUIRED_METADATA_FIELDS = [
   "area",
   "price",
-  "priceMethod",
   "fullLocation",
   "category",
   "subcategory",
@@ -117,8 +116,8 @@ const WP_META_DEFAULTS = {
   category: "",
   subcategory: "",
   category_id: "",
-  before_City: "الأحساء",
-  before_city: "الأحساء",
+  before_City: "",
+  before_city: "",
   City: "",
   city: "",
   subcity: "",
@@ -214,6 +213,14 @@ function normalizeArabicText(text) {
       .replace(/[!]{2,}/g, "!")
       .replace(/[؟]{2,}/g, "؟"),
   );
+}
+
+function normalizeNeighborhoodName(value = "") {
+  const normalized = normalizeArabicText(value || "");
+  if (!normalized) return "";
+  if (isPlaceholderLocationValue(normalized)) return normalized;
+
+  return normalizeArabicText(normalized.replace(/^(?:(?:ال)?حي)\s+/i, ""));
 }
 
 function extractNumericValue(value) {
@@ -516,10 +523,6 @@ function inferCityGovernorateFromText(adText) {
   }
 
   if (!governorate && /(?:الأحساء|الاحساء|الحسا)/i.test(text)) {
-    governorate = AL_AHSA_GOVERNORATE;
-  }
-
-  if (!governorate && city) {
     governorate = AL_AHSA_GOVERNORATE;
   }
 
@@ -1344,7 +1347,7 @@ const WORDPRESS_SCHEMA = {
     category: "شقة",
     subcategory: "دور أول",
     category_id: 35,
-    tags: ["عقارات", "الأحساء"],
+    tags: ["عقارات"],
     meta: {
       ad_type: "عرض",
       owner_name: "المالك",
@@ -1355,10 +1358,10 @@ const WORDPRESS_SCHEMA = {
       sub_catt: "دور أول",
       arc_category: "شقة",
       arc_subcategory: "دور أول",
-      before_City: "الأحساء",
+      before_City: "",
       City: "الهفوف",
       location: "الرابية",
-      full_location: "الرابية - الهفوف - الأحساء",
+      full_location: "الرابية - الهفوف",
     },
   },
   match: (obj) =>
@@ -1571,7 +1574,7 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
       meta.before_City,
       meta.before_city,
       inferred.governorate,
-      isHasak ? "" : AL_AHSA_GOVERNORATE,
+      "",
     ),
   );
   let subcity = normalizeArabicText(firstNonEmpty(meta.subcity, city));
@@ -1579,6 +1582,7 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
   let neighborhood = normalizeArabicText(
     firstNonEmpty(meta.neighborhood, meta.location, ""),
   );
+  neighborhood = normalizeNeighborhoodName(neighborhood);
 
   if (areaNormalizer.normalizeCityName) {
     city = normalizeArabicText(areaNormalizer.normalizeCityName(city) || city);
@@ -1623,6 +1627,7 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
     neighborhood = normalizeArabicText(
       areaNormalizer.normalizeAreaName(neighborhood) || neighborhood,
     );
+    neighborhood = normalizeNeighborhoodName(neighborhood);
   }
 
   const inferredCityFromNeighborhood = normalizeArabicText(
@@ -1693,15 +1698,14 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
     return;
   }
 
-  meta.before_City = beforeCity || AL_AHSA_GOVERNORATE;
-  meta.before_city = beforeCity || AL_AHSA_GOVERNORATE;
-  meta.city = city || beforeCity || AL_AHSA_GOVERNORATE;
+  meta.before_City = beforeCity || "";
+  meta.before_city = beforeCity || "";
+  meta.city = city || beforeCity || "";
   meta.subcity = subcity || city || "";
   meta.City = meta.subcity || meta.city;
-  meta.neighborhood = neighborhood || "لم يذكر";
-  meta.location = neighborhood || "لم يذكر";
-  meta.full_location =
-    buildFullLocationValue(meta, AL_AHSA_GOVERNORATE) || AL_AHSA_GOVERNORATE;
+  meta.neighborhood = normalizeNeighborhoodName(neighborhood) || "لم يذكر";
+  meta.location = meta.neighborhood;
+  meta.full_location = buildFullLocationValue(meta, "") || "";
 }
 
 function normalizePriceMeta(meta) {
@@ -1775,27 +1779,9 @@ function inferPriceMethodFromText(adText = "", meta = {}) {
 }
 
 function normalizePriceMethodMeta(meta, adText = "") {
-  const explicitMethod = normalizeArabicText(
-    firstNonEmpty(meta.price_method, meta.payment_method, ""),
-  );
-
-  if (explicitMethod) {
-    meta.price_method = explicitMethod;
-    meta.payment_method = normalizeArabicText(meta.payment_method || explicitMethod);
-    return;
-  }
-
-  const inferredMethod = inferPriceMethodFromText(adText, meta);
-  if (inferredMethod) {
-    meta.price_method = inferredMethod;
-    if (!meta.payment_method) {
-      meta.payment_method = inferredMethod;
-    }
-    return;
-  }
-
-  meta.price_method = normalizeArabicText(meta.price_method || "");
-  meta.payment_method = normalizeArabicText(meta.payment_method || meta.price_method || "");
+  // Business rule: do not fill payment method fields from AI or fallbacks.
+  meta.price_method = "";
+  meta.payment_method = "";
 }
 
 function hasRequestIntent(text = "") {
@@ -1958,15 +1944,18 @@ const FORBIDDEN_DESCRIPTION_PATTERNS = [
   /(?:chat\.whatsapp\.com|wa\.me|t\.me|tiktok\.com|instagram\.com|snapchat|youtube\.com)/gi,
   /(?:رقم\s*الترخيص|ترخيص|رخصة|معلن\s*معتمد|الهيئة\s*العامة\s*للعقار)[^<\n]{0,40}[0-9٠-٩]{4,}/gi,
   /(?:برقم)\s*[0-9٠-٩]{4,}/gi,
-  /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|قروب|مجموعة واتساب|انضمام)/gi,
-  /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف)/gi,
+  /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|قروب|مجموعة واتساب|انضمام|شركة\s*عقارية|مؤسسة\s*عقارية|وكيل|الوكيل)/gi,
+  /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف|موبايل|محمول)/gi,
+  /(?:رقم\s*(?:التواصل|الجوال|الهاتف|الموبايل|المحمول)?\s*[:：-]?\s*)(?:\+?\d[\d\s\-()]{6,}\d)/gi,
+  /(?:مباشر(?:ة)?|من\s*الوكيل|من\s*المالك|طرف)/gi,
   /\b(?:\+?966|0)?5[0-9٠-٩]{8}\b/g,
 ];
 
 const OWNER_ADMIN_DETAIL_PATTERNS = [
   /(?:اسم\s*المالك|المالك|مالك\s*العقار|صاحب\s*العقار|صاحب\s*الإعلان|اسم\s*المعلن|المعلن)/i,
-  /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|رقم\s*الترخيص|رقم\s*المعلن)/i,
-  /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف|رقم\s*التواصل|رقم\s*الجوال)/i,
+  /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|رقم\s*الترخيص|رقم\s*المعلن|شركة\s*عقارية|مؤسسة\s*عقارية|وكيل|الوكيل)/i,
+  /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف|موبايل|محمول|رقم\s*التواصل|رقم\s*الجوال|رقم\s*الموبايل|رقم\s*المحمول)/i,
+  /(?:مباشر(?:ة)?|من\s*الوكيل|من\s*المالك|طرف)/i,
 ];
 
 const REAL_ESTATE_KEYWORDS = [
@@ -2142,9 +2131,7 @@ function formatPriceSummary(meta = {}) {
 }
 
 function formatLocationSummary(meta = {}) {
-  return (
-    buildFullLocationValue(meta, AL_AHSA_GOVERNORATE) || AL_AHSA_GOVERNORATE
-  );
+  return buildFullLocationValue(meta, "") || "لم يذكر";
 }
 
 function pickTitleLocationLabel(meta = {}) {
@@ -2589,8 +2576,8 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
 
   meta.price = normalizeArabicText(meta.price || "");
   meta.price_type = normalizeArabicText(meta.price_type || meta.price || "");
-  meta.price_method = normalizeArabicText(meta.price_method || "");
-  meta.payment_method = normalizeArabicText(meta.payment_method || meta.price_method || "");
+  meta.price_method = "";
+  meta.payment_method = "";
   meta.order_owner = normalizeArabicText(meta.order_owner || meta.owner_type || "");
   meta.offer_owner = normalizeArabicText(meta.offer_owner || meta.owner_type || "");
   meta.owner_type = normalizeArabicText(meta.owner_type || meta.offer_owner || meta.order_owner || "");
@@ -2625,8 +2612,10 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
     meta.parse_notes = normalizeArabicText(rawData.parse_error);
   }
 
-  // Always set main_ad from the original text (manual, not AI-generated).
-  meta.main_ad = stripAdReferenceNumbers(adText || "");
+  // Keep main_ad deterministic while stripping contact/admin/office phrases.
+  meta.main_ad = removeForbiddenInlineContent(
+    stripAdReferenceNumbers(adText || ""),
+  );
 
   const tags = parseTags(firstNonEmpty(rawData.tags, meta.tags));
   meta.tags = tags.join(", ");
@@ -2644,8 +2633,10 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
     );
   }
 
+  const safeTitleSeed =
+    removeForbiddenInlineContent(titleValue || DEFAULT_WP_TITLE) || DEFAULT_WP_TITLE;
   const normalizedTitle = ensureTitleContainsLocation(
-    titleValue || DEFAULT_WP_TITLE,
+    safeTitleSeed,
     meta,
     adText,
     initialTargetWebsite,
@@ -2759,8 +2750,13 @@ function getRequiredFieldLabel(field) {
 
 function summarizeRequiredMetadata(wpData) {
   const meta = isObject(wpData?.meta) ? wpData.meta : {};
-  const areaNumber = extractNumericValue(firstNonEmpty(meta.arc_space, meta.area));
-  const areaText = normalizeArabicText(meta.order_space || "");
+  const areaNumber = extractNumericValue(
+    firstNonEmpty(meta.arc_space, meta.area, meta.order_space),
+  );
+  const areaText = normalizeArabicText(
+    firstNonEmpty(meta.order_space, meta.area, meta.arc_space, ""),
+  );
+  const areaTextHasNumber = /[0-9]/.test(convertArabicDigitsToEnglish(areaText));
   const priceAmount = extractNumericValue(
     firstNonEmpty(meta.price_amount, meta.from_price, meta.to_price),
   );
@@ -2783,7 +2779,9 @@ function summarizeRequiredMetadata(wpData) {
     area:
       typeof areaNumber === "number" && areaNumber > 0
         ? String(areaNumber)
-        : areaText,
+        : areaTextHasNumber
+          ? areaText
+          : "",
     price:
       typeof priceAmount === "number" && priceAmount > 0
         ? String(priceAmount)
@@ -2807,10 +2805,6 @@ function getMissingRequiredMetadataFields(wpData, adText = "") {
 
   if (requiredFields.includes("price") && !values.price) {
     missing.push("price");
-  }
-
-  if (requiredFields.includes("priceMethod") && !values.priceMethod) {
-    missing.push("priceMethod");
   }
 
   if (requiredFields.includes("fullLocation") && !hasDetailedLocation(meta)) {
@@ -2845,7 +2839,7 @@ function parseFullLocationText(fullLocation) {
 
   if (parts.length >= 3) {
     return {
-      neighborhood: parts[0],
+      neighborhood: normalizeNeighborhoodName(parts[0]),
       city: parts[1],
       governorate: parts.slice(2).join(" - "),
     };
@@ -2853,14 +2847,14 @@ function parseFullLocationText(fullLocation) {
 
   if (parts.length === 2) {
     return {
-      neighborhood: parts[0],
+      neighborhood: normalizeNeighborhoodName(parts[0]),
       city: parts[1],
       governorate: "",
     };
   }
 
   return {
-    neighborhood: parts[0] || "",
+    neighborhood: normalizeNeighborhoodName(parts[0] || ""),
     city: "",
     governorate: "",
   };
@@ -2869,8 +2863,8 @@ function parseFullLocationText(fullLocation) {
 function extractAreaFromTextFallback(adText = "") {
   const text = convertArabicDigitsToEnglish(String(adText || ""));
   const patterns = [
-    /(?:المساحة|المساحه|مساحة|مساحه)\s*[:：-]?\s*([0-9][0-9,\.]*)/i,
-    /([0-9][0-9,\.]*)\s*(?:متر(?:\s*مربع)?|م²|m2)/i,
+    /(?:المساحة|المساحه|مساحة|مساحه|بمساحة|بمساحه|مساحته|مساحتها|مساحة\s*الأرض|مساحه\s*الارض)\s*[:：-]?\s*([0-9][0-9,\.]*)/i,
+    /([0-9][0-9,\.]*)\s*(?:متر(?:\s*مربع)?|م(?:\s*مربع)?|م²|m2)/i,
   ];
 
   for (const pattern of patterns) {
@@ -2892,7 +2886,7 @@ function extractPriceFromTextFallback(adText = "") {
   if (/على\s*السوم/i.test(normalized)) {
     return {
       price: "على السوم",
-      price_method: "على السوم",
+      price_method: "",
       price_type: "على السوم",
       price_amount: "",
       from_price: "",
@@ -2903,7 +2897,7 @@ function extractPriceFromTextFallback(adText = "") {
   if (/عند\s*التواصل/i.test(normalized)) {
     return {
       price: "عند التواصل",
-      price_method: "عند التواصل",
+      price_method: "",
       price_type: "عند التواصل",
       price_amount: "",
       from_price: "",
@@ -2925,7 +2919,7 @@ function extractPriceFromTextFallback(adText = "") {
       const price = Math.round(base * multiplier);
       return {
         price: String(price),
-        price_method: "إجمالي",
+        price_method: "",
         price_type: "",
         price_amount: price,
         from_price: price,
@@ -2981,7 +2975,7 @@ function extractLocationFromTextFallback(adText = "") {
   for (const pattern of neighborhoodPatterns) {
     const match = normalizedText.match(pattern);
     if (!match) continue;
-    neighborhood = normalizeArabicText(match[1]);
+    neighborhood = normalizeNeighborhoodName(match[1]);
     if (neighborhood) break;
   }
 
@@ -3008,12 +3002,12 @@ function extractLocationFromTextFallback(adText = "") {
   if (!neighborhood) {
     const extractedNeighborhoods = areaNormalizer.extractNeighborhoods(normalizedText);
     if (extractedNeighborhoods.length > 0) {
-      neighborhood = normalizeArabicText(extractedNeighborhoods[0]);
+      neighborhood = normalizeNeighborhoodName(extractedNeighborhoods[0]);
     }
   }
 
   if (neighborhood && areaNormalizer.normalizeAreaName) {
-    neighborhood = normalizeArabicText(
+    neighborhood = normalizeNeighborhoodName(
       areaNormalizer.normalizeAreaName(neighborhood) || neighborhood,
     );
   }
@@ -3057,10 +3051,6 @@ function extractLocationFromTextFallback(adText = "") {
     );
   }
 
-  if (!governorate && (city || neighborhood)) {
-    governorate = AL_AHSA_GOVERNORATE;
-  }
-
   if (neighborhood && (neighborhood === city || neighborhood === governorate)) {
     neighborhood = "";
   }
@@ -3068,7 +3058,7 @@ function extractLocationFromTextFallback(adText = "") {
   return {
     neighborhood: neighborhood || "",
     city: city || "",
-    governorate: governorate || "الأحساء",
+    governorate: governorate || "",
   };
 }
 
@@ -3123,19 +3113,10 @@ function mergeRecoveredWordPressMetadata(wpData, recoveredData) {
     meta.price = meta.price || String(recoveredPriceAmount);
   }
 
-  const recoveredPriceMethod = normalizeArabicText(
-    firstNonEmpty(patch.price_method, patch.payment_method, ""),
-  );
   if (recoveredPriceType) {
     meta.price_type = recoveredPriceType;
   } else if (!meta.price_type && recoveredPriceText) {
     meta.price = recoveredPriceText;
-  }
-  if (recoveredPriceMethod) {
-    meta.price_method = recoveredPriceMethod;
-    if (!meta.payment_method) {
-      meta.payment_method = recoveredPriceMethod;
-    }
   }
 
   const parsedLocation = parseFullLocationText(firstNonEmpty(patch.fullLocation, ""));
@@ -3148,8 +3129,9 @@ function mergeRecoveredWordPressMetadata(wpData, recoveredData) {
   );
 
   if (recoveredNeighborhood) {
-    meta.neighborhood = recoveredNeighborhood;
-    meta.location = recoveredNeighborhood;
+    const cleanRecoveredNeighborhood = normalizeNeighborhoodName(recoveredNeighborhood);
+    meta.neighborhood = cleanRecoveredNeighborhood;
+    meta.location = cleanRecoveredNeighborhood;
   }
   if (recoveredCity) {
     meta.city = recoveredCity;
@@ -3190,8 +3172,7 @@ function mergeRecoveredWordPressMetadata(wpData, recoveredData) {
     meta.parse_notes = appendParseNote(meta.parse_notes, patch.notes);
   }
 
-  meta.full_location =
-    buildFullLocationValue(meta, AL_AHSA_GOVERNORATE) || AL_AHSA_GOVERNORATE;
+  meta.full_location = buildFullLocationValue(meta, "") || meta.full_location || "";
 
   return merged;
 }
@@ -3212,13 +3193,20 @@ function applyRequiredFieldFallbacks(wpData, adText) {
     );
   }
 
-  if (missingState.missing.includes("area")) {
+  const currentAreaNumeric = extractNumericValue(
+    firstNonEmpty(meta.arc_space, meta.area, meta.order_space),
+  );
+  const shouldFillAreaForMasaak =
+    targetWebsite !== "hasak" &&
+    !(typeof currentAreaNumeric === "number" && currentAreaNumeric > 0);
+
+  if (shouldFillAreaForMasaak) {
     const areaValue = extractAreaFromTextFallback(adText);
     if (typeof areaValue === "number" && areaValue > 0) {
       meta.arc_space = areaValue;
       meta.area = areaValue;
       meta.order_space = `${areaValue} متر مربع`;
-    } else if (!meta.order_space) {
+    } else if (missingState.missing.includes("area") && !meta.order_space) {
       meta.order_space = "غير محدد";
     }
   }
@@ -3240,30 +3228,16 @@ function applyRequiredFieldFallbacks(wpData, adText) {
       meta.price = "عند التواصل";
     }
 
-    if (priceData.price_method) {
-      meta.price_method = priceData.price_method;
-      meta.payment_method = meta.payment_method || priceData.price_method;
-    }
-  }
-
-  if (missingState.missing.includes("priceMethod")) {
-    const fallbackMethod =
-      extractPriceFromTextFallback(adText).price_method ||
-      inferPriceMethodFromText(adText, meta);
-    if (fallbackMethod) {
-      meta.price_method = fallbackMethod;
-      meta.payment_method = meta.payment_method || fallbackMethod;
-    } else if (meta.price_type && !meta.price_method) {
-      meta.price_method = meta.price_type;
-      meta.payment_method = meta.payment_method || meta.price_type;
-    }
   }
 
   if (missingState.missing.includes("fullLocation")) {
     const locationData = extractLocationFromTextFallback(adText);
     if (locationData.neighborhood) {
-      meta.neighborhood = locationData.neighborhood;
-      meta.location = locationData.neighborhood;
+      const cleanLocationNeighborhood = normalizeNeighborhoodName(
+        locationData.neighborhood,
+      );
+      meta.neighborhood = cleanLocationNeighborhood;
+      meta.location = cleanLocationNeighborhood;
     } else if (!meta.location || meta.location === "لم يذكر") {
       meta.location = "غير محدد";
       meta.neighborhood = "غير محدد";
@@ -3326,8 +3300,7 @@ function applyRequiredFieldFallbacks(wpData, adText) {
   if (targetWebsite === "hasak") {
     meta.full_location = buildFullLocationValue(meta, "") || meta.full_location || "";
   } else {
-    meta.full_location =
-      buildFullLocationValue(meta, AL_AHSA_GOVERNORATE) || AL_AHSA_GOVERNORATE;
+    meta.full_location = buildFullLocationValue(meta, "") || meta.full_location || "";
   }
   normalizePriceMethodMeta(meta, adText);
   return updated;
@@ -3343,8 +3316,8 @@ function buildRecoverMissingFieldsPrompt(adText, currentData, missingFields) {
     .join("\n");
   const websiteInstruction =
     targetWebsite === "hasak"
-      ? 'سياق الإعلان: حساك (فعاليات/مستعمل/خدمات). لا تُجبر حقول السعر أو المساحة أو السعر-الطريقة إذا لم تُذكر.'
-      : 'سياق الإعلان: مسعاك (عقار). حاول استكمال الحقول العقارية الحرجة قدر الإمكان.';
+      ? 'سياق الإعلان: حساك (فعاليات/مستعمل/خدمات). لا تُجبر حقول السعر أو المساحة، ولا تملأ price_method/payment_method إطلاقاً.'
+      : 'سياق الإعلان: مسعاك (عقار). إذا وردت مساحة رقمية في النص (مثل 350 متر أو 400م) فيجب تعبئة area رقمياً، وسننسخها لاحقاً إلى arc_space. لا تملأ price_method/payment_method إطلاقاً.';
 
   return `أنت مدقق جودة لاستخراج بيانات إعلان.
 ${websiteInstruction}
@@ -3522,16 +3495,16 @@ ${dynamicLocationHintsText ? `\n${dynamicLocationHintsText}` : ""}
 6) إذا كان طلب شراء/بحث عام: category = "طلبات" و category_id = 83 و parent_catt = "طلبات".
 7) عند اختيار فئة حساك: استخدم arc_category/arc_subcategory، واجعل parent_catt/sub_catt فارغين.
 8) عند اختيار فئة مسعاك: استخدم parent_catt/sub_catt، ويمكن عكسها في arc_category/arc_subcategory.
-9) في حساك لا تُجبر حقول السعر أو المساحة. إذا غير مذكورة اترك price/price_amount/price_type/price_method/area/arc_space فارغة.
-10) في مسعاك حاول قدر الإمكان تعبئة الحقول الحرجة: area/arc_space، price أو price_type، price_method، location/city، category، subcategory.
-11) احذف أي مكاتب عقارية أو تراخيص أو روابط قروبات أو وسطاء من المحتوى.
+9) في حساك لا تُجبر حقول السعر أو المساحة. إذا غير مذكورة اترك price/price_amount/price_type/area/arc_space فارغة.
+10) في مسعاك: إذا وردت مساحة رقمية في النص (مثل 350 متر أو 400م أو مساحة 500) يجب تعبئة area و arc_space بنفس الرقم، ولا تتركهما فارغين عند وجود المساحة في النص. إضافةً إلى ذلك عبّئ الحقول الحرجة: price أو price_type، location/city، category، subcategory.
+11) احذف أي بيانات تسويقية/تعريفية للمكتب أو الوسيط أو الوكيل (مثل: اسم المكتب، اسم الشركة، بيانات المكتب، الترخيص، الروابط).
 12) اكتب العنوان والمحتوى بالعربية بشكل واضح واحترافي.
 13) المحتوى HTML آمن ومختصر (بدون script/iframe).
 14) للمحتوى العقاري استخدم HTML منظم: h1 ثم p افتتاحي ثم h2+ul للمواصفات ثم h2+ul للمميزات ثم h2+p للسعر ثم h2+p للموقع.
 15) للمحتوى غير العقاري (حساك) استخدم HTML نظيف ودقيق مع أكبر قدر من التفاصيل المتاحة: h1 ثم p افتتاحي ثم h2+ul للتفاصيل/الحالة/المواصفات ثم h2+ul للمزايا أو المتطلبات.
 16) لإعلانات مسعاك فقط: يمكن تضمين الموقع في title إذا كان مذكوراً بوضوح. لإعلانات حساك لا تضف موقعاً غير مذكور صراحة في النص.
 17) الوصف content يجب أن يشمل كل التفاصيل المتاحة من النص بدون اختراع معلومات.
-18) ممنوع داخل content: أرقام اتصال، اسم المالك، أسماء وسطاء، أسماء مكاتب، تراخيص، قروبات، روابط، ملاحظات إدارية.
+18) ممنوع داخل content: أرقام الاتصال/الموبايل، اسم المالك، اسم المكتب، بيانات المكتب، أسماء الوسطاء/الوكلاء، التراخيص، القروبات، الروابط، الملاحظات الإدارية.
 19) املأ meta بحقول ثابتة حتى لو كانت فارغة.
 20) phone_number بصيغة 9665xxxxxxxx إذا متاح.
 21) status دائماً "publish".
@@ -3541,7 +3514,9 @@ ${
     ? "23) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
     : "23) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
 }
-24) لمسعاك فقط: إذا توفر الحي بدون المدينة فاستنتج المدينة المناسبة (مثل الهفوف/المبرز/القرى/العيون) واجعل before_City و before_city = "الأحساء". في حساك لا تستنتج مدينة/محافظة غير مذكورة.
+24) لمسعاك فقط: إذا توفر الحي بدون المدينة فاستنتج المدينة المناسبة (مثل الهفوف/المبرز/القرى/العيون)، ولا تكتب before_City/before_city إلا إذا كانت المحافظة مذكورة في النص. في كل الحالات: location/neighborhood تكون اسم الحي فقط بدون كلمة "حي". في حساك لا تستنتج مدينة/محافظة غير مذكورة.
+25) ممنوع نهائياً داخل title/content/main_ad ظهور الكلمات أو العبارات التالية: "مباشر" و"من الوكيل" و"طرف" وأي صياغة مكافئة لها.
+26) لا تكتب ولا تعبئ حقول طريقة الدفع نهائياً: price_method و payment_method يجب أن تبقى "" دائماً.
 
 الفئات المعتمدة:
 - فئات مسعاك: ${masaakCategoriesText}
