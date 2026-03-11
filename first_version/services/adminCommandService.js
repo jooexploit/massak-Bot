@@ -314,22 +314,108 @@ function extractCityNeighborhoodPairs(text) {
 }
 
 /**
+ * Merge extracted city+neighborhood pairs into request requirements.
+ * City-only entries are kept for search by adding them as area hints.
+ * @param {Object} requirements
+ * @param {Array<{city:string, neighborhood:string}>} cityNeighborhoodPairs
+ */
+function mergeCityNeighborhoodPairsIntoRequirements(
+  requirements,
+  cityNeighborhoodPairs = [],
+) {
+  if (!requirements || !Array.isArray(cityNeighborhoodPairs)) return;
+  if (cityNeighborhoodPairs.length === 0) return;
+
+  const existingNeighborhoods = Array.isArray(requirements.neighborhoods)
+    ? requirements.neighborhoods
+        .map((area) => areaNormalizer.normalizeAreaName(area))
+        .filter(Boolean)
+    : [];
+
+  const extractedCities = cityNeighborhoodPairs
+    .map((pair) => normalizeCityForWordPress(pair.city))
+    .filter(Boolean);
+  const extractedNeighborhoods = cityNeighborhoodPairs
+    .map((pair) => areaNormalizer.normalizeAreaName(pair.neighborhood))
+    .filter(Boolean);
+  const cityOnlyAreas = cityNeighborhoodPairs
+    .filter((pair) => pair.city && !pair.neighborhood)
+    .map((pair) => normalizeCityForWordPress(pair.city))
+    .filter(Boolean);
+
+  const existingCities = Array.isArray(requirements.requestCities)
+    ? requirements.requestCities
+        .map((city) => normalizeCityForWordPress(city))
+        .filter(Boolean)
+    : [];
+
+  requirements.requestCities = [...new Set([...existingCities, ...extractedCities])];
+  requirements.neighborhoods = [
+    ...new Set([...existingNeighborhoods, ...extractedNeighborhoods, ...cityOnlyAreas]),
+  ];
+}
+
+/**
+ * Build clean city/neighborhood summary labels for admin output.
+ * @param {Object} requirements
+ * @returns {{cities:Array<string>, neighborhoods:Array<string>}}
+ */
+function summarizeRequestLocations(requirements = {}) {
+  const citySet = new Set(
+    (Array.isArray(requirements.requestCities) ? requirements.requestCities : [])
+      .map((city) => normalizeCityForWordPress(city))
+      .filter(Boolean),
+  );
+
+  const neighborhoodSet = new Set();
+  const rawAreas = Array.isArray(requirements.neighborhoods)
+    ? requirements.neighborhoods
+    : [];
+
+  rawAreas.forEach((area) => {
+    const normalizedArea = areaNormalizer.normalizeAreaName(area);
+    if (!normalizedArea) return;
+
+    if (areaNormalizer.isCity(normalizedArea)) {
+      const city = normalizeCityForWordPress(normalizedArea);
+      if (city) citySet.add(city);
+      return;
+    }
+
+    neighborhoodSet.add(normalizedArea);
+  });
+
+  return {
+    cities: [...citySet],
+    neighborhoods: [...neighborhoodSet],
+  };
+}
+
+/**
  * Build City/City2.. and location/location2.. slots for WordPress payload
  * @param {string} rawText
  * @param {Array<string>} neighborhoods
+ * @param {Array<string>} requestedCities
  * @returns {{citySlots:Array<string>, locationSlots:Array<string>, pairs:Array<{city:string, neighborhood:string}>}}
  */
-function buildCityLocationSlots(rawText, neighborhoods = []) {
+function buildCityLocationSlots(rawText, neighborhoods = [], requestedCities = []) {
   const normalizedNeighborhoods = Array.isArray(neighborhoods)
     ? neighborhoods
         .map((n) => areaNormalizer.normalizeAreaName(n))
+        .filter(Boolean)
+    : [];
+  const normalizedRequestedCities = Array.isArray(requestedCities)
+    ? requestedCities
+        .map((city) => normalizeCityForWordPress(city))
         .filter(Boolean)
     : [];
 
   let pairs = extractCityNeighborhoodPairs(rawText);
 
   if (pairs.length === 0) {
-    const listedCities = extractCityListFromText(rawText);
+    const listedCities = [
+      ...new Set([...extractCityListFromText(rawText), ...normalizedRequestedCities]),
+    ];
 
     if (normalizedNeighborhoods.length > 0 && listedCities.length > 0) {
       const pairsCount = Math.max(normalizedNeighborhoods.length, listedCities.length);
@@ -508,12 +594,21 @@ function buildWordPressRequestPayload(requirements, rawText, normalizedPhone) {
     requirements?.propertyType || "",
   );
   const subCategory = (requirements?.subCategory || "").trim();
+  const requestedCities = Array.isArray(requirements?.requestCities)
+    ? requirements.requestCities
+        .map((city) => normalizeCityForWordPress(city))
+        .filter(Boolean)
+    : [];
 
   const neighborhoods = Array.isArray(requirements?.neighborhoods)
     ? requirements.neighborhoods.map((n) => areaNormalizer.normalizeAreaName(n))
     : [];
 
-  const { citySlots, locationSlots } = buildCityLocationSlots(rawText, neighborhoods);
+  const { citySlots, locationSlots } = buildCityLocationSlots(
+    rawText,
+    neighborhoods,
+    requestedCities,
+  );
   const city = citySlots[0] || "الأحساء";
 
   const beforeCity = city && !AHSA_CITY_ALIASES.has(city) ? city : "الأحساء";
@@ -2158,23 +2253,17 @@ async function handleAdminCommand(sock, message, phoneNumber) {
         }
 
         // Support new repeated format: "المدينة والحي 1/2/3..."
-        // Merge extracted neighborhoods into requirements for better search matching.
+        // Merge extracted city+neighborhood pairs into requirements for better search matching.
+        // City-only entries (without neighborhood) are also kept as area hints.
         const cityNeighborhoodPairs = extractCityNeighborhoodPairs(text);
+        mergeCityNeighborhoodPairsIntoRequirements(
+          requirements,
+          cityNeighborhoodPairs,
+        );
         if (cityNeighborhoodPairs.length > 0) {
-          const extractedNeighborhoods = cityNeighborhoodPairs
-            .map((pair) => pair.neighborhood)
-            .filter(Boolean);
-          if (extractedNeighborhoods.length > 0) {
-            requirements.neighborhoods = [
-              ...(Array.isArray(requirements.neighborhoods)
-                ? requirements.neighborhoods
-                : []),
-              ...extractedNeighborhoods,
-            ]
-              .map((area) => areaNormalizer.normalizeAreaName(area))
-              .filter(Boolean);
-            requirements.neighborhoods = [...new Set(requirements.neighborhoods)];
-          }
+          console.log(
+            `✅ Parsed ${cityNeighborhoodPairs.length} city/neighborhood pair(s) from admin command`,
+          );
         }
 
         // Extract + normalize client phone number (supports spaced formats like +966 55 ...)
@@ -2334,6 +2423,16 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           }
         }
 
+        const locationSummary = summarizeRequestLocations(requirements);
+        const citiesLabel =
+          locationSummary.cities.length > 0
+            ? locationSummary.cities.join("، ")
+            : "غير محدد";
+        const neighborhoodsLabel =
+          locationSummary.neighborhoods.length > 0
+            ? locationSummary.neighborhoods.join("، ")
+            : "غير محدد";
+
         // Build response with results
         if (results.length === 0) {
           // Include multi-request info in no results response
@@ -2363,9 +2462,7 @@ async function handleAdminCommand(sock, message, phoneNumber) {
             requirements.areaMax !== null && requirements.areaMax !== undefined
               ? requirements.areaMax
               : "غير محدد"
-          } م²\n• الأحياء: ${
-            requirements.neighborhoods?.join("، ") || "غير محدد"
-          }\n\n📱 رقم العميل: +${normalizedPhone}\n🔔 سيتم إرسال التنبيهات التلقائية للعميل`;
+          } م²\n• المدن: ${citiesLabel}\n• الأحياء: ${neighborhoodsLabel}\n\n📱 رقم العميل: +${normalizedPhone}\n🔔 سيتم إرسال التنبيهات التلقائية للعميل`;
 
           if (searchWarning) {
             noResultsMsg += `\n\n${searchWarning}`;
@@ -2445,9 +2542,8 @@ async function handleAdminCommand(sock, message, phoneNumber) {
           adminMsg += `• المساحة: غير محدد\n`;
         }
 
-        if (requirements.neighborhoods?.length > 0) {
-          adminMsg += `• الأحياء: ${requirements.neighborhoods.join("، ")}\n`;
-        }
+        adminMsg += `• المدن: ${citiesLabel}\n`;
+        adminMsg += `• الأحياء: ${neighborhoodsLabel}\n`;
 
         if (requirements.subCategory) {
           adminMsg += `• التصنيف الفرعي: ${requirements.subCategory}\n`;

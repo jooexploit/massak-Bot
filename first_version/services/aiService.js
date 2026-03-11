@@ -47,6 +47,25 @@ const MASAAK_SUBCATEGORY_LINES_FOR_PROMPT = Object.entries(MASAAK_SUBCATEGORY_MA
     return `${parent}: ${children.join("، ")}`;
   })
   .filter(Boolean);
+const MASAAK_FORCE_EMPTY_SUBCATEGORY_CATEGORIES = new Set([
+  "دبلكس",
+  "فيلا",
+  "شقة",
+  "شقة دبلكسية",
+]);
+const MASAAK_STRICT_SUBCATEGORY_RULES = {
+  بيت: ["دورين", "دور", "عربي"],
+  أرض: ["تجارية", "سكنية"],
+  عمارة: ["تجارية", "سكنية"],
+  مزرعة: ["صك", "مشاع", "وقف", "عرق", "أرض زراعية"],
+};
+const MASAAK_REFERENCE_RULE_LINES_FOR_PROMPT = [
+  "بيت: دورين، دور، عربي فقط.",
+  "دبلكس و فيلا و شقة و شقة دبلكسية: بدون فرعي (subcategory/sub_catt/arc_subcategory تكون فارغة).",
+  "أرض: تجارية أو سكنية فقط.",
+  "عمارة: تجارية أو سكنية فقط.",
+  "مزرعة: صك أو مشاع أو وقف أو عرق أو أرض زراعية.",
+];
 const DEFAULT_DYNAMIC_BEFORE_CITIES = [...DEFAULT_WP_BEFORE_CITY_OPTIONS];
 const DEFAULT_DYNAMIC_CITIES = [...DEFAULT_WP_CITY_OPTIONS];
 const DYNAMIC_LOCATION_CACHE_TTL_MS = 30000;
@@ -1814,7 +1833,17 @@ function hasRealEstateCue(text = "") {
 }
 
 function canonicalizeMasaakCategory(label) {
-  const normalized = normalizeCategoryLabel(label);
+  const normalizedRaw = normalizeArabicText(label);
+  if (!normalizedRaw) return "";
+
+  if (/(?:شقة|شقه)\s*(?:دبلكسية|دبلكسيه|دبلكس|دوبلكس)/i.test(normalizedRaw)) {
+    return "شقة دبلكسية";
+  }
+  if (/(?:أرض|ارض)\s*زراع(?:ي|ية|يه)/i.test(normalizedRaw)) {
+    return "مزرعة";
+  }
+
+  const normalized = normalizeCategoryLabel(normalizedRaw);
   if (!normalized) return "";
 
   const aliases = {
@@ -1826,6 +1855,8 @@ function canonicalizeMasaakCategory(label) {
     شاليه: "شالية",
     فيله: "فيلا",
     فلة: "فيلا",
+    فله: "فيلا",
+    دوبلكس: "دبلكس",
     منزل: "بيت",
     بيوت: "بيت",
     طلب: "طلبات",
@@ -1836,6 +1867,142 @@ function canonicalizeMasaakCategory(label) {
   }
 
   return normalized;
+}
+
+function inferStrictMasaakCategoryFromText(adText = "") {
+  const text = normalizeArabicText(adText || "");
+  if (!text) return "";
+
+  if (/(?:شقة|شقه)\s*(?:دبلكسية|دبلكسيه|دبلكس|دوبلكس)/i.test(text)) {
+    return "شقة دبلكسية";
+  }
+  if (/(?:أرض|ارض)\s*زراع(?:ي|ية|يه)/i.test(text) || /(?:مزرعة|مزرعه)/i.test(text)) {
+    return "مزرعة";
+  }
+  if (/(?:دبلكس|دوبلكس)/i.test(text)) {
+    return "دبلكس";
+  }
+  if (/(?:فيلا|فله|فلة|فيله)/i.test(text)) {
+    return "فيلا";
+  }
+  if (/(?:شقة|شقه)/i.test(text)) {
+    return "شقة";
+  }
+  if (/(?:بيت|منزل|بيوت)/i.test(text)) {
+    return "بيت";
+  }
+  if (/(?:عمارة|عماره)/i.test(text)) {
+    return "عمارة";
+  }
+  if (/(?:أرض|ارض|قطعة\s*أرض|قطعة\s*ارض)/i.test(text)) {
+    return "أرض";
+  }
+
+  return "";
+}
+
+function normalizeMasaakSubcategory(category = "", subcategory = "", adText = "") {
+  const normalizedCategory = canonicalizeMasaakCategory(category);
+  if (!normalizedCategory) return "";
+
+  if (MASAAK_FORCE_EMPTY_SUBCATEGORY_CATEGORIES.has(normalizedCategory)) {
+    return "";
+  }
+
+  const normalizedSubcategory = normalizeArabicText(subcategory || "");
+  const text = normalizeArabicText(adText || "");
+  const findByPatterns = (patterns = []) => {
+    const fromSubcategory = patterns.find(({ regex }) => regex.test(normalizedSubcategory));
+    if (fromSubcategory) return fromSubcategory.value;
+
+    const fromText = patterns.find(({ regex }) => regex.test(text));
+    if (fromText) return fromText.value;
+
+    return "";
+  };
+
+  if (normalizedCategory === "بيت") {
+    return findByPatterns([
+      { regex: /دورين/i, value: "دورين" },
+      { regex: /عربي/i, value: "عربي" },
+      { regex: /دور/i, value: "دور" },
+    ]);
+  }
+
+  if (normalizedCategory === "أرض" || normalizedCategory === "عمارة") {
+    return findByPatterns([
+      { regex: /تجار(?:ي|ية)/i, value: "تجارية" },
+      { regex: /سكن(?:ي|ية)/i, value: "سكنية" },
+    ]);
+  }
+
+  if (normalizedCategory === "مزرعة") {
+    return findByPatterns([
+      { regex: /صك/i, value: "صك" },
+      { regex: /مشاع/i, value: "مشاع" },
+      { regex: /وقف/i, value: "وقف" },
+      { regex: /عرق/i, value: "عرق" },
+      { regex: /(?:(?:أرض|ارض)\s*)?زراع(?:ي|ية|يه)/i, value: "أرض زراعية" },
+    ]);
+  }
+
+  return normalizeCategoryLabel(subcategory);
+}
+
+function enforceMasaakCategorySubcategoryReference(meta, adText = "") {
+  if (!isObject(meta)) return;
+
+  const textCategoryHint = inferStrictMasaakCategoryFromText(adText);
+  const currentSubcategory = firstNonEmpty(
+    meta.sub_catt,
+    meta.subcategory,
+    meta.arc_subcategory,
+    "",
+  );
+  let category = canonicalizeMasaakCategory(
+    firstNonEmpty(meta.parent_catt, meta.category, meta.arc_category),
+  );
+
+  if (!category && textCategoryHint) {
+    category = textCategoryHint;
+  } else if (textCategoryHint && HASAK_CATEGORIES.includes(category)) {
+    category = textCategoryHint;
+  }
+
+  // Keep agricultural land routed under "مزرعة" as requested by the business rules.
+  if (
+    category === "أرض" &&
+    (textCategoryHint === "مزرعة" || /زراع(?:ي|ية|يه)/i.test(normalizeArabicText(currentSubcategory)))
+  ) {
+    category = "مزرعة";
+  }
+
+  if (!category) return;
+
+  const normalizedSubcategory = normalizeMasaakSubcategory(
+    category,
+    currentSubcategory,
+    adText,
+  );
+
+  meta.category = category;
+  meta.parent_catt = category;
+  meta.arc_category = category;
+
+  if (MASAAK_FORCE_EMPTY_SUBCATEGORY_CATEGORIES.has(category)) {
+    meta.subcategory = "";
+    meta.sub_catt = "";
+    meta.arc_subcategory = "";
+  } else if (Object.prototype.hasOwnProperty.call(MASAAK_STRICT_SUBCATEGORY_RULES, category)) {
+    meta.subcategory = normalizedSubcategory || "";
+    meta.sub_catt = normalizedSubcategory || "";
+    meta.arc_subcategory = normalizedSubcategory || "";
+  }
+
+  const categoryId = resolveCategoryId(category);
+  if (categoryId) {
+    meta.category_id = categoryId;
+  }
 }
 
 function normalizeWordPressCategoryMeta(meta, adText = "") {
@@ -1933,6 +2100,7 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
     meta.arc_subcategory || meta.sub_catt || candidateSubCategory;
   meta.category = meta.category || meta.parent_catt || meta.arc_category;
   meta.subcategory = meta.subcategory || meta.sub_catt || meta.arc_subcategory;
+  enforceMasaakCategorySubcategoryReference(meta, normalizedAdText);
 
   if (!meta.category_id) {
     meta.category_id = resolveCategoryId(meta.category || meta.parent_catt || meta.arc_category);
@@ -2059,6 +2227,13 @@ function detectPropertyTypeFromText(adText = "") {
   const text = normalizeArabicText(adText);
   if (!text) return "";
 
+  if (/(?:شقة|شقه)\s*(?:دبلكسية|دبلكسيه|دبلكس|دوبلكس)/i.test(text)) {
+    return "شقة دبلكسية";
+  }
+  if (/(?:أرض|ارض)\s*زراع(?:ي|ية|يه)/i.test(text)) {
+    return "مزرعة";
+  }
+
   const priority = [
     "عمارة",
     "عماره",
@@ -2072,6 +2247,7 @@ function detectPropertyTypeFromText(adText = "") {
     "أرض",
     "ارض",
     "دبلكس",
+    "دوبلكس",
     "مزرعة",
     "مزرعه",
     "استراحة",
@@ -2091,6 +2267,7 @@ function detectPropertyTypeFromText(adText = "") {
     بيوت: "بيت",
     شقه: "شقة",
     ارض: "أرض",
+    دوبلكس: "دبلكس",
     مزرعه: "مزرعة",
     استراحه: "استراحة",
     شاليه: "شالية",
@@ -2732,6 +2909,25 @@ function getRequiredMetadataFieldsForAd(wpData, adText = "") {
     return ["category"];
   }
 
+  const meta = isObject(wpData?.meta) ? wpData.meta : {};
+  const normalizedCategory = canonicalizeMasaakCategory(
+    firstNonEmpty(
+      wpData?.category,
+      meta.category,
+      meta.parent_catt,
+      meta.arc_category,
+      detectPropertyTypeFromText(adText),
+    ),
+  );
+
+  if (
+    normalizedCategory &&
+    (normalizedCategory === "طلبات" ||
+      MASAAK_FORCE_EMPTY_SUBCATEGORY_CATEGORIES.has(normalizedCategory))
+  ) {
+    return REQUIRED_METADATA_FIELDS.filter((field) => field !== "subcategory");
+  }
+
   return [...REQUIRED_METADATA_FIELDS];
 }
 
@@ -3063,23 +3259,34 @@ function extractLocationFromTextFallback(adText = "") {
 }
 
 function inferSubcategoryFallback(adText = "", category = "") {
-  const text = normalizeArabicText(adText || "");
-  const patterns = [
-    { regex: /دور\s*أول|الدور\s*الأول/i, value: "دور أول" },
-    { regex: /دور\s*ثاني|الدور\s*الثاني/i, value: "دور ثاني" },
-    { regex: /دور\s*أرضي|الدور\s*الأرضي/i, value: "دور أرضي" },
-    { regex: /دبلكس|دوبلكس/i, value: "دبلكس" },
-    { regex: /شقة\s*دبلكسية|شقه\s*دبلكسيه/i, value: "شقة دبلكسية" },
-  ];
+  const normalizedCategory = canonicalizeMasaakCategory(category);
+  const strictSubcategory = normalizeMasaakSubcategory(normalizedCategory, "", adText);
+  if (strictSubcategory) {
+    return strictSubcategory;
+  }
 
-  const detected = patterns.find(({ regex }) => regex.test(text));
+  if (MASAAK_FORCE_EMPTY_SUBCATEGORY_CATEGORIES.has(normalizedCategory)) {
+    return "";
+  }
+
+  const text = normalizeArabicText(adText || "");
+  const genericPatterns = [
+    { regex: /صك/i, value: "صك" },
+    { regex: /مشاع/i, value: "مشاع" },
+    { regex: /وقف/i, value: "وقف" },
+    { regex: /عرق/i, value: "عرق" },
+  ];
+  const detected = genericPatterns.find(({ regex }) => regex.test(text));
   if (detected) {
     return detected.value;
   }
 
-  const normalizedCategory = normalizeCategoryLabel(category);
   if (normalizedCategory === "طلبات") {
     return "عام";
+  }
+
+  if (Object.prototype.hasOwnProperty.call(MASAAK_STRICT_SUBCATEGORY_RULES, normalizedCategory)) {
+    return "";
   }
 
   return normalizedCategory || "عام";
@@ -3473,6 +3680,7 @@ function buildWordPressExtractionPrompt(adText, contactHint, isRegeneration) {
   const masaakCategoriesText = MASAAK_CATEGORIES.join("، ");
   const hasakCategoriesText = HASAK_CATEGORIES.join("، ");
   const masaakSubcategoryHints = MASAAK_SUBCATEGORY_LINES_FOR_PROMPT.join("\n- ");
+  const masaakReferenceRulesText = MASAAK_REFERENCE_RULE_LINES_FOR_PROMPT.join("\n- ");
 
   return `أنت مساعد متخصص في استخراج بيانات إعلان عربي للنشر في WordPress لموقعين:
 - مسعاك (عقارات)
@@ -3517,6 +3725,8 @@ ${
 24) لمسعاك فقط: إذا توفر الحي بدون المدينة فاستنتج المدينة المناسبة (مثل الهفوف/المبرز/القرى/العيون)، ولا تكتب before_City/before_city إلا إذا كانت المحافظة مذكورة في النص. في كل الحالات: location/neighborhood تكون اسم الحي فقط بدون كلمة "حي". في حساك لا تستنتج مدينة/محافظة غير مذكورة.
 25) ممنوع نهائياً داخل title/content/main_ad ظهور الكلمات أو العبارات التالية: "مباشر" و"من الوكيل" و"طرف" وأي صياغة مكافئة لها.
 26) لا تكتب ولا تعبئ حقول طريقة الدفع نهائياً: price_method و payment_method يجب أن تبقى "" دائماً.
+27) مرجع إلزامي لمسعاك (له أولوية على أي تخمين فرعي):
+- ${masaakReferenceRulesText}
 
 الفئات المعتمدة:
 - فئات مسعاك: ${masaakCategoriesText}
