@@ -36,7 +36,9 @@ const HASAK_CATEGORIES = [
   ),
 ];
 const MASAAK_SUBCATEGORY_MAP = websiteConfig.masaak.subcategories || {};
-const MASAAK_SUBCATEGORY_LINES_FOR_PROMPT = Object.entries(MASAAK_SUBCATEGORY_MAP)
+const MASAAK_SUBCATEGORY_LINES_FOR_PROMPT = Object.entries(
+  MASAAK_SUBCATEGORY_MAP,
+)
   .map(([main, subMap]) => {
     const parent = String(main || "").trim();
     const children = Object.keys(subMap || {})
@@ -135,8 +137,8 @@ const WP_META_DEFAULTS = {
   category: "",
   subcategory: "",
   category_id: "",
-  before_City: "",
-  before_city: "",
+  before_City: "الأحساء",
+  before_city: "الأحساء",
   City: "",
   city: "",
   subcity: "",
@@ -288,7 +290,10 @@ function firstNonEmpty(...values) {
   for (const value of values) {
     const unwrapped = unwrapValue(value);
     if (unwrapped !== null && unwrapped !== undefined) {
-      if (typeof unwrapped === "string" && normalizeWhitespace(unwrapped) === "") {
+      if (
+        typeof unwrapped === "string" &&
+        normalizeWhitespace(unwrapped) === ""
+      ) {
         continue;
       }
       return unwrapped;
@@ -358,10 +363,7 @@ function stripAdReferenceNumbers(text) {
       /رقم\s*(?:القطعة|الإعلان|الاعلان|العرض|الطلب)\s*[:：-]?\s*[0-9٠-٩]+(?:\s*[A-Za-z\u0600-\u06FF]+)?/gi,
       "",
     )
-    .replace(
-      /قطعة\s*[:：-]?\s*[0-9٠-٩]+(?:\s*[A-Za-z\u0600-\u06FF]+)?/gi,
-      "",
-    )
+    .replace(/قطعة\s*[:：-]?\s*[0-9٠-٩]+(?:\s*[A-Za-z\u0600-\u06FF]+)?/gi, "")
     .replace(/\s+[:：]\s+/g, " ")
     .replace(/[,:،]\s*(?=\n|$)/g, "");
 
@@ -401,7 +403,8 @@ function getDynamicLocationHints(forceRefresh = false) {
   const isFresh =
     !forceRefresh &&
     dynamicLocationHintsCache.loadedAt > 0 &&
-    Date.now() - dynamicLocationHintsCache.loadedAt < DYNAMIC_LOCATION_CACHE_TTL_MS;
+    Date.now() - dynamicLocationHintsCache.loadedAt <
+      DYNAMIC_LOCATION_CACHE_TTL_MS;
 
   if (isFresh) {
     return dynamicLocationHintsCache;
@@ -447,8 +450,9 @@ function inferLocationFromKnownOptions(text, options = []) {
     return "";
   }
 
-  const sortedOptions = normalizeLocationHintList(options)
-    .sort((a, b) => b.length - a.length);
+  const sortedOptions = normalizeLocationHintList(options).sort(
+    (a, b) => b.length - a.length,
+  );
 
   for (const option of sortedOptions) {
     const normalizedOption = normalizeArabicText(option).toLowerCase();
@@ -525,14 +529,19 @@ function inferCityGovernorateFromText(adText) {
     city = inferLocationFromKnownOptions(text, dynamicHints.cities);
   }
   if (!governorate) {
-    governorate = inferLocationFromKnownOptions(text, dynamicHints.beforeCities);
+    governorate = inferLocationFromKnownOptions(
+      text,
+      dynamicHints.beforeCities,
+    );
   }
 
   if (!city) {
     const neighborhoodHints = areaNormalizer.extractNeighborhoods(text);
     for (const hint of neighborhoodHints) {
       const inferredCity = normalizeArabicText(
-        areaNormalizer.inferCityFromArea ? areaNormalizer.inferCityFromArea(hint) : "",
+        areaNormalizer.inferCityFromArea
+          ? areaNormalizer.inferCityFromArea(hint)
+          : "",
       );
       if (inferredCity) {
         city = inferredCity;
@@ -569,7 +578,11 @@ function normalizeContactList(rawContact, extractedPhones = []) {
   if (Array.isArray(rawContact)) {
     for (const item of rawContact) {
       if (typeof item === "string") {
-        contacts.push({ value: normalizePhoneNumber(item), type: "phone", confidence: 1 });
+        contacts.push({
+          value: normalizePhoneNumber(item),
+          type: "phone",
+          confidence: 1,
+        });
         continue;
       }
 
@@ -580,7 +593,11 @@ function normalizeContactList(rawContact, extractedPhones = []) {
         const confidenceRaw = extractNumericValue(item.confidence);
         const confidence =
           typeof confidenceRaw === "number"
-            ? clamp(confidenceRaw <= 1 ? confidenceRaw : confidenceRaw / 100, 0, 1)
+            ? clamp(
+                confidenceRaw <= 1 ? confidenceRaw : confidenceRaw / 100,
+                0,
+                1,
+              )
             : 1;
 
         contacts.push({
@@ -624,7 +641,10 @@ function stripCodeFences(text) {
     return fencedBlocks.join("\n").trim();
   }
 
-  return raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  return raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
 }
 
 function extractBalancedJsonSnippets(text) {
@@ -742,7 +762,10 @@ function parseJson(candidate) {
     return maybeParseNestedString(parsed);
   }
 
-  const withoutTrailingCommas = normalizedCandidate.replace(/,\s*([}\]])/g, "$1");
+  const withoutTrailingCommas = normalizedCandidate.replace(
+    /,\s*([}\]])/g,
+    "$1",
+  );
   parsed = tryParse(withoutTrailingCommas);
   if (parsed !== null) {
     return maybeParseNestedString(parsed);
@@ -848,7 +871,9 @@ function classifyProviderError(error) {
 
   if (
     [408, 500, 502, 503, 504].includes(status) ||
-    /(timeout|timed out|ECONNRESET|ECONNREFUSED|ENOTFOUND|network)/i.test(message)
+    /(timeout|timed out|ECONNRESET|ECONNREFUSED|ENOTFOUND|network)/i.test(
+      message,
+    )
   ) {
     return "network_error";
   }
@@ -889,7 +914,9 @@ function normalizeError(error, taskName, provider, attempt) {
 }
 
 function buildStrictJsonPrompt(prompt, schema) {
-  const template = schema?.template ? JSON.stringify(schema.template, null, 2) : "";
+  const template = schema?.template
+    ? JSON.stringify(schema.template, null, 2)
+    : "";
   return `${prompt}\n\nIMPORTANT OUTPUT RULES:\n1) Return ONLY one valid JSON object.\n2) No markdown fences.\n3) No additional explanation text.\n${template ? `4) Use this shape:\n${template}` : ""}`;
 }
 
@@ -953,7 +980,9 @@ function shouldUseMinimalReasoningEffort(modelName = "") {
 }
 
 function summarizeGptCompletion(completion) {
-  const choice = Array.isArray(completion?.choices) ? completion.choices[0] : null;
+  const choice = Array.isArray(completion?.choices)
+    ? completion.choices[0]
+    : null;
   const message = choice?.message;
   const content = message?.content;
 
@@ -989,7 +1018,13 @@ function extractTextFromGptMessage(message) {
       .map((part) => {
         if (typeof part === "string") return part;
         if (!isObject(part)) return "";
-        return firstNonEmpty(part.text, part.output_text, part.content, part.value, "");
+        return firstNonEmpty(
+          part.text,
+          part.output_text,
+          part.content,
+          part.value,
+          "",
+        );
       })
       .map((part) => String(part ?? "").trim())
       .filter(Boolean);
@@ -1010,7 +1045,11 @@ function extractTextFromGptMessage(message) {
   const toolCallPayloads = Array.isArray(message.tool_calls)
     ? message.tool_calls
         .map((toolCall) =>
-          firstNonEmpty(toolCall?.function?.arguments, toolCall?.custom?.input, ""),
+          firstNonEmpty(
+            toolCall?.function?.arguments,
+            toolCall?.custom?.input,
+            "",
+          ),
         )
         .map((value) => String(value || "").trim())
         .filter(Boolean)
@@ -1020,8 +1059,14 @@ function extractTextFromGptMessage(message) {
     return toolCallPayloads.join("\n");
   }
 
-  const functionCallArguments = firstNonEmpty(message.function_call?.arguments, "");
-  if (typeof functionCallArguments === "string" && functionCallArguments.trim()) {
+  const functionCallArguments = firstNonEmpty(
+    message.function_call?.arguments,
+    "",
+  );
+  if (
+    typeof functionCallArguments === "string" &&
+    functionCallArguments.trim()
+  ) {
     return functionCallArguments.trim();
   }
 
@@ -1084,10 +1129,12 @@ async function callProviderRaw({
 
           if (responseFormatUnsupported) {
             delete completionRequest.response_format;
-            completion = await client.chat.completions.create(completionRequest);
+            completion =
+              await client.chat.completions.create(completionRequest);
           } else if (reasoningEffortUnsupported) {
             delete completionRequest.reasoning_effort;
-            completion = await client.chat.completions.create(completionRequest);
+            completion =
+              await client.chat.completions.create(completionRequest);
           } else {
             throw error;
           }
@@ -1099,7 +1146,11 @@ async function callProviderRaw({
         const message = choice?.message;
         const extractedText = extractTextFromGptMessage(message);
 
-        if (!extractedText && typeof message?.refusal === "string" && message.refusal.trim()) {
+        if (
+          !extractedText &&
+          typeof message?.refusal === "string" &&
+          message.refusal.trim()
+        ) {
           throw new AIServiceError(
             `${taskName}: model refused to return content`,
             "provider_failure",
@@ -1174,7 +1225,9 @@ async function callLLM({
   for (const provider of providers) {
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       const promptToUse =
-        attempt === 1 || !schema ? prompt : buildStrictJsonPrompt(prompt, schema);
+        attempt === 1 || !schema
+          ? prompt
+          : buildStrictJsonPrompt(prompt, schema);
 
       try {
         console.log(`🤖 [${taskName}] provider=${provider} attempt=${attempt}`);
@@ -1218,7 +1271,9 @@ async function callLLM({
         }
 
         const shouldRetryJson =
-          normalized.type === "invalid_json" && attempt === 1 && Boolean(schema);
+          normalized.type === "invalid_json" &&
+          attempt === 1 &&
+          Boolean(schema);
 
         if (shouldRetryJson) {
           console.log(
@@ -1280,7 +1335,9 @@ const DETECT_AD_SCHEMA = {
   sanitize: (obj) => {
     const isAd = toBoolean(firstNonEmpty(obj.isAd, obj.is_ad, obj.ad));
 
-    let confidence = extractNumericValue(firstNonEmpty(obj.confidence, obj.score));
+    let confidence = extractNumericValue(
+      firstNonEmpty(obj.confidence, obj.score),
+    );
     if (confidence === "") {
       confidence = isAd ? 70 : 20;
     }
@@ -1290,8 +1347,9 @@ const DETECT_AD_SCHEMA = {
     }
 
     const reason =
-      normalizeArabicText(firstNonEmpty(obj.reason, obj.explanation, obj.note)) ||
-      (isAd ? "تم تصنيف الرسالة كإعلان" : "الرسالة ليست إعلاناً واضحاً");
+      normalizeArabicText(
+        firstNonEmpty(obj.reason, obj.explanation, obj.note),
+      ) || (isAd ? "تم تصنيف الرسالة كإعلان" : "الرسالة ليست إعلاناً واضحاً");
 
     return {
       isAd,
@@ -1334,19 +1392,24 @@ const DETECT_CATEGORY_SCHEMA = {
     confidence: 0.9,
     reason: "سبب مختصر",
   },
-  match: (obj) => isObject(obj) && ("category" in obj || "classification" in obj),
+  match: (obj) =>
+    isObject(obj) && ("category" in obj || "classification" in obj),
   sanitize: (obj) => {
     const category = normalizeArabicText(
       firstNonEmpty(obj.category, obj.classification, obj.label, obj.result),
     );
 
-    const confidenceRaw = extractNumericValue(firstNonEmpty(obj.confidence, obj.score));
+    const confidenceRaw = extractNumericValue(
+      firstNonEmpty(obj.confidence, obj.score),
+    );
     const confidence =
       typeof confidenceRaw === "number"
         ? clamp(confidenceRaw <= 1 ? confidenceRaw : confidenceRaw / 100, 0, 1)
         : undefined;
 
-    const reason = normalizeArabicText(firstNonEmpty(obj.reason, obj.explanation));
+    const reason = normalizeArabicText(
+      firstNonEmpty(obj.reason, obj.explanation),
+    );
 
     return {
       category,
@@ -1416,7 +1479,9 @@ const RECOVER_MISSING_WORDPRESS_FIELDS_SCHEMA = {
       "category" in obj ||
       "subcategory" in obj),
   sanitize: (obj) => {
-    const confidenceRaw = extractNumericValue(firstNonEmpty(obj.confidence, obj.score));
+    const confidenceRaw = extractNumericValue(
+      firstNonEmpty(obj.confidence, obj.score),
+    );
     const confidence =
       typeof confidenceRaw === "number"
         ? clamp(confidenceRaw <= 1 ? confidenceRaw : confidenceRaw / 100, 0, 1)
@@ -1425,7 +1490,12 @@ const RECOVER_MISSING_WORDPRESS_FIELDS_SCHEMA = {
     return {
       area: firstNonEmpty(obj.area, obj.arc_space, obj.order_space, ""),
       price: firstNonEmpty(obj.price, ""),
-      price_method: firstNonEmpty(obj.price_method, obj.payment_method, obj.priceMethod, ""),
+      price_method: firstNonEmpty(
+        obj.price_method,
+        obj.payment_method,
+        obj.priceMethod,
+        "",
+      ),
       price_type: firstNonEmpty(obj.price_type, obj.priceType, ""),
       price_amount: firstNonEmpty(obj.price_amount, obj.priceAmount, ""),
       from_price: firstNonEmpty(obj.from_price, obj.fromPrice, ""),
@@ -1438,15 +1508,27 @@ const RECOVER_MISSING_WORDPRESS_FIELDS_SCHEMA = {
       ),
       neighborhood: firstNonEmpty(obj.neighborhood, obj.location, ""),
       city: firstNonEmpty(obj.city, obj.City, obj.subcity, ""),
-      governorate: firstNonEmpty(obj.governorate, obj.before_City, obj.before_city, ""),
-      category: firstNonEmpty(obj.category, obj.arc_category, obj.parent_catt, ""),
+      governorate: firstNonEmpty(
+        obj.governorate,
+        obj.before_City,
+        obj.before_city,
+        "",
+      ),
+      category: firstNonEmpty(
+        obj.category,
+        obj.arc_category,
+        obj.parent_catt,
+        "",
+      ),
       subcategory: firstNonEmpty(
         obj.subcategory,
         obj.arc_subcategory,
         obj.sub_catt,
         "",
       ),
-      notes: normalizeArabicText(firstNonEmpty(obj.notes, obj.reason, obj.explanation, "")),
+      notes: normalizeArabicText(
+        firstNonEmpty(obj.notes, obj.reason, obj.explanation, ""),
+      ),
       confidence,
     };
   },
@@ -1462,7 +1544,8 @@ const VALIDATION_SCHEMA = {
   sanitize: (obj) => ({
     isValid: toBoolean(firstNonEmpty(obj.isValid, obj.valid)),
     reason: normalizeArabicText(firstNonEmpty(obj.reason, obj.message)) || "",
-    suggestion: normalizeArabicText(firstNonEmpty(obj.suggestion, obj.fix)) || "",
+    suggestion:
+      normalizeArabicText(firstNonEmpty(obj.suggestion, obj.fix)) || "",
   }),
 };
 
@@ -1538,12 +1621,13 @@ function buildFullLocationValue(meta = {}, fallback = "") {
   const parts = unique(
     [
       normalizeArabicText(firstNonEmpty(meta.location, meta.neighborhood, "")),
-      normalizeArabicText(firstNonEmpty(meta.City, meta.subcity, meta.city, "")),
-      normalizeArabicText(firstNonEmpty(meta.before_City, meta.before_city, "")),
-    ].filter(
-      (value) =>
-        value && value !== "لم يذكر" && value !== "لا يوجد",
-    ),
+      normalizeArabicText(
+        firstNonEmpty(meta.City, meta.subcity, meta.city, ""),
+      ),
+      normalizeArabicText(
+        firstNonEmpty(meta.before_City, meta.before_city, ""),
+      ),
+    ].filter((value) => value && value !== "لم يذكر" && value !== "لا يوجد"),
   );
 
   if (parts.length > 0) {
@@ -1555,13 +1639,22 @@ function buildFullLocationValue(meta = {}, fallback = "") {
 
 function hasDetailedLocation(meta = {}) {
   const fullLocation = normalizeArabicText(meta.full_location || "");
-  if (fullLocation && !["الأحساء", "لم يذكر", "لا يوجد"].includes(fullLocation)) {
+  if (
+    fullLocation &&
+    !["الأحساء", "لم يذكر", "لا يوجد"].includes(fullLocation)
+  ) {
     return true;
   }
 
-  const beforeCity = normalizeArabicText(firstNonEmpty(meta.before_City, meta.before_city, ""));
-  const city = normalizeArabicText(firstNonEmpty(meta.City, meta.subcity, meta.city, ""));
-  const neighborhood = normalizeArabicText(firstNonEmpty(meta.location, meta.neighborhood, ""));
+  const beforeCity = normalizeArabicText(
+    firstNonEmpty(meta.before_City, meta.before_city, ""),
+  );
+  const city = normalizeArabicText(
+    firstNonEmpty(meta.City, meta.subcity, meta.city, ""),
+  );
+  const neighborhood = normalizeArabicText(
+    firstNonEmpty(meta.location, meta.neighborhood, ""),
+  );
 
   const hasNeighborhood =
     Boolean(neighborhood) &&
@@ -1587,14 +1680,11 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
   const inferred = inferCityGovernorateFromText(adText);
   const dynamicHints = getDynamicLocationHints(false);
 
-  let city = normalizeArabicText(firstNonEmpty(meta.city, meta.City, meta.subcity));
+  let city = normalizeArabicText(
+    firstNonEmpty(meta.city, meta.City, meta.subcity),
+  );
   let beforeCity = normalizeArabicText(
-    firstNonEmpty(
-      meta.before_City,
-      meta.before_city,
-      inferred.governorate,
-      "",
-    ),
+    firstNonEmpty(meta.before_City, meta.before_city, inferred.governorate, ""),
   );
   let subcity = normalizeArabicText(firstNonEmpty(meta.subcity, city));
 
@@ -1608,7 +1698,9 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
     beforeCity = normalizeArabicText(
       areaNormalizer.normalizeCityName(beforeCity) || beforeCity,
     );
-    subcity = normalizeArabicText(areaNormalizer.normalizeCityName(subcity) || subcity);
+    subcity = normalizeArabicText(
+      areaNormalizer.normalizeCityName(subcity) || subcity,
+    );
   }
 
   if (
@@ -1623,7 +1715,10 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
     city = inferLocationFromKnownOptions(adText, dynamicHints.cities);
   }
   if (!beforeCity) {
-    beforeCity = inferLocationFromKnownOptions(adText, dynamicHints.beforeCities);
+    beforeCity = inferLocationFromKnownOptions(
+      adText,
+      dynamicHints.beforeCities,
+    );
   }
 
   if (neighborhood.includes("،") || neighborhood.includes(",")) {
@@ -1642,7 +1737,11 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
     }
   }
 
-  if (neighborhood && neighborhood !== "لم يذكر" && areaNormalizer.normalizeAreaName) {
+  if (
+    neighborhood &&
+    neighborhood !== "لم يذكر" &&
+    areaNormalizer.normalizeAreaName
+  ) {
     neighborhood = normalizeArabicText(
       areaNormalizer.normalizeAreaName(neighborhood) || neighborhood,
     );
@@ -1650,7 +1749,9 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
   }
 
   const inferredCityFromNeighborhood = normalizeArabicText(
-    neighborhood && neighborhood !== "لم يذكر" && areaNormalizer.inferCityFromArea
+    neighborhood &&
+      neighborhood !== "لم يذكر" &&
+      areaNormalizer.inferCityFromArea
       ? areaNormalizer.inferCityFromArea(neighborhood)
       : "",
   );
@@ -1663,7 +1764,9 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
           .map((candidate) => normalizeArabicText(candidate))
           .filter(Boolean)
       : [];
-  const uniqueNeighborhoodCandidates = [...new Set(cityCandidatesFromNeighborhood)];
+  const uniqueNeighborhoodCandidates = [
+    ...new Set(cityCandidatesFromNeighborhood),
+  ];
   const hasSingleNeighborhoodCityCandidate =
     uniqueNeighborhoodCandidates.length === 1;
   const onlyNeighborhoodCityCandidate = hasSingleNeighborhoodCityCandidate
@@ -1770,7 +1873,9 @@ function inferPriceMethodFromText(adText = "", meta = {}) {
 
   if (!normalized) return "";
 
-  if (/(?:تقسيط|أقساط|اقساط|دفعة|دفعات|شهري|شهرياً|سنوي|سنوياً)/i.test(normalized)) {
+  if (
+    /(?:تقسيط|أقساط|اقساط|دفعة|دفعات|شهري|شهرياً|سنوي|سنوياً)/i.test(normalized)
+  ) {
     return "تقسيط";
   }
 
@@ -1876,7 +1981,10 @@ function inferStrictMasaakCategoryFromText(adText = "") {
   if (/(?:شقة|شقه)\s*(?:دبلكسية|دبلكسيه|دبلكس|دوبلكس)/i.test(text)) {
     return "شقة دبلكسية";
   }
-  if (/(?:أرض|ارض)\s*زراع(?:ي|ية|يه)/i.test(text) || /(?:مزرعة|مزرعه)/i.test(text)) {
+  if (
+    /(?:أرض|ارض)\s*زراع(?:ي|ية|يه)/i.test(text) ||
+    /(?:مزرعة|مزرعه)/i.test(text)
+  ) {
     return "مزرعة";
   }
   if (/(?:دبلكس|دوبلكس)/i.test(text)) {
@@ -1901,7 +2009,11 @@ function inferStrictMasaakCategoryFromText(adText = "") {
   return "";
 }
 
-function normalizeMasaakSubcategory(category = "", subcategory = "", adText = "") {
+function normalizeMasaakSubcategory(
+  category = "",
+  subcategory = "",
+  adText = "",
+) {
   const normalizedCategory = canonicalizeMasaakCategory(category);
   if (!normalizedCategory) return "";
 
@@ -1912,7 +2024,9 @@ function normalizeMasaakSubcategory(category = "", subcategory = "", adText = ""
   const normalizedSubcategory = normalizeArabicText(subcategory || "");
   const text = normalizeArabicText(adText || "");
   const findByPatterns = (patterns = []) => {
-    const fromSubcategory = patterns.find(({ regex }) => regex.test(normalizedSubcategory));
+    const fromSubcategory = patterns.find(({ regex }) =>
+      regex.test(normalizedSubcategory),
+    );
     if (fromSubcategory) return fromSubcategory.value;
 
     const fromText = patterns.find(({ regex }) => regex.test(text));
@@ -1972,7 +2086,8 @@ function enforceMasaakCategorySubcategoryReference(meta, adText = "") {
   // Keep agricultural land routed under "مزرعة" as requested by the business rules.
   if (
     category === "أرض" &&
-    (textCategoryHint === "مزرعة" || /زراع(?:ي|ية|يه)/i.test(normalizeArabicText(currentSubcategory)))
+    (textCategoryHint === "مزرعة" ||
+      /زراع(?:ي|ية|يه)/i.test(normalizeArabicText(currentSubcategory)))
   ) {
     category = "مزرعة";
   }
@@ -1993,7 +2108,12 @@ function enforceMasaakCategorySubcategoryReference(meta, adText = "") {
     meta.subcategory = "";
     meta.sub_catt = "";
     meta.arc_subcategory = "";
-  } else if (Object.prototype.hasOwnProperty.call(MASAAK_STRICT_SUBCATEGORY_RULES, category)) {
+  } else if (
+    Object.prototype.hasOwnProperty.call(
+      MASAAK_STRICT_SUBCATEGORY_RULES,
+      category,
+    )
+  ) {
     meta.subcategory = normalizedSubcategory || "";
     meta.sub_catt = normalizedSubcategory || "";
     meta.arc_subcategory = normalizedSubcategory || "";
@@ -2030,9 +2150,11 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
 
   const shouldPreferRealEstateFromText =
     offerInText && realEstateInText && !!inferredPropertyCategory;
-  const hasakCategory = [meta.category, meta.parent_catt, meta.arc_category].find((c) =>
-    HASAK_CATEGORIES.includes(c),
-  );
+  const hasakCategory = [
+    meta.category,
+    meta.parent_catt,
+    meta.arc_category,
+  ].find((c) => HASAK_CATEGORIES.includes(c));
 
   if (hasakCategory && !shouldPreferRealEstateFromText) {
     meta.category = hasakCategory;
@@ -2062,8 +2184,7 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
     );
 
   const requestFromText = requestInText && !offerInText;
-  const forceOfferFromText =
-    offerInText && realEstateInText && !requestInText;
+  const forceOfferFromText = offerInText && realEstateInText && !requestInText;
 
   const isRequestCategory =
     (requestByMetaCategory || requestByTypeHint || requestFromText) &&
@@ -2095,7 +2216,8 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
 
   meta.parent_catt = meta.parent_catt || candidateCategory;
   meta.sub_catt = meta.sub_catt || candidateSubCategory;
-  meta.arc_category = meta.arc_category || meta.parent_catt || candidateCategory;
+  meta.arc_category =
+    meta.arc_category || meta.parent_catt || candidateCategory;
   meta.arc_subcategory =
     meta.arc_subcategory || meta.sub_catt || candidateSubCategory;
   meta.category = meta.category || meta.parent_catt || meta.arc_category;
@@ -2103,7 +2225,9 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
   enforceMasaakCategorySubcategoryReference(meta, normalizedAdText);
 
   if (!meta.category_id) {
-    meta.category_id = resolveCategoryId(meta.category || meta.parent_catt || meta.arc_category);
+    meta.category_id = resolveCategoryId(
+      meta.category || meta.parent_catt || meta.arc_category,
+    );
   }
 }
 
@@ -2113,6 +2237,8 @@ const FORBIDDEN_DESCRIPTION_PATTERNS = [
   /(?:رقم\s*الترخيص|ترخيص|رخصة|معلن\s*معتمد|الهيئة\s*العامة\s*للعقار)[^<\n]{0,40}[0-9٠-٩]{4,}/gi,
   /(?:برقم)\s*[0-9٠-٩]{4,}/gi,
   /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|قروب|مجموعة واتساب|انضمام|شركة\s*عقارية|مؤسسة\s*عقارية|وكيل|الوكيل)/gi,
+  /(?:وساطة|وساطه|التسويق\s*العقاري|تسويق\s*عقاري|إدارة\s*أملاك|ادارة\s*املاك)/gi,
+  /(?:سناب|snap(?:chat)?|انستا(?:غرام)?|instagram|insta|تل(?:ي)?جرام|telegram|تويتر|twitter|x\.com|تيك\s*توك|tiktok|يوتيوب|youtube|فيس(?:بوك)?|facebook|معرف|يوزر|الحساب|حساب(?:نا)?)/gi,
   /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف|موبايل|محمول)/gi,
   /(?:رقم\s*(?:التواصل|الجوال|الهاتف|الموبايل|المحمول)?\s*[:：-]?\s*)(?:\+?\d[\d\s\-()]{6,}\d)/gi,
   /(?:مباشر(?:ة)?|من\s*الوكيل|من\s*المالك|طرف)/gi,
@@ -2122,8 +2248,19 @@ const FORBIDDEN_DESCRIPTION_PATTERNS = [
 const OWNER_ADMIN_DETAIL_PATTERNS = [
   /(?:اسم\s*المالك|المالك|مالك\s*العقار|صاحب\s*العقار|صاحب\s*الإعلان|اسم\s*المعلن|المعلن)/i,
   /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|رقم\s*الترخيص|رقم\s*المعلن|شركة\s*عقارية|مؤسسة\s*عقارية|وكيل|الوكيل)/i,
+  /(?:وساطة|وساطه|التسويق\s*العقاري|تسويق\s*عقاري|إدارة\s*أملاك|ادارة\s*املاك)/i,
+  /(?:سناب|snap(?:chat)?|انستا(?:غرام)?|instagram|insta|تل(?:ي)?جرام|telegram|تويتر|twitter|x\.com|تيك\s*توك|tiktok|يوتيوب|youtube|فيس(?:بوك)?|facebook|معرف|يوزر|الحساب|حساب(?:نا)?)/i,
+  /(?:قروب|جروب|مجموعة(?:\s*واتساب)?|انضمام)/i,
   /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف|موبايل|محمول|رقم\s*التواصل|رقم\s*الجوال|رقم\s*الموبايل|رقم\s*المحمول)/i,
   /(?:مباشر(?:ة)?|من\s*الوكيل|من\s*المالك|طرف)/i,
+];
+
+const FULLY_REMOVABLE_SOURCE_LINE_PATTERNS = [
+  /(?:مكتب|وسيط|وساطة|وساطه|سمسار|شركة(?:\s*عقارية)?|مؤسسة(?:\s*عقارية)?|وكيل|الوكيل|التسويق\s*العقاري|تسويق\s*عقاري|إدارة\s*أملاك|ادارة\s*املاك)/i,
+  /(?:رقم\s*الترخيص|ترخيص|رخصة|معلن\s*معتمد|الهيئة\s*العامة\s*للعقار|فال)/i,
+  /(?:قروب|جروب|مجموعة(?:\s*واتساب)?|انضمام|join\s+group)/i,
+  /(?:chat\.whatsapp\.com|wa\.me|t\.me|سناب|snap(?:chat)?|انستا(?:غرام)?|instagram|insta|تل(?:ي)?جرام|telegram|تويتر|twitter|x\.com|تيك\s*توك|tiktok|يوتيوب|youtube|فيس(?:بوك)?|facebook)/i,
+  /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف|موبايل|محمول|رقم\s*(?:التواصل|الجوال|الهاتف|الموبايل|المحمول)?)/i,
 ];
 
 const REAL_ESTATE_KEYWORDS = [
@@ -2165,29 +2302,134 @@ function isOwnerOrAdministrativeDetailLine(line = "") {
   const normalized = normalizeArabicText(line || "");
   if (!normalized) return false;
 
-  return OWNER_ADMIN_DETAIL_PATTERNS.some((pattern) => pattern.test(normalized));
+  return OWNER_ADMIN_DETAIL_PATTERNS.some((pattern) =>
+    pattern.test(normalized),
+  );
 }
 
-function extractCleanDescriptionLines(adText) {
+function hasPropertyDetailSignals(line = "") {
+  const normalized = normalizeArabicText(line || "");
+  if (!normalized) return false;
+
+  if (
+    REAL_ESTATE_KEYWORDS.some((keyword) =>
+      normalized.includes(normalizeArabicText(keyword)),
+    )
+  ) {
+    return true;
+  }
+
+  return /(?:المساحة|مساحة|السعر|العمر|واجهة|شارع|غرف|غرفة|صالة|حمام|مطبخ|مجلس|دور|مدخل|مواقف|مصعد|مؤجر|دخل|صك|عداد|خزان|حي|مخطط|متر|مليون|ألف|ريال|للبيع|للإيجار|للايجار|للتقبيل)/i.test(
+    normalized,
+  );
+}
+
+function looksLikeResidualAdministrativeLine(line = "", previousLineWasAdministrative = false) {
+  const normalized = normalizeArabicText(line || "");
+  if (!normalized) return false;
+
+  if (
+    /(?:سناب|snap(?:chat)?|انستا(?:غرام)?|instagram|insta|تل(?:ي)?جرام|telegram|تويتر|twitter|x\.com|تيك\s*توك|tiktok|يوتيوب|youtube|فيس(?:بوك)?|facebook|معرف|يوزر|الحساب|حساب(?:نا)?)/i.test(
+      normalized,
+    )
+  ) {
+    return true;
+  }
+
+  if (!previousLineWasAdministrative) return false;
+
+  const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+  const looksLikeShortNameOrHandle =
+    wordCount <= 4 &&
+    normalized.length <= 30 &&
+    /^[\u0600-\u06FFa-z0-9_.@+\-\s]+$/i.test(normalized);
+
+  return looksLikeShortNameOrHandle && !hasPropertyDetailSignals(normalized);
+}
+
+function shouldDropDescriptionLine(line = "", previousLineWasAdministrative = false) {
+  const normalized = normalizeArabicText(line || "");
+  if (!normalized) return false;
+
+  if (looksLikeResidualAdministrativeLine(normalized, previousLineWasAdministrative)) {
+    return true;
+  }
+
+  const isAdministrativeLine = FULLY_REMOVABLE_SOURCE_LINE_PATTERNS.some((pattern) =>
+    pattern.test(normalized),
+  );
+
+  return isAdministrativeLine && !hasPropertyDetailSignals(normalized);
+}
+
+function collectSanitizedAdLines(adText, limit = 20) {
   const source = String(adText ?? "")
     .replace(/<[^>]+>/g, "\n")
     .replace(/\r/g, "\n");
 
-  const lines = source
-    .split(/\n+/)
-    .map((line) => stripAdReferenceNumbers(removeForbiddenInlineContent(line)))
-    .map((line) => line.replace(/^[\-*•:]+/g, "").trim())
-    .filter(Boolean)
-    .filter((line) => !isOwnerOrAdministrativeDetailLine(line))
-    .filter((line) => line.length >= 3);
+  const sanitizedLines = [];
+  let previousLineWasAdministrative = false;
 
-  return unique(lines).slice(0, 20);
+  for (const rawLine of source.split(/\n+/)) {
+    const candidate = stripAdReferenceNumbers(rawLine)
+      .replace(/^[\-*•:]+/g, "")
+      .trim();
+
+    if (!candidate) {
+      previousLineWasAdministrative = false;
+      continue;
+    }
+
+    if (shouldDropDescriptionLine(candidate, previousLineWasAdministrative)) {
+      previousLineWasAdministrative = true;
+      continue;
+    }
+
+    const cleaned = stripAdReferenceNumbers(removeForbiddenInlineContent(candidate))
+      .replace(/^[\-*•:]+/g, "")
+      .replace(/[↩⬅➡]+/g, " ")
+      .trim();
+
+    if (
+      !cleaned ||
+      isOwnerOrAdministrativeDetailLine(cleaned) ||
+      looksLikeResidualAdministrativeLine(cleaned, previousLineWasAdministrative)
+    ) {
+      previousLineWasAdministrative = true;
+      continue;
+    }
+
+    sanitizedLines.push(cleaned);
+    previousLineWasAdministrative = false;
+
+    if (sanitizedLines.length >= limit) {
+      break;
+    }
+  }
+
+  return unique(sanitizedLines);
+}
+
+function buildCleanMainAdText(adText) {
+  const cleanedLines = collectSanitizedAdLines(adText, 40);
+  if (cleanedLines.length > 0) {
+    return cleanedLines.join("\n");
+  }
+
+  return removeForbiddenInlineContent(stripAdReferenceNumbers(adText || ""));
+}
+
+function extractCleanDescriptionLines(adText) {
+  return collectSanitizedAdLines(adText, 20).filter((line) => line.length >= 3);
 }
 
 function hasForbiddenDescriptionContent(text) {
   const value = String(text ?? "");
   return FORBIDDEN_DESCRIPTION_PATTERNS.some((pattern) => {
-    const safePattern = new RegExp(pattern.source, pattern.flags.replace(/g/g, ""));
+    const safePattern = new RegExp(
+      pattern.source,
+      pattern.flags.replace(/g/g, ""),
+    );
     return safePattern.test(value);
   });
 }
@@ -2206,17 +2448,23 @@ function isLikelyRealEstateMeta(meta = {}, adText = "") {
       .join(" "),
   );
 
-  const isRequestsBucket = Number(meta.category_id) === 83 || categoriesBlob.includes("طلبات");
+  const isRequestsBucket =
+    Number(meta.category_id) === 83 || categoriesBlob.includes("طلبات");
   const hasRealEstateKeyword = REAL_ESTATE_KEYWORDS.some((keyword) =>
     categoriesBlob.includes(normalizeArabicText(keyword)),
   );
-  const hasArea = extractNumericValue(firstNonEmpty(meta.arc_space, meta.area)) !== "";
+  const hasArea =
+    extractNumericValue(firstNonEmpty(meta.arc_space, meta.area)) !== "";
   const textBlob = normalizeArabicText(adText || "");
   const hasRealEstateKeywordInText = REAL_ESTATE_KEYWORDS.some((keyword) =>
     textBlob.includes(normalizeArabicText(keyword)),
   );
 
-  if (isRequestsBucket && !hasRealEstateKeyword && !hasRealEstateKeywordInText) {
+  if (
+    isRequestsBucket &&
+    !hasRealEstateKeyword &&
+    !hasRealEstateKeywordInText
+  ) {
     return false;
   }
 
@@ -2257,7 +2505,9 @@ function detectPropertyTypeFromText(adText = "") {
     "مستودع",
   ];
 
-  const found = priority.find((keyword) => text.includes(normalizeArabicText(keyword)));
+  const found = priority.find((keyword) =>
+    text.includes(normalizeArabicText(keyword)),
+  );
   if (!found) return "";
 
   const aliases = {
@@ -2282,10 +2532,7 @@ function formatPriceSummary(meta = {}) {
   const fromPrice = extractNumericValue(meta.from_price);
   const toPrice = extractNumericValue(meta.to_price);
 
-  if (
-    priceType.includes("عند التواصل") ||
-    priceType.includes("على السوم")
-  ) {
+  if (priceType.includes("عند التواصل") || priceType.includes("على السوم")) {
     return priceType || "عند التواصل";
   }
 
@@ -2348,7 +2595,11 @@ function isGenericAutoLocationLabel(locationLabel = "") {
     return true;
   }
 
-  if (normalized.includes("(") && normalized.includes(")") && matchedHints.length >= 3) {
+  if (
+    normalized.includes("(") &&
+    normalized.includes(")") &&
+    matchedHints.length >= 3
+  ) {
     return true;
   }
 
@@ -2384,7 +2635,9 @@ function collectLikelyLocationTokens(meta = {}) {
       .filter(
         (value) =>
           value &&
-          !["لم يذكر", "لا يوجد", "غير محدد", "n/a", "na", "none"].includes(value),
+          !["لم يذكر", "لا يوجد", "غير محدد", "n/a", "na", "none"].includes(
+            value,
+          ),
       ),
   );
 }
@@ -2407,7 +2660,10 @@ function stripInjectedHasakLocationFromTitle(title, meta = {}, adText = "") {
     const escaped = escapeRegExp(token);
     const patterns = [
       new RegExp(`\\s*[\\(\\[]?\\s*في\\s+${escaped}\\s*[\\)\\]]?`, "gi"),
-      new RegExp(`\\s*[\\(\\[]?\\s*ب(?:مدينة|محافظة)?\\s*${escaped}\\s*[\\)\\]]?`, "gi"),
+      new RegExp(
+        `\\s*[\\(\\[]?\\s*ب(?:مدينة|محافظة)?\\s*${escaped}\\s*[\\)\\]]?`,
+        "gi",
+      ),
       new RegExp(`\\s*[\\(\\[]\\s*${escaped}\\s*[\\)\\]]`, "gi"),
       new RegExp(`\\s*[\\-–—،,/]\\s*${escaped}(?=\\s|$)`, "gi"),
       new RegExp(`\\s+${escaped}(?=\\s*$)`, "gi"),
@@ -2454,7 +2710,10 @@ function ensureTitleContainsLocation(
 
   const locationLabel = pickTitleLocationLabel(meta);
 
-  if (!locationLabel || ["لم يذكر", "لا يوجد", "غير محدد"].includes(locationLabel)) {
+  if (
+    !locationLabel ||
+    ["لم يذكر", "لا يوجد", "غير محدد"].includes(locationLabel)
+  ) {
     return sanitized;
   }
 
@@ -2468,7 +2727,9 @@ function ensureTitleContainsLocation(
     .map((part) => normalizeArabicText(part))
     .filter(Boolean);
 
-  const titleHasLocation = locationParts.some((part) => normalizedTitle.includes(part));
+  const titleHasLocation = locationParts.some((part) =>
+    normalizedTitle.includes(part),
+  );
   if (titleHasLocation) {
     return sanitized;
   }
@@ -2537,7 +2798,8 @@ function buildRealEstateHtmlDescription({ title, meta, adText }) {
     features.push("حالة الرهن: مرهون");
   }
 
-  const featureHintKeywords = /(ميزة|مميزات|فرصة|جديد|مؤجر|مدخول|مرهون|صك|عداد|خزان)/i;
+  const featureHintKeywords =
+    /(ميزة|مميزات|فرصة|جديد|مؤجر|مدخول|مرهون|صك|عداد|خزان)/i;
   cleanLines.forEach((line) => {
     if (featureHintKeywords.test(line) && features.length < 10) {
       features.push(line);
@@ -2560,8 +2822,12 @@ function buildRealEstateHtmlDescription({ title, meta, adText }) {
     }
   });
 
-  const safeSpecs = unique(specs.map(removeForbiddenInlineContent).filter(Boolean));
-  const safeFeatures = unique(features.map(removeForbiddenInlineContent).filter(Boolean));
+  const safeSpecs = unique(
+    specs.map(removeForbiddenInlineContent).filter(Boolean),
+  );
+  const safeFeatures = unique(
+    features.map(removeForbiddenInlineContent).filter(Boolean),
+  );
 
   const specsHtml =
     safeSpecs.length > 0
@@ -2592,7 +2858,12 @@ function buildRealEstateHtmlDescription({ title, meta, adText }) {
 function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
   const cleanLines = extractCleanDescriptionLines(adText);
   const rawItemName = normalizeArabicText(
-    firstNonEmpty(meta.sub_catt, meta.subcategory, meta.category, meta.parent_catt),
+    firstNonEmpty(
+      meta.sub_catt,
+      meta.subcategory,
+      meta.category,
+      meta.parent_catt,
+    ),
   );
   const titleHint = removeForbiddenInlineContent(
     stripAdReferenceNumbers(String(title || "")),
@@ -2602,7 +2873,9 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
     .trim();
   const itemName = rawItemName || normalizeArabicText(titleHint);
   const adType = normalizeArabicText(meta.ad_type || "");
-  const orderType = normalizeArabicText(firstNonEmpty(meta.order_type, meta.offer_type, ""));
+  const orderType = normalizeArabicText(
+    firstNonEmpty(meta.order_type, meta.offer_type, ""),
+  );
   const isRequest = adType.includes("طلب") || Number(meta.category_id) === 83;
   const isBuyRequest = isRequest && orderType.includes("شراء");
   const isSellRequest = isRequest && orderType.includes("بيع");
@@ -2671,7 +2944,8 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
   const safeDetailParts = unique(
     detailParts.map(removeForbiddenInlineContent).filter(Boolean),
   ).slice(0, 14);
-  const intro = safeDetailParts[0] || `${itemLabel} مع تفاصيل واضحة حسب المعلومات المتاحة.`;
+  const intro =
+    safeDetailParts[0] || `${itemLabel} مع تفاصيل واضحة حسب المعلومات المتاحة.`;
   const details = safeDetailParts.slice(1, 9);
   const extras = safeDetailParts.slice(9, 14);
 
@@ -2700,8 +2974,17 @@ function buildDeterministicDescription({ title, meta, adText }) {
   return buildNonRealEstateHtmlDescription({ title, meta, adText });
 }
 
-function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration) {
-  const titleValue = firstNonEmpty(rawData.title, rawData.title?.rendered, rawData.title?.value);
+function normalizeWordPressData(
+  rawData,
+  adText,
+  extractedPhones,
+  isRegeneration,
+) {
+  const titleValue = firstNonEmpty(
+    rawData.title,
+    rawData.title?.rendered,
+    rawData.title?.value,
+  );
   const contentValue = firstNonEmpty(
     rawData.content,
     rawData.content?.rendered,
@@ -2723,7 +3006,9 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
     }
   });
 
-  meta.category = normalizeCategoryLabel(firstNonEmpty(rawData.category, meta.category));
+  meta.category = normalizeCategoryLabel(
+    firstNonEmpty(rawData.category, meta.category),
+  );
   meta.subcategory = normalizeCategoryLabel(
     firstNonEmpty(rawData.subcategory, meta.subcategory),
   );
@@ -2755,11 +3040,21 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
   meta.price_type = normalizeArabicText(meta.price_type || meta.price || "");
   meta.price_method = "";
   meta.payment_method = "";
-  meta.order_owner = normalizeArabicText(meta.order_owner || meta.owner_type || "");
-  meta.offer_owner = normalizeArabicText(meta.offer_owner || meta.owner_type || "");
-  meta.owner_type = normalizeArabicText(meta.owner_type || meta.offer_owner || meta.order_owner || "");
-  meta.order_type = normalizeArabicText(meta.order_type || meta.offer_type || meta.ad_type || "");
-  meta.offer_type = normalizeArabicText(meta.offer_type || meta.order_type || "");
+  meta.order_owner = normalizeArabicText(
+    meta.order_owner || meta.owner_type || "",
+  );
+  meta.offer_owner = normalizeArabicText(
+    meta.offer_owner || meta.owner_type || "",
+  );
+  meta.owner_type = normalizeArabicText(
+    meta.owner_type || meta.offer_owner || meta.order_owner || "",
+  );
+  meta.order_type = normalizeArabicText(
+    meta.order_type || meta.offer_type || meta.ad_type || "",
+  );
+  meta.offer_type = normalizeArabicText(
+    meta.offer_type || meta.order_type || "",
+  );
   meta.age = normalizeArabicText(meta.age || "");
   meta.google_location = meta.google_location || null;
   meta.youtube_link = meta.youtube_link || null;
@@ -2782,7 +3077,11 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
   );
   meta.confidence_overall =
     typeof confidenceOverall === "number"
-      ? clamp(confidenceOverall <= 1 ? confidenceOverall : confidenceOverall / 100, 0, 1)
+      ? clamp(
+          confidenceOverall <= 1 ? confidenceOverall : confidenceOverall / 100,
+          0,
+          1,
+        )
       : 1;
 
   if (rawData.parse_error) {
@@ -2790,9 +3089,7 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
   }
 
   // Keep main_ad deterministic while stripping contact/admin/office phrases.
-  meta.main_ad = removeForbiddenInlineContent(
-    stripAdReferenceNumbers(adText || ""),
-  );
+  meta.main_ad = buildCleanMainAdText(adText || "");
 
   const tags = parseTags(firstNonEmpty(rawData.tags, meta.tags));
   meta.tags = tags.join(", ");
@@ -2811,7 +3108,8 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
   }
 
   const safeTitleSeed =
-    removeForbiddenInlineContent(titleValue || DEFAULT_WP_TITLE) || DEFAULT_WP_TITLE;
+    removeForbiddenInlineContent(titleValue || DEFAULT_WP_TITLE) ||
+    DEFAULT_WP_TITLE;
   const normalizedTitle = ensureTitleContainsLocation(
     safeTitleSeed,
     meta,
@@ -2862,7 +3160,12 @@ function normalizeWordPressData(rawData, adText, extractedPhones, isRegeneration
 function inferTargetWebsiteFromData(wpData, adText = "") {
   const meta = isObject(wpData?.meta) ? wpData.meta : {};
   const normalizedCategory = normalizeCategoryLabel(
-    firstNonEmpty(wpData?.category, meta.category, meta.arc_category, meta.parent_catt),
+    firstNonEmpty(
+      wpData?.category,
+      meta.category,
+      meta.arc_category,
+      meta.parent_catt,
+    ),
   );
   const normalizedSubcategory = normalizeCategoryLabel(
     firstNonEmpty(
@@ -2952,14 +3255,25 @@ function summarizeRequiredMetadata(wpData) {
   const areaText = normalizeArabicText(
     firstNonEmpty(meta.order_space, meta.area, meta.arc_space, ""),
   );
-  const areaTextHasNumber = /[0-9]/.test(convertArabicDigitsToEnglish(areaText));
+  const areaTextHasNumber = /[0-9]/.test(
+    convertArabicDigitsToEnglish(areaText),
+  );
   const priceAmount = extractNumericValue(
     firstNonEmpty(meta.price_amount, meta.from_price, meta.to_price),
   );
-  const priceText = normalizeArabicText(firstNonEmpty(meta.price_type, meta.price, ""));
-  const priceMethod = normalizeArabicText(firstNonEmpty(meta.price_method, meta.payment_method, ""));
+  const priceText = normalizeArabicText(
+    firstNonEmpty(meta.price_type, meta.price, ""),
+  );
+  const priceMethod = normalizeArabicText(
+    firstNonEmpty(meta.price_method, meta.payment_method, ""),
+  );
   const category = normalizeCategoryLabel(
-    firstNonEmpty(wpData?.category, meta.category, meta.arc_category, meta.parent_catt),
+    firstNonEmpty(
+      wpData?.category,
+      meta.category,
+      meta.arc_category,
+      meta.parent_catt,
+    ),
   );
   const subcategory = normalizeCategoryLabel(
     firstNonEmpty(
@@ -3196,7 +3510,8 @@ function extractLocationFromTextFallback(adText = "") {
   }
 
   if (!neighborhood) {
-    const extractedNeighborhoods = areaNormalizer.extractNeighborhoods(normalizedText);
+    const extractedNeighborhoods =
+      areaNormalizer.extractNeighborhoods(normalizedText);
     if (extractedNeighborhoods.length > 0) {
       neighborhood = normalizeNeighborhoodName(extractedNeighborhoods[0]);
     }
@@ -3242,7 +3557,8 @@ function extractLocationFromTextFallback(adText = "") {
   if (!governorate && inferred.governorate) {
     governorate = normalizeArabicText(
       areaNormalizer.normalizeCityName
-        ? areaNormalizer.normalizeCityName(inferred.governorate) || inferred.governorate
+        ? areaNormalizer.normalizeCityName(inferred.governorate) ||
+            inferred.governorate
         : inferred.governorate,
     );
   }
@@ -3260,7 +3576,11 @@ function extractLocationFromTextFallback(adText = "") {
 
 function inferSubcategoryFallback(adText = "", category = "") {
   const normalizedCategory = canonicalizeMasaakCategory(category);
-  const strictSubcategory = normalizeMasaakSubcategory(normalizedCategory, "", adText);
+  const strictSubcategory = normalizeMasaakSubcategory(
+    normalizedCategory,
+    "",
+    adText,
+  );
   if (strictSubcategory) {
     return strictSubcategory;
   }
@@ -3285,7 +3605,12 @@ function inferSubcategoryFallback(adText = "", category = "") {
     return "عام";
   }
 
-  if (Object.prototype.hasOwnProperty.call(MASAAK_STRICT_SUBCATEGORY_RULES, normalizedCategory)) {
+  if (
+    Object.prototype.hasOwnProperty.call(
+      MASAAK_STRICT_SUBCATEGORY_RULES,
+      normalizedCategory,
+    )
+  ) {
     return "";
   }
 
@@ -3300,7 +3625,9 @@ function mergeRecoveredWordPressMetadata(wpData, recoveredData) {
   const meta = merged.meta;
   const patch = isObject(recoveredData) ? recoveredData : {};
 
-  const recoveredArea = extractNumericValue(firstNonEmpty(patch.area, patch.arc_space));
+  const recoveredArea = extractNumericValue(
+    firstNonEmpty(patch.area, patch.arc_space),
+  );
   if (typeof recoveredArea === "number" && recoveredArea > 0) {
     meta.arc_space = recoveredArea;
     meta.area = recoveredArea;
@@ -3308,10 +3635,19 @@ function mergeRecoveredWordPressMetadata(wpData, recoveredData) {
   }
 
   const recoveredPriceAmount = extractNumericValue(
-    firstNonEmpty(patch.price_amount, patch.from_price, patch.to_price, patch.price),
+    firstNonEmpty(
+      patch.price_amount,
+      patch.from_price,
+      patch.to_price,
+      patch.price,
+    ),
   );
-  const recoveredPriceType = normalizeArabicText(firstNonEmpty(patch.price_type, ""));
-  const recoveredPriceText = normalizeArabicText(firstNonEmpty(patch.price, recoveredPriceType, ""));
+  const recoveredPriceType = normalizeArabicText(
+    firstNonEmpty(patch.price_type, ""),
+  );
+  const recoveredPriceText = normalizeArabicText(
+    firstNonEmpty(patch.price, recoveredPriceType, ""),
+  );
 
   if (typeof recoveredPriceAmount === "number" && recoveredPriceAmount > 0) {
     meta.price_amount = recoveredPriceAmount;
@@ -3326,17 +3662,27 @@ function mergeRecoveredWordPressMetadata(wpData, recoveredData) {
     meta.price = recoveredPriceText;
   }
 
-  const parsedLocation = parseFullLocationText(firstNonEmpty(patch.fullLocation, ""));
-  const recoveredNeighborhood = normalizeArabicText(
-    firstNonEmpty(patch.neighborhood, patch.location, parsedLocation.neighborhood),
+  const parsedLocation = parseFullLocationText(
+    firstNonEmpty(patch.fullLocation, ""),
   );
-  const recoveredCity = normalizeArabicText(firstNonEmpty(patch.city, parsedLocation.city));
+  const recoveredNeighborhood = normalizeArabicText(
+    firstNonEmpty(
+      patch.neighborhood,
+      patch.location,
+      parsedLocation.neighborhood,
+    ),
+  );
+  const recoveredCity = normalizeArabicText(
+    firstNonEmpty(patch.city, parsedLocation.city),
+  );
   const recoveredGovernorate = normalizeArabicText(
     firstNonEmpty(patch.governorate, parsedLocation.governorate),
   );
 
   if (recoveredNeighborhood) {
-    const cleanRecoveredNeighborhood = normalizeNeighborhoodName(recoveredNeighborhood);
+    const cleanRecoveredNeighborhood = normalizeNeighborhoodName(
+      recoveredNeighborhood,
+    );
     meta.neighborhood = cleanRecoveredNeighborhood;
     meta.location = cleanRecoveredNeighborhood;
   }
@@ -3379,7 +3725,8 @@ function mergeRecoveredWordPressMetadata(wpData, recoveredData) {
     meta.parse_notes = appendParseNote(meta.parse_notes, patch.notes);
   }
 
-  meta.full_location = buildFullLocationValue(meta, "") || meta.full_location || "";
+  meta.full_location =
+    buildFullLocationValue(meta, "") || meta.full_location || "";
 
   return merged;
 }
@@ -3420,7 +3767,10 @@ function applyRequiredFieldFallbacks(wpData, adText) {
 
   if (missingState.missing.includes("price")) {
     const priceData = extractPriceFromTextFallback(adText);
-    if (typeof priceData.price_amount === "number" && priceData.price_amount > 0) {
+    if (
+      typeof priceData.price_amount === "number" &&
+      priceData.price_amount > 0
+    ) {
       meta.price_amount = priceData.price_amount;
       meta.from_price = priceData.from_price || priceData.price_amount;
       meta.to_price = priceData.to_price || priceData.price_amount;
@@ -3434,7 +3784,6 @@ function applyRequiredFieldFallbacks(wpData, adText) {
       meta.price_type = "عند التواصل";
       meta.price = "عند التواصل";
     }
-
   }
 
   if (missingState.missing.includes("fullLocation")) {
@@ -3471,7 +3820,9 @@ function applyRequiredFieldFallbacks(wpData, adText) {
         detectCategoryFallback(adText),
       ),
     );
-    const fallbackDetectedCategory = normalizeCategoryLabel(detectCategoryFallback(adText));
+    const fallbackDetectedCategory = normalizeCategoryLabel(
+      detectCategoryFallback(adText),
+    );
     const safeCategory =
       inferredCategory ||
       (targetWebsite === "hasak"
@@ -3496,7 +3847,10 @@ function applyRequiredFieldFallbacks(wpData, adText) {
       meta.arc_category,
       meta.parent_catt,
     );
-    const fallbackSubcategory = inferSubcategoryFallback(adText, sourceCategory);
+    const fallbackSubcategory = inferSubcategoryFallback(
+      adText,
+      sourceCategory,
+    );
 
     updated.subcategory = fallbackSubcategory;
     meta.subcategory = fallbackSubcategory;
@@ -3505,9 +3859,11 @@ function applyRequiredFieldFallbacks(wpData, adText) {
   }
 
   if (targetWebsite === "hasak") {
-    meta.full_location = buildFullLocationValue(meta, "") || meta.full_location || "";
+    meta.full_location =
+      buildFullLocationValue(meta, "") || meta.full_location || "";
   } else {
-    meta.full_location = buildFullLocationValue(meta, "") || meta.full_location || "";
+    meta.full_location =
+      buildFullLocationValue(meta, "") || meta.full_location || "";
   }
   normalizePriceMethodMeta(meta, adText);
   return updated;
@@ -3523,8 +3879,8 @@ function buildRecoverMissingFieldsPrompt(adText, currentData, missingFields) {
     .join("\n");
   const websiteInstruction =
     targetWebsite === "hasak"
-      ? 'سياق الإعلان: حساك (فعاليات/مستعمل/خدمات). لا تُجبر حقول السعر أو المساحة، ولا تملأ price_method/payment_method إطلاقاً.'
-      : 'سياق الإعلان: مسعاك (عقار). إذا وردت مساحة رقمية في النص (مثل 350 متر أو 400م) فيجب تعبئة area رقمياً، وسننسخها لاحقاً إلى arc_space. لا تملأ price_method/payment_method إطلاقاً.';
+      ? "سياق الإعلان: حساك (فعاليات/مستعمل/خدمات). لا تُجبر حقول السعر أو المساحة، ولا تملأ price_method/payment_method إطلاقاً."
+      : "سياق الإعلان: مسعاك (عقار). إذا وردت مساحة رقمية في النص (مثل 350 متر أو 400م) فيجب تعبئة area رقمياً، وسننسخها لاحقاً إلى arc_space. لا تملأ price_method/payment_method إطلاقاً.";
 
   return `أنت مدقق جودة لاستخراج بيانات إعلان.
 ${websiteInstruction}
@@ -3563,7 +3919,11 @@ ${JSON.stringify(currentSummary, null, 2)}
 }`;
 }
 
-async function recoverMissingWordPressFields(adText, currentData, missingFields) {
+async function recoverMissingWordPressFields(
+  adText,
+  currentData,
+  missingFields,
+) {
   const requiredFields = getRequiredMetadataFieldsForAd(currentData, adText);
   const relevantMissing = unique(
     missingFields.filter((field) => requiredFields.includes(field)),
@@ -3573,7 +3933,11 @@ async function recoverMissingWordPressFields(adText, currentData, missingFields)
     return {};
   }
 
-  const prompt = buildRecoverMissingFieldsPrompt(adText, currentData, relevantMissing);
+  const prompt = buildRecoverMissingFieldsPrompt(
+    adText,
+    currentData,
+    relevantMissing,
+  );
   const providerOrders = unique([
     `${PROVIDERS.GPT},${PROVIDERS.GEMINI}`,
     `${PROVIDERS.GEMINI},${PROVIDERS.GPT}`,
@@ -3629,7 +3993,12 @@ async function ensureRequiredMetadataCoverage({
     let checkAfterFallback = getMissingRequiredMetadataFields(merged, adText);
 
     if (checkAfterFallback.missing.length === 0) {
-      return normalizeWordPressData(merged, adText, extractedPhones, isRegeneration);
+      return normalizeWordPressData(
+        merged,
+        adText,
+        extractedPhones,
+        isRegeneration,
+      );
     }
 
     try {
@@ -3641,13 +4010,23 @@ async function ensureRequiredMetadataCoverage({
 
       merged = mergeRecoveredWordPressMetadata(merged, recovered);
       merged = applyRequiredFieldFallbacks(merged, adText);
-      current = normalizeWordPressData(merged, adText, extractedPhones, isRegeneration);
+      current = normalizeWordPressData(
+        merged,
+        adText,
+        extractedPhones,
+        isRegeneration,
+      );
     } catch (error) {
       console.error(
         `⚠️ Required metadata recovery attempt ${pass} failed:`,
         error?.message || error,
       );
-      current = normalizeWordPressData(merged, adText, extractedPhones, isRegeneration);
+      current = normalizeWordPressData(
+        merged,
+        adText,
+        extractedPhones,
+        isRegeneration,
+      );
     }
 
     checkAfterFallback = getMissingRequiredMetadataFields(current, adText);
@@ -3679,8 +4058,10 @@ function buildWordPressExtractionPrompt(adText, contactHint, isRegeneration) {
   const dynamicLocationHintsText = buildDynamicLocationHintsPromptText();
   const masaakCategoriesText = MASAAK_CATEGORIES.join("، ");
   const hasakCategoriesText = HASAK_CATEGORIES.join("، ");
-  const masaakSubcategoryHints = MASAAK_SUBCATEGORY_LINES_FOR_PROMPT.join("\n- ");
-  const masaakReferenceRulesText = MASAAK_REFERENCE_RULE_LINES_FOR_PROMPT.join("\n- ");
+  const masaakSubcategoryHints =
+    MASAAK_SUBCATEGORY_LINES_FOR_PROMPT.join("\n- ");
+  const masaakReferenceRulesText =
+    MASAAK_REFERENCE_RULE_LINES_FOR_PROMPT.join("\n- ");
 
   return `أنت مساعد متخصص في استخراج بيانات إعلان عربي للنشر في WordPress لموقعين:
 - مسعاك (عقارات)
@@ -3705,27 +4086,28 @@ ${dynamicLocationHintsText ? `\n${dynamicLocationHintsText}` : ""}
 8) عند اختيار فئة مسعاك: استخدم parent_catt/sub_catt، ويمكن عكسها في arc_category/arc_subcategory.
 9) في حساك لا تُجبر حقول السعر أو المساحة. إذا غير مذكورة اترك price/price_amount/price_type/area/arc_space فارغة.
 10) في مسعاك: إذا وردت مساحة رقمية في النص (مثل 350 متر أو 400م أو مساحة 500) يجب تعبئة area و arc_space بنفس الرقم، ولا تتركهما فارغين عند وجود المساحة في النص. إضافةً إلى ذلك عبّئ الحقول الحرجة: price أو price_type، location/city، category، subcategory.
-11) احذف أي بيانات تسويقية/تعريفية للمكتب أو الوسيط أو الوكيل (مثل: اسم المكتب، اسم الشركة، بيانات المكتب، الترخيص، الروابط).
-12) اكتب العنوان والمحتوى بالعربية بشكل واضح واحترافي.
+11) احذف بالكامل أي سطر أو جملة أو عبارة تحتوي على بيانات مكتب أو وسيط أو وكيل أو شركة أو ترخيص أو قروب أو رابط أو حساب سوشال أو أي إشارة لمصدر النص. لا تضع بدلاً منها نقاطاً أو "...".
+12) أعد صياغة العنوان والمحتوى بالعربية بشكل واضح واحترافي مع التركيز على بيانات العقار/العرض فقط وبدون أي إشارة للمرسل أو العميل أو مصدر الإعلان.
 13) المحتوى HTML آمن ومختصر (بدون script/iframe).
 14) للمحتوى العقاري استخدم HTML منظم: h1 ثم p افتتاحي ثم h2+ul للمواصفات ثم h2+ul للمميزات ثم h2+p للسعر ثم h2+p للموقع.
 15) للمحتوى غير العقاري (حساك) استخدم HTML نظيف ودقيق مع أكبر قدر من التفاصيل المتاحة: h1 ثم p افتتاحي ثم h2+ul للتفاصيل/الحالة/المواصفات ثم h2+ul للمزايا أو المتطلبات.
 16) لإعلانات مسعاك فقط: يمكن تضمين الموقع في title إذا كان مذكوراً بوضوح. لإعلانات حساك لا تضف موقعاً غير مذكور صراحة في النص.
 17) الوصف content يجب أن يشمل كل التفاصيل المتاحة من النص بدون اختراع معلومات.
-18) ممنوع داخل content: أرقام الاتصال/الموبايل، اسم المالك، اسم المكتب، بيانات المكتب، أسماء الوسطاء/الوكلاء، التراخيص، القروبات، الروابط، الملاحظات الإدارية.
-19) املأ meta بحقول ثابتة حتى لو كانت فارغة.
-20) phone_number بصيغة 9665xxxxxxxx إذا متاح.
-21) status دائماً "publish".
-22) احذف أي أرقام مرجعية مثل: رقم القطعة، قطعة 11 أ، رقم الإعلان من العنوان والمحتوى و main_ad.
+18) ممنوع داخل content: أرقام الاتصال/الموبايل، أسماء الأشخاص الحقيقيين، اسم المالك، اسم المكتب، بيانات المكتب، أسماء الوسطاء/الوكلاء، التراخيص، القروبات، الروابط، حسابات سناب/انستغرام/تلغرام/إكس/يوتيوب، وأي ملاحظات إدارية أو تسويقية.
+19) طبّق هذا التنظيف على title و content و main_ad فقط. إذا وُجدت بيانات مالك/معلن في حقول مستقلة داخل meta فاتركها في حقولها المناسبة ولا تُدخلها في الوصف.
+20) املأ meta بحقول ثابتة حتى لو كانت فارغة.
+21) phone_number بصيغة 9665xxxxxxxx إذا متاح.
+22) status دائماً "publish".
+23) احذف أي أرقام مرجعية مثل: رقم القطعة، قطعة 11 أ، رقم الإعلان من العنوان والمحتوى و main_ad.
 ${
   isRegeneration
-    ? "23) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
-    : "23) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
+    ? "24) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
+    : "24) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
 }
-24) لمسعاك فقط: إذا توفر الحي بدون المدينة فاستنتج المدينة المناسبة (مثل الهفوف/المبرز/القرى/العيون)، ولا تكتب before_City/before_city إلا إذا كانت المحافظة مذكورة في النص. في كل الحالات: location/neighborhood تكون اسم الحي فقط بدون كلمة "حي". في حساك لا تستنتج مدينة/محافظة غير مذكورة.
-25) ممنوع نهائياً داخل title/content/main_ad ظهور الكلمات أو العبارات التالية: "مباشر" و"من الوكيل" و"طرف" وأي صياغة مكافئة لها.
-26) لا تكتب ولا تعبئ حقول طريقة الدفع نهائياً: price_method و payment_method يجب أن تبقى "" دائماً.
-27) مرجع إلزامي لمسعاك (له أولوية على أي تخمين فرعي):
+25) لمسعاك فقط: إذا توفر الحي بدون المدينة فاستنتج المدينة المناسبة (مثل الهفوف/المبرز/القرى/العيون)، ولا تكتب before_City/before_city إلا إذا كانت المحافظة مذكورة في النص. في كل الحالات: location/neighborhood تكون اسم الحي فقط بدون كلمة "حي". في حساك لا تستنتج مدينة/محافظة غير مذكورة.
+26) ممنوع نهائياً داخل title/content/main_ad ظهور الكلمات أو العبارات التالية: "مباشر" و"من الوكيل" و"طرف" وأي صياغة مكافئة لها.
+27) لا تكتب ولا تعبئ حقول طريقة الدفع نهائياً: price_method و payment_method يجب أن تبقى "" دائماً.
+28) مرجع إلزامي لمسعاك (له أولوية على أي تخمين فرعي):
 - ${masaakReferenceRulesText}
 
 الفئات المعتمدة:
@@ -4400,7 +4782,9 @@ function detectCategoryFallback(text) {
   for (const [category, keywords] of Object.entries(categoryKeywords)) {
     for (const keyword of keywords) {
       if (new RegExp(keyword, "i").test(normalizedText)) {
-        console.log(`🏷️ Fallback detected category: ${category} (matched: ${keyword})`);
+        console.log(
+          `🏷️ Fallback detected category: ${category} (matched: ${keyword})`,
+        );
         return category;
       }
     }
@@ -4445,7 +4829,9 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
     }
 
     const hasakFooter =
-      settings && settings.hasakFooter ? settings.hasakFooter : defaultHasakFooter;
+      settings && settings.hasakFooter
+        ? settings.hasakFooter
+        : defaultHasakFooter;
     message += `\n${hasakFooter}`;
   } else {
     if (wpData?.title) {
@@ -4511,7 +4897,9 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
     }
 
     const masaakFooter =
-      settings && settings.masaakFooter ? settings.masaakFooter : defaultMasaakFooter;
+      settings && settings.masaakFooter
+        ? settings.masaakFooter
+        : defaultMasaakFooter;
     message += `\n${masaakFooter}`;
   }
 
@@ -4528,7 +4916,9 @@ async function extractWordPressData(adText, isRegeneration = false) {
   const extractedPhones = extractPhoneNumbers(normalizedAdText);
 
   if (!hasAnyEnabledProvider()) {
-    throw new Error("❌ No enabled API keys available for WordPress extraction");
+    throw new Error(
+      "❌ No enabled API keys available for WordPress extraction",
+    );
   }
 
   const contactHint =
@@ -4586,7 +4976,8 @@ async function extractWordPressData(adText, isRegeneration = false) {
     }
   }
 
-  const errorMessage = lastError?.message || String(lastError || "Unknown error");
+  const errorMessage =
+    lastError?.message || String(lastError || "Unknown error");
   throw new Error(`فشل في استخراج بيانات الإعلان: ${errorMessage}`);
 }
 
