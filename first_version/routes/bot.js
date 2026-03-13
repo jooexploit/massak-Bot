@@ -1,6 +1,7 @@
 const express = require("express");
 const { authenticateToken, authorizeRole } = require("../middleware/auth");
 const websiteConfig = require("../config/website.config");
+const { AL_AHSA_GOVERNORATE } = require("../config/locationHierarchy");
 const {
   getQRCode,
   getConnectionStatus,
@@ -299,7 +300,7 @@ function normalizeManualLocationMeta(meta = {}) {
   normalized.subcity = cleanCity;
 
   const cleanBeforeCity = isPlaceholderLocationValue(beforeCityValue)
-    ? ""
+    ? AL_AHSA_GOVERNORATE
     : beforeCityValue;
   normalized.before_City = cleanBeforeCity || "";
   normalized.before_city = normalized.before_City;

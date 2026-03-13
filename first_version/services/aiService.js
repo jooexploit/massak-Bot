@@ -137,8 +137,8 @@ const WP_META_DEFAULTS = {
   category: "",
   subcategory: "",
   category_id: "",
-  before_City: "الأحساء",
-  before_city: "الأحساء",
+  before_City: AL_AHSA_GOVERNORATE,
+  before_city: AL_AHSA_GOVERNORATE,
   City: "",
   city: "",
   subcity: "",
@@ -1440,7 +1440,7 @@ const WORDPRESS_SCHEMA = {
       sub_catt: "دور أول",
       arc_category: "شقة",
       arc_subcategory: "دور أول",
-      before_City: "",
+      before_City: AL_AHSA_GOVERNORATE,
       City: "الهفوف",
       location: "الرابية",
       full_location: "الرابية - الهفوف",
@@ -1684,7 +1684,12 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
     firstNonEmpty(meta.city, meta.City, meta.subcity),
   );
   let beforeCity = normalizeArabicText(
-    firstNonEmpty(meta.before_City, meta.before_city, inferred.governorate, ""),
+    firstNonEmpty(
+      meta.before_City,
+      meta.before_city,
+      inferred.governorate,
+      AL_AHSA_GOVERNORATE,
+    ),
   );
   let subcity = normalizeArabicText(firstNonEmpty(meta.subcity, city));
 
@@ -4104,7 +4109,7 @@ ${
     ? "24) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
     : "24) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
 }
-25) لمسعاك فقط: إذا توفر الحي بدون المدينة فاستنتج المدينة المناسبة (مثل الهفوف/المبرز/القرى/العيون)، ولا تكتب before_City/before_city إلا إذا كانت المحافظة مذكورة في النص. في كل الحالات: location/neighborhood تكون اسم الحي فقط بدون كلمة "حي". في حساك لا تستنتج مدينة/محافظة غير مذكورة.
+25) لمسعاك فقط: إذا توفر الحي بدون المدينة فاستنتج المدينة المناسبة (مثل الهفوف/المبرز/القرى/العيون). وإذا لم تُذكر المحافظة صراحة فاجعل before_City و before_city = "الأحساء" كقيمة افتراضية. في كل الحالات: location/neighborhood تكون اسم الحي فقط بدون كلمة "حي". في حساك لا تستنتج مدينة غير مذكورة، لكن اجعل before_City و before_city = "الأحساء" إذا كانتا فارغتين.
 26) ممنوع نهائياً داخل title/content/main_ad ظهور الكلمات أو العبارات التالية: "مباشر" و"من الوكيل" و"طرف" وأي صياغة مكافئة لها.
 27) لا تكتب ولا تعبئ حقول طريقة الدفع نهائياً: price_method و payment_method يجب أن تبقى "" دائماً.
 28) مرجع إلزامي لمسعاك (له أولوية على أي تخمين فرعي):
@@ -4150,8 +4155,8 @@ ${
     "sub_catt": "",
     "arc_category": "",
     "arc_subcategory": "",
-    "before_City": "",
-    "before_city": "",
+    "before_City": "الأحساء",
+    "before_city": "الأحساء",
     "City": "",
     "city": "",
     "subcity": "",
