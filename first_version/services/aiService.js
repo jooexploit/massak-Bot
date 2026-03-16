@@ -2237,17 +2237,34 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
 }
 
 const FORBIDDEN_DESCRIPTION_PATTERNS = [
-  /https?:\/\/[^\s<]+/gi,
-  /(?:chat\.whatsapp\.com|wa\.me|t\.me|tiktok\.com|instagram\.com|snapchat|youtube\.com)/gi,
-  /(?:رقم\s*الترخيص|ترخيص|رخصة|معلن\s*معتمد|الهيئة\s*العامة\s*للعقار)[^<\n]{0,40}[0-9٠-٩]{4,}/gi,
-  /(?:برقم)\s*[0-9٠-٩]{4,}/gi,
-  /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|قروب|مجموعة واتساب|انضمام|شركة\s*عقارية|مؤسسة\s*عقارية|وكيل|الوكيل)/gi,
-  /(?:وساطة|وساطه|التسويق\s*العقاري|تسويق\s*عقاري|إدارة\s*أملاك|ادارة\s*املاك)/gi,
-  /(?:سناب|snap(?:chat)?|انستا(?:غرام)?|instagram|insta|تل(?:ي)?جرام|telegram|تويتر|twitter|x\.com|تيك\s*توك|tiktok|يوتيوب|youtube|فيس(?:بوك)?|facebook|معرف|يوزر|الحساب|حساب(?:نا)?)/gi,
-  /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف|موبايل|محمول)/gi,
-  /(?:رقم\s*(?:التواصل|الجوال|الهاتف|الموبايل|المحمول)?\s*[:：-]?\s*)(?:\+?\d[\d\s\-()]{6,}\d)/gi,
-  /(?:مباشر(?:ة)?|من\s*الوكيل|من\s*المالك|طرف)/gi,
-  /\b(?:\+?966|0)?5[0-9٠-٩]{8}\b/g,
+  // روابط مباشرة
+  /https?:\/\/[^\s<]+/giu,
+  // روابط ومنصات تواصل
+  /\b(?:chat\.whatsapp\.com|wa\.me|api\.whatsapp\.com|t\.me|telegram\.me|instagram\.com|instagr\.am|snapchat\.com|youtube\.com|youtu\.be|twitter\.com|x\.com|tiktok\.com|facebook\.com|fb\.com)\b/giu,
+
+  // كلمات تدل على حسابات / سوشيال
+  /(?:سناب|سنابي|snap(?:chat)?|انستا(?:غرام)?|instagram|insta|تل(?:ي)?جرام|telegram|تويتر|twitter|تيك\s*توك|tiktok|يوتيوب|youtube|فيس(?:بوك)?|facebook|معرف|يوزر(?:\s*نيم)?|اسم\s*المستخدم|الحساب|حساب(?:نا)?|تابعنا|follow\s*us)/giu,
+
+  // وساطة / وكالة / كيانات عقارية / ترخيص
+  /(?:مكتب\s*عقار(?:ي|يه)?|شركة\s*عقاري(?:ة|ه)|مؤسسة\s*عقاري(?:ة|ه)|الهي(?:ي|ئ)ة\s*العامة\s*للعقار|معلن\s*معتمد|مرخ[صس]|ترخيص|رخص(?:ة|ه)|رقم\s*(?:الترخيص|الرخص(?:ة|ه)|فال)|فال|وسيط|وساطة|وساطه|سمسار|التسويق\s*العقاري|تسويق\s*عقاري|ادارة\s*املاك|إدارة\s*أملاك|مفوض|مفوّض|وكيل|الوكيل)/giu,
+
+  // صيغ تسويقية خليجية/عقارية مش مرغوبة
+  /(?:مباشر(?:ة)?|من\s*المالك|من\s*الوكيل|من\s*المعلن|طرف\s*(?:اول|أول)|بدون\s*وسيط|بدون\s*عمولة|بدون\s*سعي|لا\s*يوجد\s*سعي)/giu,
+
+  // جروبات ودعوات تواصل
+  /(?:(?:قروب|جروب|مجموعة)\s*(?:واتساب|تل(?:ي)?جرام)?|انضم(?:ام)?|لل?انضمام|join)/giu,
+
+  // عبارات تواصل
+  /(?:للتواصل|للاستفسار|اتصال|اتصل|راسلنا|كلمنا|تواصل(?:وا)?(?:\s*معنا)?|واتساب|واتس(?:اب)?|جوال|هاتف|موبايل|محمول)/giu,
+
+  // أرقام ترخيص / فال / أرقام بعد "برقم"
+  /(?:رقم\s*(?:الترخيص|الرخص(?:ة|ه)|فال)|برقم)\s*[:：-]?\s*[0-9٠-٩]{4,}/giu,
+
+  // أرقام جوالات سعودية
+  /(?:\+?966|00966|966|0)?\s*5[0-9٠-٩](?:[\s\-()]*[0-9٠-٩]){8}\b/gu,
+
+  // أي رقم تواصل بعد كلمة دالة
+  /(?:رقم\s*(?:التواصل|الجوال|الهاتف|الموبايل|المحمول)?\s*[:：-]?\s*)(?:\+?[0-9٠-٩][0-9٠-٩\s\-()]{6,}[0-9٠-٩])/giu,
 ];
 
 const OWNER_ADMIN_DETAIL_PATTERNS = [
@@ -2329,7 +2346,10 @@ function hasPropertyDetailSignals(line = "") {
   );
 }
 
-function looksLikeResidualAdministrativeLine(line = "", previousLineWasAdministrative = false) {
+function looksLikeResidualAdministrativeLine(
+  line = "",
+  previousLineWasAdministrative = false,
+) {
   const normalized = normalizeArabicText(line || "");
   if (!normalized) return false;
 
@@ -2352,16 +2372,24 @@ function looksLikeResidualAdministrativeLine(line = "", previousLineWasAdministr
   return looksLikeShortNameOrHandle && !hasPropertyDetailSignals(normalized);
 }
 
-function shouldDropDescriptionLine(line = "", previousLineWasAdministrative = false) {
+function shouldDropDescriptionLine(
+  line = "",
+  previousLineWasAdministrative = false,
+) {
   const normalized = normalizeArabicText(line || "");
   if (!normalized) return false;
 
-  if (looksLikeResidualAdministrativeLine(normalized, previousLineWasAdministrative)) {
+  if (
+    looksLikeResidualAdministrativeLine(
+      normalized,
+      previousLineWasAdministrative,
+    )
+  ) {
     return true;
   }
 
-  const isAdministrativeLine = FULLY_REMOVABLE_SOURCE_LINE_PATTERNS.some((pattern) =>
-    pattern.test(normalized),
+  const isAdministrativeLine = FULLY_REMOVABLE_SOURCE_LINE_PATTERNS.some(
+    (pattern) => pattern.test(normalized),
   );
 
   return isAdministrativeLine && !hasPropertyDetailSignals(normalized);
@@ -2390,7 +2418,9 @@ function collectSanitizedAdLines(adText, limit = 20) {
       continue;
     }
 
-    const cleaned = stripAdReferenceNumbers(removeForbiddenInlineContent(candidate))
+    const cleaned = stripAdReferenceNumbers(
+      removeForbiddenInlineContent(candidate),
+    )
       .replace(/^[\-*•:]+/g, "")
       .replace(/[↩⬅➡]+/g, " ")
       .trim();
@@ -2398,7 +2428,10 @@ function collectSanitizedAdLines(adText, limit = 20) {
     if (
       !cleaned ||
       isOwnerOrAdministrativeDetailLine(cleaned) ||
-      looksLikeResidualAdministrativeLine(cleaned, previousLineWasAdministrative)
+      looksLikeResidualAdministrativeLine(
+        cleaned,
+        previousLineWasAdministrative,
+      )
     ) {
       previousLineWasAdministrative = true;
       continue;

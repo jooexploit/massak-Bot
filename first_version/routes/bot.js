@@ -226,6 +226,83 @@ function normalizeArabicForRouting(text = "") {
     .trim();
 }
 
+function normalizeAdsSearchValue(text = "") {
+  return normalizeArabicForRouting(
+    String(text || "")
+      .normalize("NFKC")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/[\u064B-\u065F\u0670]/g, "")
+      .replace(/ـ/g, "")
+      .replace(/[أإآٱ]/g, "ا")
+      .replace(/ى/g, "ي")
+      .replace(/ة/g, "ه"),
+  ).toLowerCase();
+}
+
+function flattenSearchValues(value) {
+  if (value === null || value === undefined) return [];
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => flattenSearchValues(entry));
+  }
+
+  if (typeof value === "object") {
+    return Object.values(value).flatMap((entry) => flattenSearchValues(entry));
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return [String(value)];
+  }
+
+  return [];
+}
+
+function buildAdsSearchTerms(search = "") {
+  return normalizeAdsSearchValue(search).split(" ").filter(Boolean);
+}
+
+function buildFetchedAdSearchBlob(ad = {}) {
+  const wpData = ad.wpData && typeof ad.wpData === "object" ? ad.wpData : {};
+  const wpMeta =
+    wpData.meta && typeof wpData.meta === "object" ? wpData.meta : {};
+
+  return normalizeAdsSearchValue(
+    [
+      ad.id,
+      ad.category,
+      ad.text,
+      ad.enhancedText,
+      ad.normalizedText,
+      ad.fromGroup,
+      ad.fromGroupName,
+      ad.senderName,
+      ad.senderPhone,
+      ad.aiReason,
+      ad.rejectionReason,
+      wpData.title,
+      wpData.description,
+      wpData.excerpt,
+      wpData.content,
+      ...flattenSearchValues(wpMeta),
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
+function matchesFetchedAdSearch(ad, searchTerms = []) {
+  if (!Array.isArray(searchTerms) || searchTerms.length === 0) {
+    return true;
+  }
+
+  const searchBlob = buildFetchedAdSearchBlob(ad);
+  return searchTerms.every((term) => searchBlob.includes(term));
+}
+
 function normalizeLocationToken(value = "") {
   return String(value || "").trim();
 }
@@ -1264,6 +1341,7 @@ router.get(
         category,
         website,
         group,
+        search,
       } = req.query;
 
       let fetched = getFetchedAds();
@@ -1313,6 +1391,11 @@ router.get(
         fetched = fetched.filter((a) => {
           return a.fromGroup === group || a.fromGroupName === group;
         });
+      }
+
+      const searchTerms = buildAdsSearchTerms(search);
+      if (searchTerms.length > 0) {
+        fetched = fetched.filter((ad) => matchesFetchedAdSearch(ad, searchTerms));
       }
 
       // Calculate pagination

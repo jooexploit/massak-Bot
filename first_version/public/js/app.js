@@ -218,10 +218,10 @@ function setupEventListeners() {
   if (adsGroupFilter)
     adsGroupFilter.addEventListener("change", fetchAndRenderAds);
 
-  // Live search functionality
+  // Global search for manage ads
   if (adsSearchInput) {
-    adsSearchInput.addEventListener("input", (e) => {
-      performLiveSearch(e.target.value);
+    adsSearchInput.addEventListener("input", () => {
+      scheduleAdsSearch();
     });
   }
 
@@ -1337,32 +1337,13 @@ function toggleAdsPage() {
   }
 }
 
-// Live search function
-function performLiveSearch(searchTerm) {
-  const cards = adsList.querySelectorAll(".card[data-ad-id]");
-  const term = searchTerm.toLowerCase().trim();
+let adsSearchDebounceTimer = null;
 
-  if (!term) {
-    // Show all ads if search is empty
-    cards.forEach((card) => (card.style.display = "block"));
-    return;
-  }
-
-  cards.forEach((card) => {
-    const adId = card.getAttribute("data-ad-id");
-    const adIndex = card.getAttribute("data-ad-index");
-    const cardText = card.textContent.toLowerCase();
-
-    // Search in: ad number, ID, all text content (includes title, category, location, price, etc.)
-    const matchesSearch =
-      adIndex.includes(term) ||
-      adId.toLowerCase().includes(term) ||
-      cardText.includes(term);
-
-    card.style.display = matchesSearch ? "block" : "none";
-  });
-
-  updateAdsBulkSelectionUI();
+function scheduleAdsSearch() {
+  clearTimeout(adsSearchDebounceTimer);
+  adsSearchDebounceTimer = setTimeout(() => {
+    fetchAndRenderAds(true);
+  }, 300);
 }
 
 function clampNumber(value, min, max, fallback) {
@@ -1694,6 +1675,7 @@ async function fetchAndRenderAds(reset = true) {
       document.getElementById("ads-website-filter")?.value || "all";
     const groupFilter =
       document.getElementById("ads-group-filter")?.value || "all";
+    const searchTerm = adsSearchInput?.value?.trim() || "";
 
     // Build query params
     const params = new URLSearchParams({
@@ -1715,6 +1697,10 @@ async function fetchAndRenderAds(reset = true) {
 
     if (groupFilter && groupFilter !== "all") {
       params.append("group", groupFilter);
+    }
+
+    if (searchTerm) {
+      params.append("search", searchTerm);
     }
 
     const response = await fetch(`/api/bot/ads?${params.toString()}`, {
