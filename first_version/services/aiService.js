@@ -3,6 +3,7 @@ const OpenAI = require("openai");
 
 const apiKeyManager = require("./apiKeyManager");
 const areaNormalizer = require("./areaNormalizer");
+const wordpressCategoryService = require("./wordpressCategoryService");
 const websiteConfig = require("../config/website.config");
 const {
   AL_AHSA_GOVERNORATE,
@@ -21,34 +22,6 @@ const REQUIRED_METADATA_FIELDS = [
   "category",
   "subcategory",
 ];
-const MASAAK_CATEGORIES = [
-  ...new Set(
-    Object.keys(websiteConfig.masaak.categories || {})
-      .map((name) => String(name || "").trim())
-      .filter((name) => name && name !== "default" && name !== "Uncategorized"),
-  ),
-];
-const HASAK_CATEGORIES = [
-  ...new Set(
-    Object.keys(websiteConfig.hasak.categories || {})
-      .map((name) => String(name || "").trim())
-      .filter((name) => name && name !== "default" && name !== "Uncategorized"),
-  ),
-];
-const MASAAK_SUBCATEGORY_MAP = websiteConfig.masaak.subcategories || {};
-const MASAAK_SUBCATEGORY_LINES_FOR_PROMPT = Object.entries(
-  MASAAK_SUBCATEGORY_MAP,
-)
-  .map(([main, subMap]) => {
-    const parent = String(main || "").trim();
-    const children = Object.keys(subMap || {})
-      .map((name) => String(name || "").trim())
-      .filter(Boolean);
-
-    if (!parent || children.length === 0) return "";
-    return `${parent}: ${children.join("، ")}`;
-  })
-  .filter(Boolean);
 const MASAAK_FORCE_EMPTY_SUBCATEGORY_CATEGORIES = new Set([
   "دبلكس",
   "فيلا",
@@ -77,42 +50,6 @@ let dynamicLocationHintsCache = {
   beforeCities: [...DEFAULT_DYNAMIC_BEFORE_CITIES],
   cities: [...DEFAULT_DYNAMIC_CITIES],
 };
-
-const CATEGORY_LIST = [
-  ...new Set(
-    [
-      "شقق للبيع",
-      "شقق للإيجار",
-      "فيلا للبيع",
-      "فيلا للإيجار",
-      "عمارة للبيع",
-      "عمارة للإيجار",
-      "أرض للبيع",
-      "أرض للإيجار",
-      "محل للبيع",
-      "محل للإيجار",
-      "محل للتقبيل",
-      "استراحة للبيع",
-      "استراحة للإيجار",
-      "شاليه للإيجار",
-      "مزرعة للبيع",
-      "مزرعة للإيجار",
-      "فعاليات",
-      "حراج",
-      "أسر منتجة",
-      "خدمات",
-      "طلبات",
-      ...MASAAK_CATEGORIES,
-      ...Object.keys(MASAAK_SUBCATEGORY_MAP || {}),
-      ...Object.values(MASAAK_SUBCATEGORY_MAP || {}).flatMap((subMap) =>
-        Object.keys(subMap || {}),
-      ),
-      ...HASAK_CATEGORIES,
-    ]
-      .map((name) => String(name || "").trim())
-      .filter(Boolean),
-  ),
-];
 
 const WP_META_DEFAULTS = {
   ad_type: "عرض",
@@ -1575,27 +1512,69 @@ function flattenMeta(meta) {
   return flat;
 }
 
-function resolveCategoryId(category) {
-  const normalized = normalizeArabicText(category);
-  if (!normalized) return "";
+function getTrustedTaxonomySync() {
+  return wordpressCategoryService.getTrustedTaxonomySync();
+}
 
-  return (
-    websiteConfig.masaak.categories[normalized] ||
-    websiteConfig.hasak.categories[normalized] ||
-    ""
+function formatTrustedMasaakSubcategoryLines(taxonomy = getTrustedTaxonomySync()) {
+  return Object.entries(taxonomy?.masaak?.subcategoryNamesByParent || {})
+    .map(([parent, children]) => {
+      const safeParent = normalizeArabicText(parent);
+      const safeChildren = (children || [])
+        .map((child) => normalizeArabicText(child))
+        .filter(Boolean);
+
+      if (!safeParent || safeChildren.length === 0) return "";
+      return `${safeParent}: ${safeChildren.join("، ")}`;
+    })
+    .filter(Boolean);
+}
+
+function resolveTrustedMainCategory(input, websiteHint = null) {
+  return wordpressCategoryService.resolveMainCategorySync(input, websiteHint);
+}
+
+function resolveTrustedSubcategory(
+  parentCategory,
+  input,
+  websiteHint = "masaak",
+) {
+  return wordpressCategoryService.resolveSubcategorySync(
+    parentCategory,
+    input,
+    websiteHint,
   );
 }
 
-function normalizeCategoryLabel(label) {
-  const normalized = normalizeArabicText(label);
-  if (!normalized) return "";
-
-  if (CATEGORY_LIST.includes(normalized)) {
-    return normalized;
+function getCategoryWebsite(category) {
+  if (resolveTrustedMainCategory(category, "hasak")) {
+    return "hasak";
   }
 
-  const found = CATEGORY_LIST.find((category) => normalized.includes(category));
-  return found || normalized;
+  if (resolveTrustedMainCategory(category, "masaak")) {
+    return "masaak";
+  }
+
+  return "";
+}
+
+function isTrustedHasakCategory(value) {
+  return Boolean(resolveTrustedMainCategory(value, "hasak"));
+}
+
+function isTrustedMasaakCategory(value) {
+  return Boolean(resolveTrustedMainCategory(value, "masaak"));
+}
+
+function resolveCategoryId(category, websiteHint = null) {
+  const websiteName = websiteHint || getCategoryWebsite(category);
+  if (!websiteName) return "";
+
+  return wordpressCategoryService.resolveCategoryIdSync(websiteName, category);
+}
+
+function normalizeCategoryLabel(label) {
+  return normalizeArabicText(label);
 }
 
 function appendParseNote(existingNotes, note) {
@@ -1953,8 +1932,10 @@ function canonicalizeMasaakCategory(label) {
     return "مزرعة";
   }
 
-  const normalized = normalizeCategoryLabel(normalizedRaw);
-  if (!normalized) return "";
+  const trustedCategory = resolveTrustedMainCategory(normalizedRaw, "masaak");
+  if (trustedCategory) {
+    return trustedCategory;
+  }
 
   const aliases = {
     ارض: "أرض",
@@ -1972,11 +1953,12 @@ function canonicalizeMasaakCategory(label) {
     طلب: "طلبات",
   };
 
-  if (aliases[normalized]) {
-    return aliases[normalized];
+  const aliasedCategory = aliases[normalizedRaw];
+  if (aliasedCategory) {
+    return resolveTrustedMainCategory(aliasedCategory, "masaak");
   }
 
-  return normalized;
+  return "";
 }
 
 function inferStrictMasaakCategoryFromText(adText = "") {
@@ -2065,7 +2047,7 @@ function normalizeMasaakSubcategory(
     ]);
   }
 
-  return normalizeCategoryLabel(subcategory);
+  return resolveTrustedSubcategory(normalizedCategory, subcategory, "masaak");
 }
 
 function enforceMasaakCategorySubcategoryReference(meta, adText = "") {
@@ -2084,7 +2066,7 @@ function enforceMasaakCategorySubcategoryReference(meta, adText = "") {
 
   if (!category && textCategoryHint) {
     category = textCategoryHint;
-  } else if (textCategoryHint && HASAK_CATEGORIES.includes(category)) {
+  } else if (textCategoryHint && isTrustedHasakCategory(category)) {
     category = textCategoryHint;
   }
 
@@ -2124,7 +2106,7 @@ function enforceMasaakCategorySubcategoryReference(meta, adText = "") {
     meta.arc_subcategory = normalizedSubcategory || "";
   }
 
-  const categoryId = resolveCategoryId(category);
+  const categoryId = resolveCategoryId(category, "masaak");
   if (categoryId) {
     meta.category_id = categoryId;
   }
@@ -2139,18 +2121,29 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
     detectPropertyTypeFromText(normalizedAdText),
   );
 
-  let candidateCategory = canonicalizeMasaakCategory(
+  const rawCategoryCandidate = normalizeCategoryLabel(
     firstNonEmpty(meta.category, meta.arc_category, meta.parent_catt),
   );
+  const trustedHasakCategoryFromMeta = resolveTrustedMainCategory(
+    rawCategoryCandidate,
+    "hasak",
+  );
+  let candidateCategory = canonicalizeMasaakCategory(rawCategoryCandidate);
   if (!candidateCategory && inferredPropertyCategory) {
     candidateCategory = inferredPropertyCategory;
   }
 
-  const candidateSubCategory = normalizeCategoryLabel(
-    firstNonEmpty(meta.subcategory, meta.arc_subcategory, meta.sub_catt),
-  );
+  const candidateSubCategory = candidateCategory
+    ? resolveTrustedSubcategory(
+        candidateCategory,
+        firstNonEmpty(meta.subcategory, meta.arc_subcategory, meta.sub_catt),
+        "masaak",
+      )
+    : "";
 
-  if (!meta.category) meta.category = candidateCategory;
+  if (!meta.category) {
+    meta.category = candidateCategory || trustedHasakCategoryFromMeta || "";
+  }
   if (!meta.subcategory) meta.subcategory = candidateSubCategory;
 
   const shouldPreferRealEstateFromText =
@@ -2159,20 +2152,21 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
     meta.category,
     meta.parent_catt,
     meta.arc_category,
-  ].find((c) => HASAK_CATEGORIES.includes(c));
+    rawCategoryCandidate,
+  ]
+    .map((value) => resolveTrustedMainCategory(value, "hasak"))
+    .find(Boolean);
 
   if (hasakCategory && !shouldPreferRealEstateFromText) {
     meta.category = hasakCategory;
     meta.arc_category = hasakCategory;
-    if (!meta.arc_subcategory) {
-      meta.arc_subcategory = candidateSubCategory || meta.sub_catt || "";
-    }
-
     meta.parent_catt = "";
     meta.sub_catt = "";
+    meta.subcategory = "";
+    meta.arc_subcategory = "";
 
     if (!meta.category_id) {
-      meta.category_id = resolveCategoryId(hasakCategory);
+      meta.category_id = resolveCategoryId(hasakCategory, "hasak");
     }
 
     return;
@@ -2211,7 +2205,8 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
     meta.category = "طلبات";
     meta.category_id = 83;
     meta.parent_catt = "طلبات";
-    meta.sub_catt = candidateSubCategory || meta.sub_catt || "";
+    meta.sub_catt = "";
+    meta.subcategory = "";
     meta.arc_category = "";
     meta.arc_subcategory = "";
     meta.order_status = meta.order_status || "طلب جديد";
@@ -2232,6 +2227,7 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
   if (!meta.category_id) {
     meta.category_id = resolveCategoryId(
       meta.category || meta.parent_catt || meta.arc_category,
+      "masaak",
     );
   }
 }
@@ -2306,11 +2302,18 @@ const REAL_ESTATE_KEYWORDS = [
   "عقار",
 ];
 
-function removeForbiddenInlineContent(text) {
+function shouldApplyForbiddenDescriptionRules(targetWebsite = "masaak") {
+  return targetWebsite !== "hasak";
+}
+
+function removeForbiddenInlineContent(text, targetWebsite = "masaak") {
   let cleaned = String(text ?? "");
-  FORBIDDEN_DESCRIPTION_PATTERNS.forEach((pattern) => {
-    cleaned = cleaned.replace(pattern, "");
-  });
+
+  if (shouldApplyForbiddenDescriptionRules(targetWebsite)) {
+    FORBIDDEN_DESCRIPTION_PATTERNS.forEach((pattern) => {
+      cleaned = cleaned.replace(pattern, "");
+    });
+  }
 
   return normalizeArabicText(
     cleaned
@@ -2320,7 +2323,9 @@ function removeForbiddenInlineContent(text) {
   );
 }
 
-function isOwnerOrAdministrativeDetailLine(line = "") {
+function isOwnerOrAdministrativeDetailLine(line = "", targetWebsite = "masaak") {
+  if (!shouldApplyForbiddenDescriptionRules(targetWebsite)) return false;
+
   const normalized = normalizeArabicText(line || "");
   if (!normalized) return false;
 
@@ -2349,7 +2354,10 @@ function hasPropertyDetailSignals(line = "") {
 function looksLikeResidualAdministrativeLine(
   line = "",
   previousLineWasAdministrative = false,
+  targetWebsite = "masaak",
 ) {
+  if (!shouldApplyForbiddenDescriptionRules(targetWebsite)) return false;
+
   const normalized = normalizeArabicText(line || "");
   if (!normalized) return false;
 
@@ -2375,7 +2383,10 @@ function looksLikeResidualAdministrativeLine(
 function shouldDropDescriptionLine(
   line = "",
   previousLineWasAdministrative = false,
+  targetWebsite = "masaak",
 ) {
+  if (!shouldApplyForbiddenDescriptionRules(targetWebsite)) return false;
+
   const normalized = normalizeArabicText(line || "");
   if (!normalized) return false;
 
@@ -2383,6 +2394,7 @@ function shouldDropDescriptionLine(
     looksLikeResidualAdministrativeLine(
       normalized,
       previousLineWasAdministrative,
+      targetWebsite,
     )
   ) {
     return true;
@@ -2395,7 +2407,11 @@ function shouldDropDescriptionLine(
   return isAdministrativeLine && !hasPropertyDetailSignals(normalized);
 }
 
-function collectSanitizedAdLines(adText, limit = 20) {
+function collectSanitizedAdLines(
+  adText,
+  limit = 20,
+  targetWebsite = "masaak",
+) {
   const source = String(adText ?? "")
     .replace(/<[^>]+>/g, "\n")
     .replace(/\r/g, "\n");
@@ -2413,13 +2429,19 @@ function collectSanitizedAdLines(adText, limit = 20) {
       continue;
     }
 
-    if (shouldDropDescriptionLine(candidate, previousLineWasAdministrative)) {
+    if (
+      shouldDropDescriptionLine(
+        candidate,
+        previousLineWasAdministrative,
+        targetWebsite,
+      )
+    ) {
       previousLineWasAdministrative = true;
       continue;
     }
 
     const cleaned = stripAdReferenceNumbers(
-      removeForbiddenInlineContent(candidate),
+      removeForbiddenInlineContent(candidate, targetWebsite),
     )
       .replace(/^[\-*•:]+/g, "")
       .replace(/[↩⬅➡]+/g, " ")
@@ -2427,10 +2449,11 @@ function collectSanitizedAdLines(adText, limit = 20) {
 
     if (
       !cleaned ||
-      isOwnerOrAdministrativeDetailLine(cleaned) ||
+      isOwnerOrAdministrativeDetailLine(cleaned, targetWebsite) ||
       looksLikeResidualAdministrativeLine(
         cleaned,
         previousLineWasAdministrative,
+        targetWebsite,
       )
     ) {
       previousLineWasAdministrative = true;
@@ -2448,20 +2471,27 @@ function collectSanitizedAdLines(adText, limit = 20) {
   return unique(sanitizedLines);
 }
 
-function buildCleanMainAdText(adText) {
-  const cleanedLines = collectSanitizedAdLines(adText, 40);
+function buildCleanMainAdText(adText, targetWebsite = "masaak") {
+  const cleanedLines = collectSanitizedAdLines(adText, 40, targetWebsite);
   if (cleanedLines.length > 0) {
     return cleanedLines.join("\n");
   }
 
-  return removeForbiddenInlineContent(stripAdReferenceNumbers(adText || ""));
+  return removeForbiddenInlineContent(
+    stripAdReferenceNumbers(adText || ""),
+    targetWebsite,
+  );
 }
 
-function extractCleanDescriptionLines(adText) {
-  return collectSanitizedAdLines(adText, 20).filter((line) => line.length >= 3);
+function extractCleanDescriptionLines(adText, targetWebsite = "masaak") {
+  return collectSanitizedAdLines(adText, 20, targetWebsite).filter(
+    (line) => line.length >= 3,
+  );
 }
 
-function hasForbiddenDescriptionContent(text) {
+function hasForbiddenDescriptionContent(text, targetWebsite = "masaak") {
+  if (!shouldApplyForbiddenDescriptionRules(targetWebsite)) return false;
+
   const value = String(text ?? "");
   return FORBIDDEN_DESCRIPTION_PATTERNS.some((pattern) => {
     const safePattern = new RegExp(
@@ -2564,7 +2594,7 @@ function detectPropertyTypeFromText(adText = "") {
   return aliases[found] || found;
 }
 
-function formatPriceSummary(meta = {}) {
+function formatPriceSummary(meta = {}, targetWebsite = "masaak") {
   const priceType = normalizeArabicText(meta.price_type || "");
   const priceAmount = extractNumericValue(meta.price_amount);
   const fromPrice = extractNumericValue(meta.from_price);
@@ -2588,7 +2618,10 @@ function formatPriceSummary(meta = {}) {
     return `${priceAmount} ريال`;
   }
 
-  const freeTextPrice = removeForbiddenInlineContent(meta.price || "");
+  const freeTextPrice = removeForbiddenInlineContent(
+    meta.price || "",
+    targetWebsite,
+  );
   return freeTextPrice || "لم يذكر";
 }
 
@@ -2775,8 +2808,13 @@ function ensureTitleContainsLocation(
   return sanitizeTitle(`${sanitized} في ${locationLabel}`);
 }
 
-function buildRealEstateHtmlDescription({ title, meta, adText }) {
-  const cleanLines = extractCleanDescriptionLines(adText);
+function buildRealEstateHtmlDescription({
+  title,
+  meta,
+  adText,
+  targetWebsite = "masaak",
+}) {
+  const cleanLines = extractCleanDescriptionLines(adText, targetWebsite);
   let propertyType = normalizeArabicText(
     firstNonEmpty(meta.parent_catt, meta.arc_category, meta.category, ""),
   );
@@ -2791,12 +2829,13 @@ function buildRealEstateHtmlDescription({ title, meta, adText }) {
     firstNonEmpty(meta.sub_catt, meta.arc_subcategory, meta.subcategory),
   );
   const area = firstNonEmpty(meta.arc_space, meta.area);
-  const priceSummary = formatPriceSummary(meta);
+  const priceSummary = formatPriceSummary(meta, targetWebsite);
   const locationSummary = formatLocationSummary(meta);
 
   const intro =
     removeForbiddenInlineContent(
       cleanLines.find((line) => line.length >= 12) || "",
+      targetWebsite,
     ) ||
     `${propertyType || "عقار"} ${normalizeArabicText(meta.order_type || meta.offer_type || "للبيع")} في ${locationSummary}`;
 
@@ -2848,7 +2887,7 @@ function buildRealEstateHtmlDescription({ title, meta, adText }) {
   // Preserve additional property details that are not owner/admin/contact details.
   cleanLines.forEach((line) => {
     if (consumedLines.has(line)) return;
-    if (isOwnerOrAdministrativeDetailLine(line)) return;
+    if (isOwnerOrAdministrativeDetailLine(line, targetWebsite)) return;
 
     if (/[:\-]/.test(line) && specs.length < 12) {
       specs.push(line);
@@ -2861,10 +2900,14 @@ function buildRealEstateHtmlDescription({ title, meta, adText }) {
   });
 
   const safeSpecs = unique(
-    specs.map(removeForbiddenInlineContent).filter(Boolean),
+    specs
+      .map((item) => removeForbiddenInlineContent(item, targetWebsite))
+      .filter(Boolean),
   );
   const safeFeatures = unique(
-    features.map(removeForbiddenInlineContent).filter(Boolean),
+    features
+      .map((item) => removeForbiddenInlineContent(item, targetWebsite))
+      .filter(Boolean),
   );
 
   const specsHtml =
@@ -2893,8 +2936,13 @@ function buildRealEstateHtmlDescription({ title, meta, adText }) {
   return sanitizeHtml(html);
 }
 
-function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
-  const cleanLines = extractCleanDescriptionLines(adText);
+function buildNonRealEstateHtmlDescription({
+  title,
+  meta,
+  adText,
+  targetWebsite = "masaak",
+}) {
+  const cleanLines = extractCleanDescriptionLines(adText, targetWebsite);
   const rawItemName = normalizeArabicText(
     firstNonEmpty(
       meta.sub_catt,
@@ -2905,6 +2953,7 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
   );
   const titleHint = removeForbiddenInlineContent(
     stripAdReferenceNumbers(String(title || "")),
+    targetWebsite,
   )
     .replace(/^(?:عرض|طلب)\s*/i, "")
     .replace(/^(?:للبيع|للإيجار|للايجار|للتقبيل|مطلوب)\s*/i, "")
@@ -2939,7 +2988,7 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
     }
   });
 
-  const priceSummary = formatPriceSummary(meta);
+  const priceSummary = formatPriceSummary(meta, targetWebsite);
   if (priceSummary && priceSummary !== "لم يذكر") {
     const hasPriceMention = detailParts.some((line) => {
       const normalizedLine = normalizeArabicText(line);
@@ -2957,7 +3006,7 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
   // Keep as many product/property-specific details as possible.
   cleanLines.forEach((line) => {
     if (consumedDetailLines.has(line)) return;
-    if (isOwnerOrAdministrativeDetailLine(line)) return;
+    if (isOwnerOrAdministrativeDetailLine(line, targetWebsite)) return;
     if (detailParts.length < 14) {
       detailParts.push(line);
     }
@@ -2980,7 +3029,9 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
   }
 
   const safeDetailParts = unique(
-    detailParts.map(removeForbiddenInlineContent).filter(Boolean),
+    detailParts
+      .map((item) => removeForbiddenInlineContent(item, targetWebsite))
+      .filter(Boolean),
   ).slice(0, 14);
   const intro =
     safeDetailParts[0] || `${itemLabel} مع تفاصيل واضحة حسب المعلومات المتاحة.`;
@@ -3004,12 +3055,22 @@ function buildNonRealEstateHtmlDescription({ title, meta, adText }) {
   return sanitizeHtml(html);
 }
 
-function buildDeterministicDescription({ title, meta, adText }) {
+function buildDeterministicDescription({
+  title,
+  meta,
+  adText,
+  targetWebsite = "masaak",
+}) {
   if (isLikelyRealEstateMeta(meta, adText)) {
-    return buildRealEstateHtmlDescription({ title, meta, adText });
+    return buildRealEstateHtmlDescription({ title, meta, adText, targetWebsite });
   }
 
-  return buildNonRealEstateHtmlDescription({ title, meta, adText });
+  return buildNonRealEstateHtmlDescription({
+    title,
+    meta,
+    adText,
+    targetWebsite,
+  });
 }
 
 function normalizeWordPressData(
@@ -3044,12 +3105,17 @@ function normalizeWordPressData(
     }
   });
 
-  meta.category = normalizeCategoryLabel(
+  const initialCategoryInput = normalizeCategoryLabel(
     firstNonEmpty(rawData.category, meta.category),
   );
-  meta.subcategory = normalizeCategoryLabel(
-    firstNonEmpty(rawData.subcategory, meta.subcategory),
-  );
+  meta.category = resolveTrustedMainCategory(initialCategoryInput) || "";
+  meta.subcategory = isTrustedMasaakCategory(meta.category)
+    ? resolveTrustedSubcategory(
+        meta.category,
+        firstNonEmpty(rawData.subcategory, meta.subcategory),
+        "masaak",
+      )
+    : "";
 
   const adType = normalizeArabicText(
     firstNonEmpty(meta.ad_type, rawData.ad_type, "عرض"),
@@ -3127,7 +3193,7 @@ function normalizeWordPressData(
   }
 
   // Keep main_ad deterministic while stripping contact/admin/office phrases.
-  meta.main_ad = buildCleanMainAdText(adText || "");
+  meta.main_ad = buildCleanMainAdText(adText || "", initialTargetWebsite);
 
   const tags = parseTags(firstNonEmpty(rawData.tags, meta.tags));
   meta.tags = tags.join(", ");
@@ -3146,7 +3212,10 @@ function normalizeWordPressData(
   }
 
   const safeTitleSeed =
-    removeForbiddenInlineContent(titleValue || DEFAULT_WP_TITLE) ||
+    removeForbiddenInlineContent(
+      titleValue || DEFAULT_WP_TITLE,
+      initialTargetWebsite,
+    ) ||
     DEFAULT_WP_TITLE;
   const normalizedTitle = ensureTitleContainsLocation(
     safeTitleSeed,
@@ -3158,25 +3227,29 @@ function normalizeWordPressData(
     title: normalizedTitle,
     meta,
     adText,
+    targetWebsite: initialTargetWebsite,
   });
 
   let finalContent = manualContent;
 
-  if (!finalContent || hasForbiddenDescriptionContent(finalContent)) {
+  if (!finalContent || hasForbiddenDescriptionContent(finalContent, initialTargetWebsite)) {
     const cleanedAdText = removeForbiddenInlineContent(
       stripAdReferenceNumbers(adText || ""),
+      initialTargetWebsite,
     );
     finalContent = buildDeterministicDescription({
       title: normalizedTitle,
       meta,
       adText: cleanedAdText,
+      targetWebsite: initialTargetWebsite,
     });
   }
 
-  if (!finalContent || hasForbiddenDescriptionContent(finalContent)) {
+  if (!finalContent || hasForbiddenDescriptionContent(finalContent, initialTargetWebsite)) {
     const fallbackPlainText =
       removeForbiddenInlineContent(
         stripAdReferenceNumbers(contentValue || adText || ""),
+        initialTargetWebsite,
       ) || "وصف مختصر للإعلان.";
     finalContent = sanitizeHtml(
       `<h1>${escapeHtml(normalizedTitle)}</h1><p>${escapeHtml(fallbackPlainText)}</p>`,
@@ -3216,13 +3289,13 @@ function inferTargetWebsiteFromData(wpData, adText = "") {
 
   if (
     [normalizedCategory, normalizedSubcategory].some((value) =>
-      HASAK_CATEGORIES.includes(value),
+      isTrustedHasakCategory(value),
     )
   ) {
     return "hasak";
   }
 
-  if (normalizedCategory && MASAAK_CATEGORIES.includes(normalizedCategory)) {
+  if (normalizedCategory && isTrustedMasaakCategory(normalizedCategory)) {
     return "masaak";
   }
 
@@ -3305,7 +3378,7 @@ function summarizeRequiredMetadata(wpData) {
   const priceMethod = normalizeArabicText(
     firstNonEmpty(meta.price_method, meta.payment_method, ""),
   );
-  const category = normalizeCategoryLabel(
+  const category = resolveTrustedMainCategory(
     firstNonEmpty(
       wpData?.category,
       meta.category,
@@ -3313,14 +3386,18 @@ function summarizeRequiredMetadata(wpData) {
       meta.parent_catt,
     ),
   );
-  const subcategory = normalizeCategoryLabel(
-    firstNonEmpty(
-      wpData?.subcategory,
-      meta.subcategory,
-      meta.arc_subcategory,
-      meta.sub_catt,
-    ),
-  );
+  const subcategory = category
+    ? resolveTrustedSubcategory(
+        category,
+        firstNonEmpty(
+          wpData?.subcategory,
+          meta.subcategory,
+          meta.arc_subcategory,
+          meta.sub_catt,
+        ),
+        "masaak",
+      )
+    : "";
   const fullLocation = buildFullLocationValue(meta, "");
 
   return {
@@ -3734,24 +3811,36 @@ function mergeRecoveredWordPressMetadata(wpData, recoveredData) {
     meta.before_city = recoveredGovernorate;
   }
 
-  const recoveredCategory = canonicalizeMasaakCategory(
+  const recoveredCategory = resolveTrustedMainCategory(
     firstNonEmpty(patch.category, patch.arc_category, patch.parent_catt),
   );
   if (recoveredCategory) {
     merged.category = recoveredCategory;
     meta.category = recoveredCategory;
     meta.arc_category = recoveredCategory;
-    if (!HASAK_CATEGORIES.includes(recoveredCategory)) {
+    if (!isTrustedHasakCategory(recoveredCategory)) {
       meta.parent_catt = recoveredCategory;
-    }
-    if (!meta.category_id) {
-      meta.category_id = resolveCategoryId(recoveredCategory);
+      if (!meta.category_id) {
+        meta.category_id = resolveCategoryId(recoveredCategory, "masaak");
+      }
+    } else {
+      meta.parent_catt = "";
+      meta.sub_catt = "";
+      meta.subcategory = "";
+      meta.arc_subcategory = "";
+      if (!meta.category_id) {
+        meta.category_id = resolveCategoryId(recoveredCategory, "hasak");
+      }
     }
   }
 
-  const recoveredSubcategory = normalizeCategoryLabel(
-    firstNonEmpty(patch.subcategory, patch.arc_subcategory, patch.sub_catt),
-  );
+  const recoveredSubcategory = isTrustedHasakCategory(recoveredCategory)
+    ? ""
+    : resolveTrustedSubcategory(
+        recoveredCategory,
+        firstNonEmpty(patch.subcategory, patch.arc_subcategory, patch.sub_catt),
+        "masaak",
+      );
   if (recoveredSubcategory) {
     merged.subcategory = recoveredSubcategory;
     meta.subcategory = recoveredSubcategory;
@@ -3849,7 +3938,7 @@ function applyRequiredFieldFallbacks(wpData, adText) {
   }
 
   if (missingState.missing.includes("category")) {
-    const inferredCategory = canonicalizeMasaakCategory(
+    const inferredMasaakCategory = canonicalizeMasaakCategory(
       firstNonEmpty(
         meta.category,
         meta.arc_category,
@@ -3858,24 +3947,32 @@ function applyRequiredFieldFallbacks(wpData, adText) {
         detectCategoryFallback(adText),
       ),
     );
-    const fallbackDetectedCategory = normalizeCategoryLabel(
+    const fallbackDetectedCategory = resolveTrustedMainCategory(
       detectCategoryFallback(adText),
+      targetWebsite === "hasak" ? "hasak" : null,
     );
     const safeCategory =
-      inferredCategory ||
-      (targetWebsite === "hasak"
-        ? HASAK_CATEGORIES.includes(fallbackDetectedCategory)
-          ? fallbackDetectedCategory
-          : "حراج الحسا"
-        : fallbackDetectedCategory || "عقار");
+      targetWebsite === "hasak"
+        ? fallbackDetectedCategory
+        : inferredMasaakCategory || fallbackDetectedCategory;
 
-    updated.category = safeCategory;
-    meta.category = safeCategory;
-    meta.arc_category = safeCategory;
-    if (!HASAK_CATEGORIES.includes(safeCategory)) {
-      meta.parent_catt = safeCategory;
+    if (safeCategory) {
+      updated.category = safeCategory;
+      meta.category = safeCategory;
+      meta.arc_category = safeCategory;
+      if (!isTrustedHasakCategory(safeCategory)) {
+        meta.parent_catt = safeCategory;
+        meta.category_id =
+          meta.category_id || resolveCategoryId(safeCategory, "masaak");
+      } else {
+        meta.parent_catt = "";
+        meta.sub_catt = "";
+        meta.subcategory = "";
+        meta.arc_subcategory = "";
+        meta.category_id =
+          meta.category_id || resolveCategoryId(safeCategory, "hasak");
+      }
     }
-    meta.category_id = meta.category_id || resolveCategoryId(safeCategory);
   }
 
   if (missingState.missing.includes("subcategory")) {
@@ -3889,11 +3986,18 @@ function applyRequiredFieldFallbacks(wpData, adText) {
       adText,
       sourceCategory,
     );
+    const safeSubcategory = isTrustedHasakCategory(sourceCategory)
+      ? ""
+      : resolveTrustedSubcategory(
+          sourceCategory,
+          fallbackSubcategory,
+          "masaak",
+        );
 
-    updated.subcategory = fallbackSubcategory;
-    meta.subcategory = fallbackSubcategory;
-    meta.arc_subcategory = fallbackSubcategory;
-    meta.sub_catt = fallbackSubcategory;
+    updated.subcategory = safeSubcategory;
+    meta.subcategory = safeSubcategory;
+    meta.arc_subcategory = safeSubcategory;
+    meta.sub_catt = safeSubcategory;
   }
 
   if (targetWebsite === "hasak") {
@@ -3907,7 +4011,27 @@ function applyRequiredFieldFallbacks(wpData, adText) {
   return updated;
 }
 
-function buildRecoverMissingFieldsPrompt(adText, currentData, missingFields) {
+function buildTrustedCategoryPromptSection(taxonomy = getTrustedTaxonomySync()) {
+  const masaakCategoriesText =
+    (taxonomy?.masaak?.mainCategoryNames || []).join("، ") || "غير متوفر";
+  const hasakCategoriesText =
+    (taxonomy?.hasak?.mainCategoryNames || []).join("، ") || "غير متوفر";
+  const masaakSubcategoryHints =
+    formatTrustedMasaakSubcategoryLines(taxonomy).join("\n- ");
+
+  return `الفئات المعتمدة:
+- فئات مسعاك: ${masaakCategoriesText}
+${
+  masaakSubcategoryHints
+    ? `- فئات مسعاك الفرعية الشائعة:
+- ${masaakSubcategoryHints}`
+    : ""
+}
+- فئات حساك: ${hasakCategoriesText}`;
+}
+
+async function buildRecoverMissingFieldsPrompt(adText, currentData, missingFields) {
+  const taxonomy = await wordpressCategoryService.getTrustedTaxonomy();
   const currentSummary = summarizeRequiredMetadata(currentData);
   const targetWebsite = inferTargetWebsiteFromData(currentData, adText);
   const requiredFields = getRequiredMetadataFieldsForAd(currentData, adText);
@@ -3917,14 +4041,17 @@ function buildRecoverMissingFieldsPrompt(adText, currentData, missingFields) {
     .join("\n");
   const websiteInstruction =
     targetWebsite === "hasak"
-      ? "سياق الإعلان: حساك (فعاليات/مستعمل/خدمات). لا تُجبر حقول السعر أو المساحة، ولا تملأ price_method/payment_method إطلاقاً."
-      : "سياق الإعلان: مسعاك (عقار). إذا وردت مساحة رقمية في النص (مثل 350 متر أو 400م) فيجب تعبئة area رقمياً، وسننسخها لاحقاً إلى arc_space. لا تملأ price_method/payment_method إطلاقاً.";
+      ? "سياق الإعلان: حساك (فعاليات/مستعمل/خدمات). لا تُجبر حقول السعر أو المساحة، ولا تملأ price_method/payment_method إطلاقاً. category يجب أن يكون من فئات حساك المعتمدة فقط و subcategory تبقى فارغة."
+      : "سياق الإعلان: مسعاك (عقار). إذا وردت مساحة رقمية في النص (مثل 350 متر أو 400م) فيجب تعبئة area رقمياً، وسننسخها لاحقاً إلى arc_space. لا تملأ price_method/payment_method إطلاقاً. category و subcategory يجب أن يكونا من فئات مسعاك المعتمدة فقط.";
+  const trustedCategorySection = buildTrustedCategoryPromptSection(taxonomy);
 
   return `أنت مدقق جودة لاستخراج بيانات إعلان.
 ${websiteInstruction}
 
 المطلوب: أكمل فقط الحقول الناقصة التالية:
 ${missingLines || "- لا يوجد"}
+
+${trustedCategorySection}
 
 النص الأصلي:
 """
@@ -3971,7 +4098,7 @@ async function recoverMissingWordPressFields(
     return {};
   }
 
-  const prompt = buildRecoverMissingFieldsPrompt(
+  const prompt = await buildRecoverMissingFieldsPrompt(
     adText,
     currentData,
     relevantMissing,
@@ -4092,12 +4219,14 @@ async function ensureRequiredMetadataCoverage({
   return finalNormalized;
 }
 
-function buildWordPressExtractionPrompt(adText, contactHint, isRegeneration) {
+async function buildWordPressExtractionPrompt(
+  adText,
+  contactHint,
+  isRegeneration,
+) {
+  const taxonomy = await wordpressCategoryService.getTrustedTaxonomy();
   const dynamicLocationHintsText = buildDynamicLocationHintsPromptText();
-  const masaakCategoriesText = MASAAK_CATEGORIES.join("، ");
-  const hasakCategoriesText = HASAK_CATEGORIES.join("، ");
-  const masaakSubcategoryHints =
-    MASAAK_SUBCATEGORY_LINES_FOR_PROMPT.join("\n- ");
+  const trustedCategorySection = buildTrustedCategoryPromptSection(taxonomy);
   const masaakReferenceRulesText =
     MASAAK_REFERENCE_RULE_LINES_FOR_PROMPT.join("\n- ");
 
@@ -4148,15 +4277,7 @@ ${
 28) مرجع إلزامي لمسعاك (له أولوية على أي تخمين فرعي):
 - ${masaakReferenceRulesText}
 
-الفئات المعتمدة:
-- فئات مسعاك: ${masaakCategoriesText}
-${
-  masaakSubcategoryHints
-    ? `- فئات مسعاك الفرعية الشائعة:
-- ${masaakSubcategoryHints}`
-    : ""
-}
-- فئات حساك: ${hasakCategoriesText}
+${trustedCategorySection}
 
 أعد الشكل التالي فقط:
 {
@@ -4643,8 +4764,11 @@ async function detectCategory(text) {
     return detectCategoryFallback(text);
   }
 
-  const masaakCategoriesText = MASAAK_CATEGORIES.join("، ");
-  const hasakCategoriesText = HASAK_CATEGORIES.join("، ");
+  const taxonomy = await wordpressCategoryService.getTrustedTaxonomy();
+  const masaakCategoriesText =
+    (taxonomy?.masaak?.mainCategoryNames || []).join("، ");
+  const hasakCategoriesText =
+    (taxonomy?.hasak?.mainCategoryNames || []).join("، ");
 
   const prompt = `صنّف النص التالي إلى تصنيف واحد مناسب فقط من القوائم المعتمدة.
 
@@ -4675,7 +4799,7 @@ ${hasakCategoriesText}`;
       maxTokens: 250,
     });
 
-    const category = normalizeCategoryLabel(data.category);
+    const category = resolveTrustedMainCategory(data.category);
     return category || detectCategoryFallback(text);
   } catch (error) {
     console.error("Error in detectCategory:", error.message || error);
@@ -4820,10 +4944,14 @@ function detectCategoryFallback(text) {
   for (const [category, keywords] of Object.entries(categoryKeywords)) {
     for (const keyword of keywords) {
       if (new RegExp(keyword, "i").test(normalizedText)) {
+        const trustedCategory = resolveTrustedMainCategory(category);
+        if (!trustedCategory) {
+          continue;
+        }
         console.log(
-          `🏷️ Fallback detected category: ${category} (matched: ${keyword})`,
+          `🏷️ Fallback detected category: ${trustedCategory} (matched: ${keyword})`,
         );
-        return category;
+        return trustedCategory;
       }
     }
   }
@@ -4966,7 +5094,7 @@ async function extractWordPressData(adText, isRegeneration = false) {
           .join(", ")}`
       : "لا يوجد رقم هاتف واضح في النص.";
 
-  const prompt = buildWordPressExtractionPrompt(
+  const prompt = await buildWordPressExtractionPrompt(
     normalizedAdText,
     contactHint,
     isRegeneration,
@@ -5138,4 +5266,21 @@ module.exports = {
   generateWhatsAppMessage,
   validateUserInput,
   getApiKeysStatus,
+  __private: {
+    buildRecoverMissingFieldsPrompt,
+    buildWordPressExtractionPrompt,
+    buildCleanMainAdText,
+    canonicalizeMasaakCategory,
+    detectCategoryFallback,
+    hasForbiddenDescriptionContent,
+    inferTargetWebsiteFromData,
+    normalizeMasaakSubcategory,
+    normalizeWordPressCategoryMeta,
+    removeForbiddenInlineContent,
+    resolveCategoryId,
+    resolveTrustedMainCategory,
+    resolveTrustedSubcategory,
+    shouldApplyForbiddenDescriptionRules,
+    summarizeRequiredMetadata,
+  },
 };

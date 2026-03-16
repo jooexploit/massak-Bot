@@ -5,3 +5,6 @@ auth_info_baileys/
 sessions/
 data/
 test*
+!test/
+test/*
+!test/wordpress-category-enforcement.test.js
