@@ -4753,6 +4753,9 @@ async function loadSettingsView() {
     const wpUsername = document.getElementById("wp-username");
     const wpPassword = document.getElementById("wp-password");
     const autoApproveToggle = document.getElementById("auto-approve-wp-toggle");
+    const requestMatchingToggle = document.getElementById(
+      "request-matching-toggle",
+    );
 
     if (wpUrl) wpUrl.value = data.settings.wordpressUrl || "https://masaak.com";
     if (wpUsername) wpUsername.value = data.settings.wordpressUsername || "";
@@ -4763,6 +4766,13 @@ async function loadSettingsView() {
       autoApproveToggle.addEventListener("change", async (e) => {
         await updateAutoApproveWordPress(e.target.checked);
       });
+    }
+    if (requestMatchingToggle) {
+      requestMatchingToggle.checked =
+        data.settings.requestMatchingEnabled !== false;
+      requestMatchingToggle.onchange = async (e) => {
+        await updateRequestMatchingSetting(e.target.checked);
+      };
     }
 
     // Load API keys for both providers
@@ -6308,6 +6318,8 @@ async function handleSaveAllSettings() {
       wordpressUrl: wpUrl ? wpUrl.value : "",
       wordpressUsername: wpUsername ? wpUsername.value : "",
       wordpressPassword: wpPassword ? wpPassword.value : "",
+      requestMatchingEnabled:
+        document.getElementById("request-matching-toggle")?.checked !== false,
       excludedGroups: currentExcludedGroups, // Include excluded groups
       autoApproveWordPressGroups: currentAutoPostGroups,
     };
@@ -6404,6 +6416,41 @@ async function updateAutoApproveWordPress(enabled) {
     // Revert the toggle on error
     const toggle = document.getElementById("auto-approve-wp-toggle");
     if (toggle) toggle.checked = !enabled;
+  }
+}
+
+async function updateRequestMatchingSetting(enabled) {
+  try {
+    const response = await fetch("/api/bot/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ requestMatchingEnabled: enabled }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update request matching setting");
+    }
+
+    const statusText = enabled ? "enabled" : "disabled";
+    showMessage(
+      "settings-message",
+      `Request matching notifications ${statusText} successfully!`,
+      "success",
+    );
+    console.log(`✅ Request matching notifications ${statusText}`);
+  } catch (error) {
+    console.error("Error updating request matching setting:", error);
+    showMessage(
+      "settings-message",
+      "Failed to update request matching setting",
+      "error",
+    );
+
+    const toggle = document.getElementById("request-matching-toggle");
+    if (toggle) {
+      toggle.checked = !enabled;
+    }
   }
 }
 

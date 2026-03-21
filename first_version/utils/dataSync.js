@@ -221,7 +221,11 @@ function initializeDataDir() {
       ADS: [],
       COLLECTIONS: [],
       RECYCLE_BIN: [],
-      SETTINGS: { recycleBinDays: 7, excludedGroups: [] },
+      SETTINGS: {
+        recycleBinDays: 7,
+        excludedGroups: [],
+        requestMatchingEnabled: true,
+      },
       PRIVATE_CLIENTS: {},
       USER_SESSIONS: {},
       WASEET_CONTACTS: { waseet: [] },

@@ -6,6 +6,15 @@
 const express = require("express");
 const router = express.Router();
 const propertyMatchingService = require("../services/propertyMatchingService");
+const dataSync = require("../utils/dataSync");
+
+function isRequestMatchingEnabled() {
+  const settings = dataSync.readDataSync("SETTINGS", {
+    requestMatchingEnabled: true,
+  });
+
+  return settings?.requestMatchingEnabled !== false;
+}
 
 /**
  * Webhook endpoint for new property ads
@@ -60,6 +69,15 @@ router.post("/new-ad", async (req, res) => {
       return res.json({
         success: true,
         message: "Request (طلب) detected - only offers (عرض) are matched",
+      });
+    }
+
+    if (!isRequestMatchingEnabled()) {
+      console.log("⏸️ Request matching is disabled in settings - skipping");
+      return res.json({
+        success: true,
+        message: "Request matching is disabled",
+        matchingEnabled: false,
       });
     }
 

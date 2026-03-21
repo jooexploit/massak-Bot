@@ -166,6 +166,10 @@ function isAutoPostEnabled(settings) {
   return settings?.autoApproveWordPress === true;
 }
 
+function isRequestMatchingEnabled(settings) {
+  return settings?.requestMatchingEnabled !== false;
+}
+
 function buildAutoPostWpData(baseWpData) {
   const safeWpData =
     baseWpData && typeof baseWpData === "object" ? baseWpData : {};
@@ -2665,6 +2669,7 @@ router.put(
         wordpressUsername,
         wordpressPassword,
         autoApproveWordPress,
+        requestMatchingEnabled,
         categoryLimits,
         excludedGroups,
         autoApproveWordPressGroups,
@@ -2702,6 +2707,15 @@ router.put(
           });
         }
         updates.autoApproveWordPress = autoApproveWordPress;
+      }
+
+      if (requestMatchingEnabled !== undefined) {
+        if (typeof requestMatchingEnabled !== "boolean") {
+          return res.status(400).json({
+            error: "requestMatchingEnabled must be a boolean",
+          });
+        }
+        updates.requestMatchingEnabled = requestMatchingEnabled;
       }
 
       if (geminiApiKeys !== undefined) {
@@ -3081,62 +3095,70 @@ router.post(
 
       // After successfully posting (not preview), check for matches with client requests
       if (!previewOnly && result.success && result.wordpressPost) {
-        console.log("\n🔍 CHECKING FOR CLIENT MATCHES 🔍");
+        const currentSettings = getSettings() || {};
 
-        try {
-          const propertyMatchingService = require("../services/propertyMatchingService");
+        if (!isRequestMatchingEnabled(currentSettings)) {
+          console.log(
+            "\n⏸️ Request matching is disabled in settings - skipping client notifications\n",
+          );
+        } else {
+          console.log("\n🔍 CHECKING FOR CLIENT MATCHES 🔍");
 
-          // Format the offer for matching
-          const formattedOffer = {
-            id: result.wordpressPost.id,
-            title: {
-              rendered:
-                result.wordpressPost.title || ad.wpData?.title?.rendered || "",
-            },
-            link: result.wordpressPost.link || "",
-            meta: ad.wpData?.meta || {},
-          };
+          try {
+            const propertyMatchingService = require("../services/propertyMatchingService");
 
-          // Check against active client requests
-          const matches =
-            propertyMatchingService.checkOfferAgainstRequests(formattedOffer);
+            // Format the offer for matching
+            const formattedOffer = {
+              id: result.wordpressPost.id,
+              title: {
+                rendered:
+                  result.wordpressPost.title || ad.wpData?.title?.rendered || "",
+              },
+              link: result.wordpressPost.link || "",
+              meta: ad.wpData?.meta || {},
+            };
 
-          if (matches.length > 0) {
-            console.log(
-              `📨 Found ${matches.length} matching client(s)! Sending notifications...`,
-            );
+            // Check against active client requests
+            const matches =
+              propertyMatchingService.checkOfferAgainstRequests(formattedOffer);
 
-            // Send notifications to matched clients
-            for (const match of matches) {
-              try {
-                // Match object structure: { phoneNumber, name, requirements, offer, similarity }
-                await propertyMatchingService.sendMatchNotification(
-                  sock,
-                  match.phoneNumber,
-                  match,
-                  match.name || "عزيزي العميل",
-                );
-                console.log(`  ✅ Notification sent to ${match.phoneNumber}`);
-              } catch (notifyError) {
-                console.error(
-                  `  ❌ Failed to notify ${match.phoneNumber}:`,
-                  notifyError.message,
-                );
+            if (matches.length > 0) {
+              console.log(
+                `📨 Found ${matches.length} matching client(s)! Sending notifications...`,
+              );
+
+              // Send notifications to matched clients
+              for (const match of matches) {
+                try {
+                  // Match object structure: { phoneNumber, name, requirements, offer, similarity }
+                  await propertyMatchingService.sendMatchNotification(
+                    sock,
+                    match.phoneNumber,
+                    match,
+                    match.name || "عزيزي العميل",
+                  );
+                  console.log(`  ✅ Notification sent to ${match.phoneNumber}`);
+                } catch (notifyError) {
+                  console.error(
+                    `  ❌ Failed to notify ${match.phoneNumber}:`,
+                    notifyError.message,
+                  );
+                }
               }
+
+              console.log(
+                `✅ Matching complete: ${matches.length} notification(s) sent`,
+              );
+            } else {
+              console.log("ℹ️  No matching clients found for this offer");
             }
-
-            console.log(
-              `✅ Matching complete: ${matches.length} notification(s) sent`,
-            );
-          } else {
-            console.log("ℹ️  No matching clients found for this offer");
+          } catch (matchError) {
+            console.error("❌ Error during matching:", matchError.message);
+            // Don't fail the whole request if matching fails
           }
-        } catch (matchError) {
-          console.error("❌ Error during matching:", matchError.message);
-          // Don't fail the whole request if matching fails
-        }
 
-        console.log("🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍\n");
+          console.log("🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍\n");
+        }
       }
 
       res.json(result);

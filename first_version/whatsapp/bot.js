@@ -138,6 +138,7 @@ let settings = {
   recycleBinDays: 7,
   excludedGroups: [],
   autoApproveWordPressGroups: [],
+  requestMatchingEnabled: true,
   wpBeforeCityOptions: [...DEFAULT_WP_BEFORE_CITY_OPTIONS],
   wpCityOptions: [...DEFAULT_WP_CITY_OPTIONS],
 }; // Default: auto-delete after 7 days, no excluded groups, no auto-post group filter
@@ -182,6 +183,10 @@ function normalizeSmartLocationOptions(options, fallback = []) {
 function normalizeSettingsForCompatibility() {
   if (!settings || typeof settings !== "object") {
     settings = {};
+  }
+
+  if (typeof settings.requestMatchingEnabled !== "boolean") {
+    settings.requestMatchingEnabled = true;
   }
 
   settings.excludedGroups = normalizeGroupSelection(settings.excludedGroups);
@@ -247,6 +252,7 @@ function loadAds() {
       recycleBinDays: 7,
       excludedGroups: [],
       autoApproveWordPressGroups: [],
+      requestMatchingEnabled: true,
       wpBeforeCityOptions: [...DEFAULT_WP_BEFORE_CITY_OPTIONS],
       wpCityOptions: [...DEFAULT_WP_CITY_OPTIONS],
     });
@@ -3221,6 +3227,7 @@ function reloadAds() {
       recycleBinDays: 7,
       excludedGroups: [],
       autoApproveWordPressGroups: [],
+      requestMatchingEnabled: true,
       wpBeforeCityOptions: [...DEFAULT_WP_BEFORE_CITY_OPTIONS],
       wpCityOptions: [...DEFAULT_WP_CITY_OPTIONS],
     });
