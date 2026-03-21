@@ -113,6 +113,9 @@ test("prompt builders expose only trusted posting taxonomy", async () => {
   for (const prompt of [extractionPrompt, recoveryPrompt]) {
     assert.match(prompt, /أرض/);
     assert.match(prompt, /حراج الحسا/);
+    assert.match(prompt, /صف العقار فقط/);
+    assert.match(prompt, /"مسعاك" أو "حساك"/);
+    assert.match(prompt, /owner_name/);
     assert.doesNotMatch(prompt, /عن مسعاك/);
     assert.doesNotMatch(prompt, /\btest\b/i);
   }
@@ -193,7 +196,7 @@ test("fallback category detection no longer returns out-of-scope labels", async 
 
 test("forbidden description cleanup applies only to masaak", async () => {
   const sourceText =
-    "للتواصل 0501234567 واتساب\nفعالية مميزة اليوم في الأحساء\nsnap: demo";
+    "للتواصل 0501234567 واتساب\nفعالية مميزة اليوم في الأحساء\nsnap: demo\nمكتب عقاري مرخص ترخيص رقم 12345";
 
   const cleanedForMasaak = aiService.__private.removeForbiddenInlineContent(
     sourceText,
@@ -206,8 +209,11 @@ test("forbidden description cleanup applies only to masaak", async () => {
 
   assert.doesNotMatch(cleanedForMasaak, /واتساب/i);
   assert.doesNotMatch(cleanedForMasaak, /snap/i);
+  assert.doesNotMatch(cleanedForMasaak, /مكتب/i);
+  assert.doesNotMatch(cleanedForMasaak, /ترخيص/i);
   assert.match(cleanedForHasak, /واتساب/i);
   assert.match(cleanedForHasak, /snap/i);
+  assert.match(cleanedForHasak, /مكتب/i);
   assert.equal(
     aiService.__private.hasForbiddenDescriptionContent(
       "<p>للتواصل 0501234567</p>",
