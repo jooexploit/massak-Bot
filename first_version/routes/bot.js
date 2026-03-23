@@ -1670,137 +1670,35 @@ router.post(
               }
             }
 
-            const wpUrl = settings.wordpressUrl || "https://masaak.com";
-            const wpUsername = settings.wordpressUsername;
-            const wpPassword = settings.wordpressPassword;
-
-            if (!wpUsername || !wpPassword) {
-              console.error("❌ WordPress credentials not configured");
-              return;
-            }
-
             console.log("🔵 Starting WordPress auto-post...");
-            console.log("🔵 WordPress URL:", wpUrl);
 
-            const wpApiUrl = `${wpUrl}/wp-json/wp/v2/posts`;
-            const auth = Buffer.from(`${wpUsername}:${wpPassword}`).toString(
-              "base64",
+            const sock = app.get("whatsappSock") || null;
+            const result = await postAdToWordPress(
+              ad,
+              sock,
+              wpData,
+              false,
             );
 
-            // Upload image to WordPress if present
-            let featuredMediaId = null;
-            if (ad.imageUrl && typeof ad.imageUrl === "object") {
-              try {
-                const sock = app.get("whatsappSock");
-                if (sock) {
-                  console.log("📸 Uploading image to WordPress...");
-                  const {
-                    downloadMediaMessage,
-                  } = require("@whiskeysockets/baileys");
-                  const imageBuffer = await downloadMediaMessage(
-                    ad.imageUrl,
-                    "buffer",
-                    {},
-                    {
-                      logger: console,
-                      reuploadRequest: sock.updateMediaMessage,
-                    },
-                  );
-                  const imageContentType =
-                    ad.imageUrl?.mimetype || "image/jpeg";
-                  const autoPostTargetWebsite =
-                    wpData?.targetWebsite ||
-                    (wpUrl.includes("hsaak.com") ? "hasak" : "masaak");
-                  const processedImageBuffer = await processImage(
-                    imageBuffer,
-                    autoPostTargetWebsite,
-                  );
-
-                  const mediaUrl = `${wpUrl}/wp-json/wp/v2/media`;
-                  const safeFilename =
-                    Buffer.from(`ad-${ad.id}`)
-                      .toString("base64")
-                      .replace(/[^a-zA-Z0-9]/g, "") + ".png";
-
-                  const uploadResponse = await axios.post(
-                    mediaUrl,
-                    processedImageBuffer,
-                    {
-                      headers: {
-                        Authorization: `Basic ${auth}`,
-                        "Content-Type": imageContentType,
-                        "Content-Disposition": `attachment; filename="${safeFilename}"`,
-                      },
-                    },
-                  );
-
-                  featuredMediaId = uploadResponse.data.id;
-                  console.log(
-                    "✅ Auto-posted image to WordPress! Media ID:",
-                    featuredMediaId,
-                  );
-                } else {
-                  console.log(
-                    "⚠️ WhatsApp socket not available, skipping image upload",
-                  );
-                }
-              } catch (imageError) {
-                console.error(
-                  "⚠️ Failed to upload image during auto-post:",
-                  imageError.message,
-                );
-              }
+            if (!result?.success || !result.wordpressPost) {
+              throw new Error(result?.error || "Auto-post returned no post");
             }
-
-            // Post to WordPress
-            const postData = {
-              title: wpData.title || "Untitled Ad",
-              content: wpData.content || "",
-              status: "publish",
-              categories: shouldUseFixedAutoPostCategory
-                ? wpData.categories || [...AUTO_POST_FIXED_CATEGORY_IDS]
-                : wpData.categories || [],
-              meta: wpData.meta || {},
-            };
-
-            if (featuredMediaId) {
-              postData.featured_media = featuredMediaId;
-            }
-
-            console.log("📤 Posting to WordPress API...");
-            const wpResponse = await axios.post(wpApiUrl, postData, {
-              headers: {
-                Authorization: `Basic ${auth}`,
-                "Content-Type": "application/json",
-              },
-            });
 
             console.log(
               "✅ ✅ ✅ Auto-posted to WordPress successfully! ✅ ✅ ✅",
             );
-            console.log("📌 Post ID:", wpResponse.data.id);
-
-            // Create SHORT link using post ID
-            const postId = wpResponse.data.id;
-            const shortLink = `${wpUrl}/?p=${postId}`;
-            const fullLink = wpResponse.data.link;
-
-            console.log("📌 Short Link:", shortLink);
-            console.log("📌 Full Link:", fullLink);
-
-            // Generate WhatsApp message with the SHORT link
-            const {
-              generateWhatsAppMessage,
-            } = require("../services/aiService");
-            const whatsappMessage = generateWhatsAppMessage(wpData, shortLink);
+            console.log("📌 Post ID:", result.wordpressPost.id);
+            console.log("📌 Short Link:", result.wordpressPost.link);
+            console.log("📌 Full Link:", result.wordpressPost.fullLink);
 
             // Update ad with WordPress info - keep as "accepted" not "posted"
             ad.status = "accepted";
-            ad.wordpressPostId = wpResponse.data.id;
-            ad.wordpressPostUrl = shortLink;
-            ad.wordpressFullUrl = fullLink;
-            ad.whatsappMessage = whatsappMessage;
-            ad.wpData = wpData;
+            ad.wordpressPostId = result.wordpressPost.id;
+            ad.wordpressUrl = result.wordpressPost.link;
+            ad.wordpressFullUrl = result.wordpressPost.fullLink;
+            ad.whatsappMessage = result.whatsappMessage;
+            ad.wpData = result.extractedData;
+            ad.targetWebsite = result.targetWebsite;
 
             // Save updated ad to shared ADS data file
             dataSync.writeDataSync("ADS", adsArray);

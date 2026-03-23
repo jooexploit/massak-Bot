@@ -1407,25 +1407,12 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
         // Auto-post to WordPress in background
         (async () => {
           try {
-            const axios = require("axios");
-            const wpUrl = settings.wordpressUrl || "https://masaak.com";
-            const wpUsername = settings.wordpressUsername;
-            const wpPassword = settings.wordpressPassword;
-
-            if (!wpUsername || !wpPassword) {
-              console.error("❌ WordPress credentials not configured");
-              return;
-            }
+            const { postAdToWordPress } = require("../routes/bot");
 
             console.log(
               "🔵 Starting WordPress auto-post for private chat ad..."
             );
             console.log("🔵 Ad ID:", ad.id);
-
-            const wpApiUrl = `${wpUrl}/wp-json/wp/v2/posts`;
-            const auth = Buffer.from(`${wpUsername}:${wpPassword}`).toString(
-              "base64"
-            );
 
             // Prepare WordPress data
             let wpData = buildAutoPostWpData(
@@ -1450,48 +1437,29 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
               }
             }
 
-            const postData = {
-              title: wpData.title || "Untitled Ad",
-              content: wpData.content || "",
-              status: "publish",
-              categories: shouldUseFixedAutoPostCategory
-                ? wpData.categories || [...AUTO_POST_FIXED_CATEGORY_IDS]
-                : wpData.categories || [],
-              meta: wpData.meta || {},
-            };
-
             console.log("📤 Posting private chat ad to WordPress...");
-            const wpResponse = await axios.post(wpApiUrl, postData, {
-              headers: {
-                Authorization: `Basic ${auth}`,
-                "Content-Type": "application/json",
-              },
-            });
+            const result = await postAdToWordPress(ad, null, wpData, false);
+
+            if (!result?.success || !result.wordpressPost) {
+              throw new Error(
+                result?.error || "Private chat auto-post returned no post"
+              );
+            }
 
             console.log(
               "✅ ✅ ✅ Private chat ad auto-posted successfully! ✅ ✅ ✅"
             );
-            console.log("📌 Post ID:", wpResponse.data.id);
-
-            // Create SHORT link using post ID
-            const postId = wpResponse.data.id;
-            const shortLink = `${wpUrl}/?p=${postId}`;
-            const fullLink = wpResponse.data.link;
-
-            console.log("📌 Short Link:", shortLink);
-            console.log("📌 Full Link:", fullLink);
-
-            const {
-              generateWhatsAppMessage,
-            } = require("../services/aiService");
-            const whatsappMessage = generateWhatsAppMessage(wpData, shortLink);
+            console.log("📌 Post ID:", result.wordpressPost.id);
+            console.log("📌 Short Link:", result.wordpressPost.link);
+            console.log("📌 Full Link:", result.wordpressPost.fullLink);
 
             ad.status = "accepted";
-            ad.wordpressPostId = wpResponse.data.id;
-            ad.wordpressPostUrl = shortLink;
-            ad.wordpressFullUrl = fullLink;
-            ad.whatsappMessage = whatsappMessage;
-            ad.wpData = wpData;
+            ad.wordpressPostId = result.wordpressPost.id;
+            ad.wordpressUrl = result.wordpressPost.link;
+            ad.wordpressFullUrl = result.wordpressPost.fullLink;
+            ad.whatsappMessage = result.whatsappMessage;
+            ad.wpData = result.extractedData;
+            ad.targetWebsite = result.targetWebsite;
 
             fs.writeFileSync(ADS_FILE, JSON.stringify(ads, null, 2));
             reloadAds();
