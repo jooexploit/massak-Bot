@@ -43,6 +43,13 @@ const {
 } = require("../services/aiService");
 const apiKeyManager = require("../services/apiKeyManager");
 const dataSync = require("../utils/dataSync");
+const {
+  normalizeGroupJids: normalizeAutoPostGroupJids,
+  hasAutoPostGroupSelection: hasConfiguredAutoPostGroups,
+  isAutoPostAllowedForGroup: isGroupAllowedForAutoPostRule,
+  isAutoPostGroupSelected: isFixedAutoPostGroup,
+  prepareWpDataForAutoPost,
+} = require("../utils/autoPostGroupRules");
 const messageQueue = require("../services/messageQueue");
 const { processImage } = require("../services/watermarkService");
 const axios = require("axios");
@@ -133,33 +140,19 @@ const WORDPRESS_STRING_META_FIELDS = [
 ];
 
 function normalizeGroupJids(groupIds) {
-  if (!Array.isArray(groupIds)) return [];
-
-  return [...new Set(
-    groupIds
-      .filter((groupId) => typeof groupId === "string")
-      .map((groupId) => groupId.trim())
-      .filter(Boolean),
-  )];
+  return normalizeAutoPostGroupJids(groupIds);
 }
 
 function isAutoPostAllowedForGroup(settings, sourceGroupJid) {
-  const selectedGroups = normalizeGroupJids(
-    settings?.autoApproveWordPressGroups || [],
-  );
-
-  // Backwards compatibility: if no groups selected, allow all groups
-  if (selectedGroups.length === 0) {
-    return true;
-  }
-
-  return (
-    typeof sourceGroupJid === "string" && selectedGroups.includes(sourceGroupJid)
-  );
+  return isGroupAllowedForAutoPostRule(settings, sourceGroupJid);
 }
 
 function hasAutoPostGroupSelection(settings) {
-  return normalizeGroupJids(settings?.autoApproveWordPressGroups || []).length > 0;
+  return hasConfiguredAutoPostGroups(settings);
+}
+
+function shouldUseFixedAutoPostCategoryForGroup(settings, sourceGroupJid) {
+  return isFixedAutoPostGroup(settings, sourceGroupJid);
 }
 
 function isAutoPostEnabled(settings) {
@@ -170,16 +163,12 @@ function isRequestMatchingEnabled(settings) {
   return settings?.requestMatchingEnabled !== false;
 }
 
-function buildAutoPostWpData(baseWpData) {
-  const safeWpData =
-    baseWpData && typeof baseWpData === "object" ? baseWpData : {};
-
-  return {
-    ...safeWpData,
-    categories: [...AUTO_POST_FIXED_CATEGORY_IDS],
-    fixedCategoryIds: [...AUTO_POST_FIXED_CATEGORY_IDS],
-    meta: safeWpData.meta ? { ...safeWpData.meta } : {},
-  };
+function buildAutoPostWpData(baseWpData, shouldUseFixedCategory = true) {
+  return prepareWpDataForAutoPost(
+    baseWpData,
+    AUTO_POST_FIXED_CATEGORY_IDS,
+    shouldUseFixedCategory,
+  );
 }
 
 function normalizeWordPressMetaForApi(meta = {}) {
@@ -1653,13 +1642,14 @@ router.post(
               return;
             }
             const shouldUseFixedAutoPostCategory =
-              hasAutoPostGroupSelection(settings);
-            let wpData = shouldUseFixedAutoPostCategory
-              ? buildAutoPostWpData(ad.wpData)
-              : {
-                  ...ad.wpData,
-                  meta: ad.wpData?.meta ? { ...ad.wpData.meta } : {},
-                };
+              shouldUseFixedAutoPostCategoryForGroup(
+                settings,
+                ad.fromGroup,
+              );
+            let wpData = buildAutoPostWpData(
+              ad.wpData,
+              shouldUseFixedAutoPostCategory,
+            );
 
             // Override owner_name with WhatsApp sender name if available
             if (ad.senderName && wpData.meta) {
@@ -2976,13 +2966,21 @@ router.post(
               throw new Error("Ad not found");
             }
 
+            const currentSettings = getSettings();
+            const wpDataForPost = buildAutoPostWpData(
+              ad.wpData || null,
+              shouldUseFixedAutoPostCategoryForGroup(
+                currentSettings,
+                ad.fromGroup,
+              ),
+            );
+
             wpResult = await postAdToWordPress(
               ad,
               sock,
-              ad.wpData || null,
+              wpDataForPost,
               false,
               null,
-              [131],
             );
 
             if (!wpResult || wpResult.success !== true) {
@@ -3083,14 +3081,22 @@ router.post(
       console.log("Preview Only:", previewOnly);
       console.log("🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵\n");
 
+      const currentSettings = getSettings();
+      const wpDataForPost = buildAutoPostWpData(
+        wpData || ad.wpData || null,
+        shouldUseFixedAutoPostCategoryForGroup(
+          currentSettings,
+          ad.fromGroup,
+        ),
+      );
+
       // Use the reusable function
       const result = await postAdToWordPress(
         ad,
         sock,
-        wpData,
+        wpDataForPost,
         previewOnly,
         null,
-        [131],
       );
 
       // After successfully posting (not preview), check for matches with client requests

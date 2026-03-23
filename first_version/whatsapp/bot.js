@@ -23,6 +23,13 @@ const {
   DEFAULT_WP_CITY_OPTIONS,
 } = require("../config/locationHierarchy");
 const dataSync = require("../utils/dataSync");
+const {
+  normalizeGroupJids: normalizeAutoPostGroupJids,
+  hasAutoPostGroupSelection: hasConfiguredAutoPostGroups,
+  isAutoPostAllowedForGroup: isGroupAllowedForAutoPostRule,
+  isAutoPostGroupSelected: isFixedAutoPostGroup,
+  prepareWpDataForAutoPost,
+} = require("../utils/autoPostGroupRules");
 
 let sock;
 let qrCodeData = null;
@@ -151,14 +158,7 @@ const pendingActions = {};
 const AUTO_POST_FIXED_CATEGORY_IDS = [131];
 
 function normalizeGroupSelection(groupIds) {
-  if (!Array.isArray(groupIds)) return [];
-
-  return [...new Set(
-    groupIds
-      .filter((groupId) => typeof groupId === "string")
-      .map((groupId) => groupId.trim())
-      .filter(Boolean),
-  )];
+  return normalizeAutoPostGroupJids(groupIds);
 }
 
 function normalizeSmartLocationOptions(options, fallback = []) {
@@ -204,38 +204,27 @@ function normalizeSettingsForCompatibility() {
 }
 
 function shouldAutoPostFromSourceGroup(sourceGroupJid) {
-  const selectedGroups = normalizeGroupSelection(
-    settings.autoApproveWordPressGroups,
-  );
-
-  // Backwards compatibility: if nothing selected, keep old behavior (all groups allowed)
-  if (selectedGroups.length === 0) {
-    return true;
-  }
-
-  return (
-    typeof sourceGroupJid === "string" && selectedGroups.includes(sourceGroupJid)
-  );
+  return isGroupAllowedForAutoPostRule(settings, sourceGroupJid);
 }
 
 function hasAutoPostGroupSelection() {
-  return normalizeGroupSelection(settings.autoApproveWordPressGroups).length > 0;
+  return hasConfiguredAutoPostGroups(settings);
+}
+
+function shouldUseFixedCategoryForSourceGroup(sourceGroupJid) {
+  return isFixedAutoPostGroup(settings, sourceGroupJid);
 }
 
 function isAutoPostEnabled() {
   return settings.autoApproveWordPress === true;
 }
 
-function buildAutoPostWpData(baseWpData) {
-  const safeWpData =
-    baseWpData && typeof baseWpData === "object" ? baseWpData : {};
-
-  return {
-    ...safeWpData,
-    categories: [...AUTO_POST_FIXED_CATEGORY_IDS],
-    fixedCategoryIds: [...AUTO_POST_FIXED_CATEGORY_IDS],
-    meta: safeWpData.meta ? { ...safeWpData.meta } : {},
-  };
+function buildAutoPostWpData(baseWpData, shouldApplyFixedCategory = true) {
+  return prepareWpDataForAutoPost(
+    baseWpData,
+    AUTO_POST_FIXED_CATEGORY_IDS,
+    shouldApplyFixedCategory,
+  );
 }
 
 function loadAds() {
@@ -1072,7 +1061,9 @@ async function processMessageFromQueue(messageData) {
       ad.fromGroup,
     );
     const autoPostEnabled = isAutoPostEnabled();
-    const shouldUseFixedAutoPostCategory = hasAutoPostGroupSelection();
+    const shouldUseFixedAutoPostCategory = shouldUseFixedCategoryForSourceGroup(
+      ad.fromGroup,
+    );
 
     if (
       autoPostEnabled &&
@@ -1094,9 +1085,10 @@ async function processMessageFromQueue(messageData) {
           );
           console.log("🔵 Ad ID:", ad.id);
 
-          const wpDataForAutoPost = shouldUseFixedAutoPostCategory
-            ? buildAutoPostWpData(ad.wpData)
-            : ad.wpData;
+          const wpDataForAutoPost = buildAutoPostWpData(
+            ad.wpData,
+            shouldUseFixedAutoPostCategory,
+          );
 
           // Call the same function used for manual posting
           const result = await postAdToWordPress(
@@ -2102,8 +2094,9 @@ async function initializeBot() {
                 ad.fromGroup,
               );
               const autoPostEnabled = isAutoPostEnabled();
-              const shouldUseFixedAutoPostCategory =
-                hasAutoPostGroupSelection();
+              const shouldUseFixedAutoPostCategory = shouldUseFixedCategoryForSourceGroup(
+                ad.fromGroup,
+              );
 
               if (
                 autoPostEnabled &&
@@ -2125,9 +2118,10 @@ async function initializeBot() {
                     );
                     console.log("🔵 Ad ID:", ad.id);
 
-                    const wpDataForAutoPost = shouldUseFixedAutoPostCategory
-                      ? buildAutoPostWpData(ad.wpData)
-                      : ad.wpData;
+                    const wpDataForAutoPost = buildAutoPostWpData(
+                      ad.wpData,
+                      shouldUseFixedAutoPostCategory,
+                    );
 
                     // Call the same function used for manual posting
                     const result = await postAdToWordPress(

@@ -8782,7 +8782,7 @@ function updateAutoPostGroupsCount() {
   if (selected === 0) {
     countContainer.innerHTML = `
       <strong>0</strong> selected | <strong>${total}</strong> total
-      <br><span style="color: #777;">No selection means auto-post applies to all groups (legacy behavior).</span>
+      <br><span style="color: #777;">No groups selected. Legacy auto-post behavior stays active, and category 131 will not be forced.</span>
     `;
     return;
   }

@@ -19,6 +19,13 @@ const path = require("path");
 const fs = require("fs");
 const https = require("https");
 const areaNormalizer = require("./areaNormalizer");
+const {
+  normalizeGroupJids: normalizeAutoPostGroupJids,
+  hasAutoPostGroupSelection: hasConfiguredAutoPostGroups,
+  isAutoPostAllowedForGroup: isGroupAllowedForAutoPostRule,
+  isAutoPostGroupSelected: isFixedAutoPostGroup,
+  prepareWpDataForAutoPost,
+} = require("../utils/autoPostGroupRules");
 
 // Request deduplication cache: Map<hash, timestamp>
 const recentRequestsCache = new Map();
@@ -26,33 +33,27 @@ const CACHE_TTL = 5000; // 5 seconds
 const AUTO_POST_FIXED_CATEGORY_IDS = [131];
 
 function normalizeGroupJids(groupIds) {
-  if (!Array.isArray(groupIds)) return [];
-
-  return [...new Set(
-    groupIds
-      .filter((groupId) => typeof groupId === "string")
-      .map((groupId) => groupId.trim())
-      .filter(Boolean),
-  )];
+  return normalizeAutoPostGroupJids(groupIds);
 }
 
 function isAutoPostAllowedForGroup(settings, sourceGroupJid) {
-  const selectedGroups = normalizeGroupJids(
-    settings?.autoApproveWordPressGroups || [],
-  );
-
-  // Backwards compatibility: if no groups selected, keep old behavior (allow all)
-  if (selectedGroups.length === 0) {
-    return true;
-  }
-
-  return (
-    typeof sourceGroupJid === "string" && selectedGroups.includes(sourceGroupJid)
-  );
+  return isGroupAllowedForAutoPostRule(settings, sourceGroupJid);
 }
 
 function hasAutoPostGroupSelection(settings) {
-  return normalizeGroupJids(settings?.autoApproveWordPressGroups || []).length > 0;
+  return hasConfiguredAutoPostGroups(settings);
+}
+
+function shouldUseFixedAutoPostCategoryForGroup(settings, sourceGroupJid) {
+  return isFixedAutoPostGroup(settings, sourceGroupJid);
+}
+
+function buildAutoPostWpData(baseWpData, shouldUseFixedCategory = true) {
+  return prepareWpDataForAutoPost(
+    baseWpData,
+    AUTO_POST_FIXED_CATEGORY_IDS,
+    shouldUseFixedCategory,
+  );
 }
 
 function isAutoPostEnabled(settings) {
@@ -1392,7 +1393,7 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
       );
       const autoPostEnabled = isAutoPostEnabled(settings);
       const shouldUseFixedAutoPostCategory =
-        hasAutoPostGroupSelection(settings);
+        shouldUseFixedAutoPostCategoryForGroup(settings, ad.fromGroup);
 
       if (
         autoPostEnabled &&
@@ -1427,15 +1428,10 @@ async function handleOfferSubmission(client, phoneNumber, message, sendReply) {
             );
 
             // Prepare WordPress data
-            let wpData = {
-              ...(ad.wpData || {}),
-              meta: ad.wpData?.meta ? { ...ad.wpData.meta } : {},
-            };
-
-            if (shouldUseFixedAutoPostCategory) {
-              wpData.categories = [...AUTO_POST_FIXED_CATEGORY_IDS];
-              wpData.fixedCategoryIds = [...AUTO_POST_FIXED_CATEGORY_IDS];
-            }
+            let wpData = buildAutoPostWpData(
+              ad.wpData,
+              shouldUseFixedAutoPostCategory,
+            );
 
             if (ad.senderName && wpData.meta) {
               wpData.meta.owner_name = ad.senderName;
