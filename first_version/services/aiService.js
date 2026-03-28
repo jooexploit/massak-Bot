@@ -40,6 +40,7 @@ const MASAAK_REFERENCE_RULE_LINES_FOR_PROMPT = [
   "أرض: تجارية أو سكنية فقط.",
   "عمارة: تجارية أو سكنية فقط.",
   "مزرعة: صك أو مشاع أو وقف أو عرق أو أرض زراعية.",
+  'إذا كان النص يذكر "أرض" فقط فلا تحوّلها إلى "مزرعة" إلا عند وجود دليل زراعي واضح مثل "أرض زراعية" أو وصف صريح لمزرعة.',
 ];
 const DEFAULT_DYNAMIC_BEFORE_CITIES = [...DEFAULT_WP_BEFORE_CITY_OPTIONS];
 const DEFAULT_DYNAMIC_CITIES = [...DEFAULT_WP_CITY_OPTIONS];
@@ -2388,6 +2389,46 @@ function canonicalizeMasaakCategory(label) {
   return "";
 }
 
+function hasStrongFarmCategoryCue(adText = "", subcategory = "") {
+  const text = normalizeArabicText(adText || "");
+  const sub = normalizeArabicText(subcategory || "");
+  const combined = normalizeArabicText([text, sub].filter(Boolean).join(" "));
+
+  if (!combined) return false;
+
+  if (/(?:أرض|ارض)\s*زراع(?:ي|ية|يه)/i.test(combined)) {
+    return true;
+  }
+
+  if (
+    /\bزراع(?:ي|ية|يه)\b/i.test(combined) &&
+    /(?:أرض|ارض|مزرعة|مزرعه)/i.test(combined)
+  ) {
+    return true;
+  }
+
+  if (
+    /(?:مزرعة|مزرعه)\b/i.test(combined) &&
+    !/(?:التصنيف|التصنيف\s*الفرعي|الفئة|الفئة\s*الفرعية|category|subcategory)/i.test(
+      combined,
+    )
+  ) {
+    if (!/(?:أرض|ارض|قطعة\s*أرض|قطعة\s*ارض)/i.test(text)) {
+      return true;
+    }
+
+    if (
+      /(?:مزرعة|مزرعه)\s*(?:للبيع|للإيجار|للايجار|مسورة|مسوّرة|مسيجة|نخيل|بئر|بير|آبار|صك|مشاع|وقف|عرق|ري|رشاش|استثمارية|سكنية|مثمرة)/i.test(
+        combined,
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function inferStrictMasaakCategoryFromText(adText = "") {
   const text = normalizeArabicText(adText || "");
   if (!text) return "";
@@ -2395,10 +2436,7 @@ function inferStrictMasaakCategoryFromText(adText = "") {
   if (/(?:شقة|شقه)\s*(?:دبلكسية|دبلكسيه|دبلكس|دوبلكس)/i.test(text)) {
     return "شقة دبلكسية";
   }
-  if (
-    /(?:أرض|ارض)\s*زراع(?:ي|ية|يه)/i.test(text) ||
-    /(?:مزرعة|مزرعه)/i.test(text)
-  ) {
+  if (hasStrongFarmCategoryCue(text)) {
     return "مزرعة";
   }
   if (/(?:دبلكس|دوبلكس)/i.test(text)) {
@@ -2490,6 +2528,7 @@ function enforceMasaakCategorySubcategoryReference(meta, adText = "") {
   let category = canonicalizeMasaakCategory(
     firstNonEmpty(meta.parent_catt, meta.category, meta.arc_category),
   );
+  const hasFarmCue = hasStrongFarmCategoryCue(adText, currentSubcategory);
 
   if (!category && textCategoryHint) {
     category = textCategoryHint;
@@ -2497,13 +2536,16 @@ function enforceMasaakCategorySubcategoryReference(meta, adText = "") {
     category = textCategoryHint;
   }
 
-  // Keep agricultural land routed under "مزرعة" as requested by the business rules.
-  if (
-    category === "أرض" &&
-    (textCategoryHint === "مزرعة" ||
-      /زراع(?:ي|ية|يه)/i.test(normalizeArabicText(currentSubcategory)))
-  ) {
+  if (category === "أرض" && hasFarmCue) {
     category = "مزرعة";
+  }
+
+  if (
+    category === "مزرعة" &&
+    !hasFarmCue &&
+    /(?:أرض|ارض|قطعة\s*أرض|قطعة\s*ارض)/i.test(normalizeArabicText(adText))
+  ) {
+    category = "أرض";
   }
 
   if (!category) return;

@@ -153,6 +153,69 @@ test("masaak normalization keeps only trusted category and subcategory values", 
   assert.equal(meta.category_id, 390);
 });
 
+test("plain land listings stay أرض even if noisy text mentions مزرعة as a label", async () => {
+  await primeTrustedTaxonomy();
+
+  const meta = {
+    category: "مزرعة",
+    parent_catt: "مزرعة",
+    arc_category: "مزرعة",
+    subcategory: "",
+    sub_catt: "",
+    arc_subcategory: "",
+    category_id: "",
+    ad_type: "عرض",
+    order_type: "",
+    offer_type: "",
+    order_status: "عرض جديد",
+    offer_status: "عرض جديد",
+  };
+
+  aiService.__private.normalizeWordPressCategoryMeta(
+    meta,
+    "أرض سكنية للبيع في الناحية الناعس المساحة 375 متر ومكتوب مزرعة بالتصنيف الفرعي فقط",
+  );
+
+  assert.equal(meta.category, "أرض");
+  assert.equal(meta.parent_catt, "أرض");
+  assert.equal(meta.arc_category, "أرض");
+  assert.equal(meta.subcategory, "سكنية");
+  assert.equal(meta.sub_catt, "سكنية");
+  assert.equal(meta.arc_subcategory, "سكنية");
+  assert.equal(meta.category_id, 390);
+});
+
+test("agricultural land still maps to مزرعة when the farming cue is explicit", async () => {
+  await primeTrustedTaxonomy();
+
+  const meta = {
+    category: "",
+    parent_catt: "",
+    arc_category: "",
+    subcategory: "",
+    sub_catt: "",
+    arc_subcategory: "",
+    category_id: "",
+    ad_type: "عرض",
+    order_type: "",
+    offer_type: "",
+    order_status: "عرض جديد",
+    offer_status: "عرض جديد",
+  };
+
+  aiService.__private.normalizeWordPressCategoryMeta(
+    meta,
+    "أرض زراعية للبيع فيها نخيل وبئر",
+  );
+
+  assert.equal(meta.category, "مزرعة");
+  assert.equal(meta.parent_catt, "مزرعة");
+  assert.equal(meta.arc_category, "مزرعة");
+  assert.equal(meta.subcategory, "أرض زراعية");
+  assert.equal(meta.sub_catt, "أرض زراعية");
+  assert.equal(meta.arc_subcategory, "أرض زراعية");
+});
+
 test("hasak normalization clears subcategory fields and keeps trusted category only", async () => {
   await primeTrustedTaxonomy();
 
