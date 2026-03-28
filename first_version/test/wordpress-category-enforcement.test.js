@@ -237,3 +237,67 @@ test("forbidden description cleanup applies only to masaak", async () => {
     /0501234567/,
   );
 });
+
+test("location normalization rejects weak fragments and recovers clean values from text", () => {
+  const meta = {
+    before_City: "ال",
+    before_city: "ال",
+    city: "ال",
+    City: "ال",
+    subcity: "",
+    location: "حي ال",
+    neighborhood: "ال",
+    category: "أرض",
+    subcategory: "سكنية",
+  };
+
+  aiService.__private.normalizeLocationMeta(
+    meta,
+    "الدولة: السعودية\nالمدينة: الهفوف\nالحي: حي الخالدية\nأرض للبيع",
+    "masaak",
+  );
+
+  assert.equal(meta.before_City, "السعودية");
+  assert.equal(meta.city, "الهفوف");
+  assert.equal(meta.City, "الهفوف");
+  assert.equal(meta.location, "الخالدية");
+  assert.equal(meta.neighborhood, "الخالدية");
+});
+
+test("location normalization trims long noisy phrases down to compact city and neighborhood values", () => {
+  const meta = {
+    before_City: "الدولة: السعودية بجوار البحر",
+    before_city: "الدولة: السعودية بجوار البحر",
+    city: "المدينة: الهفوف حي الخالدية شقة للبيع بسعر مناسب",
+    City: "المدينة: الهفوف حي الخالدية شقة للبيع بسعر مناسب",
+    subcity: "",
+    location: "الموقع: حي الخالدية بجوار المطار وقريب من الخدمات",
+    neighborhood: "الموقع: حي الخالدية بجوار المطار وقريب من الخدمات",
+    category: "أرض",
+    subcategory: "سكنية",
+  };
+
+  aiService.__private.normalizeLocationMeta(
+    meta,
+    "الدولة: السعودية\nالمدينة: الهفوف\nالحي: حي الخالدية\nشقة للبيع",
+    "masaak",
+  );
+
+  assert.equal(meta.before_City, "السعودية");
+  assert.equal(meta.city, "الهفوف");
+  assert.equal(meta.location, "الخالدية");
+});
+
+test("location fallback keeps valid cities and countries that are not in the saved hints", () => {
+  const extracted = aiService.__private.extractLocationFromTextFallback(
+    "الدولة: مصر\nالمدينة: العلمين الجديدة\nالحي: حي اللوتس الجديدة\nشقة للبيع",
+  );
+
+  assert.equal(extracted.governorate, "مصر");
+  assert.equal(extracted.city, "العلمين الجديدة");
+  assert.equal(extracted.neighborhood, "اللوتس الجديدة");
+  assert.equal(
+    aiService.__private.sanitizeLocationCandidate("ال", { type: "city" }),
+    "",
+  );
+});

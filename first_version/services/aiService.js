@@ -181,6 +181,397 @@ function normalizeNeighborhoodName(value = "") {
   return normalizeArabicText(normalized.replace(/^(?:(?:ال)?حي)\s+/i, ""));
 }
 
+const LOCATION_GENERIC_REJECT_VALUES = new Set(
+  [
+    "ال",
+    "حي",
+    "الحي",
+    "المدينة",
+    "المدينه",
+    "مدينة",
+    "مدينه",
+    "الموقع",
+    "المكان",
+    "المنطقة",
+    "المنطقه",
+    "منطقة",
+    "منطقه",
+    "المحافظة",
+    "المحافظه",
+    "محافظة",
+    "محافظه",
+    "الدولة",
+    "الدوله",
+    "دولة",
+    "دوله",
+    "في",
+    "ب",
+    "داخل",
+    "ضمن",
+  ].map((value) => normalizeArabicText(value).toLowerCase()),
+);
+
+const LOCATION_HARD_NOISE_PATTERN =
+  /(?:للبيع|للايجار|للإيجار|للتقبيل|السعر|بسعر|مساحة|المساحة|بمساحة|غرف|غرفة|حمام|صالة|مطبخ|مجلس|واجهة|مواقف|موقف|مدخل|مصعد|عداد|خزان|شقة|شقه|فيلا|أرض|ارض|عمارة|عماره|دبلكس|محل|مزرعة|مزرعه|بيت|جوال|هاتف|واتساب|رقم|تواصل|التواصل|مكتب|شركة|ترخيص|قروب|سناب|انستغرام|تلغرام|يوتيوب)/i;
+
+const LOCATION_RELATIONAL_SPLIT_PATTERN =
+  /\s+(?:قريب من|بالقرب من|بجوار|خلف|مقابل|جنب|عند)(?=\s|$)/i;
+
+const LOCATION_TRAILING_CONTEXT_SPLIT_PATTERN =
+  /\s+(?:للبيع|للايجار|للإيجار|للتقبيل|مطلوب|بسعر|السعر|بمساحة|مساحة|المساحة|غرف|غرفة|حمام|صالة|مطبخ|مجلس|واجهة|مواقف|موقف|مدخل|مصعد|عداد|خزان|شقة|شقه|فيلا|أرض|ارض|عمارة|عماره|دبلكس|محل|مزرعة|مزرعه|بيت|واتساب|جوال|هاتف|رقم|التواصل|للتواصل)(?=\s|$)/i;
+
+const LOCATION_SEPARATOR_PATTERN = /[\n\r،,;؛/|]+|\s[-–—]+\s/g;
+
+function normalizeLocationLookupKey(value = "") {
+  return normalizeWhitespace(
+    convertArabicDigitsToEnglish(String(value || ""))
+      .replace(/[\u064B-\u065F\u0670]/g, "")
+      .replace(/[أإآ]/g, "ا")
+      .replace(/ؤ/g, "و")
+      .replace(/ئ/g, "ي")
+      .replace(/ى/g, "ي")
+      .replace(/ة/g, "ه")
+      .replace(/[^\dA-Za-z\u0600-\u06FF\s]/g, " "),
+  ).toLowerCase();
+}
+
+function containsNormalizedLocation(haystack = "", needle = "") {
+  const haystackKey = normalizeLocationLookupKey(haystack);
+  const needleKey = normalizeLocationLookupKey(needle);
+
+  if (!haystackKey || !needleKey) {
+    return false;
+  }
+
+  return (
+    haystackKey === needleKey ||
+    ` ${haystackKey} `.includes(` ${needleKey} `)
+  );
+}
+
+function normalizeLocationOptions(values = []) {
+  return unique(
+    (Array.isArray(values) ? values : [])
+      .filter((value) => typeof value === "string")
+      .map((value) => normalizeArabicText(value))
+      .filter(Boolean),
+  );
+}
+
+function getKnownLocationOptions(type = "generic") {
+  const dynamicHints = getDynamicLocationHints(false);
+
+  if (type === "city") {
+    return normalizeLocationOptions([
+      ...DEFAULT_WP_CITY_OPTIONS,
+      ...(dynamicHints.cities || []),
+    ]);
+  }
+
+  if (type === "governorate") {
+    return normalizeLocationOptions([
+      AL_AHSA_GOVERNORATE,
+      ...DEFAULT_WP_BEFORE_CITY_OPTIONS,
+      ...(dynamicHints.beforeCities || []),
+    ]);
+  }
+
+  if (type === "neighborhood") {
+    const governorateKey = normalizeLocationLookupKey(AL_AHSA_GOVERNORATE);
+
+    return normalizeLocationOptions(
+      (Array.isArray(areaNormalizer.VALID_AREAS) ? areaNormalizer.VALID_AREAS : [])
+        .filter((value) => {
+          const normalized = normalizeArabicText(value);
+          if (!normalized) return false;
+          if (normalizeLocationLookupKey(normalized) === governorateKey) {
+            return false;
+          }
+          return !(areaNormalizer.isCity && areaNormalizer.isCity(normalized));
+        }),
+    );
+  }
+
+  return [];
+}
+
+function findKnownLocationMatch(text, options = []) {
+  const sourceKey = normalizeLocationLookupKey(text);
+  if (!sourceKey || !Array.isArray(options) || options.length === 0) {
+    return "";
+  }
+
+  const normalizedOptions = normalizeLocationOptions(options).sort(
+    (a, b) =>
+      normalizeLocationLookupKey(b).length - normalizeLocationLookupKey(a).length,
+  );
+  const paddedSourceKey = ` ${sourceKey} `;
+
+  for (const option of normalizedOptions) {
+    const optionKey = normalizeLocationLookupKey(option);
+    if (!optionKey) continue;
+
+    if (sourceKey === optionKey || paddedSourceKey.includes(` ${optionKey} `)) {
+      return option;
+    }
+  }
+
+  return "";
+}
+
+function stripLocationFieldLabel(value = "", type = "generic") {
+  let cleaned = normalizeArabicText(value || "");
+  if (!cleaned) return "";
+
+  cleaned = cleaned.replace(
+    /^(?:الموقع الكامل|العنوان|location|address)\s*[:：-]?\s*/i,
+    "",
+  );
+
+  if (type === "neighborhood") {
+    cleaned = cleaned.replace(
+      /^(?:الحي|حي|المنطقة|المنطقه|منطقة|منطقه|الموقع|المكان|district|neighborhood)\s*[:：-]?\s*/i,
+      "",
+    );
+  } else if (type === "city") {
+    cleaned = cleaned.replace(
+      /^(?:المدينة|المدينه|مدينة|مدينه|city)\s*[:：-]?\s*/i,
+      "",
+    );
+  } else if (type === "governorate") {
+    cleaned = cleaned.replace(
+      /^(?:المحافظة|المحافظه|محافظة|محافظه|المنطقة|المنطقه|منطقة|منطقه|الدولة|الدوله|دولة|دوله|country|state|governorate)\s*[:：-]?\s*/i,
+      "",
+    );
+  }
+
+  cleaned = cleaned.replace(/^(?:في|ب|داخل|ضمن)\s+/i, "");
+
+  return normalizeArabicText(cleaned);
+}
+
+function trimLocationCandidateByType(value = "", type = "generic") {
+  let cleaned = normalizeArabicText(value || "")
+    .replace(/[()[\]{}]/g, " ")
+    .replace(/^[,،;؛:：\-–—/|'"`]+/, "")
+    .replace(/[,،;؛:：\-–—/|'"`]+$/, "")
+    .trim();
+
+  if (!cleaned) return "";
+
+  if (type === "city") {
+    cleaned = cleaned.replace(
+      /\s+(?:حي|الحي|المحافظة|المحافظه|محافظة|محافظه|الدولة|الدوله|دولة|دوله)\s*[:：-]?\s*.*$/i,
+      "",
+    ).trim();
+  } else if (type === "neighborhood") {
+    cleaned = cleaned.replace(
+      /\s+(?:المدينة|المدينه|مدينة|مدينه|المحافظة|المحافظه|محافظة|محافظه|الدولة|الدوله|دولة|دوله)\s*[:：-]?\s*.*$/i,
+      "",
+    ).trim();
+  } else if (type === "governorate") {
+    cleaned = cleaned.replace(
+      /\s+(?:المدينة|المدينه|مدينة|مدينه|حي|الحي)\s*[:：-]?\s*.*$/i,
+      "",
+    ).trim();
+  }
+
+  cleaned = cleaned.split(LOCATION_RELATIONAL_SPLIT_PATTERN)[0].trim();
+  cleaned = cleaned.split(LOCATION_TRAILING_CONTEXT_SPLIT_PATTERN)[0].trim();
+
+  return normalizeArabicText(cleaned);
+}
+
+function getMeaningfulLocationCore(value = "") {
+  return normalizeLocationLookupKey(value)
+    .replace(
+      /\b(?:ال|حي|الحي|المدينة|المدينه|مدينة|مدينه|الموقع|المكان|المنطقة|المنطقه|منطقة|منطقه|المحافظة|المحافظه|محافظة|محافظه|الدولة|الدوله|دولة|دوله)\b/gi,
+      " ",
+    )
+    .replace(/\s+/g, "");
+}
+
+function looksWeakLocationValue(value = "", type = "generic") {
+  const normalized = normalizeArabicText(value || "");
+  if (!normalized || isPlaceholderLocationValue(normalized)) {
+    return true;
+  }
+
+  const lookup = normalizeLocationLookupKey(normalized);
+  if (!lookup || LOCATION_GENERIC_REJECT_VALUES.has(lookup)) {
+    return true;
+  }
+
+  if (!/[A-Za-z\u0600-\u06FF]/.test(normalized)) {
+    return true;
+  }
+
+  if (getMeaningfulLocationCore(normalized).length < 2) {
+    return true;
+  }
+
+  if (LOCATION_HARD_NOISE_PATTERN.test(normalized)) {
+    return true;
+  }
+
+  const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+  const maxWords = type === "city" ? 4 : 5;
+  if (wordCount > maxWords) {
+    return true;
+  }
+
+  if (type === "city" && /\b(?:حي|الحي)\b/i.test(normalized)) {
+    return true;
+  }
+
+  if (
+    type === "neighborhood" &&
+    /\b(?:المدينة|المدينه|مدينة|مدينه|المحافظة|المحافظه|محافظة|محافظه|الدولة|الدوله|دولة|دوله)\b/i.test(
+      normalized,
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function finalizeLocationCandidate(value = "", type = "generic") {
+  let cleaned = trimLocationCandidateByType(
+    stripLocationFieldLabel(value, type),
+    type,
+  );
+  if (!cleaned) return "";
+
+  if (type === "neighborhood") {
+    cleaned = normalizeNeighborhoodName(cleaned);
+    cleaned = normalizeArabicText(
+      areaNormalizer.normalizeAreaName
+        ? areaNormalizer.normalizeAreaName(cleaned) || cleaned
+        : cleaned,
+    );
+    cleaned = normalizeNeighborhoodName(cleaned);
+  } else {
+    cleaned = normalizeArabicText(
+      areaNormalizer.normalizeCityName
+        ? areaNormalizer.normalizeCityName(cleaned) || cleaned
+        : cleaned,
+    );
+  }
+
+  return looksWeakLocationValue(cleaned, type) ? "" : cleaned;
+}
+
+function buildLocationCandidateList(rawValue = "", type = "generic") {
+  const raw = normalizeArabicText(rawValue || "");
+  if (!raw) return [];
+
+  const candidates = [
+    raw,
+    stripLocationFieldLabel(raw, type),
+    trimLocationCandidateByType(raw, type),
+  ];
+
+  raw.split(LOCATION_SEPARATOR_PATTERN).forEach((fragment) => {
+    const cleanedFragment = normalizeArabicText(fragment);
+    if (!cleanedFragment) return;
+    candidates.push(cleanedFragment);
+    candidates.push(stripLocationFieldLabel(cleanedFragment, type));
+    candidates.push(trimLocationCandidateByType(cleanedFragment, type));
+  });
+
+  if (type === "neighborhood") {
+    const extractedNeighborhoods = areaNormalizer.extractNeighborhoods(raw);
+    extractedNeighborhoods.forEach((item) => candidates.push(item));
+
+    const labeledMatch = raw.match(
+      /(?:الحي|حي|المنطقة|المنطقه|منطقة|منطقه|الموقع|المكان)\s*[:：-]?\s*([^\n]{2,80})/i,
+    );
+    if (labeledMatch) {
+      candidates.push(labeledMatch[1]);
+    }
+  }
+
+  if (type === "city") {
+    const cityMatch = raw.match(
+      /(?:المدينة|المدينه|مدينة|مدينه)\s*[:：-]?\s*([^\n]{2,80})/i,
+    );
+    if (cityMatch) {
+      candidates.push(cityMatch[1]);
+    }
+  }
+
+  if (type === "governorate") {
+    const governorateMatch = raw.match(
+      /(?:المحافظة|المحافظه|محافظة|محافظه|المنطقة|المنطقه|منطقة|منطقه|الدولة|الدوله|دولة|دوله)\s*[:：-]?\s*([^\n]{2,80})/i,
+    );
+    if (governorateMatch) {
+      candidates.push(governorateMatch[1]);
+    }
+  }
+
+  return unique(
+    candidates
+      .map((candidate) => finalizeLocationCandidate(candidate, type))
+      .filter(Boolean),
+  );
+}
+
+function sanitizeLocationCandidate(
+  rawValue = "",
+  { type = "generic", adText = "", knownOptions = [] } = {},
+) {
+  const normalizedRaw = normalizeArabicText(rawValue || "");
+  if (!normalizedRaw || isPlaceholderLocationValue(normalizedRaw)) {
+    return "";
+  }
+
+  const availableKnownOptions =
+    Array.isArray(knownOptions) && knownOptions.length > 0
+      ? normalizeLocationOptions(knownOptions)
+      : getKnownLocationOptions(type);
+
+  const preparedRaw = trimLocationCandidateByType(
+    stripLocationFieldLabel(normalizedRaw, type),
+    type,
+  );
+  const directKnownMatch = findKnownLocationMatch(
+    preparedRaw || normalizedRaw,
+    availableKnownOptions,
+  );
+  if (directKnownMatch) {
+    return finalizeLocationCandidate(directKnownMatch, type);
+  }
+
+  const normalizedAdText = normalizeArabicText(adText || "");
+  const directPreparedCandidate = finalizeLocationCandidate(
+    preparedRaw || normalizedRaw,
+    type,
+  );
+  if (
+    directPreparedCandidate &&
+    (!normalizedAdText ||
+      containsNormalizedLocation(normalizedAdText, directPreparedCandidate))
+  ) {
+    return directPreparedCandidate;
+  }
+
+  const candidates = buildLocationCandidateList(normalizedRaw, type);
+
+  for (const candidate of candidates) {
+    const knownMatch = findKnownLocationMatch(candidate, availableKnownOptions);
+    if (knownMatch) {
+      return finalizeLocationCandidate(knownMatch, type);
+    }
+
+    if (!normalizedAdText || containsNormalizedLocation(normalizedAdText, candidate)) {
+      return candidate;
+    }
+  }
+
+  return "";
+}
+
 function extractNumericValue(value) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -382,29 +773,7 @@ function getDynamicLocationHints(forceRefresh = false) {
 }
 
 function inferLocationFromKnownOptions(text, options = []) {
-  const normalizedText = normalizeArabicText(text || "").toLowerCase();
-  if (!normalizedText || !Array.isArray(options) || options.length === 0) {
-    return "";
-  }
-
-  const sortedOptions = normalizeLocationHintList(options).sort(
-    (a, b) => b.length - a.length,
-  );
-
-  for (const option of sortedOptions) {
-    const normalizedOption = normalizeArabicText(option).toLowerCase();
-    if (!normalizedOption) continue;
-
-    if (
-      normalizedText === normalizedOption ||
-      normalizedText.includes(` ${normalizedOption} `) ||
-      normalizedText.includes(normalizedOption)
-    ) {
-      return option;
-    }
-  }
-
-  return "";
+  return findKnownLocationMatch(text, normalizeLocationHintList(options));
 }
 
 function buildDynamicLocationHintsPromptText() {
@@ -425,7 +794,10 @@ function buildDynamicLocationHintsPromptText() {
 
   return `مرجع جغرافي داخلي (استخدمه للاستنتاج عند غياب الحقول الصريحة):
 ${beforeCitiesLine}
-${citiesLine}`;
+${citiesLine}
+- قارن الموقع أولاً بهذا المرجع، لكن إذا ظهرت مدينة أو دولة واضحة في النص وغير موجودة هنا فاحتفظ بها كما وردت بعد تنظيفها.
+- location/neighborhood = اسم الحي فقط بدون كلمة "حي" وبدون أي وصف إضافي، city = اسم المدينة فقط بدون كلمة "مدينة"، before_City = اسم المحافظة أو الدولة أو المنطقة الكبرى فقط.
+- القيم المرفوضة: "ال" أو "حي" أو "مدينة" أو أي جملة طويلة عن الموقع. إذا لم تجد قيمة دقيقة فاترك الحقل فارغاً.`;
 }
 
 function inferCityGovernorateFromText(adText) {
@@ -437,38 +809,66 @@ function inferCityGovernorateFromText(adText) {
   let city = "";
   let governorate = "";
 
-  const match = text.match(
-    /(?:^|[\s(])(في|ب)\s*([^،,\n]{2,40})\s*[،,]\s*([^،,\n]{2,40})/i,
+  const governorateMatch = text.match(
+    /(?:المحافظة|المحافظه|محافظة|محافظه|الدولة|الدوله|دولة|دوله|المنطقة|المنطقه|منطقة|منطقه)\s*[:：-]?\s*([^\n]{2,80})/i,
   );
-  if (match) {
-    city = normalizeArabicText(match[2]);
-    governorate = normalizeArabicText(match[3]);
+  if (governorateMatch) {
+    governorate = sanitizeLocationCandidate(governorateMatch[1], {
+      type: "governorate",
+      adText: text,
+    });
   }
 
   if (!city) {
     const cityMatch = text.match(
-      /(?:المدينة|المدينه|مدينة|مدينه)\s*[:：-]?\s*([^\n،,]{2,35})/i,
+      /(?:المدينة|المدينه|مدينة|مدينه)\s*[:：-]?\s*([^\n]{2,80})/i,
     );
     if (cityMatch) {
-      city = normalizeArabicText(cityMatch[1]);
+      city = sanitizeLocationCandidate(cityMatch[1], {
+        type: "city",
+        adText: text,
+      });
     }
   }
 
-  if (areaNormalizer.normalizeCityName) {
-    city = normalizeArabicText(areaNormalizer.normalizeCityName(city) || city);
-    governorate = normalizeArabicText(
-      areaNormalizer.normalizeCityName(governorate) || governorate,
+  if (!city) {
+    const inlineMatch = text.match(
+      /(?:^|[\s(])(في|ب)\s*([^،,\n]{2,80})\s*[،,]\s*([^،,\n]{2,80})/i,
     );
+    if (inlineMatch) {
+      city = sanitizeLocationCandidate(inlineMatch[2], {
+        type: "city",
+        adText: text,
+      });
+
+      if (!governorate) {
+        governorate = sanitizeLocationCandidate(inlineMatch[3], {
+          type: "governorate",
+          adText: text,
+        });
+      }
+    }
   }
 
   const dynamicHints = getDynamicLocationHints(false);
   if (!city) {
-    city = inferLocationFromKnownOptions(text, dynamicHints.cities);
+    city = sanitizeLocationCandidate(
+      inferLocationFromKnownOptions(text, dynamicHints.cities),
+      {
+        type: "city",
+        adText: text,
+        knownOptions: dynamicHints.cities,
+      },
+    );
   }
   if (!governorate) {
-    governorate = inferLocationFromKnownOptions(
-      text,
-      dynamicHints.beforeCities,
+    governorate = sanitizeLocationCandidate(
+      inferLocationFromKnownOptions(text, dynamicHints.beforeCities),
+      {
+        type: "governorate",
+        adText: text,
+        knownOptions: dynamicHints.beforeCities,
+      },
     );
   }
 
@@ -1599,12 +1999,20 @@ function appendParseNote(existingNotes, note) {
 function buildFullLocationValue(meta = {}, fallback = "") {
   const parts = unique(
     [
-      normalizeArabicText(firstNonEmpty(meta.location, meta.neighborhood, "")),
-      normalizeArabicText(
+      sanitizeLocationCandidate(firstNonEmpty(meta.location, meta.neighborhood, ""), {
+        type: "neighborhood",
+      }),
+      sanitizeLocationCandidate(
         firstNonEmpty(meta.City, meta.subcity, meta.city, ""),
+        {
+          type: "city",
+        },
       ),
-      normalizeArabicText(
+      sanitizeLocationCandidate(
         firstNonEmpty(meta.before_City, meta.before_city, ""),
+        {
+          type: "governorate",
+        },
       ),
     ].filter((value) => value && value !== "لم يذكر" && value !== "لا يوجد"),
   );
@@ -1617,7 +2025,7 @@ function buildFullLocationValue(meta = {}, fallback = "") {
 }
 
 function hasDetailedLocation(meta = {}) {
-  const fullLocation = normalizeArabicText(meta.full_location || "");
+  const fullLocation = buildFullLocationValue(meta, "");
   if (
     fullLocation &&
     !["الأحساء", "لم يذكر", "لا يوجد"].includes(fullLocation)
@@ -1625,14 +2033,23 @@ function hasDetailedLocation(meta = {}) {
     return true;
   }
 
-  const beforeCity = normalizeArabicText(
+  const beforeCity = sanitizeLocationCandidate(
     firstNonEmpty(meta.before_City, meta.before_city, ""),
+    {
+      type: "governorate",
+    },
   );
-  const city = normalizeArabicText(
+  const city = sanitizeLocationCandidate(
     firstNonEmpty(meta.City, meta.subcity, meta.city, ""),
+    {
+      type: "city",
+    },
   );
-  const neighborhood = normalizeArabicText(
+  const neighborhood = sanitizeLocationCandidate(
     firstNonEmpty(meta.location, meta.neighborhood, ""),
+    {
+      type: "neighborhood",
+    },
   );
 
   const hasNeighborhood =
@@ -1658,34 +2075,49 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
   const isHasak = targetWebsite === "hasak";
   const inferred = inferCityGovernorateFromText(adText);
   const dynamicHints = getDynamicLocationHints(false);
+  const parsedFullLocation = parseFullLocationText(meta.full_location || "");
+  const fallbackLocation = extractLocationFromTextFallback(adText);
 
-  let city = normalizeArabicText(
-    firstNonEmpty(meta.city, meta.City, meta.subcity),
+  let city = sanitizeLocationCandidate(
+    firstNonEmpty(meta.city, meta.City, meta.subcity, parsedFullLocation.city),
+    {
+      type: "city",
+      adText,
+      knownOptions: dynamicHints.cities,
+    },
   );
-  let beforeCity = normalizeArabicText(
+  let beforeCity = sanitizeLocationCandidate(
     firstNonEmpty(
       meta.before_City,
       meta.before_city,
+      parsedFullLocation.governorate,
       inferred.governorate,
       AL_AHSA_GOVERNORATE,
     ),
+    {
+      type: "governorate",
+      adText,
+      knownOptions: dynamicHints.beforeCities,
+    },
   );
-  let subcity = normalizeArabicText(firstNonEmpty(meta.subcity, city));
+  let subcity = sanitizeLocationCandidate(firstNonEmpty(meta.subcity, city), {
+    type: "city",
+    adText,
+    knownOptions: dynamicHints.cities,
+  });
 
-  let neighborhood = normalizeArabicText(
-    firstNonEmpty(meta.neighborhood, meta.location, ""),
+  let neighborhood = sanitizeLocationCandidate(
+    firstNonEmpty(
+      meta.neighborhood,
+      meta.location,
+      parsedFullLocation.neighborhood,
+      "",
+    ),
+    {
+      type: "neighborhood",
+      adText,
+    },
   );
-  neighborhood = normalizeNeighborhoodName(neighborhood);
-
-  if (areaNormalizer.normalizeCityName) {
-    city = normalizeArabicText(areaNormalizer.normalizeCityName(city) || city);
-    beforeCity = normalizeArabicText(
-      areaNormalizer.normalizeCityName(beforeCity) || beforeCity,
-    );
-    subcity = normalizeArabicText(
-      areaNormalizer.normalizeCityName(subcity) || subcity,
-    );
-  }
 
   if (
     !neighborhood ||
@@ -1696,40 +2128,31 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
   }
 
   if (!city) {
-    city = inferLocationFromKnownOptions(adText, dynamicHints.cities);
+    city =
+      sanitizeLocationCandidate(inferLocationFromKnownOptions(adText, dynamicHints.cities), {
+        type: "city",
+        adText,
+        knownOptions: dynamicHints.cities,
+      }) || fallbackLocation.city;
   }
   if (!beforeCity) {
-    beforeCity = inferLocationFromKnownOptions(
-      adText,
-      dynamicHints.beforeCities,
-    );
-  }
-
-  if (neighborhood.includes("،") || neighborhood.includes(",")) {
-    const parts = neighborhood
-      .split(/[،,]/)
-      .map((part) => normalizeArabicText(part))
-      .filter(Boolean);
-
-    if (parts.length >= 2) {
-      const [firstPart, secondPart] = parts;
-      if (secondPart === beforeCity || secondPart === city) {
-        neighborhood = firstPart;
-      } else if (firstPart === beforeCity && secondPart) {
-        neighborhood = secondPart;
-      }
-    }
+    beforeCity =
+      fallbackLocation.governorate ||
+      sanitizeLocationCandidate(
+        inferLocationFromKnownOptions(adText, dynamicHints.beforeCities),
+        {
+          type: "governorate",
+          adText,
+          knownOptions: dynamicHints.beforeCities,
+        },
+      );
   }
 
   if (
-    neighborhood &&
-    neighborhood !== "لم يذكر" &&
-    areaNormalizer.normalizeAreaName
+    (!neighborhood || neighborhood === "لم يذكر") &&
+    fallbackLocation.neighborhood
   ) {
-    neighborhood = normalizeArabicText(
-      areaNormalizer.normalizeAreaName(neighborhood) || neighborhood,
-    );
-    neighborhood = normalizeNeighborhoodName(neighborhood);
+    neighborhood = fallbackLocation.neighborhood;
   }
 
   const inferredCityFromNeighborhood = normalizeArabicText(
@@ -1772,15 +2195,19 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
   }
 
   if ((!city || city === beforeCity) && inferred.city) {
-    city = normalizeArabicText(
-      areaNormalizer.normalizeCityName
-        ? areaNormalizer.normalizeCityName(inferred.city) || inferred.city
-        : inferred.city,
-    );
+    city = sanitizeLocationCandidate(inferred.city, {
+      type: "city",
+      adText,
+      knownOptions: dynamicHints.cities,
+    });
   }
 
   if ((!subcity || subcity === beforeCity) && city) {
     subcity = city;
+  }
+
+  if (!subcity && fallbackLocation.city) {
+    subcity = fallbackLocation.city;
   }
 
   if (neighborhood === city || neighborhood === beforeCity) {
@@ -3467,22 +3894,40 @@ function parseFullLocationText(fullLocation) {
 
   if (parts.length >= 3) {
     return {
-      neighborhood: normalizeNeighborhoodName(parts[0]),
-      city: parts[1],
-      governorate: parts.slice(2).join(" - "),
+      neighborhood: sanitizeLocationCandidate(parts[0], {
+        type: "neighborhood",
+        adText: normalized,
+      }),
+      city: sanitizeLocationCandidate(parts[1], {
+        type: "city",
+        adText: normalized,
+      }),
+      governorate: sanitizeLocationCandidate(parts.slice(2).join(" - "), {
+        type: "governorate",
+        adText: normalized,
+      }),
     };
   }
 
   if (parts.length === 2) {
     return {
-      neighborhood: normalizeNeighborhoodName(parts[0]),
-      city: parts[1],
+      neighborhood: sanitizeLocationCandidate(parts[0], {
+        type: "neighborhood",
+        adText: normalized,
+      }),
+      city: sanitizeLocationCandidate(parts[1], {
+        type: "city",
+        adText: normalized,
+      }),
       governorate: "",
     };
   }
 
   return {
-    neighborhood: normalizeNeighborhoodName(parts[0] || ""),
+    neighborhood: sanitizeLocationCandidate(parts[0] || "", {
+      type: "neighborhood",
+      adText: normalized,
+    }),
     city: "",
     governorate: "",
   };
@@ -3596,20 +4041,38 @@ function extractLocationFromTextFallback(adText = "") {
   let governorate = "";
 
   const neighborhoodPatterns = [
-    /(?:الحي|المنطقة|الموقع|المكان)\s*[:：-]?\s*([^\n،,]{2,40})/i,
-    /في\s*حي\s*([^\n،,]{2,40})/i,
+    /(?:الحي|حي|المنطقة|المنطقه|منطقة|منطقه|الموقع|المكان)\s*[:：-]?\s*([^\n]{2,80})/i,
+    /في\s*حي\s*([^\n]{2,80})/i,
   ];
 
   for (const pattern of neighborhoodPatterns) {
     const match = normalizedText.match(pattern);
     if (!match) continue;
-    neighborhood = normalizeNeighborhoodName(match[1]);
+    neighborhood = sanitizeLocationCandidate(match[1], {
+      type: "neighborhood",
+      adText: normalizedText,
+    });
     if (neighborhood) break;
   }
 
+  const governoratePatterns = [
+    /(?:المحافظة|المحافظه|محافظة|محافظه|الدولة|الدوله|دولة|دوله|المنطقة|المنطقه|منطقة|منطقه)\s*[:：-]?\s*([^\n]{2,80})/i,
+  ];
+
+  for (const pattern of governoratePatterns) {
+    const match = normalizedText.match(pattern);
+    if (!match) continue;
+    governorate = sanitizeLocationCandidate(match[1], {
+      type: "governorate",
+      adText: normalizedText,
+      knownOptions: dynamicHints.beforeCities,
+    });
+    if (governorate) break;
+  }
+
   const cityPatterns = [
-    /(?:المدينة|المدينه|مدينة|مدينه)\s*[:：-]?\s*([^\n،,]{2,35})/i,
-    /(?:في|ب)\s*([^\n،,]{2,35})\s*[،,]\s*([^\n،,]{2,35})/i,
+    /(?:المدينة|المدينه|مدينة|مدينه)\s*[:：-]?\s*([^\n]{2,80})/i,
+    /(?:في|ب)\s*([^،,\n]{2,80})\s*[،,]\s*([^،,\n]{2,80})/i,
   ];
 
   for (const pattern of cityPatterns) {
@@ -3617,11 +4080,19 @@ function extractLocationFromTextFallback(adText = "") {
     if (!match) continue;
 
     if (!city) {
-      city = normalizeArabicText(match[1]);
+      city = sanitizeLocationCandidate(match[1], {
+        type: "city",
+        adText: normalizedText,
+        knownOptions: dynamicHints.cities,
+      });
     }
 
     if (!governorate && match[2]) {
-      governorate = normalizeArabicText(match[2]);
+      governorate = sanitizeLocationCandidate(match[2], {
+        type: "governorate",
+        adText: normalizedText,
+        knownOptions: dynamicHints.beforeCities,
+      });
     }
 
     if (city) break;
@@ -3631,27 +4102,31 @@ function extractLocationFromTextFallback(adText = "") {
     const extractedNeighborhoods =
       areaNormalizer.extractNeighborhoods(normalizedText);
     if (extractedNeighborhoods.length > 0) {
-      neighborhood = normalizeNeighborhoodName(extractedNeighborhoods[0]);
+      neighborhood = sanitizeLocationCandidate(extractedNeighborhoods[0], {
+        type: "neighborhood",
+        adText: normalizedText,
+      });
     }
   }
 
-  if (neighborhood && areaNormalizer.normalizeAreaName) {
-    neighborhood = normalizeNeighborhoodName(
-      areaNormalizer.normalizeAreaName(neighborhood) || neighborhood,
+  if (!city) {
+    city = sanitizeLocationCandidate(
+      inferLocationFromKnownOptions(normalizedText, dynamicHints.cities),
+      {
+        type: "city",
+        adText: normalizedText,
+        knownOptions: dynamicHints.cities,
+      },
     );
   }
-
-  if (city && areaNormalizer.normalizeCityName) {
-    city = normalizeArabicText(areaNormalizer.normalizeCityName(city) || city);
-  }
-
-  if (!city) {
-    city = inferLocationFromKnownOptions(normalizedText, dynamicHints.cities);
-  }
   if (!governorate) {
-    governorate = inferLocationFromKnownOptions(
-      normalizedText,
-      dynamicHints.beforeCities,
+    governorate = sanitizeLocationCandidate(
+      inferLocationFromKnownOptions(normalizedText, dynamicHints.beforeCities),
+      {
+        type: "governorate",
+        adText: normalizedText,
+        knownOptions: dynamicHints.beforeCities,
+      },
     );
   }
 
@@ -3666,19 +4141,18 @@ function extractLocationFromTextFallback(adText = "") {
     city = inferredCityFromNeighborhood;
   }
   if (!city && inferred.city) {
-    city = normalizeArabicText(
-      areaNormalizer.normalizeCityName
-        ? areaNormalizer.normalizeCityName(inferred.city) || inferred.city
-        : inferred.city,
-    );
+    city = sanitizeLocationCandidate(inferred.city, {
+      type: "city",
+      adText: normalizedText,
+      knownOptions: dynamicHints.cities,
+    });
   }
   if (!governorate && inferred.governorate) {
-    governorate = normalizeArabicText(
-      areaNormalizer.normalizeCityName
-        ? areaNormalizer.normalizeCityName(inferred.governorate) ||
-            inferred.governorate
-        : inferred.governorate,
-    );
+    governorate = sanitizeLocationCandidate(inferred.governorate, {
+      type: "governorate",
+      adText: normalizedText,
+      knownOptions: dynamicHints.beforeCities,
+    });
   }
 
   if (neighborhood && (neighborhood === city || neighborhood === governorate)) {
@@ -4058,12 +4532,15 @@ async function buildRecoverMissingFieldsPrompt(adText, currentData, missingField
     targetWebsite === "hasak"
       ? "سياق الإعلان: حساك (فعاليات/مستعمل/خدمات). لا تُجبر حقول السعر أو المساحة، ولا تملأ price_method/payment_method إطلاقاً. category يجب أن يكون من فئات حساك المعتمدة فقط و subcategory تبقى فارغة."
       : "سياق الإعلان: مسعاك (عقار). إذا وردت مساحة رقمية في النص (مثل 350 متر أو 400م) فيجب تعبئة area رقمياً، وسننسخها لاحقاً إلى arc_space. لا تملأ price_method/payment_method إطلاقاً. category و subcategory يجب أن يكونا من فئات مسعاك المعتمدة فقط.";
+  const locationInstruction =
+    'قواعد الموقع: neighborhood/location = اسم الحي فقط بدون كلمة "حي" وبدون وصف إضافي، city = اسم المدينة فقط بدون كلمة "مدينة"، governorate = اسم المحافظة أو الدولة فقط. قارن أولاً مع المرجع الجغرافي الداخلي عند توفره، لكن إذا ورد اسم مدينة أو دولة واضح في النص وغير موجود في المرجع فاحتفظ به كما هو بعد تنظيفه. القيم المرفوضة: "ال" و"حي" و"مدينة" وأي جملة طويلة عن الموقع.';
   const trustedCategorySection = buildTrustedCategoryPromptSection(taxonomy);
   const propertyOnlyRules =
     targetWebsite === "masaak" ? `\n\n${buildMasaakPropertyOnlyRulesPrompt()}` : "";
 
   return `أنت مدقق جودة لاستخراج بيانات إعلان.
-${websiteInstruction}${propertyOnlyRules}
+${websiteInstruction}
+${locationInstruction}${propertyOnlyRules}
 
 المطلوب: أكمل فقط الحقول الناقصة التالية:
 ${missingLines || "- لا يوجد"}
@@ -4297,6 +4774,9 @@ ${
 29) لا تكتب ولا تعبئ حقول طريقة الدفع نهائياً: price_method و payment_method يجب أن تبقى "" دائماً.
 30) مرجع إلزامي لمسعاك (له أولوية على أي تخمين فرعي):
 - ${masaakReferenceRulesText}
+31) قواعد الموقع الإلزامية: city = اسم المدينة فقط بدون كلمة "مدينة"، location/neighborhood = اسم الحي فقط بدون كلمة "حي"، before_City = اسم المحافظة أو الدولة أو المنطقة الكبرى فقط. لا تنسخ جملة طويلة مثل "المدينة: الرياض حي النرجس بجوار..." داخل أي حقل.
+32) قارن أولاً مع المرجع الجغرافي الداخلي عند توفره، لكن إذا وردت مدينة أو دولة واضحة في النص وغير موجودة في المرجع فاحتفظ بها كما هي بعد تنظيفها، ولا تستبدلها عشوائياً بقيمة من المرجع.
+33) القيم المرفوضة في حقول الموقع: "ال" أو "حي" أو "مدينة" أو أي قيمة ناقصة/عامة. عند الشك اترك الحقل فارغاً.
 
 ${trustedCategorySection}
 
@@ -5293,14 +5773,17 @@ module.exports = {
     buildCleanMainAdText,
     canonicalizeMasaakCategory,
     detectCategoryFallback,
+    extractLocationFromTextFallback,
     hasForbiddenDescriptionContent,
     inferTargetWebsiteFromData,
+    normalizeLocationMeta,
     normalizeMasaakSubcategory,
     normalizeWordPressCategoryMeta,
     removeForbiddenInlineContent,
     resolveCategoryId,
     resolveTrustedMainCategory,
     resolveTrustedSubcategory,
+    sanitizeLocationCandidate,
     shouldApplyForbiddenDescriptionRules,
     summarizeRequiredMetadata,
   },
