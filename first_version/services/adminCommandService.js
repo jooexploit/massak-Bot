@@ -4,7 +4,8 @@
  * Timezone: Asia/Riyadh (KSA Time - UTC+3)
  */
 
-const fs = require("fs").promises;
+const fsSync = require("fs");
+const fs = fsSync.promises;
 const path = require("path");
 const axios = require("axios");
 const waseetDetector = require("./waseetDetector");
@@ -34,6 +35,7 @@ let reminders = [];
 
 // Load admins from file
 const ADMINS_FILE = getDataPath("admins.json");
+let adminsFileMtimeMs = 0;
 
 // Pending waseet confirmations: { [adminJid]: { entries: [...], createdAt } }
 const pendingWaseetConfirmations = {};
@@ -71,7 +73,7 @@ function normalizePhoneNumber(phone) {
   if (!phone) return "";
 
   // Remove all spaces and common separators
-  let cleaned = phone.replace(/[\s\-\(\)\.]/g, "");
+  let cleaned = String(phone).replace(/[\s\-\(\)\.]/g, "");
 
   // Remove + prefix
   cleaned = cleaned.replace(/^\+/, "");
@@ -95,6 +97,174 @@ function normalizePhoneNumber(phone) {
   }
 
   return cleaned;
+}
+
+function extractAdminPhone(entry) {
+  if (typeof entry === "string" || typeof entry === "number") {
+    return normalizePhoneNumber(entry);
+  }
+
+  if (
+    entry &&
+    typeof entry === "object" &&
+    (typeof entry.phone === "string" || typeof entry.phone === "number")
+  ) {
+    return normalizePhoneNumber(entry.phone);
+  }
+
+  return "";
+}
+
+function normalizeAdminNumbers(adminEntries = []) {
+  const normalizedAdmins = [];
+  const seen = new Set();
+
+  const entries = Array.isArray(adminEntries) ? adminEntries : [];
+  for (const entry of entries) {
+    const normalizedPhone = extractAdminPhone(entry);
+    if (!normalizedPhone || seen.has(normalizedPhone)) {
+      continue;
+    }
+
+    seen.add(normalizedPhone);
+    normalizedAdmins.push(normalizedPhone);
+  }
+
+  return normalizedAdmins;
+}
+
+function normalizeLidMapping(mapping = {}) {
+  if (!mapping || typeof mapping !== "object" || Array.isArray(mapping)) {
+    return {};
+  }
+
+  const normalizedMapping = {};
+  for (const [lid, phone] of Object.entries(mapping)) {
+    const normalizedPhone = normalizePhoneNumber(phone);
+    if (!lid || !normalizedPhone) {
+      continue;
+    }
+
+    normalizedMapping[String(lid)] = normalizedPhone;
+  }
+
+  return normalizedMapping;
+}
+
+function syncAdminCache(adminNumbers = [], mapping = {}) {
+  ADMIN_NUMBERS.length = 0;
+  ADMIN_NUMBERS.push(...adminNumbers);
+  lidMapping = { ...mapping };
+}
+
+function createAdminsFilePayloadBase(parsed) {
+  if (Array.isArray(parsed)) {
+    return { admins: parsed };
+  }
+
+  if (parsed && typeof parsed === "object") {
+    return { ...parsed };
+  }
+
+  throw new Error("admins.json must contain an object or an array");
+}
+
+function buildPersistedAdmins(existingAdmins = [], adminNumbers = []) {
+  const preservedEntries = new Map();
+
+  const entries = Array.isArray(existingAdmins) ? existingAdmins : [];
+  for (const entry of entries) {
+    const normalizedPhone = extractAdminPhone(entry);
+    if (!normalizedPhone || preservedEntries.has(normalizedPhone)) {
+      continue;
+    }
+
+    if (typeof entry === "string") {
+      preservedEntries.set(normalizedPhone, normalizedPhone);
+      continue;
+    }
+
+    preservedEntries.set(normalizedPhone, {
+      ...entry,
+      phone: normalizedPhone,
+    });
+  }
+
+  return adminNumbers.map(
+    (phone) => preservedEntries.get(phone) || phone,
+  );
+}
+
+async function updateAdminsFileTimestampAsync() {
+  try {
+    const stats = await fs.stat(ADMINS_FILE);
+    adminsFileMtimeMs = stats.mtimeMs;
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error("❌ Error reading admins file timestamp:", error.message);
+    }
+  }
+}
+
+function readAdminsFileSnapshotSync() {
+  const adminData = fsSync.readFileSync(ADMINS_FILE, "utf8");
+  const parsed = JSON.parse(adminData);
+  const base = createAdminsFilePayloadBase(parsed);
+
+  if (!Array.isArray(base.admins)) {
+    throw new Error("admins.json must contain an admins array");
+  }
+
+  const stats = fsSync.statSync(ADMINS_FILE);
+  adminsFileMtimeMs = stats.mtimeMs;
+
+  return {
+    base,
+    adminNumbers: normalizeAdminNumbers(base.admins),
+    lidMapping: normalizeLidMapping(base.lid_mapping),
+  };
+}
+
+async function readAdminsFileSnapshot() {
+  const adminData = await fs.readFile(ADMINS_FILE, "utf8");
+  const parsed = JSON.parse(adminData);
+  const base = createAdminsFilePayloadBase(parsed);
+
+  if (!Array.isArray(base.admins)) {
+    throw new Error("admins.json must contain an admins array");
+  }
+
+  const stats = await fs.stat(ADMINS_FILE);
+  adminsFileMtimeMs = stats.mtimeMs;
+
+  return {
+    base,
+    adminNumbers: normalizeAdminNumbers(base.admins),
+    lidMapping: normalizeLidMapping(base.lid_mapping),
+  };
+}
+
+function refreshAdminsFromDiskSync(force = false) {
+  try {
+    if (!force) {
+      const stats = fsSync.statSync(ADMINS_FILE);
+      if (stats.mtimeMs <= adminsFileMtimeMs) {
+        return false;
+      }
+    }
+
+    const snapshot = readAdminsFileSnapshotSync();
+    syncAdminCache(snapshot.adminNumbers, snapshot.lidMapping);
+    return true;
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error(
+        "❌ Failed to refresh admins from disk, keeping in-memory admins:",
+        error.message,
+      );
+    }
+    return false;
+  }
 }
 
 /**
@@ -982,27 +1152,23 @@ function parseFlexibleEntries(text, requireName = true) {
  */
 async function loadAdminsFromFile() {
   try {
-    const adminData = await fs.readFile(ADMINS_FILE, "utf8");
-    const parsed = JSON.parse(adminData);
-    if (parsed.admins && Array.isArray(parsed.admins)) {
-      // Clear and reload
-      ADMIN_NUMBERS.length = 0;
-      ADMIN_NUMBERS.push(...parsed.admins);
-      console.log(
-        `✅ Loaded ${ADMIN_NUMBERS.length} admins from file:`,
-        ADMIN_NUMBERS,
-      );
-
-      // Also load lid_mapping for WhatsApp Business accounts
-      if (parsed.lid_mapping) {
-        lidMapping = parsed.lid_mapping;
-        console.log(`✅ Loaded lid_mapping:`, lidMapping);
-      }
-
-      return true;
-    }
+    const snapshot = await readAdminsFileSnapshot();
+    syncAdminCache(snapshot.adminNumbers, snapshot.lidMapping);
+    console.log(
+      `✅ Loaded ${ADMIN_NUMBERS.length} admins from file:`,
+      ADMIN_NUMBERS,
+    );
+    console.log(`✅ Loaded lid_mapping:`, lidMapping);
+    return true;
   } catch (err) {
-    // File doesn't exist or error reading - save current admins
+    if (err.code !== "ENOENT") {
+      console.error(
+        "❌ Failed to load admins file. Keeping current in-memory admins:",
+        err.message,
+      );
+      return false;
+    }
+
     console.log("⚠️ No admins file found, creating with default admins");
     try {
       await fs.writeFile(
@@ -1010,7 +1176,9 @@ async function loadAdminsFromFile() {
         JSON.stringify({ admins: ADMIN_NUMBERS, lid_mapping: {} }, null, 2),
         "utf8",
       );
+      await updateAdminsFileTimestampAsync();
       console.log(`✅ Created admins file with ${ADMIN_NUMBERS.length} admins`);
+      return true;
     } catch (writeErr) {
       console.error("❌ Error creating admins file:", writeErr);
     }
@@ -1028,20 +1196,34 @@ async function saveLidMapping(lid, phoneNumber) {
     // Add to in-memory mapping
     lidMapping[lid] = phoneNumber;
 
-    // Load current file content
-    let parsed = { admins: ADMIN_NUMBERS, lid_mapping: {} };
+    // Load current file content so we preserve any manual data
+    let base = {};
     try {
-      const adminData = await fs.readFile(ADMINS_FILE, "utf8");
-      parsed = JSON.parse(adminData);
+      const snapshot = await readAdminsFileSnapshot();
+      base = snapshot.base;
+      syncAdminCache(snapshot.adminNumbers, {
+        ...snapshot.lidMapping,
+        ...lidMapping,
+      });
     } catch (e) {
-      // File doesn't exist, use defaults
+      if (e.code !== "ENOENT") {
+        console.error(
+          "❌ Refusing to overwrite admins.json because it contains invalid data:",
+          e.message,
+        );
+        return false;
+      }
     }
 
-    // Update lid_mapping
-    parsed.lid_mapping = lidMapping;
+    base.admins = buildPersistedAdmins(base.admins, ADMIN_NUMBERS);
+    base.lid_mapping = {
+      ...normalizeLidMapping(base.lid_mapping),
+      ...normalizeLidMapping(lidMapping),
+    };
 
     // Save back to file
-    await fs.writeFile(ADMINS_FILE, JSON.stringify(parsed, null, 2), "utf8");
+    await fs.writeFile(ADMINS_FILE, JSON.stringify(base, null, 2), "utf8");
+    await updateAdminsFileTimestampAsync();
     console.log(`✅ Saved LID mapping: ${lid} -> ${phoneNumber}`);
     return true;
   } catch (err) {
@@ -1055,16 +1237,36 @@ async function saveLidMapping(lid, phoneNumber) {
  */
 async function saveAdminsToFile() {
   try {
-    // Preserve existing lid_mapping when saving admins
+    // Rebuild payload from disk so manual changes and extra fields survive
+    let base = {};
+    let currentFileLidMapping = {};
+
+    try {
+      const snapshot = await readAdminsFileSnapshot();
+      base = snapshot.base;
+      currentFileLidMapping = snapshot.lidMapping;
+    } catch (err) {
+      if (err.code !== "ENOENT") {
+        console.error(
+          "❌ Refusing to overwrite admins.json because it contains invalid data:",
+          err.message,
+        );
+        return false;
+      }
+    }
+
+    base.admins = buildPersistedAdmins(base.admins, ADMIN_NUMBERS);
+    base.lid_mapping = {
+      ...currentFileLidMapping,
+      ...normalizeLidMapping(lidMapping),
+    };
+
     await fs.writeFile(
       ADMINS_FILE,
-      JSON.stringify(
-        { admins: ADMIN_NUMBERS, lid_mapping: lidMapping },
-        null,
-        2,
-      ),
+      JSON.stringify(base, null, 2),
       "utf8",
     );
+    await updateAdminsFileTimestampAsync();
     console.log(
       `✅ Saved ${ADMIN_NUMBERS.length} admins to file (lid_mapping preserved):`,
       ADMIN_NUMBERS,
@@ -1377,6 +1579,12 @@ async function saveReminders() {
  * @returns {boolean}
  */
 function isAdmin(phoneNumber) {
+  if (!phoneNumber) {
+    return false;
+  }
+
+  refreshAdminsFromDiskSync();
+
   // Check if it's a @lid format (WhatsApp Business)
   const isLid = phoneNumber.endsWith("@lid");
 
