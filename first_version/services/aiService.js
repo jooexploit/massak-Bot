@@ -663,6 +663,18 @@ function escapeHtml(text) {
     .replace(/'/g, "&#39;");
 }
 
+function stripHtml(text) {
+  return String(text ?? "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
 function sanitizeHtml(content) {
   let html = String(content ?? "").trim();
 
@@ -715,6 +727,7 @@ function normalizeLocationHintList(values, fallback = []) {
       ),
     )
     .filter(Boolean)
+    .filter((value) => isValidLocationHintValue(value))
     .slice(0, 300);
 
   const uniqueValues = unique(normalized);
@@ -724,8 +737,46 @@ function normalizeLocationHintList(values, fallback = []) {
     (Array.isArray(fallback) ? fallback : [])
       .filter((value) => typeof value === "string")
       .map((value) => normalizeArabicText(value))
+      .filter((value) => isValidLocationHintValue(value))
       .filter(Boolean),
   );
+}
+
+function isValidLocationHintValue(value = "") {
+  const normalized = normalizeArabicText(value || "");
+  if (!normalized) return false;
+  if (isPlaceholderLocationValue(normalized)) return false;
+
+  if (
+    /(?:https?:\/\/|wa\.me|chat\.whatsapp\.com|api\.whatsapp\.com|t\.me|telegram|instagram|snap(?:chat)?|youtube|twitter|x\.com|facebook|\.(?:com|net|org|sa|me|co|io|app|info)\b|☎|📞|📱|@)/iu.test(
+      normalized,
+    )
+  ) {
+    return false;
+  }
+
+  if (LOCATION_HARD_NOISE_PATTERN.test(normalized)) {
+    return false;
+  }
+
+  if (
+    /(?:موقع|واضح|قريب|بالقرب|بجوار|خلف|مقابل|غرفة|غرف|صالة|صاله|مجلس|حمام|مطبخ|متر|ريال|سعر|ملاحظة|معتمد|مؤجر|للبيع|للإيجار|للايجار)/i.test(
+      normalized,
+    )
+  ) {
+    return false;
+  }
+
+  const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+  if (wordCount > 4 || normalized.length > 35) {
+    return false;
+  }
+
+  if (/[0-9٠-٩]/.test(normalized)) {
+    return false;
+  }
+
+  return /^[A-Za-z\u0600-\u06FF\s-]+$/u.test(normalized);
 }
 
 function getDynamicLocationHints(forceRefresh = false) {
@@ -2704,6 +2755,8 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
 const FORBIDDEN_DESCRIPTION_PATTERNS = [
   // روابط مباشرة
   /https?:\/\/[^\s<]+/giu,
+  // نطاقات مباشرة حتى بدون http/https
+  /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|sa|me|co|info|app|dev|io|biz|ws|ly)(?:\/[^\s<]*)?/giu,
   // روابط ومنصات تواصل
   /\b(?:chat\.whatsapp\.com|wa\.me|api\.whatsapp\.com|t\.me|telegram\.me|instagram\.com|instagr\.am|snapchat\.com|youtube\.com|youtu\.be|twitter\.com|x\.com|tiktok\.com|facebook\.com|fb\.com)\b/giu,
 
@@ -2722,6 +2775,9 @@ const FORBIDDEN_DESCRIPTION_PATTERNS = [
   // عبارات تواصل
   /(?:للتواصل|للاستفسار|اتصال|اتصل|راسلنا|كلمنا|تواصل(?:وا)?(?:\s*معنا)?|واتساب|واتس(?:اب)?|جوال|هاتف|موبايل|محمول)/giu,
 
+  // عبارات تسويقية/مكتبية يجب حذفها من الوصف
+  /(?:مستعد(?:ون)?\s*لتسويق(?:\s*عقاراتكم|\s*عقارك)?|نسوق(?:\s*عقاراتكم|\s*عقارك)?|نستقبل(?:\s*عروض)?|استقبال\s*عروض|تسويق\s*عقاراتكم|تسويق\s*عقارك|عرضك\s*علينا|لدينا\s*عروض|يوجد\s*لدينا\s*عروض|مجموعة\s*عروضات?|عروضات|للإعلانات|للاعلانات|للنشر)/giu,
+
   // أرقام ترخيص / فال / أرقام بعد "برقم"
   /(?:رقم\s*(?:الترخيص|الرخص(?:ة|ه)|فال)|برقم)\s*[:：-]?\s*[0-9٠-٩]{4,}/giu,
 
@@ -2734,12 +2790,13 @@ const FORBIDDEN_DESCRIPTION_PATTERNS = [
 
 const OWNER_ADMIN_DETAIL_PATTERNS = [
   /(?:اسم\s*المالك|المالك|مالك\s*العقار|صاحب\s*العقار|صاحب\s*الإعلان|اسم\s*المعلن|المعلن)/i,
-  /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|رقم\s*الترخيص|رقم\s*المعلن|شركة\s*عقارية|مؤسسة\s*عقارية|وكيل|الوكيل)/i,
+  /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|رقم\s*الترخيص|رقم\s*المعلن|شركة(?:\s*عقارية)?|مؤسسة(?:\s*عقارية)?|وكيل|الوكيل)/i,
   /(?:وساطة|وساطه|التسويق\s*العقاري|تسويق\s*عقاري|إدارة\s*أملاك|ادارة\s*املاك)/i,
   /(?:سناب|snap(?:chat)?|انستا(?:غرام)?|instagram|insta|تل(?:ي)?جرام|telegram|تويتر|twitter|x\.com|تيك\s*توك|tiktok|يوتيوب|youtube|فيس(?:بوك)?|facebook|معرف|يوزر|الحساب|حساب(?:نا)?)/i,
   /(?:قروب|جروب|مجموعة(?:\s*واتساب)?|انضمام)/i,
-  /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف|موبايل|محمول|رقم\s*التواصل|رقم\s*الجوال|رقم\s*الموبايل|رقم\s*المحمول)/i,
+  /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف|موبايل|محمول|رقم\s*التواصل|رقم\s*الجوال|رقم\s*الموبايل|رقم\s*المحمول|☎|📞|📱)/i,
   /(?:مباشر(?:ة)?|من\s*الوكيل|من\s*المالك|طرف)/i,
+  /(?:مستعد(?:ون)?\s*لتسويق(?:\s*عقاراتكم|\s*عقارك)?|نسوق(?:\s*عقاراتكم|\s*عقارك)?|نستقبل(?:\s*عروض)?|استقبال\s*عروض|تسويق\s*عقاراتكم|تسويق\s*عقارك|عرضك\s*علينا|لدينا\s*عروض|يوجد\s*لدينا\s*عروض|مجموعة\s*عروضات?|عروضات|للإعلانات|للاعلانات|للنشر)/i,
 ];
 
 const FULLY_REMOVABLE_SOURCE_LINE_PATTERNS = [
@@ -2748,6 +2805,9 @@ const FULLY_REMOVABLE_SOURCE_LINE_PATTERNS = [
   /(?:قروب|جروب|مجموعة(?:\s*واتساب)?|انضمام|join\s+group)/i,
   /(?:chat\.whatsapp\.com|wa\.me|t\.me|سناب|snap(?:chat)?|انستا(?:غرام)?|instagram|insta|تل(?:ي)?جرام|telegram|تويتر|twitter|x\.com|تيك\s*توك|tiktok|يوتيوب|youtube|فيس(?:بوك)?|facebook)/i,
   /(?:للتواصل|للاستفسار|اتصال|واتساب|جوال|هاتف|موبايل|محمول|رقم\s*(?:التواصل|الجوال|الهاتف|الموبايل|المحمول)?)/i,
+  /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|sa|me|co|info|app|dev|io|biz|ws|ly)(?:\/[^\s<]*)?/i,
+  /(?:مستعد(?:ون)?\s*لتسويق(?:\s*عقاراتكم|\s*عقارك)?|نسوق(?:\s*عقاراتكم|\s*عقارك)?|نستقبل(?:\s*عروض)?|استقبال\s*عروض|تسويق\s*عقاراتكم|تسويق\s*عقارك|عرضك\s*علينا|لدينا\s*عروض|يوجد\s*لدينا\s*عروض|مجموعة\s*عروضات?|عروضات|للإعلانات|للاعلانات|للنشر)/i,
+  /(?:☎|📞|📱)/i,
 ];
 
 const REAL_ESTATE_KEYWORDS = [
@@ -2787,9 +2847,32 @@ function removeForbiddenInlineContent(text, targetWebsite = "masaak") {
   return normalizeArabicText(
     cleaned
       .replace(/[*`#]+/g, "")
+      .replace(/[~]{2,}/g, " ")
       .replace(/[ \t]{2,}/g, " ")
       .trim(),
   );
+}
+
+function isDecorativeOrNoiseLine(line = "") {
+  const normalized = normalizeWhitespace(line || "");
+  if (!normalized) return true;
+
+  const compact = normalized.replace(/\s+/g, "");
+  if (!compact) return true;
+
+  if (/^[\-–—_.*~،,;:\/\\|+=(){}\[\]<>•·▪▫⬅➡↩♦️]+$/u.test(compact)) {
+    return true;
+  }
+
+  const alphaNumericCount = (
+    normalized.match(/[\u0600-\u06FFA-Za-z0-9٠-٩]/gu) || []
+  ).length;
+
+  if (alphaNumericCount === 0) {
+    return true;
+  }
+
+  return alphaNumericCount <= 2 && compact.length >= alphaNumericCount + 4;
 }
 
 function isOwnerOrAdministrativeDetailLine(line = "", targetWebsite = "masaak") {
@@ -2820,6 +2903,26 @@ function hasPropertyDetailSignals(line = "") {
   );
 }
 
+function isLikelyContactNameLine(line = "") {
+  const normalized = normalizeArabicText(line || "");
+  if (!normalized || hasPropertyDetailSignals(normalized)) return false;
+  if (/[0-9٠-٩]/.test(normalized)) return false;
+
+  const stripped = normalizeWhitespace(normalized.replace(/[☎📞📱]/gu, ""));
+  if (!stripped) return false;
+
+  const wordCount = stripped.split(/\s+/).filter(Boolean).length;
+  if (wordCount === 0 || wordCount > 3 || stripped.length > 30) {
+    return false;
+  }
+
+  if (!/^[\u0600-\u06FF\s]+$/u.test(stripped)) {
+    return false;
+  }
+
+  return /[☎📞📱]/u.test(normalized);
+}
+
 function looksLikeResidualAdministrativeLine(
   line = "",
   previousLineWasAdministrative = false,
@@ -2844,7 +2947,7 @@ function looksLikeResidualAdministrativeLine(
   const looksLikeShortNameOrHandle =
     wordCount <= 4 &&
     normalized.length <= 30 &&
-    /^[\u0600-\u06FFa-z0-9_.@+\-\s]+$/i.test(normalized);
+    /^[\u0600-\u06FFa-z0-9_.@+\-~\s☎📞📱]+$/iu.test(normalized);
 
   return looksLikeShortNameOrHandle && !hasPropertyDetailSignals(normalized);
 }
@@ -2858,6 +2961,10 @@ function shouldDropDescriptionLine(
 
   const normalized = normalizeArabicText(line || "");
   if (!normalized) return false;
+
+  if (isDecorativeOrNoiseLine(normalized) || isLikelyContactNameLine(normalized)) {
+    return true;
+  }
 
   if (
     looksLikeResidualAdministrativeLine(
@@ -2894,6 +3001,11 @@ function collectSanitizedAdLines(
       .trim();
 
     if (!candidate) {
+      previousLineWasAdministrative = false;
+      continue;
+    }
+
+    if (isDecorativeOrNoiseLine(candidate)) {
       previousLineWasAdministrative = false;
       continue;
     }
@@ -2956,6 +3068,83 @@ function extractCleanDescriptionLines(adText, targetWebsite = "masaak") {
   return collectSanitizedAdLines(adText, 20, targetWebsite).filter(
     (line) => line.length >= 3,
   );
+}
+
+function shouldDropSanitizedDescriptionText(text, targetWebsite = "masaak") {
+  const original = stripAdReferenceNumbers(stripHtml(String(text ?? "")))
+    .replace(/^[\-*•:]+/g, "")
+    .trim();
+  if (!original) {
+    return true;
+  }
+
+  if (
+    isDecorativeOrNoiseLine(original) ||
+    isOwnerOrAdministrativeDetailLine(original, targetWebsite) ||
+    isLikelyContactNameLine(original) ||
+    shouldDropDescriptionLine(original, false, targetWebsite)
+  ) {
+    return true;
+  }
+
+  const normalized = stripAdReferenceNumbers(
+    removeForbiddenInlineContent(
+      original,
+      targetWebsite,
+    ),
+  )
+    .replace(/^[\-*•:]+/g, "")
+    .replace(/[↩⬅➡]+/g, " ")
+    .trim();
+
+  if (!normalized || isDecorativeOrNoiseLine(normalized)) {
+    return true;
+  }
+
+  return (
+    isOwnerOrAdministrativeDetailLine(normalized, targetWebsite) ||
+    isLikelyContactNameLine(normalized) ||
+    shouldDropDescriptionLine(normalized, false, targetWebsite) ||
+    looksLikeResidualAdministrativeLine(normalized, false, targetWebsite)
+  );
+}
+
+function sanitizeGeneratedHtmlDescription(html, targetWebsite = "masaak") {
+  let cleanedHtml = sanitizeHtml(html);
+  if (!cleanedHtml || !shouldApplyForbiddenDescriptionRules(targetWebsite)) {
+    return cleanedHtml;
+  }
+
+  cleanedHtml = cleanedHtml.replace(
+    /<(li|p)>([\s\S]*?)<\/\1>/giu,
+    (match, tagName, innerHtml) => {
+      if (shouldDropSanitizedDescriptionText(innerHtml, targetWebsite)) {
+        return "";
+      }
+
+      const safeText = stripAdReferenceNumbers(
+        removeForbiddenInlineContent(stripHtml(innerHtml), targetWebsite),
+      )
+        .replace(/^[\-*•:]+/g, "")
+        .replace(/[↩⬅➡]+/g, " ")
+        .trim();
+
+      if (!safeText || isDecorativeOrNoiseLine(safeText)) {
+        return "";
+      }
+
+      return `<${tagName}>${escapeHtml(safeText)}</${tagName}>`;
+    },
+  );
+
+  cleanedHtml = cleanedHtml
+    .replace(/<ul>\s*<\/ul>/gi, "")
+    .replace(/<p>\s*<\/p>/gi, "")
+    .replace(/<h2>\s*[^<]+\s*<\/h2>\s*(?=(?:<h2>|$))/gi, "")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+
+  return sanitizeHtml(cleanedHtml);
 }
 
 function hasForbiddenDescriptionContent(text, targetWebsite = "masaak") {
@@ -3402,7 +3591,7 @@ function buildRealEstateHtmlDescription({
     `<p>${escapeHtml(locationSummary)}</p>`,
   ].join("");
 
-  return sanitizeHtml(html);
+  return sanitizeGeneratedHtmlDescription(html, targetWebsite);
 }
 
 function buildNonRealEstateHtmlDescription({
@@ -3521,7 +3710,7 @@ function buildNonRealEstateHtmlDescription({
   const html = `<h1>${escapeHtml(heading)}</h1><p>${escapeHtml(intro)}</p><h2>${escapeHtml(
     "التفاصيل",
   )}</h2><ul>${detailsHtml}</ul>${extrasHtml}`;
-  return sanitizeHtml(html);
+  return sanitizeGeneratedHtmlDescription(html, targetWebsite);
 }
 
 function buildDeterministicDescription({
@@ -3723,10 +3912,16 @@ function normalizeWordPressData(
         stripAdReferenceNumbers(contentValue || adText || ""),
         initialTargetWebsite,
       ) || "وصف مختصر للإعلان.";
-    finalContent = sanitizeHtml(
+    finalContent = sanitizeGeneratedHtmlDescription(
       `<h1>${escapeHtml(normalizedTitle)}</h1><p>${escapeHtml(fallbackPlainText)}</p>`,
+      initialTargetWebsite,
     );
   }
+
+  finalContent = sanitizeGeneratedHtmlDescription(
+    finalContent,
+    initialTargetWebsite,
+  );
 
   return {
     title: normalizedTitle,
@@ -4551,13 +4746,28 @@ ${
 
 function buildMasaakPropertyOnlyRulesPrompt() {
   return `⚠️ قواعد التنظيف الإجبارية لإعلانات مسعاك - يجب تطبيقها قبل أي شيء:
+- قبل تكوين title أو content أو main_ad: نظّف النص ذهنياً أولاً سطراً سطراً، واستخرج فقط السطور التي تصف العقار نفسه.
 - عند كتابة title أو content أو main_ad لإعلان عقاري في مسعاك: صف العقار فقط، ولا تصف المكتب العقاري أو الجهة الناشرة أو مصدر النص.
 - ممنوع إدراج أو ذكر أسماء المكاتب العقارية أو الشركات أو المؤسسات أو الوسطاء أو السماسرة في أي حقل من حقول WordPress. الاستثناء الوحيد للأسماء المسموح بها: "مسعاك" أو "حساك".
 - ممنوع إدراج أرقام التراخيص أو الرخص أو أرقام فال أو بيانات المكاتب أو أرقام هواتف الوسطاء أو المكاتب.
 - ممنوع إدراج أسماء القروبات أو المجموعات أو أي إشارة لمصدر النص مثل: "من قروب..." أو "من مجموعة..." أو "نشر في...".
+- ممنوع إدراج الروابط بجميع أنواعها حتى لو كانت بدون http/https، مثل: wa.me أو chat.whatsapp.com أو أي دومين مثل example.com.
+- ممنوع إدراج أسماء الأشخاص أو الوسطاء أو الأسماء القصيرة المنفصلة التي تأتي كسطر تواصل مثل: "بومحمد" أو "عبدالعزيز" أو "أبو..." عندما تكون جزءاً من بيانات تواصل أو تسويق.
+- ممنوع إدراج السطور التسويقية/الإدارية مثل: "مستعدون لتسويق عقاراتكم" أو "لدينا عروض" أو "مجموعة عروضات" أو "للإعلانات والنشر".
+- احذف السطور الزخرفية أو الفواصل أو الأسطر المليئة بالرموز مثل: "---" أو "♦️♦️" أو ".-.-.-.".
 - احذف تماماً أي جملة أو عبارة تحتوي على اسم مكتب أو ترخيص أو قروب أو وسيط أو مصدر نص، بدون استبدالها بنقاط أو "...".
+- إذا احتوى السطر على معلومة عقارية صحيحة مع جزء إداري/تواصلي، فاحتفظ بالمعلومة العقارية فقط واحذف الجزء الإداري.
 - أعد صياغة الوصف ليكون نظيفاً ومهنياً ويركز على معلومات العقار الفعلية فقط.
 - إذا ظهر اسم مكتب أو جهة في owner_name فاستبدله بـ "المالك" أو "معلن" ولا تحتفظ بالاسم التجاري.
+- فحص نهائي إلزامي قبل الإخراج: تأكد أن title و content و main_ad لا تحتوي على روابط أو أرقام تواصل أو أسماء مكاتب أو أسماء وسطاء أو أسماء قروبات أو عبارات تسويقية أو رموز تواصل مثل ☎ أو 📞 أو 📱.
+- أمثلة حذف فوري:
+  "~~مكتب سيول هجر~~" => احذف السطر بالكامل.
+  "♦️مجموعة عروضات♦️" => احذف السطر بالكامل.
+  "مستعدون لتسويق عقاراتكم" => احذف السطر بالكامل.
+  "بومحمد ☎" => احذف السطر بالكامل.
+  "wa.me/966509961002" => احذف السطر بالكامل.
+  "https://chat.whatsapp.com/..." => احذف السطر بالكامل.
+  "شارع 20 جنوب" => احتفظ بها لأنها معلومة عن العقار.
 - المسموح فقط: معلومات العقار الفعلية مثل النوع والسعر والمساحة والموقع والعمر والمزايا.`;
 }
 
@@ -4819,6 +5029,9 @@ ${
 31) قواعد الموقع الإلزامية: city = اسم المدينة فقط بدون كلمة "مدينة"، location/neighborhood = اسم الحي فقط بدون كلمة "حي"، before_City = اسم المحافظة أو الدولة أو المنطقة الكبرى فقط. لا تنسخ جملة طويلة مثل "المدينة: الرياض حي النرجس بجوار..." داخل أي حقل.
 32) قارن أولاً مع المرجع الجغرافي الداخلي عند توفره، لكن إذا وردت مدينة أو دولة واضحة في النص وغير موجودة في المرجع فاحتفظ بها كما هي بعد تنظيفها، ولا تستبدلها عشوائياً بقيمة من المرجع.
 33) القيم المرفوضة في حقول الموقع: "ال" أو "حي" أو "مدينة" أو أي قيمة ناقصة/عامة. عند الشك اترك الحقل فارغاً.
+34) قبل إعادة JSON نفّذ مراجعة نهائية على title و content و main_ad: إذا وجدت فيها أي رابط أو اسم مكتب أو اسم وسيط أو اسم قروب أو رقم تواصل أو اسم شخص قصير للتواصل أو عبارة تسويقية أو سطر زخرفي فاحذف هذا الجزء ثم أعد الصياغة.
+35) أمثلة يجب حذفها إذا ظهرت في النص: "مكتب ...", "شركة ...", "مستعدون لتسويق عقاراتكم", "مجموعة عروضات", "بومحمد ☎", "عبدالعزيز ☎", "wa.me/...", "chat.whatsapp.com/...", "example.com".
+36) أمثلة يجب الإبقاء عليها لأنها تفاصيل عقارية: "شارع 20 جنوب", "مساحة 780", "الأطوال 26 في 30", "السعر 325 ألف".
 
 ${trustedCategorySection}
 
@@ -5807,6 +6020,7 @@ module.exports = {
   processMessage,
   extractWordPressData,
   generateWhatsAppMessage,
+  sanitizeGeneratedHtmlDescription,
   validateUserInput,
   getApiKeysStatus,
   __private: {
@@ -5825,6 +6039,7 @@ module.exports = {
     resolveCategoryId,
     resolveTrustedMainCategory,
     resolveTrustedSubcategory,
+    sanitizeGeneratedHtmlDescription,
     sanitizeLocationCandidate,
     shouldApplyForbiddenDescriptionRules,
     summarizeRequiredMetadata,

@@ -40,6 +40,7 @@ const {
   extractWordPressData,
   generateWhatsAppMessage,
   getApiKeysStatus,
+  sanitizeGeneratedHtmlDescription,
 } = require("../services/aiService");
 const apiKeyManager = require("../services/apiKeyManager");
 const dataSync = require("../utils/dataSync");
@@ -557,6 +558,13 @@ async function postAdToWordPress(
       targetWebsite,
     );
     wpData.meta = normalizedCategoryMeta.meta;
+
+    if (wpData.content) {
+      wpData.content = sanitizeGeneratedHtmlDescription(
+        wpData.content,
+        targetWebsite,
+      );
+    }
 
     // Get website configuration
     const website = websiteConfig.getWebsite(targetWebsite);
