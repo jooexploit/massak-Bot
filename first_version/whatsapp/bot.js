@@ -10,7 +10,12 @@ const P = require("pino");
 const QRCode = require("qrcode");
 const fs = require("fs");
 const path = require("path");
-const { processMessage } = require("../services/aiService");
+const aiService = require("../services/aiService");
+const {
+  processMessage,
+  generateWhatsAppMessage,
+  sanitizeWordPressDraftData,
+} = aiService;
 const messageQueue = require("../services/messageQueue");
 const privateChatService = require("../services/privateChatService");
 const linkPreviewService = require("../services/linkPreviewService");
@@ -227,6 +232,60 @@ function buildAutoPostWpData(baseWpData, shouldApplyFixedCategory = true) {
   );
 }
 
+function sanitizeStoredAdWordPressData(ad) {
+  if (!ad || !ad.wpData || typeof ad.wpData !== "object") {
+    return { ad, changed: false };
+  }
+
+  const inferredTargetWebsite =
+    ad.targetWebsite ||
+    ad.wpData?.targetWebsite ||
+    aiService.__private.inferTargetWebsiteFromData(
+      ad.wpData,
+      ad.originalText || ad.enhancedText || "",
+    ) ||
+    "masaak";
+
+  const sanitizedWpData = sanitizeWordPressDraftData(
+    ad.wpData,
+    inferredTargetWebsite,
+  );
+  const wpDataChanged =
+    JSON.stringify(sanitizedWpData) !== JSON.stringify(ad.wpData);
+
+  let nextWhatsAppMessage = ad.whatsappMessage;
+  if (ad.whatsappMessage) {
+    const wpLink =
+      ad.wordpressLink ||
+      ad.wordpressPost?.link ||
+      ad.wordpressPost?.guid?.rendered ||
+      null;
+    nextWhatsAppMessage = generateWhatsAppMessage(
+      sanitizedWpData,
+      wpLink,
+      inferredTargetWebsite,
+      settings,
+    );
+  }
+
+  const messageChanged = nextWhatsAppMessage !== ad.whatsappMessage;
+  const targetChanged = inferredTargetWebsite !== ad.targetWebsite;
+
+  if (!wpDataChanged && !messageChanged && !targetChanged) {
+    return { ad, changed: false };
+  }
+
+  return {
+    ad: {
+      ...ad,
+      targetWebsite: inferredTargetWebsite,
+      wpData: sanitizedWpData,
+      whatsappMessage: nextWhatsAppMessage,
+    },
+    changed: true,
+  };
+}
+
 function loadAds() {
   try {
     // Initialize data directory
@@ -246,10 +305,26 @@ function loadAds() {
       wpCityOptions: [...DEFAULT_WP_CITY_OPTIONS],
     });
 
+    let sanitizedAdsCount = 0;
+    ads = ads.map((ad) => {
+      const result = sanitizeStoredAdWordPressData(ad);
+      if (result.changed) {
+        sanitizedAdsCount += 1;
+      }
+      return result.ad;
+    });
+
     ads.forEach((a) => seenGroups.add(a.fromGroup));
     console.log(`✅ Loaded ${collections.length} collections from file`);
 
     normalizeSettingsForCompatibility();
+
+    if (sanitizedAdsCount > 0) {
+      console.log(
+        `🧹 Sanitized ${sanitizedAdsCount} stored ads while loading dashboard data`,
+      );
+      saveAds();
+    }
 
     // Clean old recycle bin items
     cleanRecycleBin();

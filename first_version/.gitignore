@@ -6,4 +6,4 @@ sessions/
 data/
 test*
 test/*
-
+*.md

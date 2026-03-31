@@ -961,6 +961,42 @@ function normalizePhoneNumber(rawPhone) {
   return digits;
 }
 
+function isSaudiMobilePhoneNumber(rawPhone) {
+  return /^9665\d{8}$/.test(normalizePhoneNumber(rawPhone));
+}
+
+function stripPhoneLikeNumbers(text) {
+  return String(text ?? "").replace(
+    /(?:\+?\d[\d\s\-()]{7,}\d)/g,
+    (match) => (isSaudiMobilePhoneNumber(match) ? "" : match),
+  );
+}
+
+function enforceWordPressPhonePolicy(meta = {}, targetWebsite = "masaak") {
+  const normalizedMeta = isObject(meta) ? { ...meta } : {};
+  const contact = normalizeContactList(normalizedMeta.contact || []);
+  const directPhone = normalizePhoneNumber(
+    firstNonEmpty(normalizedMeta.phone_number, normalizedMeta.phone),
+  );
+
+  normalizedMeta.contact = contact;
+
+  if (targetWebsite === "masaak") {
+    const defaultPhone = String(
+      websiteConfig.getWebsite(targetWebsite)?.defaultPhone || "",
+    ).trim();
+    normalizedMeta.phone_number = defaultPhone || "";
+    normalizedMeta.phone = defaultPhone || "";
+    return normalizedMeta;
+  }
+
+  const preferredPhone = directPhone || (contact[0] ? contact[0].value : "");
+  normalizedMeta.phone_number = preferredPhone || "";
+  normalizedMeta.phone = preferredPhone || "";
+
+  return normalizedMeta;
+}
+
 function normalizeContactList(rawContact, extractedPhones = []) {
   const contacts = [];
 
@@ -2782,14 +2818,18 @@ const FORBIDDEN_DESCRIPTION_PATTERNS = [
   /(?:رقم\s*(?:الترخيص|الرخص(?:ة|ه)|فال)|برقم)\s*[:：-]?\s*[0-9٠-٩]{4,}/giu,
 
   // أرقام جوالات سعودية
-  /(?:\+?966|00966|966|0)?\s*5[0-9٠-٩](?:[\s\-()]*[0-9٠-٩]){8}\b/gu,
+  /(?:(?:\+?966|00966|966)[\s\-()]*5[0-9٠-٩](?:[\s\-()]*[0-9٠-٩]){7}\b|0[\s\-()]*5[0-9٠-٩](?:[\s\-()]*[0-9٠-٩]){7}\b|\b5[0-9٠-٩](?:[\s\-()]*[0-9٠-٩]){7}\b)/gu,
 
   // أي رقم تواصل بعد كلمة دالة
   /(?:رقم\s*(?:التواصل|الجوال|الهاتف|الموبايل|المحمول)?\s*[:：-]?\s*)(?:\+?[0-9٠-٩][0-9٠-٩\s\-()]{6,}[0-9٠-٩])/giu,
+
+  // صيغ أسماء المالك داخل السطور
+  /(?:اسم\s*المالك\s*[:：-]?\s*|(?:^|[\s:：-])مالك\s+)(?:[\u0600-\u06FFA-Za-z]{2,}(?:\s+|$)){1,3}/giu,
 ];
 
 const OWNER_ADMIN_DETAIL_PATTERNS = [
   /(?:اسم\s*المالك|المالك|مالك\s*العقار|صاحب\s*العقار|صاحب\s*الإعلان|اسم\s*المعلن|المعلن)/i,
+  /(?:^|[\s:：-])مالك(?:\s+|$)/i,
   /(?:مكتب|وسيط|سمسار|ترخيص|رخصة|رقم\s*الترخيص|رقم\s*المعلن|شركة(?:\s*عقارية)?|مؤسسة(?:\s*عقارية)?|وكيل|الوكيل)/i,
   /(?:وساطة|وساطه|التسويق\s*العقاري|تسويق\s*عقاري|إدارة\s*أملاك|ادارة\s*املاك)/i,
   /(?:سناب|snap(?:chat)?|انستا(?:غرام)?|instagram|insta|تل(?:ي)?جرام|telegram|تويتر|twitter|x\.com|تيك\s*توك|tiktok|يوتيوب|youtube|فيس(?:بوك)?|facebook|معرف|يوزر|الحساب|حساب(?:نا)?)/i,
@@ -2800,6 +2840,7 @@ const OWNER_ADMIN_DETAIL_PATTERNS = [
 ];
 
 const FULLY_REMOVABLE_SOURCE_LINE_PATTERNS = [
+  /(?:^|[\s:：-])مالك(?:\s+|$)/i,
   /(?:مكتب|وسيط|وساطة|وساطه|سمسار|شركة(?:\s*عقارية)?|مؤسسة(?:\s*عقارية)?|وكيل|الوكيل|التسويق\s*العقاري|تسويق\s*عقاري|إدارة\s*أملاك|ادارة\s*املاك)/i,
   /(?:رقم\s*الترخيص|ترخيص|رخصة|معلن\s*معتمد|الهيئة\s*العامة\s*للعقار|فال)/i,
   /(?:قروب|جروب|مجموعة(?:\s*واتساب)?|انضمام|join\s+group)/i,
@@ -2842,6 +2883,7 @@ function removeForbiddenInlineContent(text, targetWebsite = "masaak") {
     FORBIDDEN_DESCRIPTION_PATTERNS.forEach((pattern) => {
       cleaned = cleaned.replace(pattern, "");
     });
+    cleaned = stripPhoneLikeNumbers(cleaned);
   }
 
   return normalizeArabicText(
@@ -3147,10 +3189,59 @@ function sanitizeGeneratedHtmlDescription(html, targetWebsite = "masaak") {
   return sanitizeHtml(cleanedHtml);
 }
 
+function sanitizeWordPressDraftData(wpData, targetWebsite = "masaak") {
+  const safeData = isObject(wpData)
+    ? {
+        ...wpData,
+        meta: isObject(wpData.meta) ? { ...wpData.meta } : {},
+      }
+    : { meta: {} };
+
+  const safeTitle = removeForbiddenInlineContent(
+    stripAdReferenceNumbers(firstNonEmpty(safeData.title, DEFAULT_WP_TITLE)),
+    targetWebsite,
+  );
+  safeData.title = sanitizeTitle(safeTitle || DEFAULT_WP_TITLE);
+
+  const rawContent = firstNonEmpty(safeData.content, safeData.description, "");
+  safeData.content = rawContent
+    ? sanitizeGeneratedHtmlDescription(rawContent, targetWebsite)
+    : "";
+
+  const rawExcerpt = stripHtml(firstNonEmpty(safeData.excerpt, ""));
+  safeData.excerpt = normalizeArabicText(
+    removeForbiddenInlineContent(
+      stripAdReferenceNumbers(rawExcerpt),
+      targetWebsite,
+    ),
+  );
+
+  if (safeData.meta.main_ad) {
+    safeData.meta.main_ad = normalizeArabicText(
+      removeForbiddenInlineContent(
+        stripAdReferenceNumbers(stripHtml(safeData.meta.main_ad)),
+        targetWebsite,
+      ),
+    );
+  }
+
+  if (isOwnerOrAdministrativeDetailLine(safeData.meta.owner_name, targetWebsite)) {
+    safeData.meta.owner_name = "المالك";
+  }
+
+  safeData.meta = enforceWordPressPhonePolicy(safeData.meta, targetWebsite);
+  safeData.targetWebsite = targetWebsite;
+
+  return safeData;
+}
+
 function hasForbiddenDescriptionContent(text, targetWebsite = "masaak") {
   if (!shouldApplyForbiddenDescriptionRules(targetWebsite)) return false;
 
   const value = String(text ?? "");
+  if (value !== stripPhoneLikeNumbers(value)) {
+    return true;
+  }
   return FORBIDDEN_DESCRIPTION_PATTERNS.some((pattern) => {
     const safePattern = new RegExp(
       pattern.source,
@@ -3836,6 +3927,13 @@ function normalizeWordPressData(
   if (isOwnerOrAdministrativeDetailLine(meta.owner_name, initialTargetWebsite)) {
     meta.owner_name = "المالك";
   }
+  const phonePolicyMeta = enforceWordPressPhonePolicy(
+    meta,
+    initialTargetWebsite,
+  );
+  meta.contact = phonePolicyMeta.contact;
+  meta.phone_number = phonePolicyMeta.phone_number;
+  meta.phone = phonePolicyMeta.phone;
 
   const confidenceOverall = extractNumericValue(
     firstNonEmpty(rawData.confidence_overall, meta.confidence_overall),
@@ -5095,6 +5193,22 @@ ${trustedCategorySection}
 function extractPhoneNumbers(text) {
   const normalizedText = convertArabicDigitsToEnglish(String(text || ""));
   const phoneNumbers = [];
+  const seen = new Set();
+
+  const pushPhone = (original, normalized, confidence, type) => {
+    const safeNormalized = normalizePhoneNumber(normalized || original || "");
+    if (!/^9665\d{8}$/.test(safeNormalized) || seen.has(safeNormalized)) {
+      return;
+    }
+
+    seen.add(safeNormalized);
+    phoneNumbers.push({
+      original: String(original || "").trim(),
+      normalized: safeNormalized,
+      confidence,
+      type,
+    });
+  };
 
   // Remove all non-digit characters except + for initial cleaning
   const cleanText = normalizedText.replace(/[^\d+\s]/g, " ");
@@ -5104,12 +5218,7 @@ function extractPhoneNumbers(text) {
   let matches = cleanText.matchAll(pattern1);
   for (const match of matches) {
     const number = match[1];
-    phoneNumbers.push({
-      original: number,
-      normalized: `966${number.substring(1)}`,
-      confidence: 1.0,
-      type: "saudi_mobile",
-    });
+    pushPhone(number, `966${number.substring(1)}`, 1.0, "saudi_mobile");
   }
 
   // Pattern 2: Saudi numbers starting with 966 (12 digits)
@@ -5117,14 +5226,7 @@ function extractPhoneNumbers(text) {
   matches = cleanText.matchAll(pattern2);
   for (const match of matches) {
     const number = match[1];
-    if (!phoneNumbers.find((p) => p.normalized === number)) {
-      phoneNumbers.push({
-        original: number,
-        normalized: number,
-        confidence: 1.0,
-        type: "saudi_mobile_intl",
-      });
-    }
+    pushPhone(number, number, 1.0, "saudi_mobile_intl");
   }
 
   // Pattern 3: Numbers with + prefix (+9665xxxxxxxx)
@@ -5132,14 +5234,7 @@ function extractPhoneNumbers(text) {
   matches = normalizedText.matchAll(pattern3);
   for (const match of matches) {
     const number = match[1];
-    if (!phoneNumbers.find((p) => p.normalized === number)) {
-      phoneNumbers.push({
-        original: match[0],
-        normalized: number,
-        confidence: 1.0,
-        type: "saudi_mobile_plus",
-      });
-    }
+    pushPhone(match[0], number, 1.0, "saudi_mobile_plus");
   }
 
   // Pattern 4: Numbers with spaces or dashes (055 123 4567 or 055-123-4567)
@@ -5147,31 +5242,29 @@ function extractPhoneNumbers(text) {
   matches = normalizedText.matchAll(pattern4);
   for (const match of matches) {
     const number = match[1] + match[2] + match[3];
-    const normalized = `966${number.substring(1)}`;
-    if (!phoneNumbers.find((p) => p.normalized === normalized)) {
-      phoneNumbers.push({
-        original: match[0],
-        normalized,
-        confidence: 0.95,
-        type: "saudi_mobile_formatted",
-      });
-    }
+    pushPhone(
+      match[0],
+      `966${number.substring(1)}`,
+      0.95,
+      "saudi_mobile_formatted",
+    );
   }
 
-  // Pattern 5: Landline numbers (013xxxxxxx - 9 digits)
-  const pattern5 = /\b(01[0-9]\d{7})\b/g;
-  matches = cleanText.matchAll(pattern5);
+  // Pattern 5: International formatted Saudi mobile numbers (+966 55 018 9262)
+  const pattern5 =
+    /(?:\+?966|00966)\s*[\s-]?\s*(5\d)\s*[\s-]?\s*(\d{3})\s*[\s-]?\s*(\d{4})\b/g;
+  matches = normalizedText.matchAll(pattern5);
   for (const match of matches) {
-    const number = match[1];
-    const normalized = `966${number.substring(1)}`;
-    if (!phoneNumbers.find((p) => p.normalized === normalized)) {
-      phoneNumbers.push({
-        original: number,
-        normalized,
-        confidence: 0.9,
-        type: "saudi_landline",
-      });
-    }
+    const number = `${match[1]}${match[2]}${match[3]}`;
+    pushPhone(match[0], `966${number}`, 0.98, "saudi_mobile_intl_formatted");
+  }
+
+  // Pattern 6: Local formatted Saudi mobile without leading zero (55 018 9262)
+  const pattern6 = /\b(5\d)\s*[\s-]?\s*(\d{3})\s*[\s-]?\s*(\d{4})\b/g;
+  matches = normalizedText.matchAll(pattern6);
+  for (const match of matches) {
+    const number = `${match[1]}${match[2]}${match[3]}`;
+    pushPhone(match[0], `966${number}`, 0.9, "saudi_mobile_short_formatted");
   }
 
   return phoneNumbers.sort((a, b) => b.confidence - a.confidence);
@@ -6021,6 +6114,7 @@ module.exports = {
   extractWordPressData,
   generateWhatsAppMessage,
   sanitizeGeneratedHtmlDescription,
+  sanitizeWordPressDraftData,
   validateUserInput,
   getApiKeysStatus,
   __private: {
@@ -6029,6 +6123,8 @@ module.exports = {
     buildCleanMainAdText,
     canonicalizeMasaakCategory,
     detectCategoryFallback,
+    enforceWordPressPhonePolicy,
+    extractPhoneNumbers,
     extractLocationFromTextFallback,
     hasForbiddenDescriptionContent,
     inferTargetWebsiteFromData,
@@ -6042,6 +6138,7 @@ module.exports = {
     sanitizeGeneratedHtmlDescription,
     sanitizeLocationCandidate,
     shouldApplyForbiddenDescriptionRules,
+    stripPhoneLikeNumbers,
     summarizeRequiredMetadata,
   },
 };

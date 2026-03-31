@@ -41,6 +41,7 @@ const {
   generateWhatsAppMessage,
   getApiKeysStatus,
   sanitizeGeneratedHtmlDescription,
+  sanitizeWordPressDraftData,
 } = require("../services/aiService");
 const apiKeyManager = require("../services/apiKeyManager");
 const dataSync = require("../utils/dataSync");
@@ -575,23 +576,23 @@ async function postAdToWordPress(
       wpData.meta.owner_name = ad.senderName;
       console.log("✅ Using WhatsApp sender name:", ad.senderName);
     }
+    wpData = sanitizeWordPressDraftData(wpData, targetWebsite);
 
-    // Use extracted phone numbers from ad text
     if (
-      wpData.meta &&
-      wpData.meta.contact &&
+      targetWebsite === "hasak" &&
+      wpData.meta?.contact &&
       Array.isArray(wpData.meta.contact) &&
       wpData.meta.contact.length > 0
     ) {
-      const firstContact = wpData.meta.contact[0];
-      if (firstContact.value) {
-        wpData.meta.phone_number = firstContact.value;
-        wpData.meta.phone = firstContact.value;
-        console.log(
-          "✅ Using extracted phone from ad text:",
-          firstContact.value,
-        );
-      }
+      console.log(
+        "✅ Hasak contact preserved from ad text:",
+        wpData.meta.contact[0].value,
+      );
+    } else if (targetWebsite === "masaak") {
+      console.log(
+        `✅ ${website.name} phone enforced before preview/post:`,
+        wpData.meta?.phone_number || "",
+      );
     }
 
     // Get WordPress credentials
@@ -1821,7 +1822,10 @@ router.post(
       const editedAt = Date.now();
 
       safeWpData.meta = normalizeManualLocationMeta(normalizedMeta.meta);
-      safeWpData.targetWebsite = targetWebsite;
+      Object.assign(
+        safeWpData,
+        sanitizeWordPressDraftData(safeWpData, targetWebsite),
+      );
       currentAd.wpData = safeWpData;
       currentAd.targetWebsite = targetWebsite;
       currentAd.whatsappMessage = generateWhatsAppMessage(
