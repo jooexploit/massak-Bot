@@ -333,7 +333,9 @@ function buildCleanFullLocation(meta = {}) {
   const location = normalizeNeighborhoodToken(
     meta.location || meta.neighborhood || "",
   );
-  const city = normalizeLocationToken(meta.City || meta.city || meta.subcity || "");
+  const city = normalizeLocationToken(
+    meta.City || meta.city || meta.subcity || "",
+  );
   const beforeCity = normalizeLocationToken(
     meta.before_City || meta.before_city || "",
   );
@@ -544,7 +546,8 @@ async function postAdToWordPress(
         targetWebsite = wpData.targetWebsite;
         console.log(`🌐 Using target website from wpData: ${targetWebsite}`);
       } else {
-        const category = meta.arc_category || meta.parent_catt || meta.category || "";
+        const category =
+          meta.arc_category || meta.parent_catt || meta.category || "";
         targetWebsite = websiteConfig.detectWebsite(
           ad.enhancedText || ad.enhanced_text || ad.text,
           category,
@@ -852,8 +855,14 @@ async function postAdToWordPress(
 
     let parentCatt =
       targetWebsite === "hasak"
-        ? wpData.meta?.arc_category || wpData.meta?.parent_catt || wpData.meta?.category || ""
-        : wpData.meta?.parent_catt || wpData.meta?.arc_category || wpData.meta?.category || "";
+        ? wpData.meta?.arc_category ||
+          wpData.meta?.parent_catt ||
+          wpData.meta?.category ||
+          ""
+        : wpData.meta?.parent_catt ||
+          wpData.meta?.arc_category ||
+          wpData.meta?.category ||
+          "";
     let subCatt =
       targetWebsite === "hasak"
         ? wpData.meta?.arc_subcategory ||
@@ -1399,7 +1408,9 @@ router.get(
 
       const searchTerms = buildAdsSearchTerms(search);
       if (searchTerms.length > 0) {
-        fetched = fetched.filter((ad) => matchesFetchedAdSearch(ad, searchTerms));
+        fetched = fetched.filter((ad) =>
+          matchesFetchedAdSearch(ad, searchTerms),
+        );
       }
 
       // Calculate pagination
@@ -1653,10 +1664,7 @@ router.post(
               return;
             }
             const shouldUseFixedAutoPostCategory =
-              shouldUseFixedAutoPostCategoryForGroup(
-                settings,
-                ad.fromGroup,
-              );
+              shouldUseFixedAutoPostCategoryForGroup(settings, ad.fromGroup);
             let wpData = buildAutoPostWpData(
               ad.wpData,
               shouldUseFixedAutoPostCategory,
@@ -1684,12 +1692,7 @@ router.post(
             console.log("🔵 Starting WordPress auto-post...");
 
             const sock = app.get("whatsappSock") || null;
-            const result = await postAdToWordPress(
-              ad,
-              sock,
-              wpData,
-              false,
-            );
+            const result = await postAdToWordPress(ad, sock, wpData, false);
 
             if (!result?.success || !result.wordpressPost) {
               throw new Error(result?.error || "Auto-post returned no post");
@@ -1854,7 +1857,9 @@ router.post(
       // Learn new location values from manual edit so AI/location logic stays up-to-date.
       try {
         const currentSettings = getSettings() || {};
-        const currentBeforeCities = Array.isArray(currentSettings.wpBeforeCityOptions)
+        const currentBeforeCities = Array.isArray(
+          currentSettings.wpBeforeCityOptions,
+        )
           ? currentSettings.wpBeforeCityOptions
           : [];
         const currentCities = Array.isArray(currentSettings.wpCityOptions)
@@ -1863,17 +1868,17 @@ router.post(
 
         const beforeCityRaw = String(
           safeWpData.meta.before_City || safeWpData.meta.before_city || "",
-        )
-          .trim();
-        const cityRaw = String(safeWpData.meta.City || safeWpData.meta.city || "")
-          .trim();
+        ).trim();
+        const cityRaw = String(
+          safeWpData.meta.City || safeWpData.meta.city || "",
+        ).trim();
 
-        const nextBeforeCities = [...new Set(
-          [...currentBeforeCities, beforeCityRaw].filter(Boolean),
-        )];
-        const nextCities = [...new Set(
-          [...currentCities, cityRaw].filter(Boolean),
-        )];
+        const nextBeforeCities = [
+          ...new Set([...currentBeforeCities, beforeCityRaw].filter(Boolean)),
+        ];
+        const nextCities = [
+          ...new Set([...currentCities, cityRaw].filter(Boolean)),
+        ];
 
         if (
           nextBeforeCities.length !== currentBeforeCities.length ||
@@ -2764,12 +2769,14 @@ router.post(
   (req, res) => {
     try {
       const rawAdIds = Array.isArray(req.body?.adIds) ? req.body.adIds : [];
-      const adIds = [...new Set(
-        rawAdIds
-          .filter((id) => typeof id === "string")
-          .map((id) => id.trim())
-          .filter(Boolean),
-      )];
+      const adIds = [
+        ...new Set(
+          rawAdIds
+            .filter((id) => typeof id === "string")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+      ];
 
       if (adIds.length === 0) {
         return res.status(400).json({ error: "adIds array is required" });
@@ -2850,12 +2857,14 @@ router.post(
   async (req, res) => {
     try {
       const rawAdIds = Array.isArray(req.body?.adIds) ? req.body.adIds : [];
-      const adIds = [...new Set(
-        rawAdIds
-          .filter((id) => typeof id === "string")
-          .map((id) => id.trim())
-          .filter(Boolean),
-      )];
+      const adIds = [
+        ...new Set(
+          rawAdIds
+            .filter((id) => typeof id === "string")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+      ];
 
       if (adIds.length === 0) {
         return res.status(400).json({ error: "adIds array is required" });
@@ -3007,10 +3016,7 @@ router.post(
       const currentSettings = getSettings();
       const wpDataForPost = buildAutoPostWpData(
         wpData || ad.wpData || null,
-        shouldUseFixedAutoPostCategoryForGroup(
-          currentSettings,
-          ad.fromGroup,
-        ),
+        shouldUseFixedAutoPostCategoryForGroup(currentSettings, ad.fromGroup),
       );
 
       // Use the reusable function
@@ -3041,7 +3047,9 @@ router.post(
               id: result.wordpressPost.id,
               title: {
                 rendered:
-                  result.wordpressPost.title || ad.wpData?.title?.rendered || "",
+                  result.wordpressPost.title ||
+                  ad.wpData?.title?.rendered ||
+                  "",
               },
               link: result.wordpressPost.link || "",
               meta: ad.wpData?.meta || {},

@@ -281,8 +281,7 @@ function containsNormalizedLocation(haystack = "", needle = "") {
   }
 
   return (
-    haystackKey === needleKey ||
-    ` ${haystackKey} `.includes(` ${needleKey} `)
+    haystackKey === needleKey || ` ${haystackKey} `.includes(` ${needleKey} `)
   );
 }
 
@@ -317,15 +316,17 @@ function getKnownLocationOptions(type = "generic") {
     const governorateKey = normalizeLocationLookupKey(AL_AHSA_GOVERNORATE);
 
     return normalizeLocationOptions(
-      (Array.isArray(areaNormalizer.VALID_AREAS) ? areaNormalizer.VALID_AREAS : [])
-        .filter((value) => {
-          const normalized = normalizeArabicText(value);
-          if (!normalized) return false;
-          if (normalizeLocationLookupKey(normalized) === governorateKey) {
-            return false;
-          }
-          return !(areaNormalizer.isCity && areaNormalizer.isCity(normalized));
-        }),
+      (Array.isArray(areaNormalizer.VALID_AREAS)
+        ? areaNormalizer.VALID_AREAS
+        : []
+      ).filter((value) => {
+        const normalized = normalizeArabicText(value);
+        if (!normalized) return false;
+        if (normalizeLocationLookupKey(normalized) === governorateKey) {
+          return false;
+        }
+        return !(areaNormalizer.isCity && areaNormalizer.isCity(normalized));
+      }),
     );
   }
 
@@ -340,7 +341,8 @@ function findKnownLocationMatch(text, options = []) {
 
   const normalizedOptions = normalizeLocationOptions(options).sort(
     (a, b) =>
-      normalizeLocationLookupKey(b).length - normalizeLocationLookupKey(a).length,
+      normalizeLocationLookupKey(b).length -
+      normalizeLocationLookupKey(a).length,
   );
   const paddedSourceKey = ` ${sourceKey} `;
 
@@ -397,20 +399,26 @@ function trimLocationCandidateByType(value = "", type = "generic") {
   if (!cleaned) return "";
 
   if (type === "city") {
-    cleaned = cleaned.replace(
-      /\s+(?:حي|الحي|المحافظة|المحافظه|محافظة|محافظه|الدولة|الدوله|دولة|دوله)\s*[:：-]?\s*.*$/i,
-      "",
-    ).trim();
+    cleaned = cleaned
+      .replace(
+        /\s+(?:حي|الحي|المحافظة|المحافظه|محافظة|محافظه|الدولة|الدوله|دولة|دوله)\s*[:：-]?\s*.*$/i,
+        "",
+      )
+      .trim();
   } else if (type === "neighborhood") {
-    cleaned = cleaned.replace(
-      /\s+(?:المدينة|المدينه|مدينة|مدينه|المحافظة|المحافظه|محافظة|محافظه|الدولة|الدوله|دولة|دوله)\s*[:：-]?\s*.*$/i,
-      "",
-    ).trim();
+    cleaned = cleaned
+      .replace(
+        /\s+(?:المدينة|المدينه|مدينة|مدينه|المحافظة|المحافظه|محافظة|محافظه|الدولة|الدوله|دولة|دوله)\s*[:：-]?\s*.*$/i,
+        "",
+      )
+      .trim();
   } else if (type === "governorate") {
-    cleaned = cleaned.replace(
-      /\s+(?:المدينة|المدينه|مدينة|مدينه|حي|الحي)\s*[:：-]?\s*.*$/i,
-      "",
-    ).trim();
+    cleaned = cleaned
+      .replace(
+        /\s+(?:المدينة|المدينه|مدينة|مدينه|حي|الحي)\s*[:：-]?\s*.*$/i,
+        "",
+      )
+      .trim();
   }
 
   cleaned = cleaned.split(LOCATION_RELATIONAL_SPLIT_PATTERN)[0].trim();
@@ -601,7 +609,10 @@ function sanitizeLocationCandidate(
       return finalizeLocationCandidate(knownMatch, type);
     }
 
-    if (!normalizedAdText || containsNormalizedLocation(normalizedAdText, candidate)) {
+    if (
+      !normalizedAdText ||
+      containsNormalizedLocation(normalizedAdText, candidate)
+    ) {
       return candidate;
     }
   }
@@ -1002,9 +1013,8 @@ function isSaudiMobilePhoneNumber(rawPhone) {
 }
 
 function stripPhoneLikeNumbers(text) {
-  return String(text ?? "").replace(
-    /(?:\+?\d[\d\s\-()]{7,}\d)/g,
-    (match) => (isSaudiMobilePhoneNumber(match) ? "" : match),
+  return String(text ?? "").replace(/(?:\+?\d[\d\s\-()]{7,}\d)/g, (match) =>
+    isSaudiMobilePhoneNumber(match) ? "" : match,
   );
 }
 
@@ -2055,7 +2065,9 @@ function getTrustedTaxonomySync() {
   return wordpressCategoryService.getTrustedTaxonomySync();
 }
 
-function formatTrustedMasaakSubcategoryLines(taxonomy = getTrustedTaxonomySync()) {
+function formatTrustedMasaakSubcategoryLines(
+  taxonomy = getTrustedTaxonomySync(),
+) {
   return Object.entries(taxonomy?.masaak?.subcategoryNamesByParent || {})
     .map(([parent, children]) => {
       const safeParent = normalizeArabicText(parent);
@@ -2138,9 +2150,12 @@ function appendParseNote(existingNotes, note) {
 function buildFullLocationValue(meta = {}, fallback = "") {
   const parts = unique(
     [
-      sanitizeLocationCandidate(firstNonEmpty(meta.location, meta.neighborhood, ""), {
-        type: "neighborhood",
-      }),
+      sanitizeLocationCandidate(
+        firstNonEmpty(meta.location, meta.neighborhood, ""),
+        {
+          type: "neighborhood",
+        },
+      ),
       sanitizeLocationCandidate(
         firstNonEmpty(meta.City, meta.subcity, meta.city, ""),
         {
@@ -2268,11 +2283,14 @@ function normalizeLocationMeta(meta, adText = "", targetWebsiteHint = null) {
 
   if (!city) {
     city =
-      sanitizeLocationCandidate(inferLocationFromKnownOptions(adText, dynamicHints.cities), {
-        type: "city",
-        adText,
-        knownOptions: dynamicHints.cities,
-      }) || fallbackLocation.city;
+      sanitizeLocationCandidate(
+        inferLocationFromKnownOptions(adText, dynamicHints.cities),
+        {
+          type: "city",
+          adText,
+          knownOptions: dynamicHints.cities,
+        },
+      ) || fallbackLocation.city;
   }
   if (!beforeCity) {
     beforeCity =
@@ -2968,7 +2986,10 @@ function isDecorativeOrNoiseLine(line = "") {
   return alphaNumericCount <= 2 && compact.length >= alphaNumericCount + 4;
 }
 
-function isOwnerOrAdministrativeDetailLine(line = "", targetWebsite = "masaak") {
+function isOwnerOrAdministrativeDetailLine(
+  line = "",
+  targetWebsite = "masaak",
+) {
   if (!shouldApplyForbiddenDescriptionRules(targetWebsite)) return false;
 
   const normalized = normalizeArabicText(line || "");
@@ -3055,7 +3076,10 @@ function shouldDropDescriptionLine(
   const normalized = normalizeArabicText(line || "");
   if (!normalized) return false;
 
-  if (isDecorativeOrNoiseLine(normalized) || isLikelyContactNameLine(normalized)) {
+  if (
+    isDecorativeOrNoiseLine(normalized) ||
+    isLikelyContactNameLine(normalized)
+  ) {
     return true;
   }
 
@@ -3076,11 +3100,7 @@ function shouldDropDescriptionLine(
   return isAdministrativeLine && !hasPropertyDetailSignals(normalized);
 }
 
-function collectSanitizedAdLines(
-  adText,
-  limit = 20,
-  targetWebsite = "masaak",
-) {
+function collectSanitizedAdLines(adText, limit = 20, targetWebsite = "masaak") {
   const source = String(adText ?? "")
     .replace(/<[^>]+>/g, "\n")
     .replace(/\r/g, "\n");
@@ -3181,10 +3201,7 @@ function shouldDropSanitizedDescriptionText(text, targetWebsite = "masaak") {
   }
 
   const normalized = stripAdReferenceNumbers(
-    removeForbiddenInlineContent(
-      original,
-      targetWebsite,
-    ),
+    removeForbiddenInlineContent(original, targetWebsite),
   )
     .replace(/^[\-*•:]+/g, "")
     .replace(/[↩⬅➡]+/g, " ")
@@ -3276,7 +3293,9 @@ function sanitizeWordPressDraftData(wpData, targetWebsite = "masaak") {
     );
   }
 
-  if (isOwnerOrAdministrativeDetailLine(safeData.meta.owner_name, targetWebsite)) {
+  if (
+    isOwnerOrAdministrativeDetailLine(safeData.meta.owner_name, targetWebsite)
+  ) {
     safeData.meta.owner_name = "المالك";
   }
 
@@ -3293,7 +3312,9 @@ function sanitizeWordPressDataForStorage(wpData, targetWebsite = "masaak") {
   sanitized.title = sanitizeTitle(
     stripPhoneNumbers(
       removeForbiddenInlineContent(
-        stripAdReferenceNumbers(firstNonEmpty(sanitized.title, DEFAULT_WP_TITLE)),
+        stripAdReferenceNumbers(
+          firstNonEmpty(sanitized.title, DEFAULT_WP_TITLE),
+        ),
         safeTargetWebsite,
       ),
     ) || DEFAULT_WP_TITLE,
@@ -3308,7 +3329,9 @@ function sanitizeWordPressDataForStorage(wpData, targetWebsite = "masaak") {
   sanitized.meta.main_ad = normalizeArabicText(normalizedMainAd || "");
 
   if (sanitized.content) {
-    const contentWithoutPhones = stripPhoneLikeNumbers(String(sanitized.content));
+    const contentWithoutPhones = stripPhoneLikeNumbers(
+      String(sanitized.content),
+    );
     sanitized.content = sanitizeGeneratedHtmlDescription(
       contentWithoutPhones,
       safeTargetWebsite,
@@ -3896,7 +3919,12 @@ function buildDeterministicDescription({
   targetWebsite = "masaak",
 }) {
   if (isLikelyRealEstateMeta(meta, adText)) {
-    return buildRealEstateHtmlDescription({ title, meta, adText, targetWebsite });
+    return buildRealEstateHtmlDescription({
+      title,
+      meta,
+      adText,
+      targetWebsite,
+    });
   }
 
   return buildNonRealEstateHtmlDescription({
@@ -3907,12 +3935,7 @@ function buildDeterministicDescription({
   });
 }
 
-function buildHtmlFromData({
-  title,
-  meta,
-  adText,
-  targetWebsite = "masaak",
-}) {
+function buildHtmlFromData({ title, meta, adText, targetWebsite = "masaak" }) {
   // HTML is always generated deterministically from structured metadata and source text.
   return buildDeterministicDescription({
     title,
@@ -4024,7 +4047,9 @@ function normalizeWordPressData(
     adText,
   );
   normalizeLocationMeta(meta, adText, initialTargetWebsite);
-  if (isOwnerOrAdministrativeDetailLine(meta.owner_name, initialTargetWebsite)) {
+  if (
+    isOwnerOrAdministrativeDetailLine(meta.owner_name, initialTargetWebsite)
+  ) {
     meta.owner_name = "المالك";
   }
   const phonePolicyMeta = enforceWordPressPhonePolicy(
@@ -4074,8 +4099,7 @@ function normalizeWordPressData(
     removeForbiddenInlineContent(
       titleValue || DEFAULT_WP_TITLE,
       initialTargetWebsite,
-    ) ||
-    DEFAULT_WP_TITLE;
+    ) || DEFAULT_WP_TITLE;
   const normalizedTitle = ensureTitleContainsLocation(
     safeTitleSeed,
     meta,
@@ -4091,7 +4115,10 @@ function normalizeWordPressData(
 
   let finalContent = manualContent;
 
-  if (!finalContent || hasForbiddenDescriptionContent(finalContent, initialTargetWebsite)) {
+  if (
+    !finalContent ||
+    hasForbiddenDescriptionContent(finalContent, initialTargetWebsite)
+  ) {
     const cleanedAdText = removeForbiddenInlineContent(
       stripAdReferenceNumbers(adText || ""),
       initialTargetWebsite,
@@ -4104,7 +4131,10 @@ function normalizeWordPressData(
     });
   }
 
-  if (!finalContent || hasForbiddenDescriptionContent(finalContent, initialTargetWebsite)) {
+  if (
+    !finalContent ||
+    hasForbiddenDescriptionContent(finalContent, initialTargetWebsite)
+  ) {
     const fallbackPlainText =
       removeForbiddenInlineContent(
         stripAdReferenceNumbers(contentValue || adText || ""),
@@ -4923,7 +4953,9 @@ function applyRequiredFieldFallbacks(wpData, adText) {
   return updated;
 }
 
-function buildTrustedCategoryPromptSection(taxonomy = getTrustedTaxonomySync()) {
+function buildTrustedCategoryPromptSection(
+  taxonomy = getTrustedTaxonomySync(),
+) {
   const masaakCategoriesText =
     (taxonomy?.masaak?.mainCategoryNames || []).join("، ") || "غير متوفر";
   const hasakCategoriesText =
@@ -4969,7 +5001,11 @@ function buildMasaakPropertyOnlyRulesPrompt() {
 - المسموح فقط: معلومات العقار الفعلية مثل النوع والسعر والمساحة والموقع والعمر والمزايا.`;
 }
 
-async function buildRecoverMissingFieldsPrompt(adText, currentData, missingFields) {
+async function buildRecoverMissingFieldsPrompt(
+  adText,
+  currentData,
+  missingFields,
+) {
   const taxonomy = await wordpressCategoryService.getTrustedTaxonomy();
   const currentSummary = summarizeRequiredMetadata(currentData);
   const targetWebsite = inferTargetWebsiteFromData(currentData, adText);
@@ -4986,7 +5022,9 @@ async function buildRecoverMissingFieldsPrompt(adText, currentData, missingField
     'قواعد الموقع: neighborhood/location = اسم الحي فقط بدون كلمة "حي" وبدون وصف إضافي، city = اسم المدينة فقط بدون كلمة "مدينة"، governorate = اسم المحافظة أو الدولة فقط. قارن أولاً مع المرجع الجغرافي الداخلي عند توفره، لكن إذا ورد اسم مدينة أو دولة واضح في النص وغير موجود في المرجع فاحتفظ به كما هو بعد تنظيفه. القيم المرفوضة: "ال" و"حي" و"مدينة" وأي جملة طويلة عن الموقع.';
   const trustedCategorySection = buildTrustedCategoryPromptSection(taxonomy);
   const propertyOnlyRules =
-    targetWebsite === "masaak" ? `\n\n${buildMasaakPropertyOnlyRulesPrompt()}` : "";
+    targetWebsite === "masaak"
+      ? `\n\n${buildMasaakPropertyOnlyRulesPrompt()}`
+      : "";
 
   return `أنت مدقق جودة لاستخراج بيانات إعلان.
 ${websiteInstruction}
@@ -5717,10 +5755,12 @@ async function detectCategory(text) {
   }
 
   const taxonomy = await wordpressCategoryService.getTrustedTaxonomy();
-  const masaakCategoriesText =
-    (taxonomy?.masaak?.mainCategoryNames || []).join("، ");
-  const hasakCategoriesText =
-    (taxonomy?.hasak?.mainCategoryNames || []).join("، ");
+  const masaakCategoriesText = (taxonomy?.masaak?.mainCategoryNames || []).join(
+    "، ",
+  );
+  const hasakCategoriesText = (taxonomy?.hasak?.mainCategoryNames || []).join(
+    "، ",
+  );
 
   const prompt = `صنّف النص التالي إلى تصنيف واحد مناسب فقط من القوائم المعتمدة.
 
@@ -6095,7 +6135,10 @@ async function extractWordPressData(
         maxPasses: 2,
       });
 
-      if (preferredTargetWebsite === "masaak" || preferredTargetWebsite === "hasak") {
+      if (
+        preferredTargetWebsite === "masaak" ||
+        preferredTargetWebsite === "hasak"
+      ) {
         normalizedResult.targetWebsite = preferredTargetWebsite;
       }
 

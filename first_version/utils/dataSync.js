@@ -44,7 +44,10 @@ function acquireFileLockSync(filePath, timeoutMs = 5000) {
   while (Date.now() - start < timeoutMs) {
     try {
       const fd = fs.openSync(lockPath, "wx");
-      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, ts: Date.now() }));
+      fs.writeFileSync(
+        fd,
+        JSON.stringify({ pid: process.pid, ts: Date.now() }),
+      );
       fs.closeSync(fd);
       return lockPath;
     } catch (err) {
@@ -63,7 +66,9 @@ async function acquireFileLockAsync(filePath, timeoutMs = 5000) {
   while (Date.now() - start < timeoutMs) {
     try {
       const handle = await fs.promises.open(lockPath, "wx");
-      await handle.writeFile(JSON.stringify({ pid: process.pid, ts: Date.now() }));
+      await handle.writeFile(
+        JSON.stringify({ pid: process.pid, ts: Date.now() }),
+      );
       await handle.close();
       return lockPath;
     } catch (err) {
@@ -165,7 +170,6 @@ function writeDataSync(fileKey, data) {
     if (verifyData !== jsonData) {
       throw new Error("Data verification failed after write");
     }
-
   } catch (err) {
     console.error(`❌ CRITICAL: Error writing ${fileKey}:`, err.message);
 

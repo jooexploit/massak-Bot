@@ -42,7 +42,7 @@ class MessageQueue {
       this.stats.currentQueueSize = this.queue.length;
 
       console.log(
-        `📥 Message queued: ${queueItem.id} | Queue size: ${this.queue.length}`
+        `📥 Message queued: ${queueItem.id} | Queue size: ${this.queue.length}`,
       );
 
       // Start processing if not already running
@@ -102,7 +102,7 @@ class MessageQueue {
     console.log(
       `⚙️ Processing message: ${item.id} (Attempt ${item.attempts + 1}/${
         item.maxAttempts
-      })`
+      })`,
     );
 
     try {
@@ -113,7 +113,7 @@ class MessageQueue {
 
       const duration = Date.now() - startTime;
       console.log(
-        `✅ Message processed successfully: ${item.id} (${duration}ms)`
+        `✅ Message processed successfully: ${item.id} (${duration}ms)`,
       );
 
       this.stats.totalProcessed++;
@@ -122,13 +122,13 @@ class MessageQueue {
       const duration = Date.now() - startTime;
       console.error(
         `❌ Error processing message: ${item.id} (${duration}ms)`,
-        error.message
+        error.message,
       );
 
       // Retry if attempts remaining
       if (item.attempts < item.maxAttempts) {
         console.log(
-          `🔄 Retrying message: ${item.id} (${item.attempts}/${item.maxAttempts})`
+          `🔄 Retrying message: ${item.id} (${item.attempts}/${item.maxAttempts})`,
         );
 
         // Add back to queue with exponential backoff
@@ -139,7 +139,7 @@ class MessageQueue {
         this.stats.currentQueueSize = this.queue.length;
       } else {
         console.error(
-          `💀 Message failed after ${item.maxAttempts} attempts: ${item.id}`
+          `💀 Message failed after ${item.maxAttempts} attempts: ${item.id}`,
         );
         this.stats.totalFailed++;
         item.reject(error);
@@ -193,7 +193,7 @@ class MessageQueue {
     if (config.delayBetweenMessages !== undefined) {
       this.delayBetweenMessages = config.delayBetweenMessages;
       console.log(
-        `⚙️ Delay between messages set to: ${this.delayBetweenMessages}ms`
+        `⚙️ Delay between messages set to: ${this.delayBetweenMessages}ms`,
       );
     }
   }

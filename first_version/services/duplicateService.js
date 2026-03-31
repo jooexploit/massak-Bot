@@ -52,7 +52,8 @@ function similarityScore(a = "", b = "") {
 }
 
 function findNearDuplicate(inputText, candidates = [], options = {}) {
-  const threshold = typeof options.threshold === "number" ? options.threshold : 0.9;
+  const threshold =
+    typeof options.threshold === "number" ? options.threshold : 0.9;
   let best = null;
 
   for (const candidate of candidates) {

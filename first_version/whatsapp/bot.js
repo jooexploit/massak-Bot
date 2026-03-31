@@ -111,11 +111,7 @@ function scheduleGroupsFetch() {
   }
 
   groupsFetchTimeout = setTimeout(async () => {
-    if (
-      connectionStatus !== "connected" ||
-      isReconnecting ||
-      !isSocketOpen()
-    ) {
+    if (connectionStatus !== "connected" || isReconnecting || !isSocketOpen()) {
       console.log("⚠️ Skipping group fetch: socket not ready");
       return;
     }
@@ -181,7 +177,14 @@ function normalizeSmartLocationOptions(options, fallback = []) {
   const uniqueValues = [...new Set(normalized)];
 
   if (uniqueValues.length === 0) {
-    return [...new Set(fallbackList.filter((value) => typeof value === "string").map((v) => v.trim()).filter(Boolean))];
+    return [
+      ...new Set(
+        fallbackList
+          .filter((value) => typeof value === "string")
+          .map((v) => v.trim())
+          .filter(Boolean),
+      ),
+    ];
   }
 
   return uniqueValues;
@@ -270,7 +273,8 @@ function sanitizeStoredAdWordPressData(ad) {
     inferredTargetWebsite,
   );
   const wpDataChanged =
-    JSON.stringify(sanitizedWpData) !== JSON.stringify(withAuditDefaults.wpData);
+    JSON.stringify(sanitizedWpData) !==
+    JSON.stringify(withAuditDefaults.wpData);
 
   let nextWhatsAppMessage = withAuditDefaults.whatsappMessage;
   if (withAuditDefaults.whatsappMessage) {
@@ -287,8 +291,10 @@ function sanitizeStoredAdWordPressData(ad) {
     );
   }
 
-  const messageChanged = nextWhatsAppMessage !== withAuditDefaults.whatsappMessage;
-  const targetChanged = inferredTargetWebsite !== withAuditDefaults.targetWebsite;
+  const messageChanged =
+    nextWhatsAppMessage !== withAuditDefaults.whatsappMessage;
+  const targetChanged =
+    inferredTargetWebsite !== withAuditDefaults.targetWebsite;
 
   if (!wpDataChanged && !messageChanged && !targetChanged && !auditChanged) {
     return { ad: withAuditDefaults, changed: false };
@@ -400,7 +406,7 @@ function extractAndNormalizePhoneNumbers(text) {
     .map((v) => v.replace(/^\+/, ""))
     // Deduplicate and normalize length to remove obvious invalids
     .filter(
-      (v, i, a) => a.indexOf(v) === i && v.length >= 11 && v.length <= 15
+      (v, i, a) => a.indexOf(v) === i && v.length >= 11 && v.length <= 15,
     );
 
   return normalized;
@@ -758,11 +764,11 @@ function isCategoryLimitReached(category) {
         resolveAdCategoryForLimit(ad),
       ) &&
       ad.status !== "rejected" &&
-      ad.timestamp >= todayTimestamp
+      ad.timestamp >= todayTimestamp,
   ).length;
 
   console.log(
-    `📊 Category "${limitConfig.category}" TODAY: ${todayCount}/${limitConfig.maxAds} ads (incoming: "${category}")`
+    `📊 Category "${limitConfig.category}" TODAY: ${todayCount}/${limitConfig.maxAds} ads (incoming: "${category}")`,
   );
 
   return todayCount >= limitConfig.maxAds;
@@ -811,10 +817,10 @@ function cleanRecycleBin() {
       const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
       console.log(
         `  Item ${index + 1}: ${ageDays} days old, rejected at ${new Date(
-          item.rejectedAt
+          item.rejectedAt,
         ).toISOString()}, will ${
           item.rejectedAt > cutoffTime ? "KEEP" : "DELETE"
-        }`
+        }`,
       );
     });
 
@@ -827,7 +833,7 @@ function cleanRecycleBin() {
       console.log(
         `♻️ Cleaned ${
           beforeCount - recycleBin.length
-        } old items from recycle bin\n`
+        } old items from recycle bin\n`,
       );
     } else {
       console.log("♻️ No items removed\n");
@@ -870,7 +876,11 @@ function detectTargetWebsiteEarly(messageText = "") {
     return "hasak";
   }
 
-  const detected = websiteConfig.detectWebsite(safeText, quickCategory || "", {});
+  const detected = websiteConfig.detectWebsite(
+    safeText,
+    quickCategory || "",
+    {},
+  );
   return detected === "hasak" ? "hasak" : "masaak";
 }
 
@@ -896,7 +906,7 @@ async function processMessageFromQueue(messageData) {
   // ✅ CHECK FOR DUPLICATES FIRST (before using AI tokens!)
   const normalized = normalizeText(messageText);
   const isDuplicate = ads.some(
-    (a) => a.fromGroup === from && normalizeText(a.text) === normalized
+    (a) => a.fromGroup === from && normalizeText(a.text) === normalized,
   );
 
   if (isDuplicate) {
@@ -909,7 +919,7 @@ async function processMessageFromQueue(messageData) {
   const quickCategory = quickDetectCategory(messageText);
   if (quickCategory && isCategoryLimitReached(quickCategory)) {
     console.log(
-      `🚫 Category "${quickCategory}" has reached its limit. Blocking BEFORE AI processing.`
+      `🚫 Category "${quickCategory}" has reached its limit. Blocking BEFORE AI processing.`,
     );
 
     // Move to recycle bin without using AI
@@ -934,7 +944,7 @@ async function processMessageFromQueue(messageData) {
     saveRecycleBin();
 
     console.log(
-      `🗑️ Moved to recycle bin (category limit - no AI used): ${recycleBinItem.id}`
+      `🗑️ Moved to recycle bin (category limit - no AI used): ${recycleBinItem.id}`,
     );
     return {
       success: false,
@@ -951,13 +961,13 @@ async function processMessageFromQueue(messageData) {
     });
 
     console.log(
-      `🔍 AI Result: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`
+      `🔍 AI Result: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`,
     );
 
     // If not detected as an ad, move to recycle bin
     if (!aiResult.isAd) {
       console.log(
-        `❌ Not an ad (confidence: ${aiResult.confidence}%): ${aiResult.reason}`
+        `❌ Not an ad (confidence: ${aiResult.confidence}%): ${aiResult.reason}`,
       );
 
       // Add to recycle bin - include image for later use
@@ -984,13 +994,15 @@ async function processMessageFromQueue(messageData) {
     }
 
     console.log(
-      `✅ Ad detected (confidence: ${aiResult.confidence}%): ${aiResult.reason}`
+      `✅ Ad detected (confidence: ${aiResult.confidence}%): ${aiResult.reason}`,
     );
 
     const recentAdsWindow = Date.now() - 60 * 60 * 1000;
     const similarDuplicate = duplicateService.findNearDuplicate(
       messageText,
-      ads.filter((ad) => ad.timestamp >= recentAdsWindow && ad.fromGroup === from),
+      ads.filter(
+        (ad) => ad.timestamp >= recentAdsWindow && ad.fromGroup === from,
+      ),
       { threshold: 0.7 },
     );
 
@@ -1006,7 +1018,7 @@ async function processMessageFromQueue(messageData) {
     // Check if category limit is reached
     if (aiCategoryForLimit && isCategoryLimitReached(aiCategoryForLimit)) {
       console.log(
-        `🚫 Category "${aiCategoryForLimit}" has reached its limit. Ad blocked and moved to recycle bin.`
+        `🚫 Category "${aiCategoryForLimit}" has reached its limit. Ad blocked and moved to recycle bin.`,
       );
 
       // Move to recycle bin instead of saving - include image for later use
@@ -1031,7 +1043,7 @@ async function processMessageFromQueue(messageData) {
       saveRecycleBin();
 
       console.log(
-        `🗑️ Moved to recycle bin (category limit): ${recycleBinItem.id}`
+        `🗑️ Moved to recycle bin (category limit): ${recycleBinItem.id}`,
       );
       return {
         success: false,
@@ -1043,7 +1055,7 @@ async function processMessageFromQueue(messageData) {
     // Log extracted phone number if available
     if (aiResult.meta && aiResult.meta.phone_number) {
       console.log(
-        `📞 Phone number extracted from message: ${aiResult.meta.phone_number}`
+        `📞 Phone number extracted from message: ${aiResult.meta.phone_number}`,
       );
     }
 
@@ -1067,10 +1079,10 @@ async function processMessageFromQueue(messageData) {
 
     if (detailsDuplicate) {
       console.log(
-        `⚠️ Duplicate property detected! Ad ${detailsDuplicate.id} has same details`
+        `⚠️ Duplicate property detected! Ad ${detailsDuplicate.id} has same details`,
       );
       console.log(
-        `   Same category, area, neighborhood, and price - Skipping save`
+        `   Same category, area, neighborhood, and price - Skipping save`,
       );
       return { success: false, reason: "duplicate_by_details" };
     }
@@ -1095,17 +1107,17 @@ async function processMessageFromQueue(messageData) {
       ) {
         targetWebsite = "hasak";
         console.log(
-          `🌐 Detected Hasak category "${effectiveCategory}" → Target: Hasak`
+          `🌐 Detected Hasak category "${effectiveCategory}" → Target: Hasak`,
         );
       } else {
         // Use detectWebsite for other cases
         targetWebsite = websiteConfig.detectWebsite(
           messageText,
           effectiveCategory,
-          meta
+          meta,
         );
         console.log(
-          `🌐 Auto-detected target website: ${targetWebsite} (category: ${effectiveCategory})`
+          `🌐 Auto-detected target website: ${targetWebsite} (category: ${effectiveCategory})`,
         );
       }
     }
@@ -1118,7 +1130,7 @@ async function processMessageFromQueue(messageData) {
       aiResult.wpData.title === "إعلان عقاري"
     ) {
       console.log(
-        "⚠️ WordPress data extraction failed - moving to recycle bin"
+        "⚠️ WordPress data extraction failed - moving to recycle bin",
       );
 
       const recycleBinItem = {
@@ -1141,7 +1153,7 @@ async function processMessageFromQueue(messageData) {
       saveRecycleBin();
 
       console.log(
-        `🗑️ Moved to recycle bin (wpData failed): ${recycleBinItem.id}`
+        `🗑️ Moved to recycle bin (wpData failed): ${recycleBinItem.id}`,
       );
       return {
         success: false,
@@ -1184,8 +1196,7 @@ async function processMessageFromQueue(messageData) {
         ? aiResult.sanitizationSteps
         : [],
       source: source || null,
-      targetWebsite:
-        targetWebsite || finalizedWpData?.targetWebsite || null, // Set target website from detection
+      targetWebsite: targetWebsite || finalizedWpData?.targetWebsite || null, // Set target website from detection
     };
 
     ads.unshift(ad); // newest first
@@ -1194,7 +1205,7 @@ async function processMessageFromQueue(messageData) {
     saveAds();
 
     console.log(
-      `✨ Ad saved successfully! ID: ${ad.id}, Group: ${ad.fromGroupName}`
+      `✨ Ad saved successfully! ID: ${ad.id}, Group: ${ad.fromGroupName}`,
     );
 
     // Check if auto-approve is enabled and auto-post to WordPress
@@ -1207,13 +1218,9 @@ async function processMessageFromQueue(messageData) {
       ad.fromGroup,
     );
 
-    if (
-      autoPostEnabled &&
-      ad.wpData &&
-      isGroupAllowedForAutoPost
-    ) {
+    if (autoPostEnabled && ad.wpData && isGroupAllowedForAutoPost) {
       console.log(
-        "🚀 Auto-approve enabled, posting new ad to WordPress automatically..."
+        "🚀 Auto-approve enabled, posting new ad to WordPress automatically...",
       );
 
       // Auto-post to WordPress using the SAME function as manual posting
@@ -1223,7 +1230,7 @@ async function processMessageFromQueue(messageData) {
           const { postAdToWordPress } = require("../routes/bot");
 
           console.log(
-            "🔵 Starting WordPress auto-post using manual posting function..."
+            "🔵 Starting WordPress auto-post using manual posting function...",
           );
           console.log("🔵 Ad ID:", ad.id);
 
@@ -1242,7 +1249,7 @@ async function processMessageFromQueue(messageData) {
 
           if (result.success) {
             console.log(
-              "✅ ✅ ✅ Auto-posted to WordPress successfully! ✅ ✅ ✅"
+              "✅ ✅ ✅ Auto-posted to WordPress successfully! ✅ ✅ ✅",
             );
             console.log("📌 Post ID:", result.wordpressPost.id);
             console.log("📌 Short Link:", result.wordpressPost.link);
@@ -1260,7 +1267,7 @@ async function processMessageFromQueue(messageData) {
             // Save updated ad
             saveAds();
             console.log(
-              "✅ Ad updated with WordPress info and marked as accepted"
+              "✅ Ad updated with WordPress info and marked as accepted",
             );
 
             // Send WhatsApp message to the group with the ad details
@@ -1273,7 +1280,7 @@ async function processMessageFromQueue(messageData) {
               } catch (msgError) {
                 console.error(
                   "❌ Failed to send WhatsApp message to group:",
-                  msgError
+                  msgError,
                 );
               }
             }
@@ -1282,23 +1289,19 @@ async function processMessageFromQueue(messageData) {
           }
         } catch (error) {
           console.error(
-            "❌ ❌ ❌ Error during auto-post to WordPress ❌ ❌ ❌"
+            "❌ ❌ ❌ Error during auto-post to WordPress ❌ ❌ ❌",
           );
           console.error("Error message:", error.message);
           console.error("Error details:", error.response?.data || error);
         }
       })();
-    } else if (
-      autoPostEnabled &&
-      ad.wpData &&
-      !isGroupAllowedForAutoPost
-    ) {
+    } else if (autoPostEnabled && ad.wpData && !isGroupAllowedForAutoPost) {
       console.log(
         `⏭️ Auto-post skipped: group "${ad.fromGroup}" is not in selected auto-post groups`,
       );
     } else if (autoPostEnabled && !ad.wpData) {
       console.log(
-        "⚠️ Auto-approve enabled but ad has no wpData, skipping auto-post"
+        "⚠️ Auto-approve enabled but ad has no wpData, skipping auto-post",
       );
     }
 
@@ -1319,13 +1322,13 @@ async function processMessageFromQueue(messageData) {
 
     if (isOverloadError || isRateLimitError) {
       console.log(
-        "⚠️ All API keys failed due to overload/rate limit. Ad will be saved for retry."
+        "⚠️ All API keys failed due to overload/rate limit. Ad will be saved for retry.",
       );
 
       // Fallback: save with retry flag
       const normalized = normalizeText(messageText);
       const isDuplicate = ads.some(
-        (a) => a.fromGroup === from && normalizeText(a.text) === normalized
+        (a) => a.fromGroup === from && normalizeText(a.text) === normalized,
       );
 
       if (!isDuplicate) {
@@ -1374,7 +1377,7 @@ async function processMessageFromQueue(messageData) {
     // For other errors, fallback: save without AI processing
     const normalized = normalizeText(messageText);
     const isDuplicate = ads.some(
-      (a) => a.fromGroup === from && normalizeText(a.text) === normalized
+      (a) => a.fromGroup === from && normalizeText(a.text) === normalized,
     );
 
     if (!isDuplicate) {
@@ -1420,7 +1423,7 @@ async function initializeBot() {
   }
   if (initInProgress) {
     console.log(
-      "⚠️ Bot initialization already in progress, skipping new attempt"
+      "⚠️ Bot initialization already in progress, skipping new attempt",
     );
     return null;
   }
@@ -1429,7 +1432,7 @@ async function initializeBot() {
   const haveLock = acquireInitLock();
   if (!haveLock) {
     console.log(
-      "🛡️ Init lock held by another process/instance. Skipping initializeBot."
+      "🛡️ Init lock held by another process/instance. Skipping initializeBot.",
     );
     initInProgress = false;
     return null;
@@ -1470,7 +1473,7 @@ async function initializeBot() {
     // This prevents race conditions where old handlers fire alongside new ones
     if (reconnectAttempts > 0) {
       console.log(
-        "⏳ Waiting 1 second for socket cleanup before creating new one..."
+        "⏳ Waiting 1 second for socket cleanup before creating new one...",
       );
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
@@ -1498,9 +1501,8 @@ async function initializeBot() {
       console.log("ℹ️ No existing session found, will generate QR code");
     }
 
-    const { state, saveCreds } = await useMultiFileAuthState(
-      "auth_info_baileys"
-    );
+    const { state, saveCreds } =
+      await useMultiFileAuthState("auth_info_baileys");
     const { version } = await fetchLatestBaileysVersion();
 
     sock = makeWASocket({
@@ -1591,11 +1593,11 @@ async function initializeBot() {
           console.log("   1. The bot is running in another process");
           console.log("   2. WhatsApp Web is open in a browser");
           console.log(
-            "   3. Multiple reconnection attempts happened simultaneously"
+            "   3. Multiple reconnection attempts happened simultaneously",
           );
           console.log("   4. Old socket handlers weren't cleaned up properly");
           console.log(
-            "🛑 Clearing session and stopping reconnection attempts..."
+            "🛑 Clearing session and stopping reconnection attempts...",
           );
 
           // Clear the corrupted session
@@ -1660,7 +1662,7 @@ async function initializeBot() {
 
           // IMPORTANT: Longer delay to ensure old socket is fully cleaned up
           console.log(
-            "🔄 Attempting fresh connection with QR code in 5 seconds..."
+            "🔄 Attempting fresh connection with QR code in 5 seconds...",
           );
           setTimeout(() => {
             initializeBot();
@@ -1682,7 +1684,7 @@ async function initializeBot() {
           console.log(
             `⏳ Scheduling reconnect in ${
               delay / 1000
-            }s (Attempt ${reconnectAttempts}/${maxReconnectAttempts})`
+            }s (Attempt ${reconnectAttempts}/${maxReconnectAttempts})`,
           );
 
           isReconnecting = true;
@@ -1691,7 +1693,7 @@ async function initializeBot() {
           // CRITICAL: Remove ALL event listeners before reconnect to prevent ghost handlers
           reconnectTimeout = setTimeout(async () => {
             console.log(
-              `🔄 Attempting reconnection #${reconnectAttempts} (statusCode=${statusCode})`
+              `🔄 Attempting reconnection #${reconnectAttempts} (statusCode=${statusCode})`,
             );
 
             // Clean up old socket completely
@@ -1759,7 +1761,7 @@ async function initializeBot() {
     console.log("🎧 Setting up messages.upsert event listener...");
     sock.ev.on("messages.upsert", async ({ messages }) => {
       console.log(
-        `🔔 messages.upsert event triggered! Messages count: ${messages.length}`
+        `🔔 messages.upsert event triggered! Messages count: ${messages.length}`,
       );
       try {
         const msg = messages[0];
@@ -1768,7 +1770,7 @@ async function initializeBot() {
         console.log(
           `📨 Message received - fromMe: ${
             msg.key.fromMe
-          }, hasMessage: ${!!msg.message}, remoteJid: ${msg.key.remoteJid}`
+          }, hasMessage: ${!!msg.message}, remoteJid: ${msg.key.remoteJid}`,
         );
 
         // Skip messages without content
@@ -1842,7 +1844,7 @@ async function initializeBot() {
         // ============================================
         if (isPrivate && (messageText || isMediaOnly)) {
           console.log(
-            `💬 Private message from: ${senderName} (${senderPhone}), JID: ${from}`
+            `💬 Private message from: ${senderName} (${senderPhone}), JID: ${from}`,
           );
 
           try {
@@ -1859,13 +1861,13 @@ async function initializeBot() {
             // ✋ If not an admin, ignore the message completely
             if (!isAdmin) {
               console.log(
-                `🚫 Message ignored - sender is not an admin: ${senderName} (${senderPhone})`
+                `🚫 Message ignored - sender is not an admin: ${senderName} (${senderPhone})`,
               );
               return; // Don't respond to non-admins
             }
 
             console.log(
-              `✅ Admin message detected from: ${senderName} (${senderPhone})`
+              `✅ Admin message detected from: ${senderName} (${senderPhone})`,
             );
 
             // Admin commands to control bot responses (with confirmation)
@@ -1875,7 +1877,7 @@ async function initializeBot() {
               const rawMain = commandParts[0] || "";
               const mainCommand = rawMain.replace(
                 /[^\u0600-\u06FFa-zA-Z]/g,
-                ""
+                "",
               );
 
               // First check if admin is confirming or cancelling a pending action
@@ -1929,7 +1931,7 @@ async function initializeBot() {
                     }
                     await sendMessage(
                       from,
-                      responseMsg || "✅ لا تغييرات مطلوبة"
+                      responseMsg || "✅ لا تغييرات مطلوبة",
                     );
                     return;
                   } else if (action.type === "start") {
@@ -1949,7 +1951,7 @@ async function initializeBot() {
                         unblockedList.push(
                           `📱 +${targetPhone} (${
                             targetClient.name || "غير محدد"
-                          })`
+                          })`,
                         );
                       } else {
                         notBlockedCount++;
@@ -1967,7 +1969,7 @@ async function initializeBot() {
                     }
                     await sendMessage(
                       from,
-                      responseMsg || "✅ لا تغييرات مطلوبة"
+                      responseMsg || "✅ لا تغييرات مطلوبة",
                     );
                     return;
                   } else if (action.type === "waseet") {
@@ -1986,7 +1988,7 @@ async function initializeBot() {
                         });
                         successCount++;
                         waseetList.push(
-                          `📱 +${targetPhone} (${client.name || "غير محدد"})`
+                          `📱 +${targetPhone} (${client.name || "غير محدد"})`,
                         );
                       }
                     }
@@ -2001,7 +2003,7 @@ async function initializeBot() {
                     }
                     await sendMessage(
                       from,
-                      responseMsg || "✅ لا تغييرات مطلوبة"
+                      responseMsg || "✅ لا تغييرات مطلوبة",
                     );
                     return;
                   }
@@ -2020,15 +2022,15 @@ async function initializeBot() {
 
               console.log(
                 `🔍 DEBUG - Admin command: ${mainCommand}, extracted phones: ${targetPhones.join(
-                  ", "
-                )}`
+                  ", ",
+                )}`,
               );
 
               if (mainCommand === "ايقاف" || mainCommand === "توقف") {
                 if (targetPhones.length === 0) {
                   await sendMessage(
                     from,
-                    `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتوقف +966508007053\n\nأو عدة أرقام:\nتوقف\n+966508007053\n+966508007054\n+966508007055`
+                    `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتوقف +966508007053\n\nأو عدة أرقام:\nتوقف\n+966508007053\n+966508007054\n+966508007055`,
                   );
                   return;
                 }
@@ -2044,14 +2046,14 @@ async function initializeBot() {
                   .join("\n");
                 await sendMessage(
                   from,
-                  `🛑 طلب إيقاف البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
+                  `🛑 طلب إيقاف البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`,
                 );
                 return;
               } else if (mainCommand === "تشغيل" || mainCommand === "تفعيل") {
                 if (targetPhones.length === 0) {
                   await sendMessage(
                     from,
-                    `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتشغيل +966508007053\n\nأو عدة أرقام:\nتشغيل\n+966508007053\n+966508007054\n+966508007055`
+                    `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nتشغيل +966508007053\n\nأو عدة أرقام:\nتشغيل\n+966508007053\n+966508007054\n+966508007055`,
                   );
                   return;
                 }
@@ -2065,14 +2067,14 @@ async function initializeBot() {
                   .join("\n");
                 await sendMessage(
                   from,
-                  `✅ طلب تشغيل البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
+                  `✅ طلب تشغيل البوت للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`,
                 );
                 return;
               } else if (mainCommand === "وسيط" || mainCommand === "وسطاء") {
                 if (targetPhones.length === 0) {
                   await sendMessage(
                     from,
-                    `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nوسيط +966508007053\n\nأو عدة أرقام:\nوسيط\n+966508007053\n+966508007054\n+966508007055`
+                    `❌ يرجى تحديد أرقام الهواتف\n\nمثال:\nوسيط +966508007053\n\nأو عدة أرقام:\nوسيط\n+966508007053\n+966508007054\n+966508007055`,
                   );
                   return;
                 }
@@ -2086,7 +2088,7 @@ async function initializeBot() {
                   .join("\n");
                 await sendMessage(
                   from,
-                  `🤝 طلب إضافة وسطاء للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`
+                  `🤝 طلب إضافة وسطاء للأرقام التالية:\n\n${display}\n\nللمتابعة أرسل: تأكيد\nللإلغاء أرسل: إلغاء`,
                 );
                 return;
               }
@@ -2098,7 +2100,7 @@ async function initializeBot() {
             const adminResponse = await adminCommandService.handleAdminCommand(
               sock,
               messageText,
-              from
+              from,
             );
 
             // If it's an admin command, send response and return
@@ -2117,7 +2119,7 @@ async function initializeBot() {
               // Skip media-only messages
               if (isMediaOnly && !messageText) {
                 console.log(
-                  `⏭️ Ignoring media-only message from waseet ${senderName}`
+                  `⏭️ Ignoring media-only message from waseet ${senderName}`,
                 );
                 return;
               }
@@ -2125,14 +2127,14 @@ async function initializeBot() {
               // Stage 1: Quick local check (FREE - no tokens)
               if (!waseetDetector.isLikelyAd(messageText)) {
                 console.log(
-                  `❌ Not likely an ad from waseet ${senderName}, ignoring...`
+                  `❌ Not likely an ad from waseet ${senderName}, ignoring...`,
                 );
                 return; // Don't send to dashboard or AI
               }
 
               // Stage 2: Only use AI if it passes basic check
               console.log(
-                `✅ Potential ad from waseet ${senderName}, processing with AI...`
+                `✅ Potential ad from waseet ${senderName}, processing with AI...`,
               );
 
               const queueResult = await messageQueue.add(
@@ -2166,20 +2168,20 @@ async function initializeBot() {
               });
 
               console.log(
-                `🔍 AI Result for waseet: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`
+                `🔍 AI Result for waseet: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`,
               );
 
               // If not confirmed as ad, ignore
               if (!aiResult.isAd) {
                 console.log(
-                  `❌ AI confirmed not an ad from waseet ${senderName} (confidence: ${aiResult.confidence}%)`
+                  `❌ AI confirmed not an ad from waseet ${senderName} (confidence: ${aiResult.confidence}%)`,
                 );
                 return;
               }
 
               // ✅ Confirmed ad from waseet - Add to dashboard
               console.log(
-                `✅ Confirmed ad from waseet ${senderName}, adding to dashboard...`
+                `✅ Confirmed ad from waseet ${senderName}, adding to dashboard...`,
               );
 
               const waseetQuickCategory = quickDetectCategory(messageText);
@@ -2193,7 +2195,7 @@ async function initializeBot() {
                 isCategoryLimitReached(waseetCategoryForLimit)
               ) {
                 console.log(
-                  `🚫 Waseet ad blocked: category "${waseetCategoryForLimit}" reached daily limit.`
+                  `🚫 Waseet ad blocked: category "${waseetCategoryForLimit}" reached daily limit.`,
                 );
 
                 const recycleBinItem = {
@@ -2214,7 +2216,8 @@ async function initializeBot() {
                 };
 
                 recycleBin.unshift(recycleBinItem);
-                if (recycleBin.length > 500) recycleBin = recycleBin.slice(0, 500);
+                if (recycleBin.length > 500)
+                  recycleBin = recycleBin.slice(0, 500);
                 saveRecycleBin();
 
                 await sendMessage(
@@ -2262,7 +2265,7 @@ async function initializeBot() {
               waseetDetector.incrementAdCount(from);
 
               console.log(
-                `✨ Waseet ad saved successfully! ID: ${ad.id}, From: ${senderName}`
+                `✨ Waseet ad saved successfully! ID: ${ad.id}, From: ${senderName}`,
               );
 
               // Check if auto-approve is enabled and auto-post to WordPress
@@ -2271,17 +2274,12 @@ async function initializeBot() {
                 ad.fromGroup,
               );
               const autoPostEnabled = isAutoPostEnabled();
-              const shouldUseFixedAutoPostCategory = shouldUseFixedCategoryForSourceGroup(
-                ad.fromGroup,
-              );
+              const shouldUseFixedAutoPostCategory =
+                shouldUseFixedCategoryForSourceGroup(ad.fromGroup);
 
-              if (
-                autoPostEnabled &&
-                ad.wpData &&
-                isGroupAllowedForAutoPost
-              ) {
+              if (autoPostEnabled && ad.wpData && isGroupAllowedForAutoPost) {
                 console.log(
-                  "🚀 Auto-approve enabled, posting waseet ad to WordPress automatically..."
+                  "🚀 Auto-approve enabled, posting waseet ad to WordPress automatically...",
                 );
 
                 // Auto-post to WordPress using the SAME function as manual posting
@@ -2291,7 +2289,7 @@ async function initializeBot() {
                     const { postAdToWordPress } = require("../routes/bot");
 
                     console.log(
-                      "🔵 Starting WordPress auto-post for waseet ad using manual function..."
+                      "🔵 Starting WordPress auto-post for waseet ad using manual function...",
                     );
                     console.log("🔵 Ad ID:", ad.id);
 
@@ -2310,7 +2308,7 @@ async function initializeBot() {
 
                     if (result.success) {
                       console.log(
-                        "✅ ✅ ✅ Waseet ad auto-posted to WordPress successfully! ✅ ✅ ✅"
+                        "✅ ✅ ✅ Waseet ad auto-posted to WordPress successfully! ✅ ✅ ✅",
                       );
                       console.log("📌 Post ID:", result.wordpressPost.id);
                       console.log("📌 Short Link:", result.wordpressPost.link);
@@ -2326,21 +2324,21 @@ async function initializeBot() {
                       // Save updated ad
                       saveAds();
                       console.log(
-                        "✅ Waseet ad updated with WordPress info and marked as accepted"
+                        "✅ Waseet ad updated with WordPress info and marked as accepted",
                       );
                     } else {
                       console.error(
-                        "❌ WordPress posting returned unsuccessful result"
+                        "❌ WordPress posting returned unsuccessful result",
                       );
                     }
                   } catch (error) {
                     console.error(
-                      "❌ ❌ ❌ Error during waseet auto-post to WordPress ❌ ❌ ❌"
+                      "❌ ❌ ❌ Error during waseet auto-post to WordPress ❌ ❌ ❌",
                     );
                     console.error("Error message:", error.message);
                     console.error(
                       "Error details:",
-                      error.response?.data || error
+                      error.response?.data || error,
                     );
                   }
                 })();
@@ -2359,7 +2357,7 @@ async function initializeBot() {
                 from,
                 `✅ تم استلام إعلانك بنجاح وإضافته إلى قائمة الانتظار.\n\n📊 التصنيف: ${
                   aiResult.category || "غير محدد"
-                }\n🎯 الدقة: ${aiResult.confidence}%\n\nشكراً لك! 🙏`
+                }\n🎯 الدقة: ${aiResult.confidence}%\n\nشكراً لك! 🙏`,
               );
 
               return; // Don't process through regular private chat system
@@ -2387,7 +2385,7 @@ async function initializeBot() {
                 if (!clientData.mediaWarningShown) {
                   await sendMessage(
                     from,
-                    "عذراً، لا أستطيع معالجة الرسائل الصوتية أو الوسائط بدون نص حالياً. 📎\n\nمن فضلك اكتب رسالة نصية، أو تواصل معنا مباشرة:\n📱 *0508001475*"
+                    "عذراً، لا أستطيع معالجة الرسائل الصوتية أو الوسائط بدون نص حالياً. 📎\n\nمن فضلك اكتب رسالة نصية، أو تواصل معنا مباشرة:\n📱 *0508001475*",
                   );
                   // Mark that we've shown the warning
                   privateClientModel.updateClient(phoneNumber, {
@@ -2395,7 +2393,7 @@ async function initializeBot() {
                   });
                 } else {
                   console.log(
-                    `⏭️ Already warned about media, ignoring subsequent media from ${senderName}`
+                    `⏭️ Already warned about media, ignoring subsequent media from ${senderName}`,
                   );
                 }
               } else {
@@ -2427,7 +2425,7 @@ async function initializeBot() {
               phoneNumber,
               messageText,
               sendReply,
-              sendImageReply
+              sendImageReply,
             );
 
             console.log(`✅ Private chat response sent to ${senderName}`);
@@ -2436,7 +2434,7 @@ async function initializeBot() {
             console.error("❌ Private chat system error:", error);
             await sendMessage(
               from,
-              "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى لاحقاً. 🙏"
+              "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى لاحقاً. 🙏",
             );
           }
         }
@@ -2510,7 +2508,7 @@ async function initializeBot() {
               remoteJid: msg.key.remoteJid,
               messageKey: msg.key, // Store message key for full image download
             },
-            processMessageFromQueue
+            processMessageFromQueue,
           )
           .catch((error) => {
             console.error("❌ Failed to process message from queue:", error);
@@ -2557,7 +2555,7 @@ async function disconnectBot() {
     } catch (error) {
       console.warn(
         "⚠️ Error during logout (connection likely already closed):",
-        error.message
+        error.message,
       );
     } finally {
       // Ensure all listeners are removed to prevent memory leaks
@@ -2584,7 +2582,7 @@ async function disconnectBot() {
       console.log("✅ auth_info_baileys folder deleted successfully");
     } else {
       console.log(
-        "ℹ️ auth_info_baileys folder does not exist, nothing to clear."
+        "ℹ️ auth_info_baileys folder does not exist, nothing to clear.",
       );
     }
   } catch (error) {
@@ -2608,7 +2606,7 @@ async function sendMessage(numberOrJid, message) {
 
   if (urls.length > 0) {
     console.log(
-      `🔗 Message contains ${urls.length} URL(s), generating link preview...`
+      `🔗 Message contains ${urls.length} URL(s), generating link preview...`,
     );
 
     try {
@@ -2643,7 +2641,7 @@ async function sendMessage(numberOrJid, message) {
             },
           };
           console.log(
-            `📎 Added thumbnail to link preview (${linkPreview.jpegThumbnail.length} bytes)`
+            `📎 Added thumbnail to link preview (${linkPreview.jpegThumbnail.length} bytes)`,
           );
         } else {
           // Fallback: Add link preview without thumbnail
@@ -2722,7 +2720,7 @@ function updateAdStatus(id, status, rejectionReason = null) {
     console.log(
       `❌ Ad marked as rejected: ${id} - Reason: ${
         rejectionReason || "Not specified"
-      }`
+      }`,
     );
     return true;
   }
@@ -2829,7 +2827,10 @@ function updateAdWordPressData(id, wpData, whatsappMessage) {
   const targetWebsite =
     wpData?.targetWebsite ||
     ads[idx].targetWebsite ||
-    aiService.__private.inferTargetWebsiteFromData(wpData, ads[idx].text || "") ||
+    aiService.__private.inferTargetWebsiteFromData(
+      wpData,
+      ads[idx].text || "",
+    ) ||
     "masaak";
   ads[idx].wpData = sanitizeWordPressDataForStorage(wpData, targetWebsite);
   ads[idx].targetWebsite = targetWebsite;
@@ -2860,7 +2861,7 @@ async function retryFailedAd(adId) {
   }
 
   console.log(
-    `🔄 Retrying AI processing for ad ${adId} (attempt ${ad.retryCount + 1}/3)`
+    `🔄 Retrying AI processing for ad ${adId} (attempt ${ad.retryCount + 1}/3)`,
   );
 
   try {
@@ -2911,7 +2912,7 @@ async function retryFailedAd(adId) {
           ads.splice(idx, 1);
           saveAds();
           console.log(
-            `🗑️ Ad ${adId} moved to recycle bin after retry (category limit reached)`
+            `🗑️ Ad ${adId} moved to recycle bin after retry (category limit reached)`,
           );
         }
         return;
@@ -2965,7 +2966,7 @@ async function retryFailedAd(adId) {
         saveAds();
 
         console.log(
-          `🗑️ Ad ${adId} moved to recycle bin after retry (not an ad)`
+          `🗑️ Ad ${adId} moved to recycle bin after retry (not an ad)`,
         );
       }
     }
@@ -2985,7 +2986,7 @@ async function retryFailedAd(adId) {
       // Schedule another retry after longer delay (exponential backoff)
       const delayMinutes = Math.pow(2, ad.retryCount) * 5; // 10, 20, 40 minutes
       console.log(
-        `⏳ Scheduling retry ${ad.retryCount + 1} after ${delayMinutes} minutes`
+        `⏳ Scheduling retry ${ad.retryCount + 1} after ${delayMinutes} minutes`,
       );
       setTimeout(() => retryFailedAd(adId), delayMinutes * 60 * 1000);
     } else {
@@ -3003,7 +3004,7 @@ function retryPendingAds() {
 
   if (pendingAds.length > 0) {
     console.log(
-      `🔄 Found ${pendingAds.length} ads pending retry. Starting retry process...`
+      `🔄 Found ${pendingAds.length} ads pending retry. Starting retry process...`,
     );
 
     // Stagger retries to avoid overwhelming the API
@@ -3097,11 +3098,11 @@ async function getGroupsWithMetadata(forceRefresh = false) {
       }
 
       console.log(
-        `✅ Found and saved ${groupsList.length} groups/communities total`
+        `✅ Found and saved ${groupsList.length} groups/communities total`,
       );
       console.log(`✅ seenGroups now has ${seenGroups.size} groups`);
       console.log(
-        `✅ groupsMetadata now has ${Object.keys(groupsMetadata).length} groups`
+        `✅ groupsMetadata now has ${Object.keys(groupsMetadata).length} groups`,
       );
 
       return groupsList;
@@ -3116,7 +3117,7 @@ async function getGroupsWithMetadata(forceRefresh = false) {
   console.log(
     `📋 Normal fetch - seenGroups size: ${
       seenGroups.size
-    }, groupsMetadata keys: ${Object.keys(groupsMetadata).length}`
+    }, groupsMetadata keys: ${Object.keys(groupsMetadata).length}`,
   );
 
   for (const jid of seenGroups) {
@@ -3162,7 +3163,7 @@ async function canSendInGroup(groupId, groupMetadata = null) {
 
     // Find bot in participants
     const botParticipant = metadata.participants?.find(
-      (p) => p.id.includes(botNumber) || p.id.split("@")[0] === botNumber
+      (p) => p.id.includes(botNumber) || p.id.split("@")[0] === botNumber,
     );
 
     if (!botParticipant) {
@@ -3190,7 +3191,7 @@ async function canSendInGroup(groupId, groupMetadata = null) {
 
 function getCollections() {
   console.log(
-    `📦 getCollections() called - returning ${collections.length} collections`
+    `📦 getCollections() called - returning ${collections.length} collections`,
   );
   return collections;
 }
@@ -3289,7 +3290,7 @@ function getRecycleBin() {
   console.log(
     "📋 getRecycleBin() called - returning",
     recycleBin.length,
-    "items"
+    "items",
   );
   return recycleBin;
 }
@@ -3355,7 +3356,7 @@ function restoreFromRecycleBin(id) {
   console.log(
     `♻️ Ad restored from recycle bin: ${
       ad.id
-    } with all data (wpData: ${!!item.wpData}, imageUrl: ${!!item.imageUrl})`
+    } with all data (wpData: ${!!item.wpData}, imageUrl: ${!!item.imageUrl})`,
   );
   return { success: true, ad };
 }
