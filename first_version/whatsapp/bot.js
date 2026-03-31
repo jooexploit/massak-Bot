@@ -15,6 +15,7 @@ const {
   processMessage,
   generateWhatsAppMessage,
   sanitizeWordPressDraftData,
+  sanitizeWordPressDataForStorage,
 } = aiService;
 const messageQueue = require("../services/messageQueue");
 const privateChatService = require("../services/privateChatService");
@@ -246,7 +247,7 @@ function sanitizeStoredAdWordPressData(ad) {
     ) ||
     "masaak";
 
-  const sanitizedWpData = sanitizeWordPressDraftData(
+  const sanitizedWpData = sanitizeWordPressDataForStorage(
     ad.wpData,
     inferredTargetWebsite,
   );
@@ -751,6 +752,7 @@ function isCategoryLimitReached(category) {
 
 function saveAds() {
   try {
+    ads = ads.map((ad) => sanitizeStoredAdWordPressData(ad).ad);
     dataSync.writeDataSync("ADS", ads);
   } catch (err) {
     console.error("Failed to save ads:", err);
@@ -1096,6 +1098,13 @@ async function processMessageFromQueue(messageData) {
       };
     }
 
+    const finalizedWpData = aiResult.wpData
+      ? sanitizeWordPressDataForStorage(
+          aiResult.wpData,
+          targetWebsite || aiResult.wpData?.targetWebsite || "masaak",
+        )
+      : null;
+
     const ad = {
       id: `${Date.now()}_${Math.floor(Math.random() * 10000)}`,
       text: messageText, // Original text
@@ -1116,9 +1125,10 @@ async function processMessageFromQueue(messageData) {
       improvements: aiResult.improvements || [],
       isEdited: false, // Track if manually edited
       meta: aiResult.meta || {}, // AI-extracted metadata (includes phone_number from message text)
-      wpData: aiResult.wpData || null, // Auto-generated WordPress data
+      wpData: finalizedWpData, // Auto-generated WordPress data
       whatsappMessage: aiResult.whatsappMessage || null, // Auto-generated WhatsApp message
-      targetWebsite: targetWebsite, // Set target website from detection
+      targetWebsite:
+        targetWebsite || finalizedWpData?.targetWebsite || null, // Set target website from detection
     };
 
     ads.unshift(ad); // newest first
@@ -2720,7 +2730,13 @@ function updateAdEnhancedText(id, enhancedText, improvements) {
 function updateAdWordPressData(id, wpData, whatsappMessage) {
   const idx = ads.findIndex((a) => a.id === id);
   if (idx === -1) return false;
-  ads[idx].wpData = wpData;
+  const targetWebsite =
+    wpData?.targetWebsite ||
+    ads[idx].targetWebsite ||
+    aiService.__private.inferTargetWebsiteFromData(wpData, ads[idx].text || "") ||
+    "masaak";
+  ads[idx].wpData = sanitizeWordPressDataForStorage(wpData, targetWebsite);
+  ads[idx].targetWebsite = targetWebsite;
   ads[idx].whatsappMessage = whatsappMessage;
   ads[idx].isEdited = false; // Reset edited flag when regenerated
   ads[idx].wpDataManuallyEdited = false;

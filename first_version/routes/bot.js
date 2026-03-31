@@ -42,6 +42,7 @@ const {
   getApiKeysStatus,
   sanitizeGeneratedHtmlDescription,
   sanitizeWordPressDraftData,
+  sanitizeWordPressDataForStorage,
 } = require("../services/aiService");
 const apiKeyManager = require("../services/apiKeyManager");
 const dataSync = require("../utils/dataSync");
@@ -576,7 +577,7 @@ async function postAdToWordPress(
       wpData.meta.owner_name = ad.senderName;
       console.log("✅ Using WhatsApp sender name:", ad.senderName);
     }
-    wpData = sanitizeWordPressDraftData(wpData, targetWebsite);
+    wpData = sanitizeWordPressDataForStorage(wpData, targetWebsite);
 
     if (
       targetWebsite === "hasak" &&
@@ -1824,7 +1825,7 @@ router.post(
       safeWpData.meta = normalizeManualLocationMeta(normalizedMeta.meta);
       Object.assign(
         safeWpData,
-        sanitizeWordPressDraftData(safeWpData, targetWebsite),
+        sanitizeWordPressDataForStorage(safeWpData, targetWebsite),
       );
       currentAd.wpData = safeWpData;
       currentAd.targetWebsite = targetWebsite;

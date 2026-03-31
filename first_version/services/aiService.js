@@ -3235,6 +3235,35 @@ function sanitizeWordPressDraftData(wpData, targetWebsite = "masaak") {
   return safeData;
 }
 
+function sanitizeWordPressDataForStorage(wpData, targetWebsite = "masaak") {
+  const safeTargetWebsite = normalizeArabicText(targetWebsite) || "masaak";
+  const sanitized = sanitizeWordPressDraftData(wpData, safeTargetWebsite);
+
+  sanitized.title = sanitizeTitle(
+    removeForbiddenInlineContent(
+      stripAdReferenceNumbers(firstNonEmpty(sanitized.title, DEFAULT_WP_TITLE)),
+      safeTargetWebsite,
+    ) || DEFAULT_WP_TITLE,
+  );
+
+  const normalizedMainAd = removeForbiddenInlineContent(
+    stripAdReferenceNumbers(stripHtml(sanitized.meta?.main_ad || "")),
+    safeTargetWebsite,
+  );
+  sanitized.meta.main_ad = normalizeArabicText(normalizedMainAd || "");
+
+  if (sanitized.content) {
+    sanitized.content = sanitizeGeneratedHtmlDescription(
+      sanitized.content,
+      safeTargetWebsite,
+    );
+  }
+
+  sanitized.targetWebsite = safeTargetWebsite;
+
+  return sanitized;
+}
+
 function hasForbiddenDescriptionContent(text, targetWebsite = "masaak") {
   if (!shouldApplyForbiddenDescriptionRules(targetWebsite)) return false;
 
@@ -6026,6 +6055,11 @@ async function processMessage(text) {
     try {
       console.log("🤖 Automatically generating WordPress data...");
       wpData = await extractWordPressData(text);
+      if (wpData) {
+        const inferredTargetWebsite =
+          wpData.targetWebsite || inferTargetWebsiteFromData(wpData, text);
+        wpData = sanitizeWordPressDataForStorage(wpData, inferredTargetWebsite);
+      }
       console.log("✅ WordPress data generated successfully");
     } catch (wpError) {
       console.error("⚠️ Failed to generate WordPress data:", wpError.message);
@@ -6115,6 +6149,7 @@ module.exports = {
   generateWhatsAppMessage,
   sanitizeGeneratedHtmlDescription,
   sanitizeWordPressDraftData,
+  sanitizeWordPressDataForStorage,
   validateUserInput,
   getApiKeysStatus,
   __private: {
