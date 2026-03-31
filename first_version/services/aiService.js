@@ -2873,7 +2873,7 @@ const REAL_ESTATE_KEYWORDS = [
 ];
 
 function shouldApplyForbiddenDescriptionRules(targetWebsite = "masaak") {
-  return targetWebsite !== "hasak";
+  return true;
 }
 
 function removeForbiddenInlineContent(text, targetWebsite = "masaak") {
