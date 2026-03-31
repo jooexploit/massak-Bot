@@ -234,32 +234,49 @@ function buildAutoPostWpData(baseWpData, shouldApplyFixedCategory = true) {
 }
 
 function sanitizeStoredAdWordPressData(ad) {
-  if (!ad || !ad.wpData || typeof ad.wpData !== "object") {
+  if (!ad || typeof ad !== "object") {
     return { ad, changed: false };
   }
 
+  const withAuditDefaults = {
+    ...ad,
+    rawAiResponse: ad.rawAiResponse || null,
+    sanitizationSteps: Array.isArray(ad.sanitizationSteps)
+      ? ad.sanitizationSteps
+      : [],
+  };
+  const auditChanged =
+    withAuditDefaults.rawAiResponse !== ad.rawAiResponse ||
+    JSON.stringify(withAuditDefaults.sanitizationSteps) !==
+      JSON.stringify(ad.sanitizationSteps || []);
+
+  if (!ad.wpData || typeof ad.wpData !== "object") {
+    const changed = auditChanged;
+    return { ad: withAuditDefaults, changed };
+  }
+
   const inferredTargetWebsite =
-    ad.targetWebsite ||
-    ad.wpData?.targetWebsite ||
+    withAuditDefaults.targetWebsite ||
+    withAuditDefaults.wpData?.targetWebsite ||
     aiService.__private.inferTargetWebsiteFromData(
-      ad.wpData,
-      ad.originalText || ad.enhancedText || "",
+      withAuditDefaults.wpData,
+      withAuditDefaults.originalText || withAuditDefaults.enhancedText || "",
     ) ||
     "masaak";
 
   const sanitizedWpData = sanitizeWordPressDataForStorage(
-    ad.wpData,
+    withAuditDefaults.wpData,
     inferredTargetWebsite,
   );
   const wpDataChanged =
-    JSON.stringify(sanitizedWpData) !== JSON.stringify(ad.wpData);
+    JSON.stringify(sanitizedWpData) !== JSON.stringify(withAuditDefaults.wpData);
 
-  let nextWhatsAppMessage = ad.whatsappMessage;
-  if (ad.whatsappMessage) {
+  let nextWhatsAppMessage = withAuditDefaults.whatsappMessage;
+  if (withAuditDefaults.whatsappMessage) {
     const wpLink =
-      ad.wordpressLink ||
-      ad.wordpressPost?.link ||
-      ad.wordpressPost?.guid?.rendered ||
+      withAuditDefaults.wordpressLink ||
+      withAuditDefaults.wordpressPost?.link ||
+      withAuditDefaults.wordpressPost?.guid?.rendered ||
       null;
     nextWhatsAppMessage = generateWhatsAppMessage(
       sanitizedWpData,
@@ -269,16 +286,16 @@ function sanitizeStoredAdWordPressData(ad) {
     );
   }
 
-  const messageChanged = nextWhatsAppMessage !== ad.whatsappMessage;
-  const targetChanged = inferredTargetWebsite !== ad.targetWebsite;
+  const messageChanged = nextWhatsAppMessage !== withAuditDefaults.whatsappMessage;
+  const targetChanged = inferredTargetWebsite !== withAuditDefaults.targetWebsite;
 
-  if (!wpDataChanged && !messageChanged && !targetChanged) {
-    return { ad, changed: false };
+  if (!wpDataChanged && !messageChanged && !targetChanged && !auditChanged) {
+    return { ad: withAuditDefaults, changed: false };
   }
 
   return {
     ad: {
-      ...ad,
+      ...withAuditDefaults,
       targetWebsite: inferredTargetWebsite,
       wpData: sanitizedWpData,
       whatsappMessage: nextWhatsAppMessage,
@@ -1146,6 +1163,10 @@ async function processMessageFromQueue(messageData) {
       meta: aiResult.meta || {}, // AI-extracted metadata (includes phone_number from message text)
       wpData: finalizedWpData, // Auto-generated WordPress data
       whatsappMessage: aiResult.whatsappMessage || null, // Auto-generated WhatsApp message
+      rawAiResponse: aiResult.rawAiResponse || null,
+      sanitizationSteps: Array.isArray(aiResult.sanitizationSteps)
+        ? aiResult.sanitizationSteps
+        : [],
       targetWebsite:
         targetWebsite || finalizedWpData?.targetWebsite || null, // Set target website from detection
     };
@@ -1312,6 +1333,8 @@ async function processMessageFromQueue(messageData) {
           meta: {},
           wpData: null,
           whatsappMessage: null,
+          rawAiResponse: null,
+          sanitizationSteps: [],
           retryCount: 0,
           lastRetryAt: null,
         };
@@ -1356,6 +1379,8 @@ async function processMessageFromQueue(messageData) {
         aiReason: "AI processing failed",
         improvements: [],
         isEdited: false,
+        rawAiResponse: null,
+        sanitizationSteps: [],
       };
 
       ads.unshift(ad);
@@ -2181,6 +2206,10 @@ async function initializeBot() {
                 meta: aiResult.meta || {},
                 wpData: aiResult.wpData || null,
                 whatsappMessage: aiResult.whatsappMessage || null,
+                rawAiResponse: aiResult.rawAiResponse || null,
+                sanitizationSteps: Array.isArray(aiResult.sanitizationSteps)
+                  ? aiResult.sanitizationSteps
+                  : [],
                 source: "waseet", // Mark as waseet ad
               };
 
@@ -2697,6 +2726,10 @@ function moveAdToRecycleBin(id) {
     // AI-generated data
     wpData: ad.wpData,
     whatsappMessage: ad.whatsappMessage,
+    rawAiResponse: ad.rawAiResponse,
+    sanitizationSteps: Array.isArray(ad.sanitizationSteps)
+      ? ad.sanitizationSteps
+      : [],
     category: ad.category,
     meta: ad.meta,
     improvements: ad.improvements,
@@ -2824,6 +2857,10 @@ async function retryFailedAd(adId) {
             blockReason: "category_limit_reached_retry",
             originalAdId: ad.id,
             imageUrl: ad.imageUrl || null,
+            rawAiResponse: aiResult.rawAiResponse || null,
+            sanitizationSteps: Array.isArray(aiResult.sanitizationSteps)
+              ? aiResult.sanitizationSteps
+              : [],
           };
 
           recycleBin.unshift(recycleBinItem);
@@ -2848,6 +2885,10 @@ async function retryFailedAd(adId) {
       ad.meta = aiResult.meta || {};
       ad.wpData = aiResult.wpData || null;
       ad.whatsappMessage = aiResult.whatsappMessage || null;
+      ad.rawAiResponse = aiResult.rawAiResponse || null;
+      ad.sanitizationSteps = Array.isArray(aiResult.sanitizationSteps)
+        ? aiResult.sanitizationSteps
+        : [];
       ad.status = "new"; // Change status to new
       ad.retryCount = (ad.retryCount || 0) + 1;
       ad.lastRetryAt = Date.now();
@@ -2869,6 +2910,10 @@ async function retryFailedAd(adId) {
           aiConfidence: aiResult.confidence,
           aiReason: aiResult.reason,
           originalAdId: ad.id,
+          rawAiResponse: aiResult.rawAiResponse || null,
+          sanitizationSteps: Array.isArray(aiResult.sanitizationSteps)
+            ? aiResult.sanitizationSteps
+            : [],
         };
 
         recycleBin.unshift(recycleBinItem);
@@ -3240,6 +3285,10 @@ function restoreFromRecycleBin(id) {
     // AI-generated data (restore if available)
     wpData: item.wpData || null,
     whatsappMessage: item.whatsappMessage || null,
+    rawAiResponse: item.rawAiResponse || null,
+    sanitizationSteps: Array.isArray(item.sanitizationSteps)
+      ? item.sanitizationSteps
+      : [],
     category: item.category || null,
     meta: item.meta || {},
     improvements: item.improvements || [],
@@ -3341,7 +3390,21 @@ function reloadAds() {
       wpBeforeCityOptions: [...DEFAULT_WP_BEFORE_CITY_OPTIONS],
       wpCityOptions: [...DEFAULT_WP_CITY_OPTIONS],
     });
+    let sanitizedAdsCount = 0;
+    ads = ads.map((ad) => {
+      const result = sanitizeStoredAdWordPressData(ad);
+      if (result.changed) {
+        sanitizedAdsCount += 1;
+      }
+      return result.ad;
+    });
+
     normalizeSettingsForCompatibility();
+
+    if (sanitizedAdsCount > 0) {
+      saveAds();
+    }
+
     console.log(`🔄 Reloaded ${ads.length} ads from file`);
     return true;
   } catch (err) {

@@ -5974,6 +5974,7 @@ async function extractWordPressData(
   const preferredTargetWebsite = normalizeArabicText(
     options?.targetWebsite || "",
   );
+  const returnAudit = options?.returnAudit === true;
 
   if (!hasAnyEnabledProvider()) {
     throw new Error(
@@ -6004,7 +6005,7 @@ async function extractWordPressData(
 
   for (const order of providerOrders) {
     try {
-      const { data } = await callLLM({
+      const { data, rawText, provider } = await callLLM({
         taskName: "Extract WordPress Data",
         prompt,
         schema: WORDPRESS_SCHEMA,
@@ -6033,7 +6034,25 @@ async function extractWordPressData(
         normalizedResult.targetWebsite = preferredTargetWebsite;
       }
 
-      return normalizedResult;
+      if (!returnAudit) {
+        return normalizedResult;
+      }
+
+      return {
+        wpData: normalizedResult,
+        rawAiResponse: {
+          provider,
+          rawText,
+          parsed: data,
+        },
+        sanitizationSteps: [
+          "extractPhoneNumbers",
+          "buildWordPressExtractionPrompt",
+          `callLLM:${provider}`,
+          "normalizeWordPressData",
+          "ensureRequiredMetadataCoverage",
+        ],
+      };
     } catch (error) {
       lastError = error;
       console.error(
@@ -6068,22 +6087,33 @@ async function processMessage(text, options = {}) {
         meta: {},
         wpData: null,
         whatsappMessage: null,
+        rawAiResponse: null,
+        sanitizationSteps: [],
       };
     }
 
     const detectedCategory = await detectCategory(text);
 
     let wpData = null;
+    let rawAiResponse = null;
+    const sanitizationSteps = [];
 
     try {
       console.log("🤖 Automatically generating WordPress data...");
-      wpData = await extractWordPressData(text, false, {
+      const extractionResult = await extractWordPressData(text, false, {
         targetWebsite: options?.targetWebsite || "",
+        returnAudit: true,
       });
+      wpData = extractionResult?.wpData || null;
+      rawAiResponse = extractionResult?.rawAiResponse || null;
+      if (Array.isArray(extractionResult?.sanitizationSteps)) {
+        sanitizationSteps.push(...extractionResult.sanitizationSteps);
+      }
       if (wpData) {
         const inferredTargetWebsite =
           wpData.targetWebsite || inferTargetWebsiteFromData(wpData, text);
         wpData = sanitizeWordPressDataForStorage(wpData, inferredTargetWebsite);
+        sanitizationSteps.push("sanitizeWordPressDataForStorage");
       }
       console.log("✅ WordPress data generated successfully");
     } catch (wpError) {
@@ -6101,6 +6131,8 @@ async function processMessage(text, options = {}) {
       meta: wpData?.meta || {},
       wpData,
       whatsappMessage: null,
+      rawAiResponse,
+      sanitizationSteps,
     };
   } catch (error) {
     console.error("Error processing message:", error);
@@ -6115,6 +6147,8 @@ async function processMessage(text, options = {}) {
       meta: {},
       wpData: null,
       whatsappMessage: null,
+      rawAiResponse: null,
+      sanitizationSteps: [],
     };
   }
 }
