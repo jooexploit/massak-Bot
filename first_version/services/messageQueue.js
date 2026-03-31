@@ -7,8 +7,8 @@ class MessageQueue {
   constructor() {
     this.queue = [];
     this.processing = false;
-    this.maxConcurrent = 1; // Process one message at a time
-    this.delayBetweenMessages = 2000; // 2 seconds delay between messages
+    this.maxConcurrent = 3; // Process multiple messages concurrently
+    this.delayBetweenMessages = 1000; // Short delay to balance throughput and API safety
     this.activeProcessing = 0;
     this.stats = {
       totalQueued: 0,
@@ -165,6 +165,8 @@ class MessageQueue {
       currentQueueSize: this.queue.length,
       processing: this.processing,
       activeProcessing: this.activeProcessing,
+      maxConcurrent: this.maxConcurrent,
+      delayBetweenMessages: this.delayBetweenMessages,
     };
   }
 

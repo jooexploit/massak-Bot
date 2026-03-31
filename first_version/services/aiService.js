@@ -3240,21 +3240,26 @@ function sanitizeWordPressDataForStorage(wpData, targetWebsite = "masaak") {
   const sanitized = sanitizeWordPressDraftData(wpData, safeTargetWebsite);
 
   sanitized.title = sanitizeTitle(
-    removeForbiddenInlineContent(
-      stripAdReferenceNumbers(firstNonEmpty(sanitized.title, DEFAULT_WP_TITLE)),
-      safeTargetWebsite,
+    stripPhoneNumbers(
+      removeForbiddenInlineContent(
+        stripAdReferenceNumbers(firstNonEmpty(sanitized.title, DEFAULT_WP_TITLE)),
+        safeTargetWebsite,
+      ),
     ) || DEFAULT_WP_TITLE,
   );
 
-  const normalizedMainAd = removeForbiddenInlineContent(
-    stripAdReferenceNumbers(stripHtml(sanitized.meta?.main_ad || "")),
-    safeTargetWebsite,
+  const normalizedMainAd = stripPhoneNumbers(
+    removeForbiddenInlineContent(
+      stripAdReferenceNumbers(stripHtml(sanitized.meta?.main_ad || "")),
+      safeTargetWebsite,
+    ),
   );
   sanitized.meta.main_ad = normalizeArabicText(normalizedMainAd || "");
 
   if (sanitized.content) {
+    const contentWithoutPhones = stripPhoneLikeNumbers(String(sanitized.content));
     sanitized.content = sanitizeGeneratedHtmlDescription(
-      sanitized.content,
+      contentWithoutPhones,
       safeTargetWebsite,
     );
   }
@@ -3851,6 +3856,21 @@ function buildDeterministicDescription({
   });
 }
 
+function buildHtmlFromData({
+  title,
+  meta,
+  adText,
+  targetWebsite = "masaak",
+}) {
+  // HTML is always generated deterministically from structured metadata and source text.
+  return buildDeterministicDescription({
+    title,
+    meta,
+    adText,
+    targetWebsite,
+  });
+}
+
 function normalizeWordPressData(
   rawData,
   adText,
@@ -4011,7 +4031,7 @@ function normalizeWordPressData(
     adText,
     initialTargetWebsite,
   );
-  const manualContent = buildDeterministicDescription({
+  const manualContent = buildHtmlFromData({
     title: normalizedTitle,
     meta,
     adText,
@@ -4025,7 +4045,7 @@ function normalizeWordPressData(
       stripAdReferenceNumbers(adText || ""),
       initialTargetWebsite,
     );
-    finalContent = buildDeterministicDescription({
+    finalContent = buildHtmlFromData({
       title: normalizedTitle,
       meta,
       adText: cleanedAdText,
@@ -5112,9 +5132,9 @@ async function buildWordPressExtractionPrompt(
         ? "توجيه نظامي: المسار المستهدف لهذا الإعلان هو حساك. التزم بقواعد حساك واستخدم تصنيفاته فقط إلا إذا كان النص عقارياً واضحاً جداً."
         : "";
 
-  return `أنت مساعد متخصص في استخراج بيانات إعلان عربي للنشر في WordPress لموقعين:
-- مسعاك (عقارات)
-- حساك (فعاليات، مستعمل، أنشطة، خدمات)
+  return `أنت محلل بيانات إعلانات عربية. المطلوب استخراج بيانات JSON منظمة فقط.
+
+لا تُنشئ HTML ولا تصف الشكل النهائي للمحتوى. النظام سيبني content و main_ad لاحقاً بشكل حتمي داخل الكود.
 
 النص:
 """
@@ -5126,58 +5146,33 @@ ${targetWebsiteInstruction ? `\n${targetWebsiteInstruction}` : ""}
 ${dynamicLocationHintsText ? `\n${dynamicLocationHintsText}` : ""}
 ${propertyOnlyRules ? `\n\n${propertyOnlyRules}` : ""}
 
-القواعد الإلزامية:
-1) أعد JSON واحد فقط بدون Markdown.
-2) اختر فئة واحدة دقيقة من القوائم المعتمدة أدناه فقط.
-3) حدّد نوع الإعلان: "عرض" أو "طلب" أو "فعالية" أو "خدمة" أو "وظيفة".
-4) إذا كان النص عن فعالية/نشاط/حراج/مستعمل/وظائف/خدمات فاختر فئة من حساك.
-5) إذا كان النص عن عقار (شقة/فيلا/أرض/عمارة/محل/مستودع...) فاختر فئة من مسعاك.
-6) إذا كان طلب شراء/بحث عام: category = "طلبات" و category_id = 83 و parent_catt = "طلبات".
-7) عند اختيار فئة حساك: استخدم arc_category/arc_subcategory، واجعل parent_catt/sub_catt فارغين.
-8) عند اختيار فئة مسعاك: استخدم parent_catt/sub_catt، ويمكن عكسها في arc_category/arc_subcategory.
-9) في حساك لا تُجبر حقول السعر أو المساحة. إذا غير مذكورة اترك price/price_amount/price_type/area/arc_space فارغة.
-10) في مسعاك: إذا وردت مساحة رقمية في النص (مثل 350 متر أو 400م أو مساحة 500) يجب تعبئة area و arc_space بنفس الرقم، ولا تتركهما فارغين عند وجود المساحة في النص. إضافةً إلى ذلك عبّئ الحقول الحرجة: price أو price_type، location/city، category، subcategory.
-11) في إعلانات مسعاك العقارية: title و content و main_ad يجب أن تصف العقار فقط، وليس المكتب أو الشركة أو الوسيط أو الجهة الناشرة أو مصدر النص.
-12) احذف بالكامل أي سطر أو جملة أو عبارة تحتوي على بيانات مكتب أو وسيط أو وكيل أو شركة أو ترخيص أو قروب أو رابط أو حساب سوشال أو أي إشارة لمصدر النص. لا تضع بدلاً منها نقاطاً أو "...".
-13) أعد صياغة العنوان والمحتوى بالعربية بشكل واضح واحترافي مع التركيز على بيانات العقار/العرض فقط وبدون أي إشارة للمرسل أو العميل أو مصدر الإعلان.
-14) المحتوى HTML آمن ومختصر (بدون script/iframe).
-15) للمحتوى العقاري استخدم HTML منظم: h1 ثم p افتتاحي ثم h2+ul للمواصفات ثم h2+ul للمميزات ثم h2+p للسعر ثم h2+p للموقع.
-16) للمحتوى غير العقاري (حساك) استخدم HTML نظيف ودقيق مع أكبر قدر من التفاصيل المتاحة: h1 ثم p افتتاحي ثم h2+ul للتفاصيل/الحالة/المواصفات ثم h2+ul للمزايا أو المتطلبات.
-17) لإعلانات مسعاك فقط: يمكن تضمين الموقع في title إذا كان مذكوراً بوضوح. لإعلانات حساك لا تضف موقعاً غير مذكور صراحة في النص.
-18) الوصف content يجب أن يشمل كل التفاصيل المتاحة من النص بدون اختراع معلومات.
-19) ممنوع داخل content: أرقام الاتصال/الموبايل، أسماء الأشخاص الحقيقيين، اسم المالك، اسم المكتب، بيانات المكتب، أسماء الوسطاء/الوكلاء، التراخيص، القروبات، الروابط، حسابات سناب/انستغرام/تلغرام/إكس/يوتيوب، وأي ملاحظات إدارية أو تسويقية.
-20) طبّق هذا التنظيف على title و content و main_ad فقط. إذا وُجدت بيانات مالك/معلن في حقول مستقلة داخل meta فاتركها في حقولها المناسبة ولا تُدخلها في الوصف.
-21) إذا ظهر اسم مكتب أو اسم جهة غير "مسعاك" أو "حساك" في owner_name فاستبدله بقيمة عامة مثل "المالك" أو "معلن".
-22) املأ meta بحقول ثابتة حتى لو كانت فارغة.
-23) phone_number بصيغة 9665xxxxxxxx إذا متاح.
-24) status دائماً "publish".
-25) احذف أي أرقام مرجعية مثل: رقم القطعة، قطعة 11 أ، رقم الإعلان من العنوان والمحتوى و main_ad.
+قواعد إلزامية مختصرة:
+1) JSON واحد فقط بدون Markdown.
+2) category/subcategory من القوائم المعتمدة فقط.
+3) عقار -> مسعاك. فعاليات/خدمات/وظائف/مستعمل -> حساك.
+4) إذا كان طلب شراء/بحث عام: category = "طلبات" و category_id = 83.
+5) لا تملأ price_method ولا payment_method (خليهما "").
+6) phone_number بصيغة 9665xxxxxxxx إذا متاح.
+7) لا تنقل بيانات مكتب/وسيط/روابط/سوشال إلى title أو raw_details.
+8) city/location قيم جغرافية نظيفة فقط بدون بادئات عامة.
 ${
   isRegeneration
-    ? "26) هذه إعادة توليد لإعلان موجود بالفعل، لذلك IsItAd يجب أن يكون true."
-    : "26) إذا لم يكن إعلاناً واضحاً ضع IsItAd=false مع parse_error."
+    ? "9) هذه إعادة توليد لإعلان موجود، لذا IsItAd = true."
+    : "9) إذا النص ليس إعلاناً واضحاً: IsItAd = false مع parse_error."
 }
-27) لمسعاك فقط: إذا توفر الحي بدون المدينة فاستنتج المدينة المناسبة (مثل الهفوف/المبرز/القرى/العيون). وإذا لم تُذكر المحافظة صراحة فاجعل before_City و before_city = "الأحساء" كقيمة افتراضية. في كل الحالات: location/neighborhood تكون اسم الحي فقط بدون كلمة "حي". في حساك لا تستنتج مدينة غير مذكورة، لكن اجعل before_City و before_city = "الأحساء" إذا كانتا فارغتين.
-28) ممنوع نهائياً داخل title/content/main_ad ظهور الكلمات أو العبارات التالية: "مباشر" و"من الوكيل" و"طرف" وأي صياغة مكافئة لها.
-29) لا تكتب ولا تعبئ حقول طريقة الدفع نهائياً: price_method و payment_method يجب أن تبقى "" دائماً.
-30) مرجع إلزامي لمسعاك (له أولوية على أي تخمين فرعي):
+
+مرجع مسعاك الجغرافي:
 - ${masaakReferenceRulesText}
-31) قواعد الموقع الإلزامية: city = اسم المدينة فقط بدون كلمة "مدينة"، location/neighborhood = اسم الحي فقط بدون كلمة "حي"، before_City = اسم المحافظة أو الدولة أو المنطقة الكبرى فقط. لا تنسخ جملة طويلة مثل "المدينة: الرياض حي النرجس بجوار..." داخل أي حقل.
-32) قارن أولاً مع المرجع الجغرافي الداخلي عند توفره، لكن إذا وردت مدينة أو دولة واضحة في النص وغير موجودة في المرجع فاحتفظ بها كما هي بعد تنظيفها، ولا تستبدلها عشوائياً بقيمة من المرجع.
-33) القيم المرفوضة في حقول الموقع: "ال" أو "حي" أو "مدينة" أو أي قيمة ناقصة/عامة. عند الشك اترك الحقل فارغاً.
-34) قبل إعادة JSON نفّذ مراجعة نهائية على title و content و main_ad: إذا وجدت فيها أي رابط أو اسم مكتب أو اسم وسيط أو اسم قروب أو رقم تواصل أو اسم شخص قصير للتواصل أو عبارة تسويقية أو سطر زخرفي فاحذف هذا الجزء ثم أعد الصياغة.
-35) أمثلة يجب حذفها إذا ظهرت في النص: "مكتب ...", "شركة ...", "مستعدون لتسويق عقاراتكم", "مجموعة عروضات", "بومحمد ☎", "عبدالعزيز ☎", "wa.me/...", "chat.whatsapp.com/...", "example.com".
-36) أمثلة يجب الإبقاء عليها لأنها تفاصيل عقارية: "شارع 20 جنوب", "مساحة 780", "الأطوال 26 في 30", "السعر 325 ألف".
 
 ${trustedCategorySection}
 
-أعد الشكل التالي فقط:
+أعد فقط هذا الشكل:
 {
   "IsItAd": true,
   "status": "publish",
-  "title": "عنوان نظيف ودقيق من النص",
-  "content": "<h1>...</h1><p>...</p>",
-  "excerpt": "وصف مختصر",
+  "title": "",
+  "excerpt": "",
+  "raw_details": [""],
   "category": "",
   "subcategory": "",
   "category_id": "",
@@ -5306,6 +5301,25 @@ function extractPhoneNumbers(text) {
   }
 
   return phoneNumbers.sort((a, b) => b.confidence - a.confidence);
+}
+
+function stripPhoneNumbers(text = "") {
+  let cleaned = String(text || "");
+  const extracted = extractPhoneNumbers(cleaned);
+
+  extracted.forEach((phone) => {
+    const original = String(phone.original || "").trim();
+    if (original) {
+      cleaned = cleaned.split(original).join(" ");
+    }
+
+    const normalized = String(phone.normalized || "").trim();
+    if (normalized) {
+      cleaned = cleaned.split(normalized).join(" ");
+    }
+  });
+
+  return normalizeArabicText(stripPhoneLikeNumbers(cleaned));
 }
 
 /**
@@ -6209,9 +6223,11 @@ module.exports = {
   sanitizeGeneratedHtmlDescription,
   sanitizeWordPressDraftData,
   sanitizeWordPressDataForStorage,
+  stripPhoneNumbers,
   validateUserInput,
   getApiKeysStatus,
   __private: {
+    buildHtmlFromData,
     buildRecoverMissingFieldsPrompt,
     buildWordPressExtractionPrompt,
     buildCleanMainAdText,
@@ -6233,6 +6249,7 @@ module.exports = {
     sanitizeLocationCandidate,
     shouldApplyForbiddenDescriptionRules,
     stripPhoneLikeNumbers,
+    stripPhoneNumbers,
     summarizeRequiredMetadata,
   },
 };

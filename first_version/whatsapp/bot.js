@@ -24,6 +24,7 @@ const adminCommandService = require("../services/adminCommandService");
 const reminderScheduler = require("../services/reminderScheduler");
 const waseetDetector = require("../services/waseetDetector");
 const websiteConfig = require("../config/website.config");
+const duplicateService = require("../services/duplicateService");
 const {
   DEFAULT_WP_BEFORE_CITY_OPTIONS,
   DEFAULT_WP_CITY_OPTIONS,
@@ -984,6 +985,20 @@ async function processMessageFromQueue(messageData) {
     console.log(
       `✅ Ad detected (confidence: ${aiResult.confidence}%): ${aiResult.reason}`
     );
+
+    const recentAdsWindow = Date.now() - 60 * 60 * 1000;
+    const similarDuplicate = duplicateService.findNearDuplicate(
+      messageText,
+      ads.filter((ad) => ad.timestamp >= recentAdsWindow && ad.fromGroup === from),
+      { threshold: 0.7 },
+    );
+
+    if (similarDuplicate?.candidate) {
+      console.log(
+        `⚠️ Near-duplicate detected by similarity (${similarDuplicate.score.toFixed(3)}), existing ad: ${similarDuplicate.candidate.id}`,
+      );
+      return { success: false, reason: "duplicate_by_similarity" };
+    }
 
     const aiCategoryForLimit = resolveCategoryForLimit(aiResult, quickCategory);
 

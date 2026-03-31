@@ -43,6 +43,7 @@ const {
   sanitizeGeneratedHtmlDescription,
   sanitizeWordPressDraftData,
   sanitizeWordPressDataForStorage,
+  stripPhoneNumbers,
 } = require("../services/aiService");
 const apiKeyManager = require("../services/apiKeyManager");
 const dataSync = require("../utils/dataSync");
@@ -1823,6 +1824,17 @@ router.post(
       const editedAt = Date.now();
 
       safeWpData.meta = normalizeManualLocationMeta(normalizedMeta.meta);
+
+      if (typeof safeWpData.title === "string") {
+        safeWpData.title = stripPhoneNumbers(safeWpData.title);
+      }
+      if (typeof safeWpData.content === "string") {
+        safeWpData.content = stripPhoneNumbers(safeWpData.content);
+      }
+      if (typeof safeWpData.meta.main_ad === "string") {
+        safeWpData.meta.main_ad = stripPhoneNumbers(safeWpData.meta.main_ad);
+      }
+
       Object.assign(
         safeWpData,
         sanitizeWordPressDataForStorage(safeWpData, targetWebsite),
