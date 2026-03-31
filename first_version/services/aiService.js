@@ -5096,6 +5096,7 @@ async function buildWordPressExtractionPrompt(
   adText,
   contactHint,
   isRegeneration,
+  preferredTargetWebsite = null,
 ) {
   const taxonomy = await wordpressCategoryService.getTrustedTaxonomy();
   const dynamicLocationHintsText = buildDynamicLocationHintsPromptText();
@@ -5103,6 +5104,13 @@ async function buildWordPressExtractionPrompt(
   const masaakReferenceRulesText =
     MASAAK_REFERENCE_RULE_LINES_FOR_PROMPT.join("\n- ");
   const propertyOnlyRules = buildMasaakPropertyOnlyRulesPrompt();
+  const preferredTarget = normalizeArabicText(preferredTargetWebsite || "");
+  const targetWebsiteInstruction =
+    preferredTarget === "masaak"
+      ? "توجيه نظامي: المسار المستهدف لهذا الإعلان هو مسعاك. التزم بقواعد مسعاك واستخدم تصنيفاته فقط إلا إذا كان النص غير عقاري بشكل صريح جداً."
+      : preferredTarget === "hasak"
+        ? "توجيه نظامي: المسار المستهدف لهذا الإعلان هو حساك. التزم بقواعد حساك واستخدم تصنيفاته فقط إلا إذا كان النص عقارياً واضحاً جداً."
+        : "";
 
   return `أنت مساعد متخصص في استخراج بيانات إعلان عربي للنشر في WordPress لموقعين:
 - مسعاك (عقارات)
@@ -5114,6 +5122,7 @@ ${adText}
 """
 
 ${contactHint}
+${targetWebsiteInstruction ? `\n${targetWebsiteInstruction}` : ""}
 ${dynamicLocationHintsText ? `\n${dynamicLocationHintsText}` : ""}
 ${propertyOnlyRules ? `\n\n${propertyOnlyRules}` : ""}
 
@@ -5955,9 +5964,16 @@ https://chat.whatsapp.com/Ge3nhVs0MFT0ILuqDmuGYd?mode=ems_copy_t
  * @param {string} adText
  * @param {boolean} isRegeneration
  */
-async function extractWordPressData(adText, isRegeneration = false) {
+async function extractWordPressData(
+  adText,
+  isRegeneration = false,
+  options = {},
+) {
   const normalizedAdText = String(adText || "").trim();
   const extractedPhones = extractPhoneNumbers(normalizedAdText);
+  const preferredTargetWebsite = normalizeArabicText(
+    options?.targetWebsite || "",
+  );
 
   if (!hasAnyEnabledProvider()) {
     throw new Error(
@@ -5976,6 +5992,7 @@ async function extractWordPressData(adText, isRegeneration = false) {
     normalizedAdText,
     contactHint,
     isRegeneration,
+    preferredTargetWebsite || null,
   );
 
   const providerOrders = unique([
@@ -6004,13 +6021,19 @@ async function extractWordPressData(adText, isRegeneration = false) {
         isRegeneration,
       );
 
-      return ensureRequiredMetadataCoverage({
+      const normalizedResult = await ensureRequiredMetadataCoverage({
         wpData: normalizedData,
         adText: normalizedAdText,
         extractedPhones,
         isRegeneration,
         maxPasses: 2,
       });
+
+      if (preferredTargetWebsite === "masaak" || preferredTargetWebsite === "hasak") {
+        normalizedResult.targetWebsite = preferredTargetWebsite;
+      }
+
+      return normalizedResult;
     } catch (error) {
       lastError = error;
       console.error(
@@ -6029,7 +6052,7 @@ async function extractWordPressData(adText, isRegeneration = false) {
  * Process a message: detect if it's an ad and generate WordPress data.
  * @param {string} text
  */
-async function processMessage(text) {
+async function processMessage(text, options = {}) {
   try {
     const detection = await detectAd(text);
 
@@ -6054,7 +6077,9 @@ async function processMessage(text) {
 
     try {
       console.log("🤖 Automatically generating WordPress data...");
-      wpData = await extractWordPressData(text);
+      wpData = await extractWordPressData(text, false, {
+        targetWebsite: options?.targetWebsite || "",
+      });
       if (wpData) {
         const inferredTargetWebsite =
           wpData.targetWebsite || inferTargetWebsiteFromData(wpData, text);

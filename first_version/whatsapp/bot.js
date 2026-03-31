@@ -840,6 +840,22 @@ function normalizeText(text) {
   return text.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+function detectTargetWebsiteEarly(messageText = "") {
+  const safeText = String(messageText || "").trim();
+  if (!safeText) return "masaak";
+
+  const quickCategory = resolveTrustedMainCategory(
+    quickDetectCategory(safeText) || "",
+  );
+
+  if (quickCategory && websiteConfig.hasak.categories?.[quickCategory]) {
+    return "hasak";
+  }
+
+  const detected = websiteConfig.detectWebsite(safeText, quickCategory || "", {});
+  return detected === "hasak" ? "hasak" : "masaak";
+}
+
 /**
  * Process a message from the queue
  * This function is called by the message queue for each queued message
@@ -910,7 +926,10 @@ async function processMessageFromQueue(messageData) {
 
   // AI-powered ad detection and enhancement
   try {
-    const aiResult = await processMessage(messageText);
+    const earlyTargetWebsite = detectTargetWebsiteEarly(messageText);
+    const aiResult = await processMessage(messageText, {
+      targetWebsite: earlyTargetWebsite,
+    });
 
     console.log(
       `🔍 AI Result: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`
@@ -2075,7 +2094,10 @@ async function initializeBot() {
               );
 
               // Process through AI
-              const aiResult = await processMessage(messageText);
+              const earlyTargetWebsite = detectTargetWebsiteEarly(messageText);
+              const aiResult = await processMessage(messageText, {
+                targetWebsite: earlyTargetWebsite,
+              });
 
               console.log(
                 `🔍 AI Result for waseet: isAd=${aiResult.isAd}, confidence=${aiResult.confidence}%`
@@ -2768,7 +2790,10 @@ async function retryFailedAd(adId) {
   );
 
   try {
-    const aiResult = await processMessage(ad.text);
+    const earlyTargetWebsite = detectTargetWebsiteEarly(ad.text || "");
+    const aiResult = await processMessage(ad.text, {
+      targetWebsite: earlyTargetWebsite,
+    });
 
     if (aiResult.isAd) {
       const retryQuickCategory = quickDetectCategory(ad.text);
