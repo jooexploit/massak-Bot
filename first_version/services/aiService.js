@@ -14,6 +14,42 @@ const dataSync = require("../utils/dataSync");
 
 const { PROVIDERS } = apiKeyManager;
 
+const PROVIDER_CIRCUIT_BREAKER = {
+  threshold: 3,
+  cooldownMs: 60 * 1000,
+  state: {
+    [PROVIDERS.GEMINI]: { failures: 0, openUntil: 0 },
+    [PROVIDERS.GPT]: { failures: 0, openUntil: 0 },
+  },
+};
+
+function isProviderCircuitOpen(provider) {
+  const state = PROVIDER_CIRCUIT_BREAKER.state[provider];
+  if (!state) return false;
+  return state.openUntil > Date.now();
+}
+
+function recordProviderSuccess(provider) {
+  const state = PROVIDER_CIRCUIT_BREAKER.state[provider];
+  if (!state) return;
+
+  state.failures = 0;
+  state.openUntil = 0;
+}
+
+function recordProviderFailure(provider) {
+  const state = PROVIDER_CIRCUIT_BREAKER.state[provider];
+  if (!state) return;
+
+  state.failures += 1;
+  if (state.failures >= PROVIDER_CIRCUIT_BREAKER.threshold) {
+    state.openUntil = Date.now() + PROVIDER_CIRCUIT_BREAKER.cooldownMs;
+    console.warn(
+      `⛔ Circuit opened for provider=${provider} for ${PROVIDER_CIRCUIT_BREAKER.cooldownMs}ms after ${state.failures} failures`,
+    );
+  }
+}
+
 const DEFAULT_WP_TITLE = "إعلان عقاري مميز";
 const REQUIRED_METADATA_FIELDS = [
   "area",
@@ -1648,6 +1684,18 @@ async function callLLM({
   const normalizedErrors = [];
 
   for (const provider of providers) {
+    if (isProviderCircuitOpen(provider)) {
+      const state = PROVIDER_CIRCUIT_BREAKER.state[provider];
+      normalizedErrors.push({
+        type: "provider_failure",
+        message: `${taskName}: circuit open for provider ${provider}`,
+        provider,
+        attempt: 0,
+        details: { openUntil: state?.openUntil || 0 },
+      });
+      continue;
+    }
+
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       const promptToUse =
         attempt === 1 || !schema
@@ -1669,12 +1717,15 @@ async function callLLM({
         });
 
         if (!schema) {
+          recordProviderSuccess(provider);
           return { provider, rawText, data: rawText };
         }
 
         const data = parseWithSchema(rawText, schema, taskName);
+        recordProviderSuccess(provider);
         return { provider, rawText, data };
       } catch (error) {
+        recordProviderFailure(provider);
         const normalized = normalizeError(error, taskName, provider, attempt);
         normalizedErrors.push(normalized);
 

@@ -888,6 +888,7 @@ async function processMessageFromQueue(messageData) {
     imageUrl,
     participant,
     remoteJid,
+    source,
   } = messageData;
 
   console.log(`⚙️ Processing queued message from: ${groupSubject}`);
@@ -1182,6 +1183,7 @@ async function processMessageFromQueue(messageData) {
       sanitizationSteps: Array.isArray(aiResult.sanitizationSteps)
         ? aiResult.sanitizationSteps
         : [],
+      source: source || null,
       targetWebsite:
         targetWebsite || finalizedWpData?.targetWebsite || null, // Set target website from detection
     };
@@ -2132,6 +2134,30 @@ async function initializeBot() {
               console.log(
                 `✅ Potential ad from waseet ${senderName}, processing with AI...`
               );
+
+              const queueResult = await messageQueue.add(
+                {
+                  messageText,
+                  from,
+                  groupSubject: `وسيط: ${senderName}`,
+                  senderName,
+                  senderPhone,
+                  imageUrl: imageUrl || null,
+                  participant: from,
+                  remoteJid: from,
+                  source: "waseet",
+                },
+                processMessageFromQueue,
+              );
+
+              if (queueResult?.success) {
+                waseetDetector.incrementAdCount(from);
+                await sendMessage(
+                  from,
+                  "✅ تم استلام الإعلان ومعالجته بنفس مسار الجروبات بنجاح.",
+                );
+              }
+              return;
 
               // Process through AI
               const earlyTargetWebsite = detectTargetWebsiteEarly(messageText);

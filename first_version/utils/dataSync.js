@@ -26,6 +26,69 @@ const DATA_FILES = {
   DAILY_SUMMARIES: path.join(DATA_DIR, "daily_summaries.json"),
 };
 
+function lockFilePathFor(filePath) {
+  return `${filePath}.lock`;
+}
+
+function sleepSync(ms) {
+  const start = Date.now();
+  while (Date.now() - start < ms) {
+    // busy wait for short lock windows
+  }
+}
+
+function acquireFileLockSync(filePath, timeoutMs = 5000) {
+  const lockPath = lockFilePathFor(filePath);
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const fd = fs.openSync(lockPath, "wx");
+      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, ts: Date.now() }));
+      fs.closeSync(fd);
+      return lockPath;
+    } catch (err) {
+      if (err.code !== "EEXIST") throw err;
+      sleepSync(25);
+    }
+  }
+
+  throw new Error(`Lock timeout for ${filePath}`);
+}
+
+async function acquireFileLockAsync(filePath, timeoutMs = 5000) {
+  const lockPath = lockFilePathFor(filePath);
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const handle = await fs.promises.open(lockPath, "wx");
+      await handle.writeFile(JSON.stringify({ pid: process.pid, ts: Date.now() }));
+      await handle.close();
+      return lockPath;
+    } catch (err) {
+      if (err.code !== "EEXIST") throw err;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+
+  throw new Error(`Lock timeout for ${filePath}`);
+}
+
+function releaseFileLockSync(lockPath) {
+  if (!lockPath) return;
+  try {
+    fs.rmSync(lockPath, { force: true });
+  } catch {}
+}
+
+async function releaseFileLockAsync(lockPath) {
+  if (!lockPath) return;
+  try {
+    await fs.promises.rm(lockPath, { force: true });
+  } catch {}
+}
+
 /**
  * Read data from a file synchronously with fresh read
  * @param {string} fileKey - Key from DATA_FILES
@@ -70,7 +133,11 @@ function writeDataSync(fileKey, data) {
     throw new Error(`Unknown data file key: ${fileKey}`);
   }
 
+  let lockPath = null;
+
   try {
+    lockPath = acquireFileLockSync(filePath);
+
     // Ensure data directory exists
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -98,6 +165,7 @@ function writeDataSync(fileKey, data) {
     if (verifyData !== jsonData) {
       throw new Error("Data verification failed after write");
     }
+
   } catch (err) {
     console.error(`❌ CRITICAL: Error writing ${fileKey}:`, err.message);
 
@@ -122,6 +190,8 @@ function writeDataSync(fileKey, data) {
     }
 
     throw err;
+  } finally {
+    releaseFileLockSync(lockPath);
   }
 }
 
@@ -174,7 +244,11 @@ async function writeDataAsync(fileKey, data) {
     throw new Error(`Unknown data file key: ${fileKey}`);
   }
 
+  let lockPath = null;
+
   try {
+    lockPath = await acquireFileLockAsync(filePath);
+
     // Ensure data directory exists
     await fs.promises.mkdir(DATA_DIR, { recursive: true });
 
@@ -187,6 +261,8 @@ async function writeDataAsync(fileKey, data) {
   } catch (err) {
     console.error(`Error writing ${fileKey}:`, err.message);
     throw err;
+  } finally {
+    await releaseFileLockAsync(lockPath);
   }
 }
 
