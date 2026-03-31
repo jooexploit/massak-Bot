@@ -280,6 +280,8 @@ function sanitizeStoredAdWordPressData(ad) {
   if (withAuditDefaults.whatsappMessage) {
     const wpLink =
       withAuditDefaults.wordpressLink ||
+      withAuditDefaults.wordpressUrl ||
+      withAuditDefaults.wordpressFullUrl ||
       withAuditDefaults.wordpressPost?.link ||
       withAuditDefaults.wordpressPost?.guid?.rendered ||
       null;
