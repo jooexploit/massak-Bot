@@ -14,6 +14,7 @@ const aiService = require("../services/aiService");
 const {
   processMessage,
   generateWhatsAppMessage,
+  resolveTrustedMainCategory,
   sanitizeWordPressDraftData,
   sanitizeWordPressDataForStorage,
 } = aiService;
