@@ -6317,6 +6317,7 @@ module.exports = {
   sanitizeGeneratedHtmlDescription,
   sanitizeWordPressDraftData,
   sanitizeWordPressDataForStorage,
+  resolveTrustedMainCategory,
   stripPhoneNumbers,
   validateUserInput,
   getApiKeysStatus,
