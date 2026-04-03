@@ -716,16 +716,22 @@ function isGenericWordPressTitle(title = "") {
     .includes(normalized);
 }
 
-function buildFallbackWordPressTitle(meta = {}, adText = "", targetWebsite = "masaak") {
-  const safeTargetWebsite = normalizeArabicText(targetWebsite || "") || "masaak";
+function buildFallbackWordPressTitle(
+  meta = {},
+  adText = "",
+  targetWebsite = "masaak",
+) {
+  const safeTargetWebsite =
+    normalizeArabicText(targetWebsite || "") || "masaak";
   const adTypeBlob = normalizeArabicText(
     [meta.ad_type, meta.order_type, meta.offer_type, adText]
       .filter(Boolean)
       .join(" "),
   );
-  const isRequest = /(?:طلب|مطلوب|ابحث|ابغى|ابغا|ابي|احتاج|محتاج|ودي\s*اشتري|شراء)/i.test(
-    adTypeBlob,
-  );
+  const isRequest =
+    /(?:طلب|مطلوب|ابحث|ابغى|ابغا|ابي|احتاج|محتاج|ودي\s*اشتري|شراء)/i.test(
+      adTypeBlob,
+    );
   const categoryLabel = normalizeArabicText(
     firstNonEmpty(
       meta.sub_catt,
@@ -740,9 +746,7 @@ function buildFallbackWordPressTitle(meta = {}, adText = "", targetWebsite = "ma
 
   if (safeTargetWebsite === "hasak") {
     const itemLabel = categoryLabel || "منتج";
-    return sanitizeTitle(
-      isRequest ? `مطلوب ${itemLabel}` : `عرض ${itemLabel}`,
-    );
+    return sanitizeTitle(isRequest ? `مطلوب ${itemLabel}` : `عرض ${itemLabel}`);
   }
 
   const propertyLabel =
@@ -771,7 +775,8 @@ function resolvePreferredWordPressTitle({
 function ensureNonEmptyWordPressContent(wpData = {}, targetWebsite = "masaak") {
   if (!isObject(wpData)) return wpData;
 
-  const safeTargetWebsite = normalizeArabicText(targetWebsite || "") || "masaak";
+  const safeTargetWebsite =
+    normalizeArabicText(targetWebsite || "") || "masaak";
   const content = String(wpData.content || "").trim();
   if (content) return wpData;
 
