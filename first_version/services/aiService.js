@@ -50,7 +50,7 @@ function recordProviderFailure(provider) {
   }
 }
 
-const DEFAULT_WP_TITLE = "إعلان عقاري مميز";
+const DEFAULT_WP_TITLE = "إعلان مميز";
 const REQUIRED_METADATA_FIELDS = [
   "area",
   "price",
@@ -699,6 +699,111 @@ function sanitizeTitle(title) {
   }
 
   return normalized;
+}
+
+function isGenericWordPressTitle(title = "") {
+  const normalized = normalizeArabicText(title || "").toLowerCase();
+  if (!normalized) return true;
+
+  return [
+    "إعلان عقاري مميز",
+    "اعلان عقاري مميز",
+    "إعلان مميز",
+    "اعلان مميز",
+    "بدون عنوان",
+  ]
+    .map((item) => normalizeArabicText(item).toLowerCase())
+    .includes(normalized);
+}
+
+function buildFallbackWordPressTitle(meta = {}, adText = "", targetWebsite = "masaak") {
+  const safeTargetWebsite = normalizeArabicText(targetWebsite || "") || "masaak";
+  const adTypeBlob = normalizeArabicText(
+    [meta.ad_type, meta.order_type, meta.offer_type, adText]
+      .filter(Boolean)
+      .join(" "),
+  );
+  const isRequest = /(?:طلب|مطلوب|ابحث|ابغى|ابغا|ابي|احتاج|محتاج|ودي\s*اشتري|شراء)/i.test(
+    adTypeBlob,
+  );
+  const categoryLabel = normalizeArabicText(
+    firstNonEmpty(
+      meta.sub_catt,
+      meta.arc_subcategory,
+      meta.subcategory,
+      meta.category,
+      meta.arc_category,
+      meta.parent_catt,
+      "",
+    ),
+  );
+
+  if (safeTargetWebsite === "hasak") {
+    const itemLabel = categoryLabel || "منتج";
+    return sanitizeTitle(
+      isRequest ? `مطلوب ${itemLabel}` : `عرض ${itemLabel}`,
+    );
+  }
+
+  const propertyLabel =
+    categoryLabel ||
+    normalizeArabicText(detectPropertyTypeFromText(adText || "")) ||
+    "عقار";
+  return sanitizeTitle(
+    isRequest ? `مطلوب ${propertyLabel}` : `عرض ${propertyLabel}`,
+  );
+}
+
+function resolvePreferredWordPressTitle({
+  rawTitle,
+  meta = {},
+  adText = "",
+  targetWebsite = "masaak",
+}) {
+  const cleanedTitle = sanitizeTitle(rawTitle || "");
+  if (!isGenericWordPressTitle(cleanedTitle)) {
+    return cleanedTitle;
+  }
+
+  return buildFallbackWordPressTitle(meta, adText, targetWebsite);
+}
+
+function ensureNonEmptyWordPressContent(wpData = {}, targetWebsite = "masaak") {
+  if (!isObject(wpData)) return wpData;
+
+  const safeTargetWebsite = normalizeArabicText(targetWebsite || "") || "masaak";
+  const content = String(wpData.content || "").trim();
+  if (content) return wpData;
+
+  const fallbackTitle = sanitizeTitle(
+    firstNonEmpty(
+      wpData.title,
+      buildFallbackWordPressTitle(
+        wpData.meta || {},
+        firstNonEmpty(wpData.meta?.main_ad, wpData.excerpt, ""),
+        safeTargetWebsite,
+      ),
+    ),
+  );
+  const fallbackBody =
+    normalizeArabicText(
+      removeForbiddenInlineContent(
+        stripAdReferenceNumbers(
+          stripHtml(firstNonEmpty(wpData.meta?.main_ad, wpData.excerpt, "")),
+        ),
+        safeTargetWebsite,
+      ),
+    ) || "تفاصيل الإعلان متاحة حسب البيانات المرفقة.";
+
+  const fallbackHtml = sanitizeGeneratedHtmlDescription(
+    `<h1>${escapeHtml(fallbackTitle)}</h1><p>${escapeHtml(fallbackBody)}</p>`,
+    safeTargetWebsite,
+  );
+
+  wpData.content =
+    fallbackHtml ||
+    `<h1>${escapeHtml(fallbackTitle)}</h1><p>${escapeHtml("تفاصيل الإعلان متاحة حسب البيانات المرفقة.")}</p>`;
+  return wpData;
 }
 
 function escapeHtml(text) {
@@ -3265,11 +3370,16 @@ function sanitizeWordPressDraftData(wpData, targetWebsite = "masaak") {
       }
     : { meta: {} };
 
-  const safeTitle = removeForbiddenInlineContent(
-    stripAdReferenceNumbers(firstNonEmpty(safeData.title, DEFAULT_WP_TITLE)),
+  const fallbackTitle = buildFallbackWordPressTitle(
+    safeData.meta,
+    firstNonEmpty(safeData.meta?.main_ad, safeData.excerpt, ""),
     targetWebsite,
   );
-  safeData.title = sanitizeTitle(safeTitle || DEFAULT_WP_TITLE);
+  const safeTitle = removeForbiddenInlineContent(
+    stripAdReferenceNumbers(firstNonEmpty(safeData.title, fallbackTitle)),
+    targetWebsite,
+  );
+  safeData.title = sanitizeTitle(safeTitle || fallbackTitle);
 
   const rawContent = firstNonEmpty(safeData.content, safeData.description, "");
   safeData.content = rawContent
@@ -3309,15 +3419,18 @@ function sanitizeWordPressDataForStorage(wpData, targetWebsite = "masaak") {
   const safeTargetWebsite = normalizeArabicText(targetWebsite) || "masaak";
   const sanitized = sanitizeWordPressDraftData(wpData, safeTargetWebsite);
 
+  const fallbackTitle = buildFallbackWordPressTitle(
+    sanitized.meta,
+    firstNonEmpty(sanitized.meta?.main_ad, sanitized.excerpt, ""),
+    safeTargetWebsite,
+  );
   sanitized.title = sanitizeTitle(
     stripPhoneNumbers(
       removeForbiddenInlineContent(
-        stripAdReferenceNumbers(
-          firstNonEmpty(sanitized.title, DEFAULT_WP_TITLE),
-        ),
+        stripAdReferenceNumbers(firstNonEmpty(sanitized.title, fallbackTitle)),
         safeTargetWebsite,
       ),
-    ) || DEFAULT_WP_TITLE,
+    ) || fallbackTitle,
   );
 
   const normalizedMainAd = stripPhoneNumbers(
@@ -3337,6 +3450,8 @@ function sanitizeWordPressDataForStorage(wpData, targetWebsite = "masaak") {
       safeTargetWebsite,
     );
   }
+
+  ensureNonEmptyWordPressContent(sanitized, safeTargetWebsite);
 
   sanitized.targetWebsite = safeTargetWebsite;
 
@@ -4095,11 +4210,14 @@ function normalizeWordPressData(
     );
   }
 
-  const safeTitleSeed =
-    removeForbiddenInlineContent(
-      titleValue || DEFAULT_WP_TITLE,
-      initialTargetWebsite,
-    ) || DEFAULT_WP_TITLE;
+  const safeTitleSeed = resolvePreferredWordPressTitle({
+    rawTitle:
+      removeForbiddenInlineContent(titleValue || "", initialTargetWebsite) ||
+      "",
+    meta,
+    adText,
+    targetWebsite: initialTargetWebsite,
+  });
   const normalizedTitle = ensureTitleContainsLocation(
     safeTitleSeed,
     meta,
@@ -4151,9 +4269,19 @@ function normalizeWordPressData(
     initialTargetWebsite,
   );
 
+  const contentWithFallback = ensureNonEmptyWordPressContent(
+    {
+      title: normalizedTitle,
+      content: finalContent,
+      excerpt: normalizeArabicText(excerptValue || ""),
+      meta,
+    },
+    initialTargetWebsite,
+  );
+
   return {
     title: normalizedTitle,
-    content: finalContent,
+    content: contentWithFallback.content,
     excerpt: normalizeArabicText(excerptValue || ""),
     status: "publish",
     meta,
@@ -5220,6 +5348,18 @@ async function buildWordPressExtractionPrompt(
       : preferredTarget === "hasak"
         ? "توجيه نظامي: المسار المستهدف لهذا الإعلان هو حساك. التزم بقواعد حساك واستخدم تصنيفاته فقط إلا إذا كان النص عقارياً واضحاً جداً."
         : "";
+  const titleRules =
+    preferredTarget === "hasak"
+      ? `
+قواعد عنوان حساك الإلزامية:
+- title يجب أن يكون وصفيًا من النص نفسه (نوع المنتج/الخدمة/الفعالية) وليس عنوانًا عامًا.
+- ممنوع تمامًا استخدام عناوين عامة مثل: "إعلان عقاري مميز" أو "إعلان مميز" أو "بدون عنوان".
+- إذا تعذّر استخراج عنوان واضح: استخدم "عرض <الفئة>" أو "مطلوب <الفئة>" حسب ad_type/order_type.
+- إذا كان الإعلان غير عقاري فلا تستخدم ألفاظًا عقارية عامة في title.`
+      : `
+قواعد العنوان الإلزامية:
+- title يجب أن يكون وصفيًا من النص نفسه وليس عنوانًا عامًا.
+- ممنوع استخدام "إعلان مميز" أو "بدون عنوان" كعنوان نهائي.`;
 
   return `أنت محلل بيانات إعلانات عربية. المطلوب استخراج بيانات JSON منظمة فقط.
 
@@ -5232,6 +5372,7 @@ ${adText}
 
 ${contactHint}
 ${targetWebsiteInstruction ? `\n${targetWebsiteInstruction}` : ""}
+${titleRules}
 ${dynamicLocationHintsText ? `\n${dynamicLocationHintsText}` : ""}
 ${propertyOnlyRules ? `\n\n${propertyOnlyRules}` : ""}
 
@@ -5244,10 +5385,11 @@ ${propertyOnlyRules ? `\n\n${propertyOnlyRules}` : ""}
 6) phone_number بصيغة 9665xxxxxxxx إذا متاح.
 7) لا تنقل بيانات مكتب/وسيط/روابط/سوشال إلى title أو raw_details.
 8) city/location قيم جغرافية نظيفة فقط بدون بادئات عامة.
+9) title يجب أن يكون وصفيًا وممنوع أن يكون عنوانًا عامًا مثل "إعلان عقاري مميز".
 ${
   isRegeneration
-    ? "9) هذه إعادة توليد لإعلان موجود، لذا IsItAd = true."
-    : "9) إذا النص ليس إعلاناً واضحاً: IsItAd = false مع parse_error."
+    ? "10) هذه إعادة توليد لإعلان موجود، لذا IsItAd = true."
+    : "10) إذا النص ليس إعلاناً واضحاً: IsItAd = false مع parse_error."
 }
 
 مرجع مسعاك الجغرافي:
