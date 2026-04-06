@@ -1202,6 +1202,9 @@ async function processMessageFromQueue(messageData) {
       targetWebsite: targetWebsite || finalizedWpData?.targetWebsite || null, // Set target website from detection
     };
 
+    const requiresManualRoutingReview =
+      ad.wpData?.meta?.review_required === true;
+
     ads.unshift(ad); // newest first
     // Keep size reasonable
     if (ads.length > 1000) ads = ads.slice(0, 1000);
@@ -1221,7 +1224,12 @@ async function processMessageFromQueue(messageData) {
       ad.fromGroup,
     );
 
-    if (autoPostEnabled && ad.wpData && isGroupAllowedForAutoPost) {
+    if (
+      autoPostEnabled &&
+      ad.wpData &&
+      isGroupAllowedForAutoPost &&
+      !requiresManualRoutingReview
+    ) {
       console.log(
         "🚀 Auto-approve enabled, posting new ad to WordPress automatically...",
       );
@@ -1298,6 +1306,15 @@ async function processMessageFromQueue(messageData) {
           console.error("Error details:", error.response?.data || error);
         }
       })();
+    } else if (
+      autoPostEnabled &&
+      ad.wpData &&
+      isGroupAllowedForAutoPost &&
+      requiresManualRoutingReview
+    ) {
+      console.log(
+        "⏸️ Auto-post skipped: routing confidence is low and requires manual review",
+      );
     } else if (autoPostEnabled && ad.wpData && !isGroupAllowedForAutoPost) {
       console.log(
         `⏭️ Auto-post skipped: group "${ad.fromGroup}" is not in selected auto-post groups`,

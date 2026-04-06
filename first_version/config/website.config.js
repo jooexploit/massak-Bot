@@ -178,7 +178,7 @@ module.exports = {
     subcategories: {},
 
     // Default phone number
-    defaultPhone: "0508001475",
+    defaultPhone: "0507667103",
   },
 
   // ============================================
@@ -292,7 +292,7 @@ module.exports = {
     const hasCarKeyword = carKeywords.some((kw) => lowerText.includes(kw));
     if (hasCarKeyword) {
       console.log(
-        `✅ Car/حراج keyword found in text → Forcing route to Hasak (حراج الحسا)`
+        `✅ Car/حراج keyword found in text → Forcing route to Hasak (حراج الحسا)`,
       );
       return "hasak";
     }
@@ -305,7 +305,7 @@ module.exports = {
       offerType === "فعاليات"
     ) {
       console.log(
-        `✅ order_type/offer_type is "فعالية" → Forcing route to Hasak`
+        `✅ order_type/offer_type is "فعالية" → Forcing route to Hasak`,
       );
       return "hasak";
     }
@@ -314,7 +314,7 @@ module.exports = {
     // Hasak categories should take priority over Masaak for events/activities
     if (this.hasak.categories[category]) {
       console.log(
-        `✅ Category "${category}" found in Hasak → Routing to Hasak`
+        `✅ Category "${category}" found in Hasak → Routing to Hasak`,
       );
       return "hasak";
     }
@@ -322,7 +322,7 @@ module.exports = {
     // Check if category exists in Masaak
     if (this.masaak.categories[category]) {
       console.log(
-        `✅ Category "${category}" found in Masaak → Routing to Masaak`
+        `✅ Category "${category}" found in Masaak → Routing to Masaak`,
       );
       return "masaak";
     }
@@ -344,7 +344,7 @@ module.exports = {
     });
 
     console.log(
-      `🔍 Website Detection Scores - Masaak: ${masaakScore}, Hasak: ${hasakScore}`
+      `🔍 Website Detection Scores - Masaak: ${masaakScore}, Hasak: ${hasakScore}`,
     );
 
     // If Hasak score is higher OR equal (give priority to Hasak for ties)
@@ -363,11 +363,11 @@ module.exports = {
         "مهرجان",
       ];
       const isEvent = eventKeywords.some(
-        (kw) => lowerText.includes(kw) || lowerCategory.includes(kw)
+        (kw) => lowerText.includes(kw) || lowerCategory.includes(kw),
       );
       if (isEvent) {
         console.log(
-          "⚠️ Tie detected but event keywords found → Routing to Hasak"
+          "⚠️ Tie detected but event keywords found → Routing to Hasak",
         );
         return "hasak";
       }

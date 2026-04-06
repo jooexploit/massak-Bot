@@ -24,7 +24,10 @@ const mockedHasakTerms = [
   { id: 2700, name: "فريق حساك", parent: 0 },
 ];
 
-function createHttpGetMock({ masaak = mockedMasaakTerms, hasak = mockedHasakTerms } = {}) {
+function createHttpGetMock({
+  masaak = mockedMasaakTerms,
+  hasak = mockedHasakTerms,
+} = {}) {
   return async (url) => {
     if (url.includes("masaak.com")) {
       return { data: masaak };
@@ -363,4 +366,161 @@ test("location fallback keeps valid cities and countries that are not in the sav
     aiService.__private.sanitizeLocationCandidate("ال", { type: "city" }),
     "",
   );
+});
+
+test("routing decision marks trusted hasak category with high confidence", async () => {
+  await primeTrustedTaxonomy();
+
+  const decision = aiService.__private.inferTargetWebsiteDecision(
+    {
+      category: "الفعاليات والانشطة",
+      meta: {
+        category: "الفعاليات والانشطة",
+      },
+    },
+    "فعالية مجانية اليوم في الأحساء",
+  );
+
+  assert.equal(decision.targetWebsite, "hasak");
+  assert.equal(decision.requiresManualReview, false);
+  assert.ok(decision.confidence >= 0.95);
+});
+
+test("routing decision flags mixed ambiguous message for manual review", () => {
+  const decision = aiService.__private.inferTargetWebsiteDecision(
+    {
+      category: "",
+      meta: {
+        category: "",
+        ad_type: "عرض",
+      },
+    },
+    "فيلا للبيع وفي نفس الوقت فعالية ترفيهية الليلة مع حجز تذاكر",
+  );
+
+  assert.equal(typeof decision.targetWebsite, "string");
+  assert.equal(decision.reason, "keyword_fallback");
+  assert.equal(decision.requiresManualReview, true);
+  assert.ok(decision.confidence < 0.6);
+});
+
+test("event phrasing with required wording does not force Masaak requests", async () => {
+  await primeTrustedTaxonomy();
+
+  const meta = {
+    category: "",
+    parent_catt: "",
+    arc_category: "",
+    subcategory: "",
+    sub_catt: "",
+    arc_subcategory: "",
+    category_id: "",
+    ad_type: "",
+    order_type: "",
+    offer_type: "",
+    order_status: "",
+    offer_status: "",
+  };
+
+  aiService.__private.normalizeWordPressCategoryMeta(
+    meta,
+    "مطلوب حضور برنامج مشروعك يكبر في مركز حي الملك فهد بتاريخ 9 أبريل",
+  );
+
+  assert.notEqual(meta.category, "طلبات");
+  assert.notEqual(meta.parent_catt, "طلبات");
+  assert.notEqual(Number(meta.category_id), 83);
+});
+
+test("detect-ad normalization upgrades clear Hasak event text from low confidence", () => {
+  const normalized = aiService.__private.normalizeAdDetectionResult(
+    "برنامج تدريبي مجاني بتاريخ 9 أبريل، الموقع مركز بر حي الملك فهد، التسجيل عبر QR",
+    {
+      isAd: false,
+      confidence: 28,
+      reason: "غير متعلق بالعقارات",
+    },
+  );
+
+  assert.equal(normalized.isAd, true);
+  assert.ok(normalized.confidence >= 65);
+});
+
+test("detect-ad normalization keeps plain chat as non-ad", () => {
+  const normalized = aiService.__private.normalizeAdDetectionResult(
+    "السلام عليكم كيف حالك",
+    {
+      isAd: false,
+      confidence: 12,
+      reason: "محادثة عادية",
+    },
+  );
+
+  assert.equal(normalized.isAd, false);
+  assert.ok(normalized.confidence < 40);
+});
+
+test("harmonization syncs trusted Hasak detected category into wpData", async () => {
+  await primeTrustedTaxonomy();
+
+  const wpData = {
+    title: "برنامج مجتمعي",
+    category: "طلبات",
+    targetWebsite: "masaak",
+    meta: {
+      category: "طلبات",
+      parent_catt: "طلبات",
+      arc_category: "",
+      category_id: 83,
+      order_status: "طلب جديد",
+      offer_status: "طلب جديد",
+    },
+  };
+
+  const harmonized =
+    aiService.__private.harmonizeDetectedCategoryWithWordPressData(
+      wpData,
+      "الفعاليات والانشطة",
+      "برنامج تدريبي مسائي مع التسجيل عبر QR",
+    );
+
+  assert.equal(harmonized.targetWebsite, "hasak");
+  assert.equal(harmonized.category, "الفعاليات والانشطة");
+  assert.equal(harmonized.meta.category, "الفعاليات والانشطة");
+  assert.equal(harmonized.meta.arc_category, "الفعاليات والانشطة");
+  assert.equal(harmonized.meta.parent_catt, "");
+  assert.equal(harmonized.meta.subcategory, "");
+  assert.equal(harmonized.meta.sub_catt, "");
+  assert.equal(harmonized.meta.category_id, 1900);
+});
+
+test("harmonization restores organizer phone for Hasak when Masaak phone leaked", async () => {
+  await primeTrustedTaxonomy();
+
+  const wpData = {
+    title: "برنامج تدريبي",
+    category: "طلبات",
+    targetWebsite: "masaak",
+    meta: {
+      category: "طلبات",
+      parent_catt: "طلبات",
+      category_id: 83,
+      phone_number: "0508001475",
+      phone: "0508001475",
+      contact: [{ value: "0508001475" }],
+    },
+  };
+
+  const harmonized =
+    aiService.__private.harmonizeDetectedCategoryWithWordPressData(
+      wpData,
+      "الفعاليات والانشطة",
+      "للتواصل 0549114860 والتسجيل عبر QR",
+    );
+
+  assert.equal(harmonized.targetWebsite, "hasak");
+  assert.equal(harmonized.meta.phone_number, "966549114860");
+  assert.equal(harmonized.meta.phone, "966549114860");
+  assert.equal(harmonized.meta.contact.length, 1);
+  assert.equal(harmonized.meta.contact[0].value, "966549114860");
 });

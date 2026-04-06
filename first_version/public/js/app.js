@@ -233,10 +233,16 @@ function setupEventListeners() {
     );
   }
   if (adsBulkPostWpBtn) {
-    adsBulkPostWpBtn.addEventListener("click", handleBulkPostSelectedToWordPress);
+    adsBulkPostWpBtn.addEventListener(
+      "click",
+      handleBulkPostSelectedToWordPress,
+    );
   }
   if (adsBulkRecycleBtn) {
-    adsBulkRecycleBtn.addEventListener("click", handleBulkMoveSelectedToRecycleBin);
+    adsBulkRecycleBtn.addEventListener(
+      "click",
+      handleBulkMoveSelectedToRecycleBin,
+    );
   }
 
   if (adsBulkClearBtn) {
@@ -393,7 +399,10 @@ function setupEventListeners() {
     "select-all-auto-post-groups-btn",
   );
   if (selectAllAutoPostGroupsBtn) {
-    selectAllAutoPostGroupsBtn.addEventListener("click", selectAllAutoPostGroups);
+    selectAllAutoPostGroupsBtn.addEventListener(
+      "click",
+      selectAllAutoPostGroups,
+    );
   }
 
   const deselectAllAutoPostGroupsBtn = document.getElementById(
@@ -406,7 +415,9 @@ function setupEventListeners() {
     );
   }
 
-  const autoPostGroupsSearch = document.getElementById("auto-post-groups-search");
+  const autoPostGroupsSearch = document.getElementById(
+    "auto-post-groups-search",
+  );
   if (autoPostGroupsSearch) {
     autoPostGroupsSearch.addEventListener("input", filterAutoPostGroups);
   }
@@ -1427,8 +1438,9 @@ function toggleBulkAdSelection(adId, isSelected) {
 
 function handleSelectAllVisibleAdsToggle(event) {
   const shouldSelect = event.target.checked;
-  const visibleCards = Array.from(adsList.querySelectorAll(".card[data-ad-id]"))
-    .filter((card) => card.style.display !== "none");
+  const visibleCards = Array.from(
+    adsList.querySelectorAll(".card[data-ad-id]"),
+  ).filter((card) => card.style.display !== "none");
 
   visibleCards.forEach((card) => {
     const adId = card.getAttribute("data-ad-id");
@@ -1510,7 +1522,10 @@ async function handleBulkPostSelectedToWordPress() {
         `Completed successfully: ${succeeded}/${data.total} posted.`,
         "success",
       );
-      showInfo(adsInfo, `✅ Posted ${succeeded} ad(s) to WordPress successfully.`);
+      showInfo(
+        adsInfo,
+        `✅ Posted ${succeeded} ad(s) to WordPress successfully.`,
+      );
     } else {
       const failedIds = results
         .filter((item) => item && !item.success)
@@ -1591,7 +1606,10 @@ async function handleBulkMoveSelectedToRecycleBin() {
         `Completed successfully: ${succeeded}/${data.total} moved to recycle bin.`,
         "success",
       );
-      showInfo(adsInfo, `✅ Moved ${succeeded} ad(s) to recycle bin successfully.`);
+      showInfo(
+        adsInfo,
+        `✅ Moved ${succeeded} ad(s) to recycle bin successfully.`,
+      );
     } else {
       const failedIds = results
         .filter((item) => item && !item.success)
@@ -2017,12 +2035,15 @@ function renderAds(list, reset = true, pagination = {}) {
               <!-- Content Preview -->
               <div style="margin-bottom: 12px;">
                 <strong style="color: #667eea; font-size: 0.9rem;">📄 Content Preview:</strong>
-                <div style="padding: 10px; background: white; border-radius: 4px; margin-top: 4px; max-height: 150px; overflow-y: auto; font-size: 0.85rem; line-height: 1.5;">
+                <div style="padding: 10px; background: white; border-radius: 4px; margin-top: 4px; max-height: 260px; overflow-y: auto; font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap;">
                   ${
                     ad.wpData.content && typeof ad.wpData.content === "string"
                       ? ad.wpData.content
-                          .substring(0, 300)
-                          .replace(/<[^>]*>/g, "") + "..."
+                          .replace(/<br\s*\/?>(\s*)/gi, "\n")
+                          .replace(/<\/(p|div|li|h1|h2|h3|h4|h5|h6)>/gi, "\n")
+                          .replace(/<[^>]*>/g, "")
+                          .replace(/\n{3,}/g, "\n\n")
+                          .trim()
                       : "N/A"
                   }
                 </div>
@@ -8682,7 +8703,8 @@ async function loadAutoPostGroups() {
     });
     if (!settingsRes.ok) throw new Error("Failed to fetch settings");
     const settingsData = await settingsRes.json();
-    currentAutoPostGroups = settingsData.settings.autoApproveWordPressGroups || [];
+    currentAutoPostGroups =
+      settingsData.settings.autoApproveWordPressGroups || [];
 
     // Fetch all groups
     const groupsRes = await fetch("/api/bot/groups/refresh", {
@@ -8765,7 +8787,9 @@ function handleAutoPostGroupToggle(jid, isChecked) {
       currentAutoPostGroups.push(jid);
     }
   } else {
-    currentAutoPostGroups = currentAutoPostGroups.filter((group) => group !== jid);
+    currentAutoPostGroups = currentAutoPostGroups.filter(
+      (group) => group !== jid,
+    );
   }
 
   updateAutoPostGroupsCount();

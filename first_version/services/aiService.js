@@ -1134,21 +1134,30 @@ function enforceWordPressPhonePolicy(meta = {}, targetWebsite = "masaak") {
   const directPhone = normalizePhoneNumber(
     firstNonEmpty(normalizedMeta.phone_number, normalizedMeta.phone),
   );
+  const safeTargetWebsite =
+    normalizeArabicText(targetWebsite || "") || "masaak";
 
   normalizedMeta.contact = contact;
 
-  if (targetWebsite === "masaak") {
+  if (safeTargetWebsite === "masaak") {
     const defaultPhone = String(
-      websiteConfig.getWebsite(targetWebsite)?.defaultPhone || "",
+      websiteConfig.getWebsite(safeTargetWebsite)?.defaultPhone || "",
     ).trim();
+    const normalizedDefaultPhone = normalizePhoneNumber(defaultPhone);
     normalizedMeta.phone_number = defaultPhone || "";
     normalizedMeta.phone = defaultPhone || "";
+    normalizedMeta.contact = normalizedDefaultPhone
+      ? [{ value: normalizedDefaultPhone, type: "phone", confidence: 1 }]
+      : [];
     return normalizedMeta;
   }
 
   const preferredPhone = directPhone || (contact[0] ? contact[0].value : "");
   normalizedMeta.phone_number = preferredPhone || "";
   normalizedMeta.phone = preferredPhone || "";
+  normalizedMeta.contact = preferredPhone
+    ? [{ value: preferredPhone, type: "phone", confidence: 1 }]
+    : contact;
 
   return normalizedMeta;
 }
@@ -2615,6 +2624,28 @@ function hasRealEstateCue(text = "") {
   return /(?:عقار|عقارات|منزل|بيوت|قطعة\s*ارض|قطعة\s*أرض)/i.test(normalized);
 }
 
+function hasHasakCue(text = "") {
+  const normalized = normalizeArabicText(text);
+  if (!normalized) return false;
+
+  if (isTrustedHasakCategory(normalized)) {
+    return true;
+  }
+
+  const hasakKeywords = websiteConfig.categoryDetectionKeywords?.hasak || [];
+  if (
+    hasakKeywords.some((keyword) =>
+      normalized.includes(normalizeArabicText(keyword || "")),
+    )
+  ) {
+    return true;
+  }
+
+  return /(?:فعالية|فعاليات|فعاليه|مهرجان|احتفال|ورشة|ورش|دورة|دورات|برنامج|برامج|تذاكر|حجز|حراج|مستعمل|وظيفة|وظائف|كوفي|مطعم|ترفيهي|توصيل|سيارة|سيارات)/i.test(
+    normalized,
+  );
+}
+
 function canonicalizeMasaakCategory(label) {
   const normalizedRaw = normalizeArabicText(label);
   if (!normalizedRaw) return "";
@@ -2852,6 +2883,7 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
   const offerInText = hasOfferIntent(normalizedAdText);
   const requestInText = hasRequestIntent(normalizedAdText);
   const realEstateInText = hasRealEstateCue(normalizedAdText);
+  const hasakCueInText = hasHasakCue(normalizedAdText);
   const inferredPropertyCategory = canonicalizeMasaakCategory(
     detectPropertyTypeFromText(normalizedAdText),
   );
@@ -2908,16 +2940,21 @@ function normalizeWordPressCategoryMeta(meta, adText = "") {
   }
 
   const requestByMetaCategory =
-    meta.category === "طلبات" ||
-    meta.parent_catt === "طلبات" ||
-    Number(meta.category_id) === 83;
+    (meta.category === "طلبات" ||
+      meta.parent_catt === "طلبات" ||
+      Number(meta.category_id) === 83) &&
+    !hasakCueInText;
+  const requestContextIsRealEstate =
+    realEstateInText || Boolean(inferredPropertyCategory);
   const requestByTypeHint =
-    /طلب/.test(normalizeArabicText(meta.ad_type)) ||
-    /طلب/.test(
-      normalizeArabicText(firstNonEmpty(meta.order_type, meta.offer_type)),
-    );
+    requestContextIsRealEstate &&
+    (/طلب/.test(normalizeArabicText(meta.ad_type)) ||
+      /طلب/.test(
+        normalizeArabicText(firstNonEmpty(meta.order_type, meta.offer_type)),
+      ));
 
-  const requestFromText = requestInText && !offerInText;
+  const requestFromText =
+    requestInText && !offerInText && requestContextIsRealEstate;
   const forceOfferFromText = offerInText && realEstateInText && !requestInText;
 
   const isRequestCategory =
@@ -3051,8 +3088,184 @@ const REAL_ESTATE_KEYWORDS = [
   "عقار",
 ];
 
+const PROPERTY_INTENT_PATTERNS = [
+  /(?:للبيع|للإيجار|للايجار|للتقبيل|عرض\s+عقار|عرض\s+عقاري|عقار|عقارية)/i,
+  /(?:المساحة|مساحة|السعر|حي|الموقع|غرف|غرفة|حمام|مجلس|صك|متر)/i,
+];
+
+const EVENT_INTENT_PATTERNS = [
+  /(?:فعالية|فعاليات|فعاليه|مهرجان|احتفال|ورشة|ورش|دورة|دورات|برنامج|برامج|تذاكر|حجز)/i,
+  /(?:وظيفة|وظائف|توظيف|خدمة|خدمات|منتج|حراج|سيارة|سيارات|مستعمل|كوفي|مطعم|ترفيهي)/i,
+];
+
+function countPatternHits(patterns, text) {
+  const source = normalizeArabicText(text || "");
+  if (!source) return 0;
+
+  let hits = 0;
+  for (const pattern of patterns) {
+    if (pattern.test(source)) {
+      hits += 1;
+    }
+  }
+
+  return hits;
+}
+
+function scoreKeywordMatches(text, category, keywords = []) {
+  const textBlob = normalizeArabicText(text || "");
+  const categoryBlob = normalizeArabicText(category || "");
+
+  return keywords.reduce((score, keyword) => {
+    const normalizedKeyword = normalizeArabicText(keyword || "");
+    if (!normalizedKeyword) return score;
+    if (
+      textBlob.includes(normalizedKeyword) ||
+      categoryBlob.includes(normalizedKeyword)
+    ) {
+      return score + 1;
+    }
+    return score;
+  }, 0);
+}
+
+function inferTargetWebsiteDecision(wpData, adText = "") {
+  const meta = isObject(wpData?.meta) ? wpData.meta : {};
+  const normalizedCategory = normalizeCategoryLabel(
+    firstNonEmpty(
+      wpData?.category,
+      meta.category,
+      meta.arc_category,
+      meta.parent_catt,
+    ),
+  );
+  const normalizedSubcategory = normalizeCategoryLabel(
+    firstNonEmpty(
+      wpData?.subcategory,
+      meta.subcategory,
+      meta.arc_subcategory,
+      meta.sub_catt,
+    ),
+  );
+
+  if (
+    [normalizedCategory, normalizedSubcategory].some((value) =>
+      isTrustedHasakCategory(value),
+    )
+  ) {
+    return {
+      targetWebsite: "hasak",
+      confidence: 0.98,
+      reason: "trusted_hasak_category",
+      requiresManualReview: false,
+    };
+  }
+
+  if (normalizedCategory && isTrustedMasaakCategory(normalizedCategory)) {
+    return {
+      targetWebsite: "masaak",
+      confidence: 0.98,
+      reason: "trusted_masaak_category",
+      requiresManualReview: false,
+    };
+  }
+
+  const adTypeBlob = normalizeArabicText(
+    [
+      meta.ad_type,
+      meta.order_type,
+      meta.offer_type,
+      meta.order_status,
+      meta.offer_status,
+      adText,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  const eventIntentHits = countPatternHits(EVENT_INTENT_PATTERNS, adTypeBlob);
+  const propertyIntentHits = countPatternHits(
+    PROPERTY_INTENT_PATTERNS,
+    adTypeBlob,
+  );
+
+  if (eventIntentHits >= 2 && propertyIntentHits === 0) {
+    return {
+      targetWebsite: "hasak",
+      confidence: 0.9,
+      reason: "intent_event_dominant",
+      requiresManualReview: false,
+    };
+  }
+
+  if (propertyIntentHits >= 2 && eventIntentHits === 0) {
+    return {
+      targetWebsite: "masaak",
+      confidence: 0.9,
+      reason: "intent_property_dominant",
+      requiresManualReview: false,
+    };
+  }
+
+  const detectedWebsite = websiteConfig.detectWebsite(
+    normalizeArabicText(adText || ""),
+    normalizedCategory || "",
+    meta,
+  );
+
+  const masaakScore = scoreKeywordMatches(
+    adText,
+    normalizedCategory,
+    websiteConfig.categoryDetectionKeywords?.masaak || [],
+  );
+  const hasakScore = scoreKeywordMatches(
+    adText,
+    normalizedCategory,
+    websiteConfig.categoryDetectionKeywords?.hasak || [],
+  );
+  const diff = Math.abs(masaakScore - hasakScore);
+  const hasSignals = masaakScore > 0 || hasakScore > 0;
+  const confidence = hasSignals ? (diff >= 2 ? 0.72 : 0.58) : 0.5;
+
+  return {
+    targetWebsite: detectedWebsite === "hasak" ? "hasak" : "masaak",
+    confidence,
+    reason: "keyword_fallback",
+    requiresManualReview: confidence < 0.6,
+  };
+}
+
+function applyRoutingDecisionMetadata(wpData, adText = "") {
+  if (!isObject(wpData)) return wpData;
+
+  const decision = inferTargetWebsiteDecision(wpData, adText);
+  const meta = isObject(wpData.meta) ? wpData.meta : {};
+  const nextMeta = {
+    ...meta,
+    routing_target: decision.targetWebsite,
+    routing_confidence: decision.confidence,
+    routing_reason: decision.reason,
+  };
+
+  if (decision.requiresManualReview) {
+    nextMeta.review_required = true;
+    nextMeta.parse_notes = appendParseNote(
+      nextMeta.parse_notes,
+      `تصنيف منخفض الثقة (${Math.round(decision.confidence * 100)}%) - يحتاج مراجعة يدوية`,
+    );
+  }
+
+  return {
+    ...wpData,
+    targetWebsite: decision.targetWebsite,
+    meta: nextMeta,
+  };
+}
+
 function shouldApplyForbiddenDescriptionRules(targetWebsite = "masaak") {
-  return true;
+  const safeTargetWebsite =
+    normalizeArabicText(targetWebsite || "") || "masaak";
+  return safeTargetWebsite === "masaak";
 }
 
 function removeForbiddenInlineContent(text, targetWebsite = "masaak") {
@@ -3409,6 +3622,7 @@ function sanitizeWordPressDraftData(wpData, targetWebsite = "masaak") {
   }
 
   if (
+    targetWebsite === "masaak" &&
     isOwnerOrAdministrativeDetailLine(safeData.meta.owner_name, targetWebsite)
   ) {
     safeData.meta.owner_name = "المالك";
@@ -3429,27 +3643,31 @@ function sanitizeWordPressDataForStorage(wpData, targetWebsite = "masaak") {
     firstNonEmpty(sanitized.meta?.main_ad, sanitized.excerpt, ""),
     safeTargetWebsite,
   );
+  const cleanedTitle = removeForbiddenInlineContent(
+    stripAdReferenceNumbers(firstNonEmpty(sanitized.title, fallbackTitle)),
+    safeTargetWebsite,
+  );
   sanitized.title = sanitizeTitle(
-    stripPhoneNumbers(
-      removeForbiddenInlineContent(
-        stripAdReferenceNumbers(firstNonEmpty(sanitized.title, fallbackTitle)),
-        safeTargetWebsite,
-      ),
-    ) || fallbackTitle,
+    (safeTargetWebsite === "masaak"
+      ? stripPhoneNumbers(cleanedTitle)
+      : normalizeArabicText(cleanedTitle)) || fallbackTitle,
   );
 
-  const normalizedMainAd = stripPhoneNumbers(
-    removeForbiddenInlineContent(
-      stripAdReferenceNumbers(stripHtml(sanitized.meta?.main_ad || "")),
-      safeTargetWebsite,
-    ),
+  const cleanedMainAd = removeForbiddenInlineContent(
+    stripAdReferenceNumbers(stripHtml(sanitized.meta?.main_ad || "")),
+    safeTargetWebsite,
   );
+  const normalizedMainAd =
+    safeTargetWebsite === "masaak"
+      ? stripPhoneNumbers(cleanedMainAd)
+      : normalizeArabicText(cleanedMainAd);
   sanitized.meta.main_ad = normalizeArabicText(normalizedMainAd || "");
 
   if (sanitized.content) {
-    const contentWithoutPhones = stripPhoneLikeNumbers(
-      String(sanitized.content),
-    );
+    const contentWithoutPhones =
+      safeTargetWebsite === "masaak"
+        ? stripPhoneLikeNumbers(String(sanitized.content))
+        : String(sanitized.content);
     sanitized.content = sanitizeGeneratedHtmlDescription(
       contentWithoutPhones,
       safeTargetWebsite,
@@ -4297,52 +4515,101 @@ function normalizeWordPressData(
 }
 
 function inferTargetWebsiteFromData(wpData, adText = "") {
-  const meta = isObject(wpData?.meta) ? wpData.meta : {};
-  const normalizedCategory = normalizeCategoryLabel(
+  return inferTargetWebsiteDecision(wpData, adText).targetWebsite;
+}
+
+function harmonizeDetectedCategoryWithWordPressData(
+  wpData,
+  detectedCategory,
+  adText = "",
+) {
+  if (!isObject(wpData)) return wpData;
+
+  const trustedDetectedHasak = resolveTrustedMainCategory(
+    detectedCategory,
+    "hasak",
+  );
+  if (!trustedDetectedHasak) {
+    return wpData;
+  }
+
+  const meta = isObject(wpData.meta) ? { ...wpData.meta } : {};
+  const currentMainCategory = resolveTrustedMainCategory(
     firstNonEmpty(
-      wpData?.category,
+      wpData.category,
       meta.category,
       meta.arc_category,
       meta.parent_catt,
     ),
   );
-  const normalizedSubcategory = normalizeCategoryLabel(
-    firstNonEmpty(
-      wpData?.subcategory,
-      meta.subcategory,
-      meta.arc_subcategory,
-      meta.sub_catt,
-    ),
+  const currentIsHasak = Boolean(
+    currentMainCategory &&
+    resolveTrustedMainCategory(currentMainCategory, "hasak"),
   );
 
-  if (
-    [normalizedCategory, normalizedSubcategory].some((value) =>
-      isTrustedHasakCategory(value),
-    )
-  ) {
-    return "hasak";
+  if (currentIsHasak && currentMainCategory === trustedDetectedHasak) {
+    return wpData;
   }
 
-  if (normalizedCategory && isTrustedMasaakCategory(normalizedCategory)) {
-    return "masaak";
-  }
+  meta.category = trustedDetectedHasak;
+  meta.arc_category = trustedDetectedHasak;
+  meta.parent_catt = "";
+  meta.subcategory = "";
+  meta.sub_catt = "";
+  meta.arc_subcategory = "";
+  meta.category_id = resolveCategoryId(trustedDetectedHasak, "hasak");
 
-  const adTypeBlob = normalizeArabicText(
-    [meta.ad_type, meta.order_type, meta.offer_type].filter(Boolean).join(" "),
+  const masaakDefaultPhone = normalizePhoneNumber(
+    websiteConfig.getWebsite("masaak")?.defaultPhone || "",
   );
-  if (
-    /(?:فعالية|فعاليات|خدمة|خدمات|وظيفة|وظائف|برنامج|برامج|حراج|مستعمل|منتجعات|ترفيهي)/i.test(
-      adTypeBlob,
-    )
-  ) {
-    return "hasak";
+  const hasakDefaultPhone = normalizePhoneNumber(
+    websiteConfig.getWebsite("hasak")?.defaultPhone || "",
+  );
+  const extractedPhones = extractPhoneNumbers(adText);
+  const extractedPrimaryPhone = extractedPhones[0]?.normalized || "";
+  const currentPhone = normalizePhoneNumber(
+    firstNonEmpty(meta.phone_number, meta.phone),
+  );
+  const currentContacts = normalizeContactList(meta.contact || []);
+
+  const hasLeakedMasaakPhone =
+    Boolean(currentPhone) &&
+    currentPhone === masaakDefaultPhone &&
+    currentPhone !== hasakDefaultPhone;
+
+  if (extractedPrimaryPhone) {
+    meta.phone_number = extractedPrimaryPhone;
+    meta.phone = extractedPrimaryPhone;
+    meta.contact = [
+      { value: extractedPrimaryPhone, type: "phone", confidence: 1 },
+    ];
+  } else if (hasLeakedMasaakPhone) {
+    // No organizer phone found in text: clear leaked platform phone for Hasak.
+    meta.phone_number = "";
+    meta.phone = "";
+    meta.contact = [];
+  } else if (currentContacts.length > 0) {
+    meta.contact = currentContacts;
+    meta.phone_number = currentContacts[0].value || "";
+    meta.phone = currentContacts[0].value || "";
   }
 
-  return websiteConfig.detectWebsite(
-    normalizeArabicText(adText || ""),
-    normalizedCategory || "",
+  meta.order_status = meta.order_status || "عرض جديد";
+  meta.offer_status = meta.offer_status || "عرض جديد";
+  meta.order_type = meta.order_type || meta.ad_type || "عرض";
+  meta.offer_type = meta.offer_type || meta.order_type || "عرض";
+  meta.parse_notes = appendParseNote(
+    meta.parse_notes,
+    `تمت مزامنة تصنيف ووردبريس مع تصنيف الفلتر الموثوق: ${trustedDetectedHasak}`,
+  );
+
+  return {
+    ...wpData,
+    category: trustedDetectedHasak,
+    subcategory: "",
+    targetWebsite: "hasak",
     meta,
-  );
+  };
 }
 
 function getRequiredMetadataFieldsForAd(wpData, adText = "") {
@@ -5262,7 +5529,7 @@ async function ensureRequiredMetadataCoverage({
   for (let pass = 1; pass <= maxPasses; pass += 1) {
     const initialCheck = getMissingRequiredMetadataFields(current, adText);
     if (initialCheck.missing.length === 0) {
-      return current;
+      return applyRoutingDecisionMetadata(current, adText);
     }
 
     console.log(
@@ -5273,11 +5540,9 @@ async function ensureRequiredMetadataCoverage({
     let checkAfterFallback = getMissingRequiredMetadataFields(merged, adText);
 
     if (checkAfterFallback.missing.length === 0) {
-      return normalizeWordPressData(
-        merged,
+      return applyRoutingDecisionMetadata(
+        normalizeWordPressData(merged, adText, extractedPhones, isRegeneration),
         adText,
-        extractedPhones,
-        isRegeneration,
       );
     }
 
@@ -5311,7 +5576,7 @@ async function ensureRequiredMetadataCoverage({
 
     checkAfterFallback = getMissingRequiredMetadataFields(current, adText);
     if (checkAfterFallback.missing.length === 0) {
-      return current;
+      return applyRoutingDecisionMetadata(current, adText);
     }
   }
 
@@ -5331,7 +5596,7 @@ async function ensureRequiredMetadataCoverage({
     );
   }
 
-  return finalNormalized;
+  return applyRoutingDecisionMetadata(finalNormalized, adText);
 }
 
 async function buildWordPressExtractionPrompt(
@@ -5622,6 +5887,17 @@ function useFallbackDetection(text) {
     "منتجع",
     "فعالية",
     "فعاليه",
+    "فعاليات",
+    "برنامج",
+    "برامج",
+    "تدريب",
+    "تدريبي",
+    "ورشة",
+    "ورشه",
+    "دورة",
+    "دوره",
+    "التسجيل",
+    "حجز",
     "نشاط",
     "ترفيه",
     "توصيل",
@@ -5681,6 +5957,42 @@ function useFallbackDetection(text) {
   return { isAd, confidence, reason };
 }
 
+function normalizeAdDetectionResult(text, detection) {
+  const safe = isObject(detection)
+    ? {
+        isAd: Boolean(detection.isAd),
+        confidence: clamp(
+          extractNumericValue(detection.confidence) || 0,
+          0,
+          100,
+        ),
+        reason: normalizeArabicText(detection.reason || "") || "",
+      }
+    : {
+        isAd: false,
+        confidence: 0,
+        reason: "",
+      };
+
+  const normalizedText = normalizeArabicText(text || "");
+  const hasakLikeAd = hasHasakCue(normalizedText);
+  const hasCallToAction =
+    /(?:التسجيل|حجز|للحضور|موعد|التاريخ|الموقع|مجان[يى]|الدعوة|للتواصل)/i.test(
+      normalizedText,
+    );
+
+  // If the LLM under-classifies clear Hasak event/service content, force ad mode.
+  if ((!safe.isAd || safe.confidence < 40) && hasakLikeAd && hasCallToAction) {
+    return {
+      isAd: true,
+      confidence: Math.max(65, safe.confidence),
+      reason: safe.reason || "إعلان فعالية/خدمة واضح ضمن نطاق حساك وتم اعتماده",
+    };
+  }
+
+  return safe;
+}
+
 /**
  * Detect if a message is an advertisement.
  * @param {string} text
@@ -5695,12 +6007,16 @@ async function detectAd(text, maxRetries = null, currentRetry = 0) {
     return useFallbackDetection(text);
   }
 
-  const prompt = `You are an expert classifier for Arabic real-estate and marketplace ads.
+  const prompt = `You are an expert classifier for Arabic ads used by two websites:
+- Masaak: real-estate listings and requests
+- Hasak: events, activities, training programs, services, jobs, and used-item marketplace
 Analyze the text and return strict JSON only:
 {"isAd": boolean, "confidence": number(0-100), "reason": "short Arabic reason"}
 
 Rules:
-- Treat property offers, requests, and Saudi dialect intent messages as ads.
+- Treat Masaak real-estate listings/requests as ads.
+- Treat Hasak announcements as ads when they include event/service/program details (time/date/location/registration/contact), even if non-commercial or community-based.
+- Do NOT require real-estate intent for Hasak.
 - Treat plain greetings and non-commercial chat as not ads.
 - Confidence must be realistic and not always 100.
 
@@ -5717,10 +6033,10 @@ Text:\n"${text}"`;
       maxRetries,
     });
 
-    return data;
+    return normalizeAdDetectionResult(text, data);
   } catch (error) {
     console.error("Error in detectAd:", error.message || error);
-    return useFallbackDetection(text);
+    return normalizeAdDetectionResult(text, useFallbackDetection(text));
   }
 }
 
@@ -6365,6 +6681,12 @@ async function processMessage(text, options = {}) {
         sanitizationSteps.push(...extractionResult.sanitizationSteps);
       }
       if (wpData) {
+        wpData = harmonizeDetectedCategoryWithWordPressData(
+          wpData,
+          detectedCategory,
+          text,
+        );
+        sanitizationSteps.push("harmonizeDetectedCategoryWithWordPressData");
         const inferredTargetWebsite =
           wpData.targetWebsite || inferTargetWebsiteFromData(wpData, text);
         wpData = sanitizeWordPressDataForStorage(wpData, inferredTargetWebsite);
@@ -6479,8 +6801,11 @@ module.exports = {
     extractPhoneNumbers,
     extractLocationFromTextFallback,
     hasForbiddenDescriptionContent,
+    harmonizeDetectedCategoryWithWordPressData,
+    inferTargetWebsiteDecision,
     inferTargetWebsiteFromData,
     normalizeLocationMeta,
+    normalizeAdDetectionResult,
     normalizeMasaakSubcategory,
     normalizeWordPressCategoryMeta,
     removeForbiddenInlineContent,
