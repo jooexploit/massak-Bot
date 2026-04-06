@@ -563,3 +563,29 @@ test("Hasak content keeps explicit fees when present in text", () => {
 
   assert.match(html, /150\s*ريال/i);
 });
+
+test("rebuildHasakNarrativeFromSource removes stale Masaak labels and location injection", () => {
+  const rebuilt = aiService.__private.rebuildHasakNarrativeFromSource(
+    {
+      title:
+        "محاضرة علمية حول اضطراب طيف التوحد - قراءة علمية من واقع تجربة أسرية في الهفوف - الأحساء",
+      content:
+        "<h2>المواصفات</h2><ul><li>نوع العقار: استراحة</li></ul><h2>السعر</h2><p>عند التواصل</p>",
+      meta: {
+        category: "الفعاليات والانشطة",
+        arc_category: "الفعاليات والانشطة",
+        parent_catt: "",
+        location: "الرفوف",
+        City: "",
+        before_City: "",
+        price_type: "عند التواصل",
+      },
+    },
+    "محاضرة علمية حول اضطراب طيف التوحد بتاريخ 7 أبريل 2026 في القاعة الرئيسية.",
+  );
+
+  assert.doesNotMatch(rebuilt.title, /الهفوف|الأحساء/i);
+  assert.doesNotMatch(rebuilt.content, /نوع\s*العقار/i);
+  assert.doesNotMatch(rebuilt.content, /<h2>\s*السعر\s*<\/h2>/i);
+  assert.doesNotMatch(rebuilt.content, /السعر\s*:\s*عند\s*التواصل/i);
+});

@@ -4632,6 +4632,55 @@ function harmonizeDetectedCategoryWithWordPressData(
   };
 }
 
+function rebuildHasakNarrativeFromSource(wpData, adText = "") {
+  if (!isObject(wpData)) return wpData;
+
+  const normalized = {
+    ...wpData,
+    meta: isObject(wpData.meta) ? { ...wpData.meta } : {},
+  };
+
+  const titleSeed = resolvePreferredWordPressTitle({
+    rawTitle: removeForbiddenInlineContent(
+      stripAdReferenceNumbers(firstNonEmpty(normalized.title, "")),
+      "hasak",
+    ),
+    meta: normalized.meta,
+    adText,
+    targetWebsite: "hasak",
+  });
+
+  const normalizedTitle = ensureTitleContainsLocation(
+    titleSeed,
+    normalized.meta,
+    adText,
+    "hasak",
+  );
+
+  let rebuiltContent = buildHtmlFromData({
+    title: normalizedTitle,
+    meta: normalized.meta,
+    adText,
+    targetWebsite: "hasak",
+  });
+  rebuiltContent = sanitizeGeneratedHtmlDescription(rebuiltContent, "hasak");
+
+  const rawExcerpt = stripHtml(
+    firstNonEmpty(normalized.excerpt, normalized.meta.main_ad, adText),
+  );
+  const rebuiltExcerpt = normalizeArabicText(
+    removeForbiddenInlineContent(stripAdReferenceNumbers(rawExcerpt), "hasak"),
+  );
+
+  return {
+    ...normalized,
+    title: normalizedTitle,
+    content: rebuiltContent,
+    excerpt: rebuiltExcerpt,
+    targetWebsite: "hasak",
+  };
+}
+
 function getRequiredMetadataFieldsForAd(wpData, adText = "") {
   const targetWebsite = inferTargetWebsiteFromData(wpData, adText);
   if (targetWebsite === "hasak") {
@@ -6710,6 +6759,10 @@ async function processMessage(text, options = {}) {
         sanitizationSteps.push("harmonizeDetectedCategoryWithWordPressData");
         const inferredTargetWebsite =
           wpData.targetWebsite || inferTargetWebsiteFromData(wpData, text);
+        if (inferredTargetWebsite === "hasak") {
+          wpData = rebuildHasakNarrativeFromSource(wpData, text);
+          sanitizationSteps.push("rebuildHasakNarrativeFromSource");
+        }
         wpData = sanitizeWordPressDataForStorage(wpData, inferredTargetWebsite);
         sanitizationSteps.push("sanitizeWordPressDataForStorage");
       }
@@ -6829,6 +6882,7 @@ module.exports = {
     normalizeAdDetectionResult,
     normalizeMasaakSubcategory,
     normalizeWordPressCategoryMeta,
+    rebuildHasakNarrativeFromSource,
     removeForbiddenInlineContent,
     resolveCategoryId,
     resolveTrustedMainCategory,
