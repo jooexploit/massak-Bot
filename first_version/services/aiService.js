@@ -4184,7 +4184,17 @@ function buildNonRealEstateHtmlDescription({
   });
 
   const priceSummary = formatPriceSummary(meta, targetWebsite);
-  if (priceSummary && priceSummary !== "لم يذكر") {
+  const hasExplicitPriceCueInText = /(?:\d[\d\s,.]*\s*(?:ريال|﷼)|رسوم|سعر|التذكرة|التذاكر|قيمة\s*الاشتراك|اشتراك\s*ب(?:مبلغ|قيمة))/i.test(
+    normalizeArabicText(adText || ""),
+  );
+  const shouldAppendSyntheticPriceLine =
+    targetWebsite !== "hasak" || hasExplicitPriceCueInText;
+
+  if (
+    shouldAppendSyntheticPriceLine &&
+    priceSummary &&
+    priceSummary !== "لم يذكر"
+  ) {
     const hasPriceMention = detailParts.some((line) => {
       const normalizedLine = normalizeArabicText(line);
       return (
@@ -4256,6 +4266,15 @@ function buildDeterministicDescription({
   adText,
   targetWebsite = "masaak",
 }) {
+  if (targetWebsite === "hasak") {
+    return buildNonRealEstateHtmlDescription({
+      title,
+      meta,
+      adText,
+      targetWebsite,
+    });
+  }
+
   if (isLikelyRealEstateMeta(meta, adText)) {
     return buildRealEstateHtmlDescription({
       title,
@@ -5625,7 +5644,8 @@ async function buildWordPressExtractionPrompt(
 - title يجب أن يكون وصفيًا من النص نفسه (نوع المنتج/الخدمة/الفعالية) وليس عنوانًا عامًا.
 - ممنوع تمامًا استخدام عناوين عامة مثل: "إعلان عقاري مميز" أو "إعلان مميز" أو "بدون عنوان".
 - إذا تعذّر استخراج عنوان واضح: استخدم "عرض <الفئة>" أو "مطلوب <الفئة>" حسب ad_type/order_type.
-- إذا كان الإعلان غير عقاري فلا تستخدم ألفاظًا عقارية عامة في title.`
+- إذا كان الإعلان غير عقاري فلا تستخدم ألفاظًا عقارية عامة في title.
+- في حساك ممنوع إدخال أي حقول أو عبارات عقارية داخل الوصف مثل: "نوع العقار"، "التصنيف الفرعي"، "المساحة"، أو توليد سطر سعر افتراضي من نوع "السعر: عند التواصل" ما لم يذكر النص سعرًا/رسومًا بشكل صريح.`
       : `
 قواعد العنوان الإلزامية:
 - title يجب أن يكون وصفيًا من النص نفسه وليس عنوانًا عامًا.

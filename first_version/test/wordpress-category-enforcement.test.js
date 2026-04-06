@@ -524,3 +524,42 @@ test("harmonization restores organizer phone for Hasak when Masaak phone leaked"
   assert.equal(harmonized.meta.contact.length, 1);
   assert.equal(harmonized.meta.contact[0].value, "966549114860");
 });
+
+test("Hasak deterministic content does not inject real-estate labels", () => {
+  const html = aiService.__private.buildHtmlFromData({
+    title: "محاضرة علمية",
+    meta: {
+      category: "الفعاليات والانشطة",
+      parent_catt: "استراحة",
+      arc_category: "استراحة",
+      price_type: "عند التواصل",
+      price: "",
+      price_amount: "",
+    },
+    adText:
+      "محاضرة علمية حول اضطراب طيف التوحد، الموعد 7 أبريل 2026 في القاعة الرئيسية.",
+    targetWebsite: "hasak",
+  });
+
+  assert.doesNotMatch(html, /نوع\s*العقار/i);
+  assert.doesNotMatch(html, /التصنيف\s*الفرعي/i);
+  assert.doesNotMatch(html, /المساحة/i);
+  assert.doesNotMatch(html, /<h2>\s*السعر\s*<\/h2>/i);
+  assert.doesNotMatch(html, /السعر\s*:\s*عند\s*التواصل/i);
+});
+
+test("Hasak content keeps explicit fees when present in text", () => {
+  const html = aiService.__private.buildHtmlFromData({
+    title: "ورشة تدريبية",
+    meta: {
+      category: "الفعاليات والانشطة",
+      price_type: "",
+      price: "",
+      price_amount: "",
+    },
+    adText: "ورشة تدريبية، رسوم الاشتراك 150 ريال، الموعد الخميس.",
+    targetWebsite: "hasak",
+  });
+
+  assert.match(html, /150\s*ريال/i);
+});
