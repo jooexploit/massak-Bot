@@ -4184,9 +4184,10 @@ function buildNonRealEstateHtmlDescription({
   });
 
   const priceSummary = formatPriceSummary(meta, targetWebsite);
-  const hasExplicitPriceCueInText = /(?:\d[\d\s,.]*\s*(?:ريال|﷼)|رسوم|سعر|التذكرة|التذاكر|قيمة\s*الاشتراك|اشتراك\s*ب(?:مبلغ|قيمة))/i.test(
-    normalizeArabicText(adText || ""),
-  );
+  const hasExplicitPriceCueInText =
+    /(?:\d[\d\s,.]*\s*(?:ريال|﷼)|رسوم|سعر|التذكرة|التذاكر|قيمة\s*الاشتراك|اشتراك\s*ب(?:مبلغ|قيمة))/i.test(
+      normalizeArabicText(adText || ""),
+    );
   const shouldAppendSyntheticPriceLine =
     targetWebsite !== "hasak" || hasExplicitPriceCueInText;
 
